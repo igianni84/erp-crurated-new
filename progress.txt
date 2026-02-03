@@ -568,3 +568,248 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - CheckboxList with descriptions() provides inline help for each option
   - TimePicker component with seconds(false) provides clean time selection UI
 ---
+
+## 2026-02-03 - US-029
+- What was implemented:
+  - Step 6 (Review & Create) for PricingPolicy wizard with complete summary before creation
+  - Summary Header: green gradient banner welcoming users to review their policy
+  - Policy Identity section: name and policy type badge preview
+  - Pricing Formula section: reuses generateFormulaPreview() for plain-language formula display
+  - Input Configuration section: dynamic summary based on policy type (cost source, reference price book, index settings, adjustments, rounding)
+  - Target & Scope section: target Price Book details, scope description with SKU count, market/channel restrictions
+  - Execution section: cadence badge with schedule/trigger details
+  - Status & Next Steps section: info banner explaining Draft status and next steps after creation
+  - Updated wizard submit action to include two buttons: "Create as Draft" and "Create and Activate"
+  - Added $activateAfterCreate property for tracking user choice
+  - Updated afterCreate() to handle activation option with audit logging
+- Files changed:
+  - app/Filament/Resources/PricingPolicyResource/Pages/CreatePricingPolicy.php (modified - added getReviewStep, updated getSteps, updated getWizardSubmitAction, added activateAfterCreate property, updated afterCreate)
+- **Learnings for future iterations:**
+  - Review steps should reuse existing preview methods (like generateFormulaPreview) for consistency
+  - Dual submit actions can be implemented with wire:click="$set('property', value)" in Blade templates
+  - Public properties on Livewire components persist across form submission
+  - Color-coded badges help users quickly identify policy type and execution cadence
+  - Unicode escapes like \u20AC work in PHP strings for special characters (Euro symbol)
+  - Calculating scope preview requires careful null checks for nested relationships
+---
+
+## 2026-02-03 - US-030
+- What was implemented:
+  - PricingPolicy Detail view with 7 tabs using Filament Infolist Tabs component
+  - Tab Overview: policy ID, name, policy_type (badge), input_source (badge), status, execution_cadence, target Price Book with link, formula summary, last execution result, execution statistics
+  - Tab Logic: policy type description, calculation parameters (margin_percentage, markup_value, rounding_rule), tiered logic display, complete logic_definition JSON view, formula preview
+  - Tab Scope: scope type/reference, scope description, market restrictions, channel restrictions, scope resolution info
+  - Tab Execution: execution status (can_execute, can_dry_run), execution cadence description, schedule configuration (for scheduled policies), event triggers (for event-triggered policies), execution actions info, execution history (last 5)
+  - Tab Impact Preview: preview information, placeholder price comparison table, warnings section (placeholder - actual preview requires dry run execution from US-031)
+  - Tab Lifecycle: current status with description, available transitions (activate/pause/resume/archive), status transition rules, editable state, timestamps
+  - Tab Audit: audit history with filter by event type/date range, execution logs with full details, audit information
+  - Header actions: Edit (visible for draft), Dry Run (placeholder for US-031), Execute Now (placeholder for US-031), Activate, Pause, Resume, Archive with status transition audit logging
+- Files changed:
+  - app/Filament/Resources/PricingPolicyResource/Pages/ViewPricingPolicy.php (modified - added 7 tabs with complete implementation)
+- **Learnings for future iterations:**
+  - PricingPolicy Detail follows the same pattern as PriceBook Detail with tabbed infolist
+  - Header actions for status transitions can include audit logging inline using $record->auditLogs()->create()
+  - Placeholder actions (Dry Run, Execute Now) can show notifications explaining future implementation
+  - RepeatableEntry can be used with getStateUsing() to display related records like executions
+  - PolicyScopeType enum has isAllScope(), isCategoryScope() etc. helper methods for conditional display
+  - latestExecution() method on PricingPolicy provides quick access to most recent execution
+---
+
+## 2026-02-03 - US-031
+- What was implemented:
+  - PricingPolicyService class in `app/Services/Commercial/` with full execution logic
+  - `activate(PricingPolicy)` method: draft → active with audit logging
+  - `pause(PricingPolicy)` method: active → paused with audit logging
+  - `archive(PricingPolicy)` method: active/paused → archived with audit logging
+  - `execute(PricingPolicy, isDryRun)` method: executes pricing logic and generates prices
+  - `resolveScope(PricingPolicy)` method: resolves policy scope to Collection of SellableSku
+  - `calculatePrice(PricingPolicy, SellableSku)` method: calculates price based on policy type
+  - Price calculation implementations for all policy types: CostPlusMargin, ReferencePriceBook, IndexBased, FixedAdjustment, Rounding
+  - Rounding logic with support for .99/.95/.90/.00 endings and nearest_5/nearest_10
+  - ExecutionResult class for returning execution results with price changes and errors
+  - Updated Execute Now button in ViewPricingPolicy to use service (visible only for active policies)
+  - Updated Dry Run button to use service (available for non-archived policies)
+  - Confirmation dialogs showing impact (SKUs in scope count, target Price Book)
+  - Execution results displayed via notifications with price preview and error details
+  - PricingPolicyExecution log created after manual execution with results
+- Files changed:
+  - app/Services/Commercial/PricingPolicyService.php (created)
+  - app/Filament/Resources/PricingPolicyResource/Pages/ViewPricingPolicy.php (modified - implemented dry_run and execute actions)
+- **Learnings for future iterations:**
+  - Services should use `match` expressions instead of `switch` to avoid PHPStan unreachable code warnings
+  - ExecutionResult pattern provides clean return type with typed price changes and error arrays
+  - Dry run and execute share the same logic via isDryRun parameter - DRY principle applied
+  - Notifications with ->persistent() keep important execution results visible
+  - Price change preview shows SKU code, old price, new price, and percentage change
+  - Scope resolution filters by active lifecycle_status and applies scope_type filters
+---
+
+## 2026-02-03 - US-032
+- What was implemented:
+  - Added `resume(PricingPolicy)` method to PricingPolicyService: paused → active with audit logging
+  - Created `ExecuteScheduledPricingPoliciesJob` in `app/Jobs/Commercial/` for scheduled execution
+  - Job handles daily, weekly, and monthly execution frequencies
+  - Job checks schedule configuration from logic_definition JSON (schedule.frequency, schedule.time, schedule.day_of_week, schedule.day_of_month)
+  - Execution window of ±30 minutes around scheduled time to handle job timing variance
+  - Job creates PricingPolicyExecution logs with ExecutionType::Scheduled
+  - Job handles errors gracefully with error logging and failed execution records
+  - All PricingPolicyService methods verified: activate, pause, resume, archive, execute, resolveScope, calculatePrice
+- Files changed:
+  - app/Services/Commercial/PricingPolicyService.php (modified - added resume method)
+  - app/Jobs/Commercial/ExecuteScheduledPricingPoliciesJob.php (created)
+- **Learnings for future iterations:**
+  - Jobs should be placed in `app/Jobs/{Module}/` directory (e.g., `app/Jobs/Commercial/`)
+  - Use `$timeout` property on jobs to prevent long-running jobs from being killed
+  - Schedule configuration stored in logic_definition JSON: { schedule: { frequency, time, day_of_week, day_of_month } }
+  - Carbon methods like isSameWeek(), isSameMonth(), isToday() are useful for schedule comparisons
+  - Job should check `last_executed_at` to prevent duplicate executions in the same period
+---
+
+## 2026-02-03 - US-033
+- What was implemented:
+  - Offer model with HasUuid, Auditable, SoftDeletes traits
+  - offers migration with all required fields: id (uuid), name, sellable_sku_id (FK), channel_id (FK), price_book_id (FK), offer_type (enum), visibility (enum), valid_from (datetime), valid_to (datetime nullable), status (enum), campaign_tag (string nullable)
+  - BelongsTo relationships: sellableSku, channel, priceBook
+  - Placeholder HasOne relationships for eligibility and benefit (models to be created in US-034, US-035)
+  - Status helper methods: isDraft, isActive, isPaused, isExpired, isCancelled
+  - State transition checks: canBeActivated, canBePaused, canBeResumed, canBeCancelled, isEditable, isTerminal
+  - Validity period helpers: isWithinValidityPeriod, shouldAutoExpire, isExpiringSoon, getDaysUntilExpiry
+  - Type helpers: isStandard, isPromotion, isBundle
+  - Visibility helpers: isPublic, isRestricted
+  - Price resolution helper: getBasePrice (resolves price from referenced PriceBook)
+  - Scopes: activeForContext, expiringSoon, byCampaign
+  - Added offers() relationship to SellableSku, Channel, and PriceBook models
+- Files changed:
+  - app/Models/Commercial/Offer.php (created)
+  - database/migrations/2026_02_03_380007_create_offers_table.php (created)
+  - app/Models/Commercial/Channel.php (modified - added offers relationship)
+  - app/Models/Commercial/PriceBook.php (modified - added offers relationship)
+  - app/Models/Pim/SellableSku.php (modified - added offers relationship)
+- **Learnings for future iterations:**
+  - Offer is the activation of sellability - 1 Offer = 1 Sellable SKU
+  - Offer does not carry price directly; it resolves via the referenced PriceBook
+  - Status transitions: draft→active, active⇔paused, active→expired (automatic), any→cancelled (terminal)
+  - For relationships to future models (OfferEligibility, OfferBenefit), use string class reference with @phpstan-ignore to avoid PHPStan errors
+  - valid_from and valid_to use datetime (not date) for precise time-based validity
+  - campaign_tag enables grouping offers for promotional campaigns
+---
+
+## 2026-02-03 - US-034
+- What was implemented:
+  - OfferEligibility model with HasUuid trait and belongsTo Offer relationship
+  - offer_eligibilities migration with: id (uuid), offer_id (FK unique), allowed_markets (JSON), allowed_customer_types (JSON), allowed_membership_tiers (JSON nullable), allocation_constraint_id (uuid nullable)
+  - Market restriction helpers: hasMarketRestrictions(), isMarketEligible(), getMarketsCount(), getMarketsDisplayString()
+  - Customer type restriction helpers: hasCustomerTypeRestrictions(), isCustomerTypeEligible(), getCustomerTypesCount(), getCustomerTypesDisplayString()
+  - Membership tier restriction helpers: hasMembershipTierRestrictions(), isMembershipTierEligible(), getMembershipTiersCount(), getMembershipTiersDisplayString()
+  - Allocation constraint helpers: hasAllocationConstraint(), getAllocationConstraintId()
+  - Combined eligibility check: isContextEligible(market, customerType, membershipTier)
+  - UI helpers: getEligibilitySummary(), getDetailedDescription()
+  - Updated Offer model eligibility() relationship to use actual OfferEligibility class (replaced placeholder)
+- Files changed:
+  - app/Models/Commercial/OfferEligibility.php (created)
+  - database/migrations/2026_02_03_380008_create_offer_eligibilities_table.php (created)
+  - app/Models/Commercial/Offer.php (modified - updated eligibility relationship)
+- **Learnings for future iterations:**
+  - OfferEligibility defines who can access an Offer (markets, customer types, membership tiers)
+  - Eligibility cannot override allocation constraints from Module A - allocation_constraint_id references the authoritative constraint
+  - Pattern for eligibility checking: each restriction type has has*Restrictions(), is*Eligible(), get*Count() and get*DisplayString() methods
+  - isContextEligible() provides combined eligibility check for a given customer context
+  - Unique constraint on offer_id ensures one eligibility per offer (hasOne relationship)
+---
+
+## 2026-02-03 - US-035
+- What was implemented:
+  - BenefitType enum (none, percentage_discount, fixed_discount, fixed_price) with label/color/icon/description/requiresValue/valueUnit methods
+  - OfferBenefit model with HasUuid trait and belongsTo Offer relationship
+  - offer_benefits migration with: id (uuid), offer_id (FK unique), benefit_type (enum), benefit_value (decimal nullable), discount_rule_id (uuid nullable)
+  - Placeholder belongsTo relationship for DiscountRule (to be created in US-046)
+  - Benefit type helpers: isNone(), isPercentageDiscount(), isFixedDiscount(), isFixedPrice(), hasDiscount()
+  - Value helpers: hasValue(), getValueAsFloat(), getPercentageValue(), getFixedDiscountAmount(), getFixedPrice()
+  - Discount rule helpers: hasDiscountRule(), getDiscountRuleId()
+  - Price calculation: calculateFinalPrice(basePrice) with applyPercentageDiscount, applyFixedDiscount, applyFixedPrice private methods
+  - Discount calculation: getDiscountAmount(basePrice), getDiscountPercentage(basePrice)
+  - UI helpers: getBenefitTypeLabel/Color/Icon(), getFormattedValue(currency), getBenefitSummary(currency), getDetailedDescription(currency)
+  - Updated Offer model benefit() relationship to use actual OfferBenefit class (replaced placeholder)
+- Files changed:
+  - app/Enums/Commercial/BenefitType.php (created)
+  - app/Models/Commercial/OfferBenefit.php (created)
+  - database/migrations/2026_02_03_380009_create_offer_benefits_table.php (created)
+  - app/Models/Commercial/Offer.php (modified - updated benefit relationship)
+- **Learnings for future iterations:**
+  - OfferBenefit defines how the final price is calculated from the Price Book base price
+  - benefit_type = none means use Price Book price without modifications (no discount)
+  - calculateFinalPrice() method encapsulates all price calculation logic based on benefit_type
+  - Pattern for benefit calculation: each benefit type has dedicated apply* private methods
+  - Unique constraint on offer_id ensures one benefit per offer (hasOne relationship)
+  - discount_rule_id references reusable DiscountRule entities (to be created in US-046)
+---
+
+## 2026-02-03 - US-036
+- What was implemented:
+  - OfferResource Filament resource with navigation group 'Commercial' and sort order 4
+  - List view with columns: name (with expiring soon indicator), sellable_sku (composite display with wine+vintage+format+packaging), offer_type (badge), channel, status (badge), valid_from, valid_to, visibility (badge), campaign_tag
+  - Filters: status, offer_type, channel, visibility, expiring_soon (ternary), active_validity (ternary), trashed
+  - Search functionality: searches by offer name, SKU code, and wine name via nested whereHas queries
+  - Visual indicator: warning icon for Offers expiring within 7 days, bold/warning color on valid_to
+  - Bulk actions: Pause Selected (active→paused), Cancel Selected (any→cancelled), Delete, Restore
+  - Create/View/Edit pages following standard Filament resource pattern
+  - Edit action only visible for editable (draft) Offers
+  - Eager loading: sellableSku.wineVariant.wineMaster, sellableSku.format, sellableSku.caseConfiguration, channel, priceBook
+- Files changed:
+  - app/Filament/Resources/OfferResource.php (created)
+  - app/Filament/Resources/OfferResource/Pages/ListOffers.php (created)
+  - app/Filament/Resources/OfferResource/Pages/CreateOffer.php (created)
+  - app/Filament/Resources/OfferResource/Pages/ViewOffer.php (created)
+  - app/Filament/Resources/OfferResource/Pages/EditOffer.php (created)
+- **Learnings for future iterations:**
+  - For complex SKU display, use getStateUsing() with relationship traversal (sellableSku→wineVariant→wineMaster)
+  - Use explicit null checks instead of nullsafe + coalesce pattern to satisfy PHPStan (nullsafe.neverNull rule)
+  - Type-annotate $this->getRecord() in ViewRecord/EditRecord pages with @var docblock for PHPStan compliance
+  - TernaryFilter with queries callback enables complex time-based filtering (expiring_soon, active_validity)
+  - Eager loading in getEloquentQuery() improves performance for list views with nested relationships
+  - Bulk actions can filter records using model helper methods (canBePaused, canBeCancelled) before applying changes
+---
+
+## 2026-02-03 - US-037
+- What was implemented:
+  - Converted CreateOffer page to multi-step wizard using HasWizard trait
+  - Implemented Step 1 (Product) for selecting the Sellable SKU with autocomplete search
+  - SKU dropdown only shows SKUs with active allocations (filtering by matching wine_variant_id and format_id in allocations table)
+  - SKU preview panel showing: product info (wine name, vintage, format, packaging), allocation count and remaining quantity, available channels from allocation constraints, EMP reference data (market, value, confidence) if available
+  - Warning banner displayed when selected SKU has no EMP data
+  - Info banner explaining "1 Offer = 1 Sellable SKU" concept
+  - Placeholder steps added for US-038 (Channel & Eligibility), US-039 (Pricing), US-040 (Validity & Visibility), US-041 (Review)
+  - Dual submit buttons: "Create as Draft" and "Create and Activate"
+- Files changed:
+  - app/Filament/Resources/OfferResource/Pages/CreateOffer.php (modified - converted to wizard)
+- **Learnings for future iterations:**
+  - Allocation linkage to SellableSku is via wine_variant_id + format_id match (bottle SKU level), not direct FK
+  - Use Allocation::query()->where('wine_variant_id', ...)->where('format_id', ...) to find allocations for a SellableSku
+  - AllocationConstraint::getEffectiveChannels() returns allowed channels for an allocation
+  - EmpConfidenceLevel enum has a color() method that returns the Filament color name directly (no need for manual match)
+  - For wizard submit actions with two buttons, use HtmlString with Blade template and wire:click to set a public property
+  - SellableSku's wine_variant_id and format_id are non-nullable strings (UUIDs), don't need null checks per PHPStan
+---
+
+## 2026-02-03 - US-038
+- What was implemented:
+  - Step 2 (Channel & Eligibility) for Offer wizard with channel selection constrained by allocation
+  - Prominent warning banner: "Eligibility Cannot Override Allocation Constraints"
+  - Channel selection: only shows channels permitted by SKU's allocation constraints (filters by channel_type)
+  - Channel preview panel: shows type badge, currency, status, commercial models
+  - Allocation Constraints preview section (collapsible): displays channels, geographies, and customer types from allocation constraints
+  - Eligibility Rules section: allowed_markets (multi-select), allowed_customer_types (multi-select)
+  - Markets and customer types constrained by allocation constraint data when available
+  - Eligibility summary panel: shows selected restrictions before proceeding
+  - OfferEligibility record creation in afterCreate() with allocation_constraint_id reference
+  - Session-based data passing for eligibility data between form and model creation
+- Files changed:
+  - app/Filament/Resources/OfferResource/Pages/CreateOffer.php (modified - implemented Step 2)
+- **Learnings for future iterations:**
+  - AllocationConstraint::getEffectiveGeographies() returns allowed markets/geographies for an allocation
+  - AllocationConstraint::getEffectiveCustomerTypes() returns allowed customer types
+  - Use session() for passing non-model data between mutateFormDataBeforeCreate() and afterCreate()
+  - OfferEligibility references allocation_constraint_id to track the authoritative constraint
+  - Channel model's channel_type is an enum that maps to allocation constraint channel type strings
+  - Collapsible sections (->collapsed()) work well for detailed constraint previews
+---

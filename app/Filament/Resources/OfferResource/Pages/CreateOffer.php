@@ -9,6 +9,7 @@ use App\Filament\Resources\OfferResource;
 use App\Models\Allocation\Allocation;
 use App\Models\Commercial\Channel;
 use App\Models\Commercial\EstimatedMarketPrice;
+use App\Models\Commercial\OfferEligibility;
 use App\Models\Pim\SellableSku;
 use Filament\Forms;
 use Filament\Forms\Components\Wizard;
@@ -239,26 +240,448 @@ class CreateOffer extends CreateRecord
     }
 
     /**
-     * Step 2: Channel & Eligibility (placeholder for US-038)
+     * Step 2: Channel & Eligibility
+     * Define the channel and eligibility conditions for the Offer.
      */
     protected function getChannelAndEligibilityStep(): Wizard\Step
     {
         return Wizard\Step::make('Channel & Eligibility')
-            ->description('Define channel and eligibility (Coming in US-038)')
+            ->description('Define channel and customer eligibility')
             ->icon('heroicon-o-globe-alt')
             ->schema([
-                Forms\Components\Section::make('Channel & Eligibility')
-                    ->description('This step will be implemented in US-038')
+                // Warning about allocation constraints
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('allocation_warning')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-4 border border-warning-300 dark:border-warning-700">'
+                                .'<div class="flex items-start gap-3">'
+                                .'<div class="flex-shrink-0 text-warning-600 dark:text-warning-400">'
+                                .'<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>'
+                                .'</div>'
+                                .'<div>'
+                                .'<p class="font-semibold text-warning-800 dark:text-warning-200">Eligibility Cannot Override Allocation Constraints</p>'
+                                .'<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">'
+                                .'Allocation constraints from Module A define the authoritative commercial boundaries. '
+                                .'Eligibility rules defined here can only narrow the scope within those boundaries, not expand beyond them. '
+                                .'Any restrictions you set here will be applied in addition to the allocation constraints.'
+                                .'</p>'
+                                .'</div>'
+                                .'</div>'
+                                .'</div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+
+                // Channel Selection Section
+                Forms\Components\Section::make('Channel Selection')
+                    ->description('Select the commercial channel for this offer')
                     ->schema([
                         Forms\Components\Select::make('channel_id')
                             ->label('Channel')
-                            ->relationship('channel', 'name')
+                            ->required()
                             ->searchable()
                             ->preload()
-                            ->required()
-                            ->native(false),
+                            ->live()
+                            ->native(false)
+                            ->placeholder('Select a channel...')
+                            ->options(function (Get $get): array {
+                                $skuId = $get('sellable_sku_id');
+                                if ($skuId === null) {
+                                    // Return all active channels if no SKU selected
+                                    return Channel::query()
+                                        ->where('status', \App\Enums\Commercial\ChannelStatus::Active)
+                                        ->pluck('name', 'id')
+                                        ->toArray();
+                                }
+
+                                // Get allowed channels from allocation constraints
+                                $sku = SellableSku::find($skuId);
+                                if ($sku === null) {
+                                    return [];
+                                }
+
+                                $allocations = $this->getActiveAllocationsForSku($sku);
+                                $allowedChannelTypes = [];
+
+                                foreach ($allocations as $allocation) {
+                                    $constraint = $allocation->constraint;
+                                    if ($constraint !== null) {
+                                        $channels = $constraint->getEffectiveChannels();
+                                        $allowedChannelTypes = array_unique(array_merge($allowedChannelTypes, $channels));
+                                    }
+                                }
+
+                                // Map allocation channel types to Channel model records
+                                $query = Channel::query()
+                                    ->where('status', \App\Enums\Commercial\ChannelStatus::Active);
+
+                                // If there are specific channel restrictions, filter by channel_type
+                                if (! empty($allowedChannelTypes)) {
+                                    $query->where(function (\Illuminate\Database\Eloquent\Builder $q) use ($allowedChannelTypes): void {
+                                        foreach ($allowedChannelTypes as $channelType) {
+                                            // Match channel_type enum value with allocation constraint channel types
+                                            $q->orWhere('channel_type', $channelType);
+                                        }
+                                    });
+                                }
+
+                                return $query->pluck('name', 'id')->toArray();
+                            })
+                            ->helperText('Only channels permitted by the SKU\'s allocation constraints are shown'),
+
+                        // Channel Preview
+                        Forms\Components\Placeholder::make('channel_preview')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('channel_id') !== null)
+                            ->content(function (Get $get): HtmlString {
+                                $channelId = $get('channel_id');
+                                if ($channelId === null) {
+                                    return new HtmlString('');
+                                }
+
+                                $channel = Channel::find($channelId);
+                                if ($channel === null) {
+                                    return new HtmlString('<div class="text-gray-500">Channel not found</div>');
+                                }
+
+                                $typeColor = $channel->getChannelTypeColor();
+                                $statusColor = $channel->getStatusColor();
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-gray-50 dark:bg-gray-900 p-4 border border-gray-200 dark:border-gray-700">'
+                                    .'<div class="grid grid-cols-2 md:grid-cols-4 gap-4">'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</p>'
+                                    .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$typeColor.'-100 text-'.$typeColor.'-800 dark:bg-'.$typeColor.'-900 dark:text-'.$typeColor.'-200">'.$channel->getChannelTypeLabel().'</span>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Currency</p>'
+                                    .'<p class="text-sm font-medium text-gray-900 dark:text-gray-100">'.$channel->default_currency.'</p>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</p>'
+                                    .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$statusColor.'-100 text-'.$statusColor.'-800 dark:bg-'.$statusColor.'-900 dark:text-'.$statusColor.'-200">'.$channel->getStatusLabel().'</span>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Commercial Models</p>'
+                                    .'<p class="text-sm text-gray-600 dark:text-gray-400">'.implode(', ', $channel->allowed_commercial_models).'</p>'
+                                    .'</div>'
+                                    .'</div>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
                     ]),
+
+                // Allocation Constraints Preview
+                Forms\Components\Section::make('Allocation Constraints')
+                    ->description('Current allocation constraints that apply to this SKU')
+                    ->schema([
+                        Forms\Components\Placeholder::make('constraints_preview')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('sellable_sku_id') !== null)
+                            ->content(function (Get $get): HtmlString {
+                                $skuId = $get('sellable_sku_id');
+                                if ($skuId === null) {
+                                    return new HtmlString('<div class="text-gray-500">Select a SKU to see allocation constraints</div>');
+                                }
+
+                                $sku = SellableSku::find($skuId);
+                                if ($sku === null) {
+                                    return new HtmlString('<div class="text-gray-500">SKU not found</div>');
+                                }
+
+                                return new HtmlString($this->buildAllocationConstraintsPreviewHtml($sku));
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+
+                // Eligibility Section
+                Forms\Components\Section::make('Eligibility Rules')
+                    ->description('Define who can access this offer (within allocation constraints)')
+                    ->schema([
+                        Forms\Components\Select::make('allowed_markets')
+                            ->label('Allowed Markets')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->options(function (Get $get): array {
+                                $skuId = $get('sellable_sku_id');
+                                $constrainedMarkets = $this->getConstrainedMarketsForSku($skuId);
+
+                                // If there are constrained markets, only show those
+                                if (! empty($constrainedMarkets)) {
+                                    $options = [];
+                                    foreach ($constrainedMarkets as $market) {
+                                        $options[$market] = $this->getMarketLabel($market);
+                                    }
+
+                                    return $options;
+                                }
+
+                                // Otherwise show all common markets
+                                return $this->getCommonMarkets();
+                            })
+                            ->helperText('Leave empty to allow all markets permitted by allocation constraints')
+                            ->columnSpan(1),
+
+                        Forms\Components\Select::make('allowed_customer_types')
+                            ->label('Allowed Customer Types')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->options(function (Get $get): array {
+                                $skuId = $get('sellable_sku_id');
+                                $constrainedTypes = $this->getConstrainedCustomerTypesForSku($skuId);
+
+                                // If there are constrained types, only show those
+                                if (! empty($constrainedTypes)) {
+                                    $options = [];
+                                    foreach ($constrainedTypes as $type) {
+                                        $options[$type] = $this->getCustomerTypeLabel($type);
+                                    }
+
+                                    return $options;
+                                }
+
+                                // Otherwise show all customer types
+                                return $this->getCustomerTypeOptions();
+                            })
+                            ->helperText('Leave empty to allow all customer types permitted by allocation constraints')
+                            ->columnSpan(1),
+                    ])
+                    ->columns(2),
+
+                // Eligibility Summary
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('eligibility_summary')
+                            ->label('')
+                            ->visible(function (Get $get): bool {
+                                $markets = $get('allowed_markets');
+                                $types = $get('allowed_customer_types');
+
+                                return ! empty($markets) || ! empty($types);
+                            })
+                            ->content(function (Get $get): HtmlString {
+                                $markets = $get('allowed_markets') ?? [];
+                                $customerTypes = $get('allowed_customer_types') ?? [];
+
+                                $parts = [];
+
+                                if (! empty($markets)) {
+                                    $marketLabels = array_map(fn ($m) => $this->getMarketLabel($m), $markets);
+                                    $parts[] = '<strong>Markets:</strong> '.implode(', ', $marketLabels);
+                                }
+
+                                if (! empty($customerTypes)) {
+                                    $typeLabels = array_map(fn ($t) => $this->getCustomerTypeLabel($t), $customerTypes);
+                                    $parts[] = '<strong>Customer Types:</strong> '.implode(', ', $typeLabels);
+                                }
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-primary-50 dark:bg-primary-950 p-4 border border-primary-200 dark:border-primary-800">'
+                                    .'<p class="text-sm font-medium text-primary-800 dark:text-primary-200 mb-2">Eligibility Summary</p>'
+                                    .'<div class="text-sm text-primary-700 dark:text-primary-300">'
+                                    .implode('<br>', $parts)
+                                    .'</div>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->hidden(function (Get $get): bool {
+                        $markets = $get('allowed_markets');
+                        $types = $get('allowed_customer_types');
+
+                        return empty($markets) && empty($types);
+                    }),
             ]);
+    }
+
+    /**
+     * Build HTML preview for allocation constraints.
+     */
+    protected function buildAllocationConstraintsPreviewHtml(SellableSku $sku): string
+    {
+        $allocations = $this->getActiveAllocationsForSku($sku);
+
+        if ($allocations->isEmpty()) {
+            return '<div class="text-gray-500 italic">No active allocations found for this SKU</div>';
+        }
+
+        $rows = '';
+        foreach ($allocations as $allocation) {
+            $constraint = $allocation->constraint;
+            if ($constraint === null) {
+                continue;
+            }
+
+            $channels = $constraint->getEffectiveChannels();
+            $geographies = $constraint->getEffectiveGeographies();
+            $customerTypes = $constraint->getEffectiveCustomerTypes();
+
+            $channelBadges = '';
+            foreach ($channels as $channel) {
+                $channelBadges .= '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 mr-1 mb-1">'.ucfirst(str_replace('_', ' ', $channel)).'</span>';
+            }
+
+            $geographyBadges = empty($geographies)
+                ? '<span class="text-gray-500 italic text-xs">All geographies</span>'
+                : '';
+            foreach ($geographies as $geo) {
+                $geographyBadges .= '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200 mr-1 mb-1">'.$geo.'</span>';
+            }
+
+            $customerTypeBadges = '';
+            foreach ($customerTypes as $type) {
+                $customerTypeBadges .= '<span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-info-100 text-info-800 dark:bg-info-900 dark:text-info-200 mr-1 mb-1">'.ucfirst(str_replace('_', ' ', $type)).'</span>';
+            }
+
+            $rows .= '<div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-2">'
+                .'<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Allocation ID: '.substr((string) $allocation->id, 0, 8).'...</div>'
+                .'<div class="grid grid-cols-3 gap-2">'
+                .'<div>'
+                .'<p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase mb-1">Channels</p>'
+                .'<div>'.$channelBadges.'</div>'
+                .'</div>'
+                .'<div>'
+                .'<p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase mb-1">Geographies</p>'
+                .'<div>'.$geographyBadges.'</div>'
+                .'</div>'
+                .'<div>'
+                .'<p class="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase mb-1">Customer Types</p>'
+                .'<div>'.$customerTypeBadges.'</div>'
+                .'</div>'
+                .'</div>'
+                .'</div>';
+        }
+
+        return '<div>'.$rows.'</div>';
+    }
+
+    /**
+     * Get constrained markets from allocation constraints for a SKU.
+     *
+     * @return array<string>
+     */
+    protected function getConstrainedMarketsForSku(?string $skuId): array
+    {
+        if ($skuId === null) {
+            return [];
+        }
+
+        $sku = SellableSku::find($skuId);
+        if ($sku === null) {
+            return [];
+        }
+
+        $allocations = $this->getActiveAllocationsForSku($sku);
+        $markets = [];
+
+        foreach ($allocations as $allocation) {
+            $constraint = $allocation->constraint;
+            if ($constraint !== null) {
+                $geographies = $constraint->getEffectiveGeographies();
+                // Only add if there are specific geography restrictions
+                if (! empty($geographies)) {
+                    $markets = array_unique(array_merge($markets, $geographies));
+                }
+            }
+        }
+
+        return $markets;
+    }
+
+    /**
+     * Get constrained customer types from allocation constraints for a SKU.
+     *
+     * @return array<string>
+     */
+    protected function getConstrainedCustomerTypesForSku(?string $skuId): array
+    {
+        if ($skuId === null) {
+            return [];
+        }
+
+        $sku = SellableSku::find($skuId);
+        if ($sku === null) {
+            return [];
+        }
+
+        $allocations = $this->getActiveAllocationsForSku($sku);
+        $types = [];
+
+        foreach ($allocations as $allocation) {
+            $constraint = $allocation->constraint;
+            if ($constraint !== null) {
+                $constraintTypes = $constraint->getEffectiveCustomerTypes();
+                $types = array_unique(array_merge($types, $constraintTypes));
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Get common markets list.
+     *
+     * @return array<string, string>
+     */
+    protected function getCommonMarkets(): array
+    {
+        return [
+            'IT' => 'IT - Italy',
+            'DE' => 'DE - Germany',
+            'FR' => 'FR - France',
+            'UK' => 'UK - United Kingdom',
+            'US' => 'US - United States',
+            'CH' => 'CH - Switzerland',
+            'EU' => 'EU - European Union',
+            'GLOBAL' => 'GLOBAL - Worldwide',
+        ];
+    }
+
+    /**
+     * Get a market label from a market code.
+     */
+    protected function getMarketLabel(string $market): string
+    {
+        $markets = $this->getCommonMarkets();
+
+        return $markets[$market] ?? $market;
+    }
+
+    /**
+     * Get customer type options.
+     *
+     * @return array<string, string>
+     */
+    protected function getCustomerTypeOptions(): array
+    {
+        return [
+            'retail' => 'Retail',
+            'trade' => 'Trade',
+            'private_client' => 'Private Client',
+            'club_member' => 'Club Member',
+            'internal' => 'Internal',
+        ];
+    }
+
+    /**
+     * Get a customer type label from a type code.
+     */
+    protected function getCustomerTypeLabel(string $type): string
+    {
+        $types = $this->getCustomerTypeOptions();
+
+        return $types[$type] ?? ucfirst(str_replace('_', ' ', $type));
     }
 
     /**
@@ -504,6 +927,33 @@ class CreateOffer extends CreateRecord
             ? OfferStatus::Active->value
             : OfferStatus::Draft->value;
 
+        // Store eligibility data in session for use in afterCreate
+        // These fields are not part of the Offer model
+        $eligibilityData = [
+            'allowed_markets' => $data['allowed_markets'] ?? [],
+            'allowed_customer_types' => $data['allowed_customer_types'] ?? [],
+        ];
+        session(['offer_eligibility_data' => $eligibilityData]);
+
+        // Get the first applicable allocation constraint ID for reference
+        $skuId = $data['sellable_sku_id'] ?? null;
+        if ($skuId !== null) {
+            $sku = SellableSku::find($skuId);
+            if ($sku !== null) {
+                $allocations = $this->getActiveAllocationsForSku($sku);
+                $firstAllocation = $allocations->first();
+                if ($firstAllocation !== null) {
+                    $constraint = $firstAllocation->constraint;
+                    if ($constraint !== null) {
+                        session(['offer_allocation_constraint_id' => $constraint->id]);
+                    }
+                }
+            }
+        }
+
+        // Remove eligibility fields from offer data (they belong to OfferEligibility)
+        unset($data['allowed_markets'], $data['allowed_customer_types']);
+
         return $data;
     }
 
@@ -512,11 +962,26 @@ class CreateOffer extends CreateRecord
      */
     protected function afterCreate(): void
     {
+        /** @var \App\Models\Commercial\Offer $offer */
+        $offer = $this->record;
+
+        // Create OfferEligibility record
+        $eligibilityData = session('offer_eligibility_data', []);
+        $allocationConstraintId = session('offer_allocation_constraint_id');
+
+        OfferEligibility::create([
+            'offer_id' => $offer->id,
+            'allowed_markets' => ! empty($eligibilityData['allowed_markets']) ? $eligibilityData['allowed_markets'] : null,
+            'allowed_customer_types' => ! empty($eligibilityData['allowed_customer_types']) ? $eligibilityData['allowed_customer_types'] : null,
+            'allowed_membership_tiers' => null,
+            'allocation_constraint_id' => $allocationConstraintId,
+        ]);
+
+        // Clean up session
+        session()->forget(['offer_eligibility_data', 'offer_allocation_constraint_id']);
+
         // If activated, log the activation
         if ($this->activateAfterCreate) {
-            /** @var \App\Models\Commercial\Offer $offer */
-            $offer = $this->record;
-
             $offer->auditLogs()->create([
                 'event' => 'status_change',
                 'user_id' => auth()->id(),
