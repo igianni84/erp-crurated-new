@@ -162,3 +162,20 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Completeness badge colors: 'danger' for <50%, 'warning' for 50-80%, 'success' for >80%
   - Custom sortable implementation for computed columns uses `sortable(query: fn())` with raw SQL approximation
 ---
+
+## 2026-02-03 17:45 CET - US-009
+- Implemented blocking issues and warnings for Wine Variant
+- Files changed:
+  - `app/Models/Pim/WineVariant.php` (modified - added getBlockingIssues(), getWarnings(), hasBlockingIssues(), canPublish() methods and BLOCKING_ISSUES_RULES, WARNING_RULES constants)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added ViewAction, updated publish action to check for blocking issues)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ViewWineVariant.php` (new - Overview page with Infolist showing blocking issues and warnings)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - updated publish action to check for blocking issues)
+- **Learnings for future iterations:**
+  - Use ViewRecord page with Infolist for read-only overview pages in Filament
+  - Define blocking issues and warnings as model constants with tab, message, and priority keys
+  - Use RepeatableEntry in Infolist to display arrays of data
+  - Use Section with icon and iconColor for visual grouping of issues
+  - Disable actions with `->disabled()` based on model state (e.g., hasBlockingIssues)
+  - PHPStan error "nullsafe.neverNull" can be fixed by using explicit null check instead of `?->` with `??`
+  - Register ViewRecord page in Resource's `getPages()` method with route `/{record}`
+---
