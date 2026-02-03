@@ -1,5 +1,6 @@
 ## Codebase Patterns
 
+- Modular structure: Models in app/Models/{Module}/, Filament in app/Filament/Resources/{Module}/
 - Use `./vendor/bin/pint --test` to check code style without making changes
 - Laravel Pint is pre-configured in Laravel 12 as the default linter
 - Use `php artisan test` to run all tests
@@ -7,6 +8,10 @@
 - MySQL 9.6.0 runs via `brew services start mysql`, CLI at `/opt/homebrew/bin/mysql`
 - Use `php artisan db:show` to check database connection status
 - Database `crurated_erp` uses utf8mb4_unicode_ci collation
+- Use `composer quality` to run all quality checks (lint, analyse, test)
+- Use `composer lint` to auto-fix code style, `composer lint:test` to check only
+- PHPStan/Larastan configured at level 5 via phpstan.neon
+- Pre-commit hook runs lint:test on staged PHP files
 
 ---
 
@@ -49,5 +54,53 @@
   - Use `php artisan db:show` to verify database connection and see stats
   - Laravel 12 default migrations create: users, cache, cache_locks, jobs, job_batches, failed_jobs, password_reset_tokens, sessions, migrations tables
   - All Laravel migrations follow snake_case convention by default
+---
+
+## 2026-02-03 - US-003
+- What was implemented:
+  - Verified Laravel Pint v1.27.0 already installed
+  - Installed Larastan v3.9.2 (PHPStan for Laravel) at level 5
+  - Created phpstan.neon configuration file
+  - Added composer scripts: lint, lint:test, analyse, quality
+  - Created pre-commit hook (.git/hooks/pre-commit) for automated lint checks
+  - Verified all quality checks pass (pint, phpstan, tests)
+- Files changed:
+  - composer.json (added larastan dependency, new scripts)
+  - composer.lock (updated dependencies)
+  - phpstan.neon (new file - PHPStan configuration)
+  - .git/hooks/pre-commit (new file - lint hook)
+  - prd.json (marked US-003 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - PHPStan v2+ removed `checkMissingIterableValueType` option
+  - Larastan provides Laravel-specific PHPStan extensions
+  - Use `--memory-limit=512M` for PHPStan on larger projects
+  - Pre-commit hooks must be executable (`chmod +x`)
+  - Composer script `quality` runs all checks in sequence for CI/CD
+---
+
+## 2026-02-03 - US-004
+- What was implemented:
+  - Created modular directory structure for the ERP
+  - app/Models/Pim/ for PIM (Product Information Management) module models
+  - app/Filament/Resources/Pim/ for PIM-related Filament resources
+  - app/Enums/ for application enumerations
+  - app/Services/ for business logic services
+  - app/Traits/ for reusable traits
+  - Added .gitkeep files to track empty directories in git
+  - Verified PSR-4 autoloading via existing App\\ namespace in composer.json
+- Files changed:
+  - app/Models/Pim/.gitkeep (new)
+  - app/Filament/Resources/Pim/.gitkeep (new)
+  - app/Enums/.gitkeep (new)
+  - app/Services/.gitkeep (new)
+  - app/Traits/.gitkeep (new)
+  - prd.json (marked US-004 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Laravel's PSR-4 autoload with App\\ prefix auto-maps all app/ subdirectories
+  - Use .gitkeep files to track empty directories in git
+  - Namespace convention: App\Models\Pim\, App\Enums\, App\Services\, App\Traits\
+  - Filament resources go in app/Filament/Resources/ with subdirs for modules
 ---
 

@@ -47,8 +47,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Pint v1.27.0 pre-installed. Larastan v3.9.2 added at level 5. Composer scripts: lint, lint:test, analyse, test, quality. Pre-commit hook installed for lint. All checks pass."
     },
     {
       "id": "US-004",
@@ -64,8 +64,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Modular directory structure created with .gitkeep files. PSR-4 namespaces configured via App\\ prefix in composer.json."
     },
     {
       "id": "US-005",
