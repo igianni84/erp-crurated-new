@@ -244,3 +244,20 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Heroicons are available via `<x-heroicon-o-{name}>` and `<x-heroicon-m-{name}>` Blade components
   - Route names follow pattern: `filament.admin.resources.{slug}.{page-name}`
 ---
+
+## 2026-02-03 19:00 CET - US-013
+- Implemented Liv-ex import flow for creating bottle products
+- Files changed:
+  - `app/Services/LivExService.php` (new - mock Liv-ex API service with search and import)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ImportLivex.php` (modified - full Livewire page with search, preview, and import)
+  - `resources/views/filament/resources/pim/product-resource/pages/import-livex.blade.php` (modified - search UI, results, confirmation modal)
+- **Learnings for future iterations:**
+  - Use Livewire `#[Computed]` attribute for reactive computed properties
+  - Use `#[Url]` attribute to persist state in URL query params
+  - For service classes, define mock data as private class constants for development
+  - LivExService::LOCKED_FIELDS defines which fields are read-only after import
+  - When checking for existing records before import, check both LWIN code and wine_master + vintage combination
+  - Use `firstOrCreate` pattern alternatives: find by unique identifier first, then create if not exists
+  - For Tailwind dark mode, use `dark:` prefix classes alongside light mode classes
+  - Blade templates can access Livewire computed properties via `$this->propertyName`
+---
