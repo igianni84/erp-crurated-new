@@ -313,3 +313,27 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - PHPStan "nullsafe.neverNull" fix: extract nullable to variable, use explicit null check instead of `?->` with `??`
   - For CheckboxList with dynamic options: use `->afterStateUpdated()` to handle selection changes
 ---
+
+## 2026-02-03 22:05 CET - US-017
+- Implemented Product Detail - Tab Attributes with dynamic attribute system
+- Files changed:
+  - `database/migrations/2026_02_03_170313_create_attribute_sets_table.php` (new - creates attribute_sets, attribute_groups, attribute_definitions, attribute_values tables)
+  - `app/Models/Pim/AttributeSet.php` (new - attribute set model with hasMany groups)
+  - `app/Models/Pim/AttributeGroup.php` (new - groups attributes within a set)
+  - `app/Models/Pim/AttributeDefinition.php` (new - defines attribute types, validation, completeness weight)
+  - `app/Models/Pim/AttributeValue.php` (new - stores attribute values per wine variant with source tracking)
+  - `app/Models/Pim/WineVariant.php` (modified - added attributeValues relationship and getDynamicCompletenessPercentage())
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - rewrote getAttributesSchema() to dynamically load from attribute set)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added loadAttributeValues() and saveAttributeValues() methods)
+  - `database/seeders/AttributeSetSeeder.php` (new - seeds default wine attribute set with 4 groups and 23 attributes)
+  - `database/seeders/DatabaseSeeder.php` (modified - added AttributeSetSeeder)
+- **Learnings for future iterations:**
+  - For dynamic EAV-style attributes: use AttributeSet→AttributeGroup→AttributeDefinition→AttributeValue hierarchy
+  - Use PHPDoc `@var` annotation for enum-typed match expressions to avoid PHPStan "match.alwaysTrue" errors
+  - For array-typed validation_rules field, use `@var array{...}|null` annotation and `is_array()` check
+  - Store attribute values as text in DB, use model methods `getTypedValue()` and `setTypedValue()` for type conversion
+  - Form state path for attributes: use `attributes.{code}` pattern, load/save in EditRecord page's `mutateFormDataBeforeFill()` and `afterSave()`
+  - Include helper text with required/optional indicator and source (Liv-ex/Manual) for each attribute field
+  - Completeness calculation: combine static model fields + dynamic attributes from attribute set
+  - For attribute lock status: check AttributeValue.is_locked, respect Manager/Admin override capability
+---
