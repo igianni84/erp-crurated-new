@@ -123,6 +123,16 @@ class PriceBook extends Model
     }
 
     /**
+     * Get the pricing policies that target this price book.
+     *
+     * @return HasMany<PricingPolicy, $this>
+     */
+    public function pricingPolicies(): HasMany
+    {
+        return $this->hasMany(PricingPolicy::class, 'target_price_book_id');
+    }
+
+    /**
      * Check if the price book is in draft status.
      */
     public function isDraft(): bool

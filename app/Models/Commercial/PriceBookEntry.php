@@ -82,16 +82,12 @@ class PriceBookEntry extends Model
 
     /**
      * Get the pricing policy that generated this entry (if policy-generated).
-     * Note: Returns a BelongsTo relationship that will resolve when PricingPolicy is created in US-020.
      *
-     * @return BelongsTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return BelongsTo<PricingPolicy, $this>
      */
     public function pricingPolicy(): BelongsTo
     {
-        // PricingPolicy model will be created in US-020
-        // Using string-based class reference to avoid compile-time errors
-        // @phpstan-ignore argument.type (PricingPolicy model does not exist yet)
-        return $this->belongsTo('App\Models\Commercial\PricingPolicy', 'policy_id');
+        return $this->belongsTo(PricingPolicy::class, 'policy_id');
     }
 
     /**
