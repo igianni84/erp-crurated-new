@@ -741,3 +741,82 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - VoucherService.completeTrading() handles all business validation - controller just orchestrates
   - Return 422 status for business validation errors (not 400)
 ---
+
+## 2026-02-03 - US-034
+- What was implemented: Allocation lineage enforcement throughout the system
+- Files changed:
+  - `app/Models/Allocation/Voucher.php` (added canBeFulfilledFromAllocation, hasLineageIssues, getLineageConstraintMessage methods)
+  - `app/Services/Allocation/VoucherService.php` (added validateFulfillmentLineage, canFulfillWithBottleFromAllocation, checkFulfillmentEligibility methods)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (enhanced Allocation Lineage section with prominent warning)
+  - `tests/Unit/Models/Allocation/VoucherLineageTest.php` (new) - 8 comprehensive tests for lineage enforcement
+- **Features implemented:**
+  - allocation_id immutability already enforced via Voucher model boot event (updating event throws if allocation_id is dirty)
+  - Database-level NOT NULL constraint already exists for allocation_id (from original migration)
+  - VoucherService.validateFulfillmentLineage(voucher, bottleAllocation): Throws InvalidArgumentException if lineage mismatch - Module C must call this before fulfillment
+  - VoucherService.canFulfillWithBottleFromAllocation(): Non-throwing boolean check for lineage match
+  - VoucherService.checkFulfillmentEligibility(): Returns array{fulfillable: bool, reason: string|null} for comprehensive eligibility check
+  - Voucher model helpers: canBeFulfilledFromAllocation(string), hasLineageIssues(), getLineageConstraintMessage()
+  - ViewVoucher Allocation Lineage section now has prominent danger-styled box with "NOT FULFILLABLE OUTSIDE LINEAGE" warning
+  - Added collapsible "Lineage Enforcement" section explaining immutability rules
+- **Learnings for future iterations:**
+  - allocation_id immutability is enforced at model level via isDirty() check in updating boot event
+  - Database constraint (NOT NULL with FK) ensures allocation_id is always set - hasLineageIssues() uses getAttribute() to avoid PHPStan false positive
+  - Module C (Fulfillment) should call validateFulfillmentLineage() before assigning physical bottles to vouchers
+  - checkFulfillmentEligibility() provides comprehensive pre-fulfillment checks (state, suspension, lineage)
+  - Test file created at tests/Unit/Models/Allocation/ - this directory structure follows pattern of organizing tests by domain
+  - RefreshDatabase trait required for tests that create database records
+---
+
+## 2026-02-03 - US-035
+- What was implemented: Concurrent transfer and lock handling for race condition scenarios
+- Files changed:
+  - `app/Models/Allocation/VoucherTransfer.php` (added isAcceptanceBlockedByLock, canCurrentlyBeAccepted, getAcceptanceBlockedReason helpers)
+  - `app/Models/Allocation/Voucher.php` (added hasPendingTransferBlockedByLock, getLockedAtTimestamp helpers)
+  - `app/Services/Allocation/VoucherTransferService.php` (enhanced acceptTransfer error message with timestamp)
+  - `app/Services/Allocation/VoucherService.php` (added transitioned_at timestamp to lifecycle audit logs)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (added blocked transfer warning UI)
+  - `app/Filament/Resources/Allocation/VoucherTransferResource.php` (added BLOCKED badge in list view)
+  - `app/Filament/Resources/Allocation/VoucherTransferResource/Pages/ViewVoucherTransfer.php` (added blocked warning section)
+  - `tests/Unit/Services/Allocation/VoucherTransferConcurrencyTest.php` (new) - 8 comprehensive tests
+- **Features implemented:**
+  - VoucherTransfer.isAcceptanceBlockedByLock(): Checks if pending transfer is blocked by voucher lock
+  - VoucherTransfer.canCurrentlyBeAccepted(): Stricter check including voucher state (lock, suspended, terminal)
+  - VoucherTransfer.getAcceptanceBlockedReason(): Returns human-readable reason for blocked acceptance
+  - Voucher.hasPendingTransferBlockedByLock(): Checks if locked voucher has pending transfer
+  - Voucher.getLockedAtTimestamp(): Retrieves lock timestamp from audit log for event ordering
+  - VoucherTransferService.acceptTransfer(): Enhanced error message "Locked during transfer - acceptance blocked" with timestamp
+  - VoucherService lifecycle transitions now log transitioned_at timestamp in audit new_values
+  - UI shows prominent "LOCKED DURING TRANSFER - ACCEPTANCE BLOCKED" warning in ViewVoucher and ViewVoucherTransfer
+  - List view shows "(BLOCKED)" suffix on status badge with lock icon when transfer blocked
+  - Transfer can still be cancelled when blocked (cancelTransfer unchanged)
+- **Learnings for future iterations:**
+  - Race conditions between operations require explicit state checks at service layer
+  - Include timestamps in audit logs for precise event ordering (transitioned_at in new_values)
+  - getLockedAtTimestamp() queries audit log to find when lock occurred - useful for debugging
+  - isAcceptanceBlockedByLock() only returns true if transfer is pending AND voucher is locked
+  - canCurrentlyBeAccepted() is stricter than canBeAccepted() - former checks voucher state, latter only transfer status
+  - Error messages should explain what happened AND what user can do (mention cancel option)
+  - Test directory tests/Unit/Services/Allocation/ for service-level tests
+---
+
+## 2026-02-03 - US-036
+- What was implemented: Duplicate voucher prevention (idempotency) for VoucherService.issueVouchers
+- Files changed:
+  - `database/migrations/2026_02_03_350000_add_unique_sale_reference_constraint_to_vouchers_table.php` (new) - unique constraint on (allocation_id, customer_id, sale_reference)
+  - `app/Services/Allocation/VoucherService.php` (added findExistingVouchers, hasExistingVouchers, logDuplicateVoucherRequest methods; updated issueVouchers for idempotency)
+  - `app/Models/AuditLog.php` (added EVENT_DUPLICATE_VOUCHER_REQUEST constant with label, icon, color)
+- **Features implemented:**
+  - Unique database constraint on (allocation_id, customer_id, sale_reference) ensures no duplicates at DB level
+  - issueVouchers() now checks for existing vouchers BEFORE attempting to create new ones
+  - If duplicates found, existing vouchers are returned instead of creating new ones
+  - Warning logged to Laravel log with allocation_id, customer_id, sale_reference, requested_quantity, existing_count
+  - AuditLog entry created with EVENT_DUPLICATE_VOUCHER_REQUEST on the first existing voucher
+  - findExistingVouchers() - retrieves existing vouchers for allocation+customer+sale_reference combination
+  - hasExistingVouchers() - boolean check without retrieving full records
+- **Learnings for future iterations:**
+  - Idempotency checks should happen BEFORE any resource consumption (allocation consumption in this case)
+  - Use both application-level checks AND database constraints for defense in depth
+  - Log to both Laravel log (for operations) and AuditLog (for compliance/audit trail)
+  - Return existing resources on duplicate rather than throwing errors - more idempotent behavior
+  - Unique constraints with nullable columns (sale_reference is nullable) - NULL values are treated as distinct in unique constraints
+---

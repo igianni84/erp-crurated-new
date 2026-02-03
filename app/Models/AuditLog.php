@@ -44,6 +44,8 @@ class AuditLog extends Model
 
     public const EVENT_TRADING_COMPLETED = 'trading_completed';
 
+    public const EVENT_DUPLICATE_VOUCHER_REQUEST = 'duplicate_voucher_request';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -119,6 +121,7 @@ class AuditLog extends Model
             self::EVENT_TRANSFER_EXPIRED => 'Transfer Expired',
             self::EVENT_TRADING_SUSPENDED => 'Suspended for Trading',
             self::EVENT_TRADING_COMPLETED => 'Trading Completed',
+            self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'Duplicate Request Detected',
             default => ucfirst((string) $this->event),
         };
     }
@@ -144,6 +147,7 @@ class AuditLog extends Model
             self::EVENT_TRANSFER_EXPIRED => 'heroicon-o-clock',
             self::EVENT_TRADING_SUSPENDED => 'heroicon-o-currency-dollar',
             self::EVENT_TRADING_COMPLETED => 'heroicon-o-banknotes',
+            self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'heroicon-o-document-duplicate',
             default => 'heroicon-o-document',
         };
     }
@@ -169,6 +173,7 @@ class AuditLog extends Model
             self::EVENT_TRANSFER_EXPIRED => 'gray',
             self::EVENT_TRADING_SUSPENDED => 'warning',
             self::EVENT_TRADING_COMPLETED => 'success',
+            self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'warning',
             default => 'gray',
         };
     }

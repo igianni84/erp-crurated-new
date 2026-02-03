@@ -567,8 +567,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 34,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented lineage enforcement: allocation_id immutability enforced via Voucher model boot event (already existed), VoucherService.validateFulfillmentLineage() for Module C validation (throws on mismatch), canFulfillWithBottleFromAllocation() and checkFulfillmentEligibility() helpers, Voucher model helpers (canBeFulfilledFromAllocation, hasLineageIssues, getLineageConstraintMessage), prominent UI warning in ViewVoucher with NOT FULFILLABLE OUTSIDE LINEAGE in danger-styled box. VoucherLineageTest added with 8 tests verifying immutability and lineage validation. Database-level NOT NULL constraint ensures allocation_id is always set."
     },
     {
       "id": "US-035",
@@ -583,8 +583,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 35,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented race condition handling: VoucherTransfer model has isAcceptanceBlockedByLock(), canCurrentlyBeAccepted(), getAcceptanceBlockedReason() helpers. Voucher model has hasPendingTransferBlockedByLock(), getLockedAtTimestamp(). VoucherTransferService.acceptTransfer() throws 'Locked during transfer - acceptance blocked' with timestamp. VoucherService logs transitioned_at in lifecycle audit logs. UI shows prominent warning banner in ViewVoucher and ViewVoucherTransfer. List view shows BLOCKED badge. Transfer can still be cancelled. 8 comprehensive tests in VoucherTransferConcurrencyTest."
     },
     {
       "id": "US-036",
@@ -598,8 +598,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 36,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented idempotency: unique constraint on (allocation_id, customer_id, sale_reference) in migration, VoucherService.issueVouchers checks for existing vouchers first and returns them instead of creating duplicates, warning logged to both Laravel log and AuditLog with EVENT_DUPLICATE_VOUCHER_REQUEST. Added findExistingVouchers() and hasExistingVouchers() helper methods to VoucherService."
     },
     {
       "id": "US-037",

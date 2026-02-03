@@ -11,6 +11,7 @@ use App\Models\Pim\SellableSku;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Service for managing Voucher lifecycle and operations.
@@ -31,8 +32,12 @@ class VoucherService
      * Creates the specified quantity of vouchers (each with quantity=1)
      * and consumes the allocation accordingly.
      *
+     * IDEMPOTENCY: If vouchers for the same allocation+customer+sale_reference combination
+     * already exist, they will be returned instead of creating duplicates. A warning will be
+     * logged for attempted duplicate issuance.
+     *
      * @param  int  $quantity  Number of vouchers to issue (each voucher = 1 bottle)
-     * @return Collection<int, Voucher> The created vouchers
+     * @return Collection<int, Voucher> The created vouchers (or existing vouchers if duplicate)
      *
      * @throws \InvalidArgumentException If allocation cannot be consumed or quantity is invalid
      */
@@ -47,6 +52,33 @@ class VoucherService
             throw new \InvalidArgumentException(
                 'Quantity must be greater than zero.'
             );
+        }
+
+        // Check for existing vouchers with the same sale reference (idempotency check)
+        $existingVouchers = $this->findExistingVouchers($allocation, $customer, $saleReference);
+
+        if ($existingVouchers->isNotEmpty()) {
+            // Log warning for attempted duplicate
+            $this->logDuplicateVoucherRequest(
+                $existingVouchers->first(),
+                $allocation,
+                $customer,
+                $saleReference,
+                $quantity,
+                $existingVouchers->count()
+            );
+
+            Log::warning('Attempted duplicate voucher issuance detected', [
+                'allocation_id' => $allocation->id,
+                'customer_id' => $customer->id,
+                'sale_reference' => $saleReference,
+                'requested_quantity' => $quantity,
+                'existing_vouchers_count' => $existingVouchers->count(),
+                'existing_voucher_ids' => $existingVouchers->pluck('id')->toArray(),
+            ]);
+
+            // Return existing vouchers instead of creating new ones
+            return $existingVouchers;
         }
 
         if (! $allocation->canBeConsumed()) {
@@ -95,6 +127,70 @@ class VoucherService
 
             return $vouchers;
         });
+    }
+
+    /**
+     * Find existing vouchers for the same allocation+customer+sale_reference combination.
+     *
+     * Used for idempotency checks to prevent duplicate voucher issuance.
+     *
+     * @return Collection<int, Voucher>
+     */
+    public function findExistingVouchers(
+        Allocation $allocation,
+        Customer $customer,
+        string $saleReference
+    ): Collection {
+        return Voucher::query()
+            ->where('allocation_id', $allocation->id)
+            ->where('customer_id', $customer->id)
+            ->where('sale_reference', $saleReference)
+            ->get();
+    }
+
+    /**
+     * Check if vouchers already exist for the given parameters.
+     *
+     * Useful for checking before attempting issuance without retrieving full records.
+     */
+    public function hasExistingVouchers(
+        Allocation $allocation,
+        Customer $customer,
+        string $saleReference
+    ): bool {
+        return Voucher::query()
+            ->where('allocation_id', $allocation->id)
+            ->where('customer_id', $customer->id)
+            ->where('sale_reference', $saleReference)
+            ->exists();
+    }
+
+    /**
+     * Log a duplicate voucher request event to the audit log.
+     *
+     * Logs to the first existing voucher to maintain audit trail.
+     */
+    protected function logDuplicateVoucherRequest(
+        Voucher $voucher,
+        Allocation $allocation,
+        Customer $customer,
+        string $saleReference,
+        int $requestedQuantity,
+        int $existingCount
+    ): void {
+        $voucher->auditLogs()->create([
+            'event' => AuditLog::EVENT_DUPLICATE_VOUCHER_REQUEST,
+            'old_values' => [],
+            'new_values' => [
+                'allocation_id' => $allocation->id,
+                'customer_id' => $customer->id,
+                'sale_reference' => $saleReference,
+                'requested_quantity' => $requestedQuantity,
+                'existing_count' => $existingCount,
+                'message' => 'Duplicate voucher issuance request detected. Returned existing vouchers.',
+            ],
+            'user_id' => Auth::id(),
+        ]);
     }
 
     /**
