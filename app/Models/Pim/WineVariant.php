@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WineVariant extends Model
@@ -67,5 +68,15 @@ class WineVariant extends Model
     public function sellableSkus(): HasMany
     {
         return $this->hasMany(SellableSku::class);
+    }
+
+    /**
+     * Get the liquid product for this wine variant.
+     *
+     * @return HasOne<LiquidProduct, $this>
+     */
+    public function liquidProduct(): HasOne
+    {
+        return $this->hasOne(LiquidProduct::class);
     }
 }
