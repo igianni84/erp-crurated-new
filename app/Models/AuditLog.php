@@ -22,6 +22,16 @@ class AuditLog extends Model
 
     public const EVENT_STATUS_CHANGE = 'status_change';
 
+    public const EVENT_LIFECYCLE_CHANGE = 'lifecycle_change';
+
+    public const EVENT_FLAG_CHANGE = 'flag_change';
+
+    public const EVENT_VOUCHER_ISSUED = 'voucher_issued';
+
+    public const EVENT_VOUCHER_SUSPENDED = 'voucher_suspended';
+
+    public const EVENT_VOUCHER_REACTIVATED = 'voucher_reactivated';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -86,7 +96,12 @@ class AuditLog extends Model
             self::EVENT_UPDATED => 'Updated',
             self::EVENT_DELETED => 'Deleted',
             self::EVENT_STATUS_CHANGE => 'Status Changed',
-            default => ucfirst($this->event),
+            self::EVENT_LIFECYCLE_CHANGE => 'Lifecycle Changed',
+            self::EVENT_FLAG_CHANGE => 'Flag Changed',
+            self::EVENT_VOUCHER_ISSUED => 'Voucher Issued',
+            self::EVENT_VOUCHER_SUSPENDED => 'Voucher Suspended',
+            self::EVENT_VOUCHER_REACTIVATED => 'Voucher Reactivated',
+            default => ucfirst((string) $this->event),
         };
     }
 
@@ -100,6 +115,11 @@ class AuditLog extends Model
             self::EVENT_UPDATED => 'heroicon-o-pencil-square',
             self::EVENT_DELETED => 'heroicon-o-trash',
             self::EVENT_STATUS_CHANGE => 'heroicon-o-arrow-path',
+            self::EVENT_LIFECYCLE_CHANGE => 'heroicon-o-arrow-path',
+            self::EVENT_FLAG_CHANGE => 'heroicon-o-flag',
+            self::EVENT_VOUCHER_ISSUED => 'heroicon-o-ticket',
+            self::EVENT_VOUCHER_SUSPENDED => 'heroicon-o-pause-circle',
+            self::EVENT_VOUCHER_REACTIVATED => 'heroicon-o-play-circle',
             default => 'heroicon-o-document',
         };
     }
@@ -114,6 +134,11 @@ class AuditLog extends Model
             self::EVENT_UPDATED => 'info',
             self::EVENT_DELETED => 'danger',
             self::EVENT_STATUS_CHANGE => 'warning',
+            self::EVENT_LIFECYCLE_CHANGE => 'warning',
+            self::EVENT_FLAG_CHANGE => 'info',
+            self::EVENT_VOUCHER_ISSUED => 'success',
+            self::EVENT_VOUCHER_SUSPENDED => 'danger',
+            self::EVENT_VOUCHER_REACTIVATED => 'success',
             default => 'gray',
         };
     }
