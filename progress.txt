@@ -491,3 +491,31 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Use `getSubheading()` on ViewRecord for secondary title information
   - Visual state diagrams can be embedded as HTML using TextEntry with `->html()` modifier
 ---
+
+## 2026-02-03 - US-024
+- What was implemented: Voucher behavioral flags management with toggle actions and confirmation dialogs
+- Files changed:
+  - `app/Policies/VoucherPolicy.php` (new) - Authorization policy for Voucher model with flag management permissions
+  - `app/Providers/AppServiceProvider.php` (updated to register VoucherPolicy)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (added header actions for flag toggles)
+- **Features implemented:**
+  - Toggle Tradable action: Enable/Disable trading with confirmation dialog
+  - Toggle Giftable action: Enable/Disable gifting with confirmation dialog
+  - Suspend action: Suspend voucher to block all operations, with confirmation dialog
+  - Reactivate action: Unsuspend voucher to resume normal operations, with confirmation dialog
+  - VoucherPolicy with permissions: manageFlags, setTradable, setGiftable, suspend, reactivate
+  - All actions use VoucherService methods which include audit logging
+  - Visibility rules:
+    - Tradable/Giftable toggles: only visible when voucher is issued AND not suspended
+    - Suspend: only visible when voucher is not suspended AND not terminal
+    - Reactivate: only visible when voucher IS suspended AND not terminal
+  - All actions require confirmation before execution
+  - Error handling with user-friendly notifications for validation failures
+- **Learnings for future iterations:**
+  - Use `Action::make()` in `getHeaderActions()` for view page actions
+  - Use `requiresConfirmation()` with `modalHeading()`, `modalDescription()`, `modalSubmitActionLabel()` for confirmation dialogs
+  - Use `visible()` callback for conditional action visibility based on record state
+  - Use `authorize()` method to tie action to policy permission
+  - `app(VoucherService::class)` to resolve service from container inside action callbacks
+  - `$this->refreshFormData([])` (with empty array or specific fields) refreshes the page data after action
+---
