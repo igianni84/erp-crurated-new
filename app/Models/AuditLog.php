@@ -32,6 +32,14 @@ class AuditLog extends Model
 
     public const EVENT_VOUCHER_REACTIVATED = 'voucher_reactivated';
 
+    public const EVENT_TRANSFER_INITIATED = 'transfer_initiated';
+
+    public const EVENT_TRANSFER_ACCEPTED = 'transfer_accepted';
+
+    public const EVENT_TRANSFER_CANCELLED = 'transfer_cancelled';
+
+    public const EVENT_TRANSFER_EXPIRED = 'transfer_expired';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -101,6 +109,10 @@ class AuditLog extends Model
             self::EVENT_VOUCHER_ISSUED => 'Voucher Issued',
             self::EVENT_VOUCHER_SUSPENDED => 'Voucher Suspended',
             self::EVENT_VOUCHER_REACTIVATED => 'Voucher Reactivated',
+            self::EVENT_TRANSFER_INITIATED => 'Transfer Initiated',
+            self::EVENT_TRANSFER_ACCEPTED => 'Transfer Accepted',
+            self::EVENT_TRANSFER_CANCELLED => 'Transfer Cancelled',
+            self::EVENT_TRANSFER_EXPIRED => 'Transfer Expired',
             default => ucfirst((string) $this->event),
         };
     }
@@ -120,6 +132,10 @@ class AuditLog extends Model
             self::EVENT_VOUCHER_ISSUED => 'heroicon-o-ticket',
             self::EVENT_VOUCHER_SUSPENDED => 'heroicon-o-pause-circle',
             self::EVENT_VOUCHER_REACTIVATED => 'heroicon-o-play-circle',
+            self::EVENT_TRANSFER_INITIATED => 'heroicon-o-arrow-right-start-on-rectangle',
+            self::EVENT_TRANSFER_ACCEPTED => 'heroicon-o-check-circle',
+            self::EVENT_TRANSFER_CANCELLED => 'heroicon-o-x-circle',
+            self::EVENT_TRANSFER_EXPIRED => 'heroicon-o-clock',
             default => 'heroicon-o-document',
         };
     }
@@ -139,6 +155,10 @@ class AuditLog extends Model
             self::EVENT_VOUCHER_ISSUED => 'success',
             self::EVENT_VOUCHER_SUSPENDED => 'danger',
             self::EVENT_VOUCHER_REACTIVATED => 'success',
+            self::EVENT_TRANSFER_INITIATED => 'info',
+            self::EVENT_TRANSFER_ACCEPTED => 'success',
+            self::EVENT_TRANSFER_CANCELLED => 'danger',
+            self::EVENT_TRANSFER_EXPIRED => 'gray',
             default => 'gray',
         };
     }

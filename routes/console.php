@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\Allocation\ExpireReservationsJob;
+use App\Jobs\Allocation\ExpireTransfersJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -11,3 +12,6 @@ Artisan::command('inspire', function () {
 
 // Schedule the job to expire temporary reservations every minute
 Schedule::job(new ExpireReservationsJob)->everyMinute();
+
+// Schedule the job to expire pending voucher transfers every minute
+Schedule::job(new ExpireTransfersJob)->everyMinute();
