@@ -233,3 +233,27 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Policies for models in subdirectories (App\Models\Allocation\Allocation) need explicit registration in AppServiceProvider using Gate::policy()
   - Property $shouldActivateAfterCreate pattern works for tracking button-specific behavior across create() and afterCreate()
 ---
+
+## 2026-02-03 - US-013
+- What was implemented: Allocation Detail view with 6 tabs organized using Filament Infolist Tabs
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/ViewAllocation.php` (complete rewrite with tabs)
+  - `app/Models/Allocation/Allocation.php` (added auditLogs() morphMany relationship)
+- **Features implemented:**
+  - Tab 1 - Overview: Status & Identity (allocation ID, UUID, status badges, source type, supply form, serialization), Bottle SKU info, Quantities (total, sold, remaining, available), Availability Window, Lineage Rule explanation
+  - Tab 2 - Constraints: Commercial constraints display with Edit link (visible only in Draft), Advanced constraints section (composition group, fungibility exception), Liquid constraints section (for liquid allocations)
+  - Tab 3 - Capacity & Consumption: Capacity overview with utilization percentage, Active reservations impact showing reserved vs available quantity, Placeholder for future consumption breakdown by sellable SKU/channel/time (pending Voucher implementation)
+  - Tab 4 - Reservations: RepeatableEntry showing all temporary reservations with ID, quantity, context type, status, expires_at, and reference; Summary counts by status (total, active, expired, converted)
+  - Tab 5 - Vouchers: Placeholder for future voucher list (pending US-015+ implementation)
+  - Tab 6 - Audit: RepeatableEntry showing auditLogs with event badge, user, timestamp, and formatted changes
+  - Header Actions: Activate (visible for Draft, role-based), Close (visible for Active/Exhausted, role-based), Edit, More (Delete/Restore)
+- **Learnings for future iterations:**
+  - Use `Tabs::make()->tabs([...])` with separate methods for each Tab for clean organization
+  - Use `->persistTabInQueryString()` to preserve active tab in URL
+  - Tab badges can show counts with `->badge(fn () => ...)` and `->badgeColor()`
+  - Use `RepeatableEntry::make('relationshipName')` to display hasMany relationships in infolist
+  - TextEntry `->getStateUsing()` allows computed values; use service calls for business logic
+  - Sections support `->headerActions([...])` for inline action buttons
+  - AuditLog polymorphic relationship uses `morphMany(\App\Models\AuditLog::class, 'auditable')`
+  - Authorization on header actions: `->authorize('policyMethod', $record)`
+---

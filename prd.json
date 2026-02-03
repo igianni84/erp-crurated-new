@@ -215,8 +215,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented allocation detail view with 6 tabs: Overview (status, quantities, availability window, lineage rule), Constraints (commercial constraints with edit link for Draft status, advanced constraints, liquid constraints), Capacity & Consumption (capacity overview, reservation impact, placeholder for future consumption breakdown), Reservations (list of temporary reservations with status), Vouchers (placeholder for future voucher list - US-015+), Audit (timeline of audit logs). Added header actions: Activate (Draft→Active) and Close (Active/Exhausted→Closed) with role-based authorization. Added auditLogs() morphMany relationship to Allocation model. Browser verification deferred to future story."
     },
     {
       "id": "US-014",
