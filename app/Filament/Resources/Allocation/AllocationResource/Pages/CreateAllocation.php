@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
 
+use App\Enums\Allocation\AllocationSourceType;
+use App\Enums\Allocation\AllocationSupplyForm;
 use App\Filament\Resources\Allocation\AllocationResource;
 use App\Models\Pim\Format;
 use App\Models\Pim\WineMaster;
@@ -46,7 +48,8 @@ class CreateAllocation extends CreateRecord
     {
         return [
             $this->getBottleSkuStep(),
-            // Future steps will be added in US-009, US-010, US-011, US-012
+            $this->getSourceAndCapacityStep(),
+            // Future steps will be added in US-010, US-011, US-012
         ];
     }
 
@@ -185,6 +188,128 @@ class CreateAllocation extends CreateRecord
                             ->columnSpanFull(),
                     ])
                     ->hidden(fn (Get $get): bool => $get('wine_variant_id') === null || $get('format_id') === null),
+            ]);
+    }
+
+    /**
+     * Step 2: Source & Capacity
+     * Defines the source type, supply form, quantity, and availability window
+     */
+    protected function getSourceAndCapacityStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Source & Capacity')
+            ->description('Define the supply source and quantity')
+            ->icon('heroicon-o-archive-box')
+            ->schema([
+                Forms\Components\Section::make('Supply Source')
+                    ->description('Define where this supply comes from')
+                    ->schema([
+                        Forms\Components\Select::make('source_type')
+                            ->label('Source Type')
+                            ->options(
+                                collect(AllocationSourceType::cases())
+                                    ->mapWithKeys(fn (AllocationSourceType $type): array => [
+                                        $type->value => $type->label(),
+                                    ])
+                                    ->toArray()
+                            )
+                            ->required()
+                            ->native(false)
+                            ->helperText('The commercial arrangement for this supply'),
+
+                        Forms\Components\Select::make('supply_form')
+                            ->label('Supply Form')
+                            ->options(
+                                collect(AllocationSupplyForm::cases())
+                                    ->mapWithKeys(fn (AllocationSupplyForm $form): array => [
+                                        $form->value => $form->label(),
+                                    ])
+                                    ->toArray()
+                            )
+                            ->required()
+                            ->native(false)
+                            ->live()
+                            ->helperText('Whether the supply is already bottled or still in liquid form'),
+                    ])
+                    ->columns(2),
+
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('supply_form_guidance')
+                            ->label('')
+                            ->content(function (Get $get): string {
+                                $supplyForm = $get('supply_form');
+
+                                if ($supplyForm === AllocationSupplyForm::Bottled->value) {
+                                    return '**Bottled supply:** The wine is already bottled and ready for sale. Each bottle can be individually serialized and tracked. This is the most common form of allocation.';
+                                }
+
+                                if ($supplyForm === AllocationSupplyForm::Liquid->value) {
+                                    return '**Liquid supply:** The wine is still in barrel or tank and will be bottled later. Customers purchasing from liquid allocations may need to choose bottling options (format, case configuration). Additional constraints can be specified in Step 4.';
+                                }
+
+                                return 'Select a supply form above to see guidance.';
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->hidden(fn (Get $get): bool => $get('supply_form') === null),
+
+                Forms\Components\Section::make('Capacity')
+                    ->description('Define the total available quantity')
+                    ->schema([
+                        Forms\Components\TextInput::make('total_quantity')
+                            ->label('Total Quantity')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->step(1)
+                            ->suffix('bottles')
+                            ->helperText('Total number of bottles available for this allocation'),
+                    ])
+                    ->columns(1),
+
+                Forms\Components\Section::make('Availability Window')
+                    ->description('When will this supply be available for fulfillment?')
+                    ->schema([
+                        Forms\Components\DatePicker::make('expected_availability_start')
+                            ->label('Expected Availability Start')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->live()
+                            ->helperText('Earliest date when this supply can be fulfilled'),
+
+                        Forms\Components\DatePicker::make('expected_availability_end')
+                            ->label('Expected Availability End')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->afterOrEqual('expected_availability_start')
+                            ->helperText('Latest date by which this supply should be fulfilled'),
+                    ])
+                    ->columns(2),
+
+                Forms\Components\Section::make('Serialization')
+                    ->description('Configure bottle tracking requirements')
+                    ->schema([
+                        Forms\Components\Toggle::make('serialization_required')
+                            ->label('Serialization Required')
+                            ->default(true)
+                            ->live()
+                            ->helperText('Each bottle must be assigned a unique serial number'),
+
+                        Forms\Components\Placeholder::make('serialization_guidance')
+                            ->label('')
+                            ->content(function (Get $get): string {
+                                $required = $get('serialization_required');
+
+                                if ($required) {
+                                    return '**Serialization enabled:** Each bottle from this allocation will receive a unique identifier for provenance tracking. This is recommended for fine wine and required for trading on secondary markets.';
+                                }
+
+                                return '**Serialization disabled:** Bottles will not be individually tracked. Use this only for commodity wines where individual bottle tracking is not needed. Note: This cannot be changed once vouchers are issued.';
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
             ]);
     }
 
