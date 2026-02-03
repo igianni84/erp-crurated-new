@@ -876,3 +876,67 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Filament infolists don't support forms directly - use headerActions with modal forms for filtering
   - For HTML rendering in infolists, use TextEntry with getStateUsing() and ->html() modifier
 ---
+
+## 2026-02-03 - US-039
+- What was implemented: Audit log per Vouchers with Auditable trait and filtered Event History section
+- Files changed:
+  - `database/migrations/2026_02_03_370000_add_updated_by_to_vouchers_table.php` (new)
+  - `database/migrations/2026_02_03_370001_add_audit_columns_to_case_entitlements_table.php` (new)
+  - `database/migrations/2026_02_03_370002_add_audit_columns_to_voucher_transfers_table.php` (new)
+  - `app/Models/Allocation/Voucher.php` (added Auditable trait, removed redundant creator() method)
+  - `app/Models/Allocation/CaseEntitlement.php` (added Auditable trait)
+  - `app/Models/Allocation/VoucherTransfer.php` (added Auditable trait)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (enhanced Event History with filters)
+- **Features implemented:**
+  - Applied Auditable trait to Voucher, CaseEntitlement, VoucherTransfer for automatic created/updated/deleted logging
+  - Added migrations for audit columns: updated_by on vouchers, created_by/updated_by on case_entitlements and voucher_transfers
+  - Voucher Event History section now has Filter and Clear Filters header actions
+  - Filter modal supports: event type (16 voucher-specific event types), date from, date until
+  - Audit logs displayed in styled timeline format with dark mode support
+  - Filter description shows active filters in section description
+  - All voucher events already logged by services (VoucherService, VoucherTransferService, CaseEntitlementService)
+- **Learnings for future iterations:**
+  - Auditable trait requires both created_by and updated_by columns on the table
+  - Voucher model's own boot method logic for created_by was removed since Auditable trait handles it
+  - Voucher's creator() method was removed since Auditable trait provides it
+  - For voucher audit filtering, include all voucher-specific event types: voucher_issued, lifecycle_change, flag_change, voucher_suspended, voucher_reactivated, transfer_initiated/accepted/cancelled/expired, trading_suspended/completed, voucher_quarantined/unquarantined
+  - Services continue to log domain-specific events; Auditable trait adds generic created/updated/deleted
+---
+
+## 2026-02-03 - US-040
+- What was implemented: Allocation & Voucher Dashboard for monitoring system health
+- Files changed:
+  - `app/Filament/Pages/AllocationVoucherDashboard.php` (new)
+  - `resources/views/filament/pages/allocation-voucher-dashboard.blade.php` (new)
+- **Features implemented:**
+  - Dashboard page in Filament with navigation group 'Allocations', sort order 0 (appears first)
+  - Summary cards row (4 cards, all clickable with filtered list links):
+    - Active Allocations (success color, cube icon)
+    - Near Exhaustion (warning color, exclamation triangle icon)
+    - Issued Vouchers (primary color, ticket icon)
+    - Pending Transfers (info color, arrows icon)
+  - Distribution charts section (2 columns):
+    - Allocations by Status: bar chart showing Draft/Active/Exhausted/Closed with percentages
+    - Vouchers by State: bar chart showing Issued/Locked/Redeemed/Cancelled with percentages
+  - Detailed metrics row (4 cards):
+    - Pending Redemption (locked vouchers)
+    - Redeemed This Month
+    - Active Reservations
+    - Expired Reservations Today
+  - Transfer/Allocation metrics row (2 cards):
+    - Allocations Closed This Month
+    - Failed Transfers This Month (cancelled + expired)
+  - Problem areas section (2 columns):
+    - Near Exhaustion Allocations: list of top 10 with bottle SKU, ID, remaining/total count, links to detail
+    - Expired Transfers Today: list with voucher ID, from/to customers, links to detail
+  - All cards and sections include "View All" links to filtered resource lists
+  - Dark mode support throughout
+  - Responsive grid layouts (1/2/4 columns based on screen size)
+- **Learnings for future iterations:**
+  - Dashboard pages use custom Blade views in `resources/views/filament/pages/`
+  - Use `$this->methodName()` in Blade to call page methods
+  - Resource::getUrl() with tableFilters parameter allows linking to filtered lists
+  - Follow PimDashboard pattern for styling: fi-section class, rounded-xl, shadow-sm, ring
+  - Use Heroicon components with color classes (text-success-600, bg-primary-50, etc.)
+  - Cards can be wrapped in <a> tags for full-card clickability with hover:shadow-md transition
+---
