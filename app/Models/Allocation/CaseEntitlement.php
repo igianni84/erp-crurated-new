@@ -5,6 +5,7 @@ namespace App\Models\Allocation;
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Models\Customer\Customer;
 use App\Models\Pim\SellableSku;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -31,6 +32,7 @@ use Illuminate\Support\Carbon;
  */
 class CaseEntitlement extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
 

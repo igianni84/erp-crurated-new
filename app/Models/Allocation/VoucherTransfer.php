@@ -4,6 +4,7 @@ namespace App\Models\Allocation;
 
 use App\Enums\Allocation\VoucherTransferStatus;
 use App\Models\Customer\Customer;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -32,6 +33,7 @@ use Illuminate\Support\Carbon;
  */
 class VoucherTransfer extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
 

@@ -7,6 +7,7 @@ use App\Models\Customer\Customer;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
 use App\Models\Pim\WineVariant;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +16,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
 
 /**
  * Voucher Model
@@ -38,6 +38,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class Voucher extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
     use SoftDeletes;
@@ -106,13 +107,8 @@ class Voucher extends Model
     {
         parent::boot();
 
-        // Set created_by on creation
+        // Enforce quantity = 1 invariant on creation
         static::creating(function (Voucher $voucher): void {
-            if (Auth::check() && empty($voucher->created_by)) {
-                $voucher->created_by = Auth::id();
-            }
-
-            // Enforce quantity = 1 invariant
             $voucher->quantity = 1;
         });
 
@@ -193,16 +189,6 @@ class Voucher extends Model
     public function caseEntitlement(): BelongsTo
     {
         return $this->belongsTo(CaseEntitlement::class);
-    }
-
-    /**
-     * Get the user who created this voucher.
-     *
-     * @return BelongsTo<\App\Models\User, $this>
-     */
-    public function creator(): BelongsTo
-    {
-        return $this->belongsTo(\App\Models\User::class, 'created_by');
     }
 
     /**
