@@ -172,6 +172,58 @@ class PriceBook extends Model
     }
 
     /**
+     * Check if the price book has at least one entry (required for activation).
+     */
+    public function hasEntries(): bool
+    {
+        return $this->entries()->exists();
+    }
+
+    /**
+     * Check if activation is valid (has entries and is draft).
+     */
+    public function canBeActivatedWithEntries(): bool
+    {
+        return $this->isDraft() && $this->hasEntries();
+    }
+
+    /**
+     * Find overlapping active price books for the same market/channel/currency.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, PriceBook>
+     */
+    public function findOverlappingActivePriceBooks(): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::query()
+            ->where('id', '!=', $this->id)
+            ->where('status', PriceBookStatus::Active)
+            ->where('market', $this->market)
+            ->where('channel_id', $this->channel_id)
+            ->where('currency', $this->currency)
+            ->where(function ($query): void {
+                // Check for date overlap
+                $query->where(function ($q): void {
+                    // Existing price book ends after new one starts (or has no end)
+                    $q->whereNull('valid_to')
+                        ->orWhere('valid_to', '>=', $this->valid_from);
+                });
+                // Existing price book starts before new one ends (or new has no end)
+                if ($this->valid_to !== null) {
+                    $query->where('valid_from', '<=', $this->valid_to);
+                }
+            })
+            ->get();
+    }
+
+    /**
+     * Check if there are overlapping active price books.
+     */
+    public function hasOverlappingActivePriceBooks(): bool
+    {
+        return $this->findOverlappingActivePriceBooks()->isNotEmpty();
+    }
+
+    /**
      * Check if the price book can be archived.
      * Must be active or expired to be archived.
      */

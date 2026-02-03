@@ -622,21 +622,49 @@ class ViewPriceBook extends ViewRecord
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->visible(fn (PriceBook $record): bool => $record->canBeActivated())
+                ->visible(fn (PriceBook $record): bool => $record->canBeActivated() && auth()->user()?->canApprovePriceBooks())
                 ->requiresConfirmation()
                 ->modalHeading('Activate Price Book')
                 ->modalDescription(function (PriceBook $record): string {
                     $entriesCount = $record->entries()->count();
+                    $messages = [];
+
                     if ($entriesCount === 0) {
-                        return 'Warning: This price book has no price entries. Are you sure you want to activate it?';
+                        return 'Cannot activate: This price book has no price entries. Add at least one price entry before activating.';
                     }
 
-                    return "This will activate the price book with {$entriesCount} price entries. Prices will become read-only after activation.";
+                    $messages[] = "This will activate the price book with {$entriesCount} price entries.";
+                    $messages[] = 'Prices will become read-only after activation.';
+
+                    // Check for overlapping active price books using model method
+                    $overlappingBooks = $record->findOverlappingActivePriceBooks();
+
+                    if ($overlappingBooks->isNotEmpty()) {
+                        $messages[] = '';
+                        $messages[] = '⚠️ WARNING: Active price book(s) already exist for this market/channel/currency:';
+                        foreach ($overlappingBooks as $overlapping) {
+                            $messages[] = "• \"{$overlapping->name}\" (valid from {$overlapping->valid_from->format('Y-m-d')})";
+                        }
+                        $messages[] = '';
+                        $messages[] = 'Activating this price book will automatically expire the overlapping one(s).';
+                    }
+
+                    return implode("\n", $messages);
                 })
                 ->action(function (PriceBook $record): void {
-                    $entriesCount = $record->entries()->count();
+                    // Validate approver role
+                    if (! auth()->user()?->canApprovePriceBooks()) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Activation failed')
+                            ->body('You do not have permission to approve price books. Requires Manager role or higher.')
+                            ->send();
 
-                    if ($entriesCount === 0) {
+                        return;
+                    }
+
+                    // Validate at least one entry exists
+                    if (! $record->hasEntries()) {
                         Notification::make()
                             ->danger()
                             ->title('Activation failed')
@@ -646,18 +674,43 @@ class ViewPriceBook extends ViewRecord
                         return;
                     }
 
+                    // Find and expire overlapping active price books using model method
+                    $overlappingBooks = $record->findOverlappingActivePriceBooks();
+                    $expiredCount = 0;
+
+                    foreach ($overlappingBooks as $overlapping) {
+                        $overlapping->update([
+                            'status' => PriceBookStatus::Expired,
+                        ]);
+                        $expiredCount++;
+                    }
+
+                    // Activate the current price book with approval info
                     $record->update([
                         'status' => PriceBookStatus::Active,
                         'approved_at' => now(),
                         'approved_by' => auth()->id(),
                     ]);
 
+                    $message = "The price book \"{$record->name}\" is now active.";
+                    if ($expiredCount > 0) {
+                        $message .= " {$expiredCount} overlapping price book(s) have been expired.";
+                    }
+
                     Notification::make()
                         ->success()
                         ->title('Price Book activated')
-                        ->body("The price book \"{$record->name}\" is now active.")
+                        ->body($message)
                         ->send();
                 }),
+
+            Actions\Action::make('activate_disabled')
+                ->label('Activate')
+                ->icon('heroicon-o-check-circle')
+                ->color('gray')
+                ->disabled()
+                ->visible(fn (PriceBook $record): bool => $record->canBeActivated() && ! auth()->user()?->canApprovePriceBooks())
+                ->tooltip('You need Manager role or higher to approve price books'),
 
             Actions\Action::make('archive')
                 ->label('Archive')
