@@ -13,6 +13,7 @@ Started: Tue Feb  3 21:41:29 CET 2026
 - Filament navigation groups are defined in `AdminPanelProvider.php`
 - Use `$navigationGroup = 'Commercial'` for all Commercial module resources
 - For table-based list pages (not CRUD resources), use Filament Page with HasTable interface and InteractsWithTable trait
+- Module configuration goes in `config/{module}.php` (e.g., `config/commercial.php`) and is accessed via `config('module.key')`
 
 ---
 
@@ -140,4 +141,50 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - Sortable columns with relationships need explicit join queries in sortable() callback
   - Placeholder columns with dashes and tooltips are good for features not yet implemented
   - Statistics can be exposed via public methods and accessed in Blade templates with $this->getStatistics()
+---
+
+## 2026-02-03 - US-007
+- What was implemented:
+  - PricingIntelligenceDetail Filament Page for detailed EMP analysis per Sellable SKU
+  - Tab EMP Overview: SKU information, current EMP values by market with freshness indicators, source breakdown with visual percentages, historical trend placeholder
+  - Tab Comparisons: Placeholder sections for EMP vs Price Book prices and EMP vs active Offer prices (pending US-009+, US-033+)
+  - Tab Market Coverage: Visual display of markets with EMP data, data quality warnings for stale/low confidence/missing date data
+  - Tab Signals & Alerts: Outlier detection using z-score analysis (>2 standard deviations), placeholder for price deviation alerts
+  - Tab Audit: EMP update history with filtering by market and date range
+  - Read-only view (no modification actions)
+  - Link from PricingIntelligence list view to detail view
+- Files changed:
+  - app/Filament/Pages/PricingIntelligenceDetail.php (created)
+  - resources/views/filament/pages/pricing-intelligence-detail.blade.php (created)
+  - app/Filament/Pages/PricingIntelligence.php (modified - enabled view_detail action)
+- **Learnings for future iterations:**
+  - Filament Pages can use slug patterns with parameters like `pricing-intelligence/{record}` for dynamic routes
+  - Use mount() method to load the record and related data based on URL parameters
+  - Infolist tabs can have badges (e.g., alert count) using ->badge() and ->badgeColor()
+  - Standard deviation-based outlier detection is effective for identifying EMP anomalies across markets
+  - Public properties (auditMarketFilter, etc.) with Action form callbacks enable filter state management
+  - Use `$shouldRegisterNavigation = false` for detail pages that shouldn't appear in navigation
+---
+
+## 2026-02-03 - US-008
+- What was implemented:
+  - CommercialOverview Filament Page as landing page for Commercial module
+  - EMP Alerts widget showing: total EMP records, price deviations count (placeholder), stale data count, low confidence count
+  - Alert cards with links to Pricing Intelligence page with appropriate filters
+  - Alert severity system based on percentage thresholds (success, warning, danger)
+  - Markets with data quality issues summary
+  - Configurable threshold setting via config/commercial.php (default 15%)
+  - Placeholder widgets for future features: Active Price Books, Active Offers, Pricing Policies
+  - Quick Actions section with links to available features and placeholders for upcoming ones
+- Files changed:
+  - app/Filament/Pages/CommercialOverview.php (created)
+  - resources/views/filament/pages/commercial-overview.blade.php (created)
+  - config/commercial.php (created - commercial module configuration)
+- **Learnings for future iterations:**
+  - Use config() helper for retrievable settings (e.g., threshold values)
+  - Config files are created in config/ directory and loaded automatically by Laravel
+  - Alert severity can be computed dynamically using percentage-based thresholds
+  - Dashboard pages benefit from placeholder sections explaining upcoming features
+  - URL query parameters for Filament table filters use format `?tableFilters[filter_name][value]=1`
+  - Quick action grids with disabled placeholders provide good UX for incomplete features
 ---
