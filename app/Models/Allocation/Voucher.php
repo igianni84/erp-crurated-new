@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Auth;
  * @property bool $tradable
  * @property bool $giftable
  * @property bool $suspended
+ * @property string|null $external_trading_reference
  * @property int $quantity
  */
 class Voucher extends Model
@@ -62,6 +63,7 @@ class Voucher extends Model
         'tradable',
         'giftable',
         'suspended',
+        'external_trading_reference',
         'sale_reference',
         'created_by',
     ];
@@ -398,5 +400,37 @@ class Voucher extends Model
         $caseEntitlement = $this->caseEntitlement;
 
         return $caseEntitlement !== null && $caseEntitlement->isIntact();
+    }
+
+    /**
+     * Check if the voucher is suspended for external trading.
+     */
+    public function isSuspendedForTrading(): bool
+    {
+        return $this->suspended && $this->external_trading_reference !== null;
+    }
+
+    /**
+     * Check if the voucher has an external trading reference.
+     */
+    public function hasExternalTradingReference(): bool
+    {
+        return $this->external_trading_reference !== null;
+    }
+
+    /**
+     * Get the suspension reason display text.
+     */
+    public function getSuspensionReason(): string
+    {
+        if (! $this->suspended) {
+            return '';
+        }
+
+        if ($this->isSuspendedForTrading()) {
+            return 'Suspended for external trading';
+        }
+
+        return 'Suspended (manual)';
     }
 }

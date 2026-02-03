@@ -40,6 +40,10 @@ class AuditLog extends Model
 
     public const EVENT_TRANSFER_EXPIRED = 'transfer_expired';
 
+    public const EVENT_TRADING_SUSPENDED = 'trading_suspended';
+
+    public const EVENT_TRADING_COMPLETED = 'trading_completed';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -113,6 +117,8 @@ class AuditLog extends Model
             self::EVENT_TRANSFER_ACCEPTED => 'Transfer Accepted',
             self::EVENT_TRANSFER_CANCELLED => 'Transfer Cancelled',
             self::EVENT_TRANSFER_EXPIRED => 'Transfer Expired',
+            self::EVENT_TRADING_SUSPENDED => 'Suspended for Trading',
+            self::EVENT_TRADING_COMPLETED => 'Trading Completed',
             default => ucfirst((string) $this->event),
         };
     }
@@ -136,6 +142,8 @@ class AuditLog extends Model
             self::EVENT_TRANSFER_ACCEPTED => 'heroicon-o-check-circle',
             self::EVENT_TRANSFER_CANCELLED => 'heroicon-o-x-circle',
             self::EVENT_TRANSFER_EXPIRED => 'heroicon-o-clock',
+            self::EVENT_TRADING_SUSPENDED => 'heroicon-o-currency-dollar',
+            self::EVENT_TRADING_COMPLETED => 'heroicon-o-banknotes',
             default => 'heroicon-o-document',
         };
     }
@@ -159,6 +167,8 @@ class AuditLog extends Model
             self::EVENT_TRANSFER_ACCEPTED => 'success',
             self::EVENT_TRANSFER_CANCELLED => 'danger',
             self::EVENT_TRANSFER_EXPIRED => 'gray',
+            self::EVENT_TRADING_SUSPENDED => 'warning',
+            self::EVENT_TRADING_COMPLETED => 'success',
             default => 'gray',
         };
     }

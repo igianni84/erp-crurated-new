@@ -819,9 +819,28 @@ class ViewVoucher extends ViewRecord
                                 : 'heroicon-o-play-circle')
                             ->helperText('If suspended, all operations are blocked'),
                     ]),
+                TextEntry::make('suspension_reason')
+                    ->label('Suspension Reason')
+                    ->getStateUsing(fn (Voucher $record): string => $record->getSuspensionReason())
+                    ->visible(fn (Voucher $record): bool => $record->suspended)
+                    ->badge()
+                    ->color(fn (Voucher $record): string => $record->isSuspendedForTrading() ? 'warning' : 'danger')
+                    ->icon(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                        ? 'heroicon-o-currency-dollar'
+                        : 'heroicon-o-pause-circle'),
+                TextEntry::make('external_trading_reference')
+                    ->label('External Trading Reference')
+                    ->visible(fn (Voucher $record): bool => $record->isSuspendedForTrading())
+                    ->copyable()
+                    ->badge()
+                    ->color('warning'),
                 TextEntry::make('flags_info')
                     ->label('')
                     ->getStateUsing(function (Voucher $record): string {
+                        if ($record->isSuspendedForTrading()) {
+                            return 'This voucher is SUSPENDED FOR EXTERNAL TRADING. All operations are blocked until trading is completed or the voucher is manually reactivated. The external trading platform will notify the system when the trade is complete.';
+                        }
+
                         if ($record->suspended) {
                             return 'This voucher is SUSPENDED. All operations (trading, gifting, redemption) are blocked until reactivated.';
                         }
@@ -839,8 +858,12 @@ class ViewVoucher extends ViewRecord
                     ->icon(fn (Voucher $record): string => $record->suspended
                         ? 'heroicon-o-exclamation-triangle'
                         : 'heroicon-o-information-circle')
-                    ->iconColor(fn (Voucher $record): string => $record->suspended ? 'danger' : 'info')
-                    ->color(fn (Voucher $record): string => $record->suspended ? 'danger' : 'gray'),
+                    ->iconColor(fn (Voucher $record): string => $record->suspended
+                        ? ($record->isSuspendedForTrading() ? 'warning' : 'danger')
+                        : 'info')
+                    ->color(fn (Voucher $record): string => $record->suspended
+                        ? ($record->isSuspendedForTrading() ? 'warning' : 'danger')
+                        : 'gray'),
             ]);
     }
 
@@ -927,6 +950,59 @@ class ViewVoucher extends ViewRecord
                                     ]),
                             ])
                             ->columns(1),
+                    ]),
+                Section::make('External Trading')
+                    ->description(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                        ? 'This voucher is currently suspended for external trading'
+                        : 'External trading information')
+                    ->icon(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                        ? 'heroicon-o-currency-dollar'
+                        : 'heroicon-o-banknotes')
+                    ->iconColor(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                        ? 'warning'
+                        : 'gray')
+                    ->collapsed(fn (Voucher $record): bool => ! $record->isSuspendedForTrading())
+                    ->collapsible()
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('trading_status')
+                                    ->label('Trading Status')
+                                    ->badge()
+                                    ->getStateUsing(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                        ? 'Suspended for Trading'
+                                        : 'Not in External Trading')
+                                    ->color(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                        ? 'warning'
+                                        : 'gray')
+                                    ->icon(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                        ? 'heroicon-o-pause-circle'
+                                        : 'heroicon-o-check-circle'),
+                                TextEntry::make('external_trading_reference')
+                                    ->label('Trading Reference')
+                                    ->copyable()
+                                    ->weight(FontWeight::Bold)
+                                    ->visible(fn (Voucher $record): bool => $record->isSuspendedForTrading()),
+                            ]),
+                        TextEntry::make('trading_info')
+                            ->label('')
+                            ->getStateUsing(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                ? 'This voucher is currently suspended while being traded on an external platform. '
+                                  .'All operations (redemption, transfers, flag modifications) are blocked. '
+                                  .'When the external trade is completed, the system will be notified via API callback '
+                                  .'and the voucher will be transferred to the new owner automatically.'
+                                : 'External trading allows vouchers to be sold on secondary markets. '
+                                  .'When a voucher is listed for external trading, it becomes suspended to prevent '
+                                  .'duplicate sales or modifications during the trading process.')
+                            ->icon(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                ? 'heroicon-o-exclamation-triangle'
+                                : 'heroicon-o-information-circle')
+                            ->iconColor(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                ? 'warning'
+                                : 'info')
+                            ->color(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                                ? 'warning'
+                                : 'gray'),
                     ]),
                 TextEntry::make('transfer_info')
                     ->label('')

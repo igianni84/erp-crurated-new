@@ -275,17 +275,166 @@ class VoucherService
             );
         }
 
+        $oldTradingRef = $voucher->external_trading_reference;
         $voucher->suspended = false;
+        $voucher->external_trading_reference = null;
         $voucher->save();
 
         $this->logVoucherEvent(
             $voucher,
             AuditLog::EVENT_VOUCHER_REACTIVATED,
-            ['suspended' => true],
-            ['suspended' => false]
+            ['suspended' => true, 'external_trading_reference' => $oldTradingRef],
+            ['suspended' => false, 'external_trading_reference' => null]
         );
 
         return $voucher;
+    }
+
+    /**
+     * Suspend a voucher for external trading.
+     *
+     * Suspends the voucher and stores the external trading reference.
+     * Suspended vouchers cannot be redeemed, transferred, or modified.
+     *
+     * @param  string  $tradingReference  The reference from the external trading platform
+     *
+     * @throws \InvalidArgumentException If voucher cannot be suspended for trading
+     */
+    public function suspendForTrading(Voucher $voucher, string $tradingReference): Voucher
+    {
+        if (empty($tradingReference)) {
+            throw new \InvalidArgumentException(
+                'Cannot suspend for trading: trading reference is required.'
+            );
+        }
+
+        if ($voucher->suspended) {
+            throw new \InvalidArgumentException(
+                'Cannot suspend for trading: voucher is already suspended.'
+            );
+        }
+
+        if ($voucher->isTerminal()) {
+            throw new \InvalidArgumentException(
+                "Cannot suspend for trading: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
+            );
+        }
+
+        if (! $voucher->isIssued()) {
+            throw new \InvalidArgumentException(
+                'Cannot suspend for trading: voucher must be in Issued state to be suspended for trading. '
+                ."Current state: '{$voucher->lifecycle_state->label()}'."
+            );
+        }
+
+        if (! $voucher->tradable) {
+            throw new \InvalidArgumentException(
+                'Cannot suspend for trading: voucher is not tradable.'
+            );
+        }
+
+        if ($voucher->hasPendingTransfer()) {
+            throw new \InvalidArgumentException(
+                'Cannot suspend for trading: voucher has a pending transfer. Cancel the transfer first.'
+            );
+        }
+
+        // Break case entitlement if voucher is part of one (trading breaks the case)
+        $this->caseEntitlementService->breakIfVoucherInCase(
+            $voucher,
+            CaseEntitlementService::REASON_TRADE
+        );
+
+        $voucher->suspended = true;
+        $voucher->external_trading_reference = $tradingReference;
+        $voucher->save();
+
+        $this->logVoucherEvent(
+            $voucher,
+            AuditLog::EVENT_TRADING_SUSPENDED,
+            [
+                'suspended' => false,
+                'external_trading_reference' => null,
+            ],
+            [
+                'suspended' => true,
+                'external_trading_reference' => $tradingReference,
+            ]
+        );
+
+        return $voucher;
+    }
+
+    /**
+     * Complete external trading by transferring the voucher to a new customer.
+     *
+     * This is called when an external trading platform notifies us that
+     * a trade has been completed. Updates the customer and unsuspends the voucher.
+     * Lineage (allocation_id) is preserved - never modified.
+     *
+     * @param  string  $tradingReference  The reference from the external trading platform (must match)
+     * @param  Customer  $newCustomer  The new owner of the voucher
+     *
+     * @throws \InvalidArgumentException If trading cannot be completed
+     */
+    public function completeTrading(Voucher $voucher, string $tradingReference, Customer $newCustomer): Voucher
+    {
+        if (empty($tradingReference)) {
+            throw new \InvalidArgumentException(
+                'Cannot complete trading: trading reference is required.'
+            );
+        }
+
+        if (! $voucher->suspended) {
+            throw new \InvalidArgumentException(
+                'Cannot complete trading: voucher is not suspended.'
+            );
+        }
+
+        if ($voucher->external_trading_reference === null) {
+            throw new \InvalidArgumentException(
+                'Cannot complete trading: voucher is not suspended for external trading.'
+            );
+        }
+
+        if ($voucher->external_trading_reference !== $tradingReference) {
+            throw new \InvalidArgumentException(
+                'Cannot complete trading: trading reference does not match. '
+                ."Expected: '{$voucher->external_trading_reference}', got: '{$tradingReference}'."
+            );
+        }
+
+        if ($voucher->isTerminal()) {
+            throw new \InvalidArgumentException(
+                "Cannot complete trading: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
+            );
+        }
+
+        return DB::transaction(function () use ($voucher, $tradingReference, $newCustomer): Voucher {
+            $oldCustomerId = $voucher->customer_id;
+
+            $voucher->customer_id = $newCustomer->id;
+            $voucher->suspended = false;
+            $voucher->external_trading_reference = null;
+            $voucher->save();
+
+            $this->logVoucherEvent(
+                $voucher,
+                AuditLog::EVENT_TRADING_COMPLETED,
+                [
+                    'customer_id' => $oldCustomerId,
+                    'suspended' => true,
+                    'external_trading_reference' => $tradingReference,
+                ],
+                [
+                    'customer_id' => $newCustomer->id,
+                    'suspended' => false,
+                    'external_trading_reference' => null,
+                ]
+            );
+
+            return $voucher;
+        });
     }
 
     /**

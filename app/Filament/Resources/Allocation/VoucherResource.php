@@ -99,7 +99,9 @@ class VoucherResource extends Resource
                     ->label('Flags')
                     ->state(function (Voucher $record): string {
                         $flags = [];
-                        if ($record->suspended) {
+                        if ($record->isSuspendedForTrading()) {
+                            $flags[] = 'Trading';
+                        } elseif ($record->suspended) {
                             $flags[] = 'Suspended';
                         }
                         if ($record->tradable) {
@@ -113,7 +115,9 @@ class VoucherResource extends Resource
                     })
                     ->badge()
                     ->separator(',')
-                    ->color(fn (Voucher $record): string => $record->suspended ? 'danger' : 'gray'),
+                    ->color(fn (Voucher $record): string => $record->isSuspendedForTrading()
+                        ? 'warning'
+                        : ($record->suspended ? 'danger' : 'gray')),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Created')
