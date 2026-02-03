@@ -1529,23 +1529,614 @@ class CreateOffer extends CreateRecord
     }
 
     /**
-     * Step 5: Review (placeholder for US-041)
+     * Step 5: Review & Create
+     * Show a complete summary of the offer configuration before creation.
      */
     protected function getReviewStep(): Wizard\Step
     {
         return Wizard\Step::make('Review')
-            ->description('Review and create (Coming in US-041)')
+            ->description('Review and create your offer')
             ->icon('heroicon-o-check-circle')
             ->schema([
-                Forms\Components\Section::make('Review')
-                    ->description('This step will be fully implemented in US-041')
+                // Summary Header
+                Forms\Components\Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('review_info')
+                        Forms\Components\Placeholder::make('review_header')
                             ->label('')
-                            ->content('Review your offer configuration before creating.')
+                            ->content(new HtmlString(
+                                '<div class="rounded-lg bg-gradient-to-r from-success-50 to-primary-50 dark:from-success-950 dark:to-primary-950 p-6 border border-success-200 dark:border-success-800">'
+                                .'<div class="flex items-center gap-4">'
+                                .'<div class="flex-shrink-0">'
+                                .'<div class="w-12 h-12 rounded-full bg-success-100 dark:bg-success-900 flex items-center justify-center">'
+                                .'<svg class="w-6 h-6 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+                                .'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                                .'</svg>'
+                                .'</div>'
+                                .'</div>'
+                                .'<div>'
+                                .'<h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Ready to Create Your Offer</h3>'
+                                .'<p class="text-sm text-gray-600 dark:text-gray-400 mt-1">'
+                                .'Review the summary below and click "Create as Draft" or "Create and Activate" to proceed.'
+                                .'</p>'
+                                .'</div>'
+                                .'</div>'
+                                .'</div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+
+                // Conflict Warning Section
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('conflict_warning')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $this->hasConflictingOffers($get))
+                            ->content(fn (Get $get): HtmlString => $this->buildConflictWarningHtml($get))
+                            ->columnSpanFull(),
+                    ])
+                    ->hidden(fn (Get $get): bool => ! $this->hasConflictingOffers($get)),
+
+                // Product Summary Section
+                Forms\Components\Section::make('Product')
+                    ->description('The Sellable SKU for this offer')
+                    ->icon('heroicon-o-cube')
+                    ->schema([
+                        Forms\Components\Placeholder::make('product_summary')
+                            ->label('')
+                            ->content(fn (Get $get): HtmlString => $this->buildProductSummaryHtml($get))
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible(),
+
+                // Channel & Eligibility Summary Section
+                Forms\Components\Section::make('Channel & Eligibility')
+                    ->description('Commercial channel and customer eligibility')
+                    ->icon('heroicon-o-globe-alt')
+                    ->schema([
+                        Forms\Components\Placeholder::make('channel_eligibility_summary')
+                            ->label('')
+                            ->content(fn (Get $get): HtmlString => $this->buildChannelEligibilitySummaryHtml($get))
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible(),
+
+                // Pricing Summary Section
+                Forms\Components\Section::make('Pricing')
+                    ->description('Price Book and benefit configuration')
+                    ->icon('heroicon-o-currency-euro')
+                    ->schema([
+                        Forms\Components\Placeholder::make('pricing_summary')
+                            ->label('')
+                            ->content(fn (Get $get): HtmlString => $this->buildPricingSummaryHtml($get))
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible(),
+
+                // Validity & Visibility Summary Section
+                Forms\Components\Section::make('Validity & Visibility')
+                    ->description('Timing and access settings')
+                    ->icon('heroicon-o-eye')
+                    ->schema([
+                        Forms\Components\Placeholder::make('validity_summary')
+                            ->label('')
+                            ->content(fn (Get $get): HtmlString => $this->buildValiditySummaryHtml($get))
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible(),
+
+                // Status & Next Steps Section
+                Forms\Components\Section::make('Status & Next Steps')
+                    ->schema([
+                        Forms\Components\Placeholder::make('status_info')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="space-y-4">'
+                                // Draft status explanation
+                                .'<div class="rounded-lg bg-info-50 dark:bg-info-950 p-4 border border-info-200 dark:border-info-800">'
+                                .'<div class="flex items-start gap-3">'
+                                .'<div class="flex-shrink-0">'
+                                .'<svg class="w-5 h-5 text-info-600 dark:text-info-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+                                .'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                                .'</svg>'
+                                .'</div>'
+                                .'<div>'
+                                .'<p class="font-medium text-info-800 dark:text-info-200">Draft Status</p>'
+                                .'<p class="text-sm text-info-700 dark:text-info-300 mt-1">'
+                                .'By default, offers are created in <strong>Draft</strong> status. Draft offers are not visible to customers '
+                                .'and do not affect pricing until manually activated.'
+                                .'</p>'
+                                .'</div>'
+                                .'</div>'
+                                .'</div>'
+                                // Next steps
+                                .'<div class="rounded-lg bg-gray-50 dark:bg-gray-900 p-4 border border-gray-200 dark:border-gray-700">'
+                                .'<p class="font-medium text-gray-700 dark:text-gray-300 mb-2">Next Steps After Creation:</p>'
+                                .'<ol class="list-decimal list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">'
+                                .'<li>Review the offer details in the Offer Detail view</li>'
+                                .'<li>Verify eligibility constraints are correct</li>'
+                                .'<li>Activate the offer when ready to go live</li>'
+                                .'<li>Monitor performance via the Offer Dashboard</li>'
+                                .'</ol>'
+                                .'</div>'
+                                // Create and Activate explanation
+                                .'<div class="rounded-lg bg-success-50 dark:bg-success-950 p-4 border border-success-200 dark:border-success-800">'
+                                .'<div class="flex items-start gap-3">'
+                                .'<div class="flex-shrink-0">'
+                                .'<svg class="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+                                .'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>'
+                                .'</svg>'
+                                .'</div>'
+                                .'<div>'
+                                .'<p class="font-medium text-success-800 dark:text-success-200">Quick Activation</p>'
+                                .'<p class="text-sm text-success-700 dark:text-success-300 mt-1">'
+                                .'Click <strong>"Create and Activate"</strong> to create the offer and immediately activate it. '
+                                .'The offer will become visible to eligible customers once the validity period starts.'
+                                .'</p>'
+                                .'</div>'
+                                .'</div>'
+                                .'</div>'
+                                .'</div>'
+                            ))
                             ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    /**
+     * Check if there are conflicting offers (same SKU, channel, overlapping validity).
+     */
+    protected function hasConflictingOffers(Get $get): bool
+    {
+        $skuId = $get('sellable_sku_id');
+        $channelId = $get('channel_id');
+        $validFrom = $get('valid_from');
+        $validTo = $get('valid_to');
+
+        if ($skuId === null || $channelId === null || $validFrom === null) {
+            return false;
+        }
+
+        return $this->getConflictingOffersQuery($skuId, $channelId, $validFrom, $validTo)->exists();
+    }
+
+    /**
+     * Get conflicting offers query.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\Offer>
+     */
+    protected function getConflictingOffersQuery(string $skuId, string $channelId, mixed $validFrom, mixed $validTo): \Illuminate\Database\Eloquent\Builder
+    {
+        /** @var \DateTimeInterface|string $validFrom */
+        $fromDate = \Carbon\Carbon::parse($validFrom);
+
+        $query = \App\Models\Commercial\Offer::query()
+            ->where('sellable_sku_id', $skuId)
+            ->where('channel_id', $channelId)
+            ->whereIn('status', [OfferStatus::Draft, OfferStatus::Active, OfferStatus::Paused]);
+
+        // Check for date overlap
+        $query->where(function (\Illuminate\Database\Eloquent\Builder $q) use ($fromDate, $validTo): void {
+            // New offer starts during existing offer's validity
+            $q->where(function (\Illuminate\Database\Eloquent\Builder $q2) use ($fromDate): void {
+                $q2->where('valid_from', '<=', $fromDate)
+                    ->where(function (\Illuminate\Database\Eloquent\Builder $q3) use ($fromDate): void {
+                        $q3->whereNull('valid_to')
+                            ->orWhere('valid_to', '>=', $fromDate);
+                    });
+            });
+
+            // Existing offer starts during new offer's validity
+            if ($validTo !== null) {
+                /** @var \DateTimeInterface|string $validTo */
+                $toDate = \Carbon\Carbon::parse($validTo);
+
+                $q->orWhere(function (\Illuminate\Database\Eloquent\Builder $q2) use ($fromDate, $toDate): void {
+                    $q2->where('valid_from', '>=', $fromDate)
+                        ->where('valid_from', '<=', $toDate);
+                });
+            } else {
+                // New offer has no end date, so any existing offer starting after new offer starts conflicts
+                $q->orWhere('valid_from', '>=', $fromDate);
+            }
+        });
+
+        return $query;
+    }
+
+    /**
+     * Build conflict warning HTML.
+     */
+    protected function buildConflictWarningHtml(Get $get): HtmlString
+    {
+        $skuId = $get('sellable_sku_id');
+        $channelId = $get('channel_id');
+        $validFrom = $get('valid_from');
+        $validTo = $get('valid_to');
+
+        if ($skuId === null || $channelId === null || $validFrom === null) {
+            return new HtmlString('');
+        }
+
+        $conflicts = $this->getConflictingOffersQuery($skuId, $channelId, $validFrom, $validTo)
+            ->with(['channel'])
+            ->get();
+
+        if ($conflicts->isEmpty()) {
+            return new HtmlString('');
+        }
+
+        $conflictList = '';
+        foreach ($conflicts as $conflict) {
+            /** @var \App\Models\Commercial\Offer $conflict */
+            $validToStr = $conflict->valid_to !== null ? $conflict->valid_to->format('M j, Y') : 'Indefinite';
+            $statusColor = $conflict->getStatusColor();
+
+            $conflictList .= '<div class="flex items-center justify-between py-2 border-b border-warning-200 dark:border-warning-700 last:border-b-0">'
+                .'<div class="flex-1">'
+                .'<span class="font-medium text-warning-800 dark:text-warning-200">'.$conflict->name.'</span>'
+                .'<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-'.$statusColor.'-100 text-'.$statusColor.'-800 dark:bg-'.$statusColor.'-900 dark:text-'.$statusColor.'-200">'.$conflict->getStatusLabel().'</span>'
+                .'</div>'
+                .'<div class="text-sm text-warning-600 dark:text-warning-400">'
+                .$conflict->valid_from->format('M j, Y').' → '.$validToStr
+                .'</div>'
+                .'</div>';
+        }
+
+        return new HtmlString(
+            '<div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-4 border border-warning-300 dark:border-warning-700">'
+            .'<div class="flex items-start gap-3">'
+            .'<div class="flex-shrink-0">'
+            .'<svg class="w-6 h-6 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+            .'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>'
+            .'</svg>'
+            .'</div>'
+            .'<div class="flex-1">'
+            .'<p class="font-semibold text-warning-800 dark:text-warning-200">Potential Conflict Detected</p>'
+            .'<p class="text-sm text-warning-700 dark:text-warning-300 mt-1 mb-3">'
+            .'The following offers have overlapping validity periods for the same SKU and channel. '
+            .'You can still create this offer, but be aware of potential conflicts.'
+            .'</p>'
+            .'<div class="bg-warning-100 dark:bg-warning-900 rounded-lg p-3">'
+            .$conflictList
+            .'</div>'
+            .'</div>'
+            .'</div>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Build product summary HTML for review step.
+     */
+    protected function buildProductSummaryHtml(Get $get): HtmlString
+    {
+        $skuId = $get('sellable_sku_id');
+        if ($skuId === null) {
+            return new HtmlString('<div class="text-gray-500">No SKU selected</div>');
+        }
+
+        $sku = SellableSku::with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])->find($skuId);
+        if ($sku === null) {
+            return new HtmlString('<div class="text-gray-500">SKU not found</div>');
+        }
+
+        $wineVariant = $sku->wineVariant;
+        $wineMaster = $wineVariant !== null ? $wineVariant->wineMaster : null;
+        $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
+        $vintage = $wineVariant !== null ? ($wineVariant->vintage_year ?? 'NV') : 'NV';
+        $format = $sku->format !== null ? $sku->format->volume_ml.'ml' : '-';
+        $caseConfig = $sku->caseConfiguration;
+        $packaging = $caseConfig !== null ? $caseConfig->bottles_per_case.'x '.$caseConfig->case_type : '-';
+
+        return new HtmlString(
+            '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Wine</p>'
+            .'<p class="text-sm font-semibold text-gray-900 dark:text-gray-100">'.$wineName.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Vintage</p>'
+            .'<p class="text-sm font-medium text-gray-700 dark:text-gray-300">'.$vintage.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Format</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$format.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Packaging</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$packaging.'</p>'
+            .'</div>'
+            .'<div class="md:col-span-4">'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SKU Code</p>'
+            .'<p class="text-sm font-mono text-gray-600 dark:text-gray-400">'.$sku->sku_code.'</p>'
+            .'</div>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Build channel and eligibility summary HTML for review step.
+     */
+    protected function buildChannelEligibilitySummaryHtml(Get $get): HtmlString
+    {
+        $channelId = $get('channel_id');
+        $allowedMarkets = $get('allowed_markets') ?? [];
+        $allowedCustomerTypes = $get('allowed_customer_types') ?? [];
+
+        if ($channelId === null) {
+            return new HtmlString('<div class="text-gray-500">No channel selected</div>');
+        }
+
+        $channel = Channel::find($channelId);
+        if ($channel === null) {
+            return new HtmlString('<div class="text-gray-500">Channel not found</div>');
+        }
+
+        $typeColor = $channel->getChannelTypeColor();
+        $statusColor = $channel->getStatusColor();
+
+        // Build markets display
+        $marketsHtml = '';
+        if (! empty($allowedMarkets)) {
+            $marketLabels = array_map(fn ($m) => $this->getMarketLabel($m), $allowedMarkets);
+            $marketsHtml = '<div class="flex flex-wrap gap-1">';
+            foreach ($marketLabels as $label) {
+                $marketsHtml .= '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200">'.$label.'</span>';
+            }
+            $marketsHtml .= '</div>';
+        } else {
+            $marketsHtml = '<span class="text-gray-500 text-sm italic">All markets (per allocation constraints)</span>';
+        }
+
+        // Build customer types display
+        $typesHtml = '';
+        if (! empty($allowedCustomerTypes)) {
+            $typeLabels = array_map(fn ($t) => $this->getCustomerTypeLabel($t), $allowedCustomerTypes);
+            $typesHtml = '<div class="flex flex-wrap gap-1">';
+            foreach ($typeLabels as $label) {
+                $typesHtml .= '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-info-100 text-info-800 dark:bg-info-900 dark:text-info-200">'.$label.'</span>';
+            }
+            $typesHtml .= '</div>';
+        } else {
+            $typesHtml = '<span class="text-gray-500 text-sm italic">All customer types (per allocation constraints)</span>';
+        }
+
+        return new HtmlString(
+            '<div class="space-y-4">'
+            // Channel info
+            .'<div class="grid grid-cols-2 md:grid-cols-4 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Channel</p>'
+            .'<p class="text-sm font-semibold text-gray-900 dark:text-gray-100">'.$channel->name.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$typeColor.'-100 text-'.$typeColor.'-800 dark:bg-'.$typeColor.'-900 dark:text-'.$typeColor.'-200">'.$channel->getChannelTypeLabel().'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Currency</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$channel->default_currency.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$statusColor.'-100 text-'.$statusColor.'-800 dark:bg-'.$statusColor.'-900 dark:text-'.$statusColor.'-200">'.$channel->getStatusLabel().'</span>'
+            .'</div>'
+            .'</div>'
+            // Eligibility
+            .'<div class="pt-4 border-t border-gray-200 dark:border-gray-700">'
+            .'<p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Eligibility Restrictions</p>'
+            .'<div class="grid grid-cols-1 md:grid-cols-2 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Allowed Markets</p>'
+            .$marketsHtml
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-1">Allowed Customer Types</p>'
+            .$typesHtml
+            .'</div>'
+            .'</div>'
+            .'</div>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Build pricing summary HTML for review step.
+     */
+    protected function buildPricingSummaryHtml(Get $get): HtmlString
+    {
+        $priceBookId = $get('price_book_id');
+        $skuId = $get('sellable_sku_id');
+        $benefitType = $get('benefit_type');
+        $benefitValue = $get('benefit_value');
+
+        if ($priceBookId === null) {
+            return new HtmlString('<div class="text-gray-500">No Price Book selected</div>');
+        }
+
+        $priceBook = PriceBook::with('channel')->find($priceBookId);
+        if ($priceBook === null) {
+            return new HtmlString('<div class="text-gray-500">Price Book not found</div>');
+        }
+
+        // Get base price
+        $basePrice = null;
+        $priceEntry = null;
+        if ($skuId !== null) {
+            $priceEntry = PriceBookEntry::where('price_book_id', $priceBookId)
+                ->where('sellable_sku_id', $skuId)
+                ->first();
+            $basePrice = $priceEntry !== null ? (float) $priceEntry->base_price : null;
+        }
+
+        $currency = $priceBook->currency;
+        $statusColor = $priceBook->getStatusColor();
+
+        // Calculate final price
+        $benefitTypeEnum = $benefitType !== null ? BenefitType::tryFrom($benefitType) : BenefitType::None;
+        $benefitValueFloat = $benefitValue !== null ? (float) $benefitValue : 0;
+
+        $finalPrice = $basePrice;
+        if ($basePrice !== null) {
+            $finalPrice = match ($benefitTypeEnum) {
+                BenefitType::None => $basePrice,
+                BenefitType::PercentageDiscount => max(0, $basePrice - ($basePrice * min($benefitValueFloat, 100) / 100)),
+                BenefitType::FixedDiscount => max(0, $basePrice - $benefitValueFloat),
+                BenefitType::FixedPrice => max(0, $benefitValueFloat),
+                default => $basePrice,
+            };
+        }
+
+        // Build benefit description
+        $benefitDescription = match ($benefitTypeEnum) {
+            BenefitType::None => 'No discount - using Price Book price',
+            BenefitType::PercentageDiscount => number_format(min($benefitValueFloat, 100), 0).'% discount',
+            BenefitType::FixedDiscount => $currency.' '.number_format($benefitValueFloat, 2).' discount',
+            BenefitType::FixedPrice => 'Fixed price override',
+            default => 'No discount',
+        };
+
+        $benefitColor = $benefitTypeEnum !== BenefitType::None ? 'success' : 'gray';
+
+        // Price display
+        $basePriceStr = $basePrice !== null ? $currency.' '.number_format($basePrice, 2) : 'Not set';
+        $finalPriceStr = $finalPrice !== null ? $currency.' '.number_format($finalPrice, 2) : 'N/A';
+
+        // Calculate discount for display ($finalPrice is always set when $basePrice is set)
+        $discount = 0.0;
+        if ($basePrice !== null) {
+            // When basePrice is set, finalPrice is also set from the match expression above
+            $discount = $basePrice - (float) $finalPrice;
+        }
+        $savingsStr = $discount > 0 ? '-'.$currency.' '.number_format($discount, 2) : '-';
+
+        return new HtmlString(
+            '<div class="space-y-4">'
+            // Price Book info
+            .'<div class="grid grid-cols-2 md:grid-cols-4 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Price Book</p>'
+            .'<p class="text-sm font-semibold text-gray-900 dark:text-gray-100">'.$priceBook->name.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Market</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200">'.$priceBook->market.'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Currency</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$currency.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$statusColor.'-100 text-'.$statusColor.'-800 dark:bg-'.$statusColor.'-900 dark:text-'.$statusColor.'-200">'.$priceBook->getStatusLabel().'</span>'
+            .'</div>'
+            .'</div>'
+            // Pricing calculation
+            .'<div class="pt-4 border-t border-gray-200 dark:border-gray-700">'
+            .'<div class="rounded-lg bg-'.$benefitColor.'-50 dark:bg-'.$benefitColor.'-950 p-4 border border-'.$benefitColor.'-200 dark:border-'.$benefitColor.'-800">'
+            .'<div class="grid grid-cols-2 md:grid-cols-4 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Base Price</p>'
+            .'<p class="text-lg font-medium text-gray-700 dark:text-gray-300">'.$basePriceStr.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Benefit</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$benefitColor.'-100 text-'.$benefitColor.'-800 dark:bg-'.$benefitColor.'-900 dark:text-'.$benefitColor.'-200">'.$benefitDescription.'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Savings</p>'
+            .'<p class="text-lg font-medium text-'.$benefitColor.'-700 dark:text-'.$benefitColor.'-300">'.$savingsStr.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Final Price</p>'
+            .'<p class="text-2xl font-bold text-'.$benefitColor.'-800 dark:text-'.$benefitColor.'-200">'.$finalPriceStr.'</p>'
+            .'</div>'
+            .'</div>'
+            .'</div>'
+            .'</div>'
+            .'</div>'
+        );
+    }
+
+    /**
+     * Build validity summary HTML for review step.
+     */
+    protected function buildValiditySummaryHtml(Get $get): HtmlString
+    {
+        $name = $get('name');
+        $offerType = $get('offer_type');
+        $visibility = $get('visibility');
+        $validFrom = $get('valid_from');
+        $validTo = $get('valid_to');
+        $campaignTag = $get('campaign_tag');
+
+        $nameStr = (string) ($name ?? 'Untitled Offer');
+        $offerTypeEnum = OfferType::tryFrom((string) $offerType);
+        $visibilityEnum = OfferVisibility::tryFrom((string) $visibility);
+
+        $typeColor = $offerTypeEnum !== null ? $offerTypeEnum->color() : 'gray';
+        $typeLabel = $offerTypeEnum !== null ? $offerTypeEnum->label() : 'Standard';
+
+        $visibilityColor = $visibilityEnum !== null ? $visibilityEnum->color() : 'gray';
+        $visibilityLabel = $visibilityEnum !== null ? $visibilityEnum->label() : 'Public';
+        $visibilityIcon = $visibilityEnum === OfferVisibility::Restricted
+            ? '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>'
+            : '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+
+        /** @var \DateTimeInterface|string|null $validFrom */
+        /** @var \DateTimeInterface|string|null $validTo */
+        $validFromStr = $validFrom !== null ? \Carbon\Carbon::parse($validFrom)->format('M j, Y g:i A') : '-';
+        $validToStr = $validTo !== null ? \Carbon\Carbon::parse($validTo)->format('M j, Y g:i A') : 'Indefinite';
+
+        // Calculate duration
+        $durationStr = '';
+        if ($validFrom !== null && $validTo !== null) {
+            $fromDate = \Carbon\Carbon::parse($validFrom);
+            $toDate = \Carbon\Carbon::parse($validTo);
+            $duration = $fromDate->diff($toDate);
+            $durationStr = $this->formatDuration($duration);
+        } elseif ($validFrom !== null) {
+            $durationStr = 'Indefinite';
+        }
+
+        // Campaign tag display
+        $campaignTagStr = (string) $campaignTag;
+        $campaignHtml = ! empty($campaignTagStr)
+            ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200">'.$campaignTagStr.'</span>'
+            : '<span class="text-gray-500 text-sm italic">None</span>';
+
+        return new HtmlString(
+            '<div class="grid grid-cols-2 md:grid-cols-3 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Offer Name</p>'
+            .'<p class="text-sm font-semibold text-gray-900 dark:text-gray-100">'.$nameStr.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$typeColor.'-100 text-'.$typeColor.'-800 dark:bg-'.$typeColor.'-900 dark:text-'.$typeColor.'-200">'.$typeLabel.'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Visibility</p>'
+            .'<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-'.$visibilityColor.'-100 text-'.$visibilityColor.'-800 dark:bg-'.$visibilityColor.'-900 dark:text-'.$visibilityColor.'-200">'.$visibilityIcon.' '.$visibilityLabel.'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Valid From</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$validFromStr.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Valid To</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$validToStr.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Duration</p>'
+            .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$durationStr.'</p>'
+            .'</div>'
+            .'<div class="md:col-span-3">'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Campaign Tag</p>'
+            .$campaignHtml
+            .'</div>'
+            .'</div>'
+        );
     }
 
     /**
