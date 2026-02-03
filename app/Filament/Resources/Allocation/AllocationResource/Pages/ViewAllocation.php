@@ -2,18 +2,764 @@
 
 namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
 
+use App\Enums\Allocation\AllocationSourceType;
+use App\Enums\Allocation\AllocationStatus;
+use App\Enums\Allocation\AllocationSupplyForm;
+use App\Enums\Allocation\ReservationStatus;
 use App\Filament\Resources\Allocation\AllocationResource;
+use App\Models\Allocation\Allocation;
+use App\Models\Allocation\TemporaryReservation;
+use App\Models\AuditLog;
+use App\Services\Allocation\AllocationService;
 use Filament\Actions;
+use Filament\Infolists\Components\Grid;
+use Filament\Infolists\Components\Group;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\Tabs;
+use Filament\Infolists\Components\Tabs\Tab;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Support\Enums\FontWeight;
+use Illuminate\Contracts\Support\Htmlable;
 
 class ViewAllocation extends ViewRecord
 {
     protected static string $resource = AllocationResource::class;
 
+    public function getTitle(): string|Htmlable
+    {
+        /** @var Allocation $record */
+        $record = $this->record;
+
+        return "Allocation #{$record->id} - {$record->getBottleSkuLabel()}";
+    }
+
+    public function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Tabs::make('Allocation Details')
+                    ->tabs([
+                        $this->getOverviewTab(),
+                        $this->getConstraintsTab(),
+                        $this->getCapacityTab(),
+                        $this->getReservationsTab(),
+                        $this->getVouchersTab(),
+                        $this->getAuditTab(),
+                    ])
+                    ->persistTabInQueryString()
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * Tab 1: Overview - Read-only control panel with status, quantities, availability window.
+     */
+    protected function getOverviewTab(): Tab
+    {
+        return Tab::make('Overview')
+            ->icon('heroicon-o-information-circle')
+            ->schema([
+                Section::make('Status & Identity')
+                    ->description('Current allocation status and identification')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                Group::make([
+                                    TextEntry::make('id')
+                                        ->label('Allocation ID')
+                                        ->copyable()
+                                        ->copyMessage('Allocation ID copied')
+                                        ->weight(FontWeight::Bold),
+                                    TextEntry::make('uuid')
+                                        ->label('UUID')
+                                        ->copyable()
+                                        ->copyMessage('UUID copied'),
+                                ])->columnSpan(1),
+                                Group::make([
+                                    TextEntry::make('status')
+                                        ->label('Status')
+                                        ->badge()
+                                        ->formatStateUsing(fn (AllocationStatus $state): string => $state->label())
+                                        ->color(fn (AllocationStatus $state): string => $state->color())
+                                        ->icon(fn (AllocationStatus $state): string => $state->icon()),
+                                    TextEntry::make('source_type')
+                                        ->label('Source Type')
+                                        ->badge()
+                                        ->formatStateUsing(fn (AllocationSourceType $state): string => $state->label())
+                                        ->color(fn (AllocationSourceType $state): string => $state->color())
+                                        ->icon(fn (AllocationSourceType $state): string => $state->icon()),
+                                    TextEntry::make('supply_form')
+                                        ->label('Supply Form')
+                                        ->badge()
+                                        ->formatStateUsing(fn (AllocationSupplyForm $state): string => $state->label())
+                                        ->color(fn (AllocationSupplyForm $state): string => $state->color())
+                                        ->icon(fn (AllocationSupplyForm $state): string => $state->icon()),
+                                ])->columnSpan(1),
+                                Group::make([
+                                    TextEntry::make('created_at')
+                                        ->label('Created')
+                                        ->dateTime(),
+                                    TextEntry::make('updated_at')
+                                        ->label('Last Updated')
+                                        ->dateTime(),
+                                ])->columnSpan(1),
+                                Group::make([
+                                    TextEntry::make('serialization_required')
+                                        ->label('Serialization')
+                                        ->badge()
+                                        ->getStateUsing(fn (Allocation $record): string => $record->serialization_required ? 'Required' : 'Not Required')
+                                        ->color(fn (Allocation $record): string => $record->serialization_required ? 'success' : 'gray')
+                                        ->icon(fn (Allocation $record): string => $record->serialization_required ? 'heroicon-o-finger-print' : 'heroicon-o-minus-circle'),
+                                ])->columnSpan(1),
+                            ]),
+                    ]),
+                Section::make('Bottle SKU')
+                    ->description('Wine, vintage, and format information')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('wineVariant.wineMaster.name')
+                                    ->label('Wine')
+                                    ->weight(FontWeight::Bold),
+                                TextEntry::make('wineVariant.wineMaster.producer')
+                                    ->label('Producer'),
+                                TextEntry::make('wineVariant.vintage_year')
+                                    ->label('Vintage'),
+                                TextEntry::make('format.name')
+                                    ->label('Format'),
+                                TextEntry::make('format.volume_ml')
+                                    ->label('Volume')
+                                    ->suffix(' ml'),
+                                TextEntry::make('bottle_sku_label')
+                                    ->label('Full Bottle SKU')
+                                    ->getStateUsing(fn (Allocation $record): string => $record->getBottleSkuLabel())
+                                    ->copyable()
+                                    ->weight(FontWeight::Bold),
+                            ]),
+                    ]),
+                Section::make('Quantities')
+                    ->description('Allocation capacity and consumption')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('total_quantity')
+                                    ->label('Total Quantity')
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->weight(FontWeight::Bold),
+                                TextEntry::make('sold_quantity')
+                                    ->label('Sold Quantity')
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color('warning'),
+                                TextEntry::make('remaining_quantity')
+                                    ->label('Remaining Quantity')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->remaining_quantity)
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color(fn (Allocation $record): string => $record->isNearExhaustion() ? 'danger' : 'success')
+                                    ->weight(fn (Allocation $record): FontWeight => $record->isNearExhaustion() ? FontWeight::Bold : FontWeight::Medium)
+                                    ->icon(fn (Allocation $record): ?string => $record->isNearExhaustion() ? 'heroicon-o-exclamation-triangle' : null),
+                                TextEntry::make('available_quantity')
+                                    ->label('Available (excl. reservations)')
+                                    ->getStateUsing(function (Allocation $record): int {
+                                        $service = app(AllocationService::class);
+
+                                        return $service->getRemainingAvailable($record);
+                                    })
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color('info'),
+                            ]),
+                    ]),
+                Section::make('Availability Window')
+                    ->description('Expected availability period')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('expected_availability_start')
+                                    ->label('Start Date')
+                                    ->date()
+                                    ->default('Not specified'),
+                                TextEntry::make('expected_availability_end')
+                                    ->label('End Date')
+                                    ->date()
+                                    ->default('Not specified'),
+                                TextEntry::make('availability_window')
+                                    ->label('Window Summary')
+                                    ->getStateUsing(fn (Allocation $record): string => $record->getAvailabilityWindowLabel())
+                                    ->weight(FontWeight::Medium),
+                            ]),
+                    ]),
+                Section::make('Lineage Rule')
+                    ->description('Allocation lineage is authoritative and immutable')
+                    ->icon('heroicon-o-shield-check')
+                    ->iconColor('warning')
+                    ->schema([
+                        TextEntry::make('lineage_info')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'This allocation defines the lineage for all vouchers issued from it. Vouchers inherit the allocation\'s constraints and must be fulfilled with supply from the same lineage. Lineage cannot be modified after voucher issuance.')
+                            ->html()
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Tab 2: Constraints - Commercial constraints, editable only in Draft.
+     */
+    protected function getConstraintsTab(): Tab
+    {
+        return Tab::make('Constraints')
+            ->icon('heroicon-o-shield-check')
+            ->schema([
+                Section::make('Commercial Constraints')
+                    ->description(fn (Allocation $record): string => $record->isDraft()
+                        ? 'These constraints are editable while in Draft status'
+                        : 'Constraints are locked after activation')
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('edit_constraints')
+                            ->label('Edit Constraints')
+                            ->icon('heroicon-o-pencil')
+                            ->url(fn (Allocation $record): string => AllocationResource::getUrl('edit', ['record' => $record]))
+                            ->visible(fn (Allocation $record): bool => $record->isDraft()),
+                    ])
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('constraint.allowed_channels')
+                                    ->label('Allowed Channels')
+                                    ->badge()
+                                    ->separator(', ')
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        $constraint = $record->constraint;
+                                        if ($constraint === null) {
+                                            return 'All channels';
+                                        }
+                                        $channels = $constraint->allowed_channels;
+
+                                        return ($channels === null || $channels === []) ? 'All channels' : implode(', ', $channels);
+                                    })
+                                    ->color('info'),
+                                TextEntry::make('constraint.allowed_geographies')
+                                    ->label('Allowed Geographies')
+                                    ->badge()
+                                    ->separator(', ')
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        $constraint = $record->constraint;
+                                        if ($constraint === null) {
+                                            return 'All geographies';
+                                        }
+                                        $geos = $constraint->allowed_geographies;
+
+                                        return ($geos === null || $geos === []) ? 'All geographies' : implode(', ', $geos);
+                                    })
+                                    ->color('info'),
+                                TextEntry::make('constraint.allowed_customer_types')
+                                    ->label('Allowed Customer Types')
+                                    ->badge()
+                                    ->separator(', ')
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        $constraint = $record->constraint;
+                                        if ($constraint === null) {
+                                            return 'All customer types';
+                                        }
+                                        $types = $constraint->allowed_customer_types;
+
+                                        return ($types === null || $types === []) ? 'All customer types' : implode(', ', $types);
+                                    })
+                                    ->color('info'),
+                            ]),
+                    ]),
+                Section::make('Advanced Constraints')
+                    ->description('Composition and fungibility rules')
+                    ->collapsible()
+                    ->collapsed(fn (Allocation $record): bool => $record->constraint === null
+                        || ($record->constraint->composition_constraint_group === null && ! $record->constraint->fungibility_exception))
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('constraint.composition_constraint_group')
+                                    ->label('Composition Constraint Group')
+                                    ->default('None')
+                                    ->helperText('Used for vertical cases or themed selections'),
+                                TextEntry::make('constraint.fungibility_exception')
+                                    ->label('Fungibility Exception')
+                                    ->badge()
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        $constraint = $record->constraint;
+                                        if ($constraint === null) {
+                                            return 'No';
+                                        }
+
+                                        return $constraint->fungibility_exception ? 'Yes' : 'No';
+                                    })
+                                    ->color(fn (Allocation $record): string => ($record->constraint !== null && $record->constraint->fungibility_exception) ? 'warning' : 'gray')
+                                    ->helperText('If yes, bottles are not interchangeable'),
+                            ]),
+                    ]),
+                Section::make('Liquid Allocation Constraints')
+                    ->description('Additional constraints for liquid supply allocations')
+                    ->icon('heroicon-o-beaker')
+                    ->visible(fn (Allocation $record): bool => $record->isLiquid())
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('liquidConstraint.allowed_bottling_formats')
+                                    ->label('Allowed Bottling Formats')
+                                    ->badge()
+                                    ->separator(', ')
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        $lc = $record->liquidConstraint;
+                                        if ($lc === null) {
+                                            return 'All formats';
+                                        }
+                                        $formats = $lc->allowed_bottling_formats;
+
+                                        return ($formats === null || $formats === []) ? 'All formats' : implode(', ', $formats);
+                                    })
+                                    ->color('info'),
+                                TextEntry::make('liquidConstraint.allowed_case_configurations')
+                                    ->label('Allowed Case Configurations')
+                                    ->badge()
+                                    ->separator(', ')
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        $lc = $record->liquidConstraint;
+                                        if ($lc === null) {
+                                            return 'All configurations';
+                                        }
+                                        $configs = $lc->allowed_case_configurations;
+
+                                        return ($configs === null || $configs === []) ? 'All configurations' : implode(', ', $configs);
+                                    })
+                                    ->color('info'),
+                                TextEntry::make('liquidConstraint.bottling_confirmation_deadline')
+                                    ->label('Bottling Confirmation Deadline')
+                                    ->date()
+                                    ->default('Not set')
+                                    ->color(function (Allocation $record): string {
+                                        $lc = $record->liquidConstraint;
+                                        if ($lc === null || $lc->bottling_confirmation_deadline === null) {
+                                            return 'gray';
+                                        }
+
+                                        return $lc->isBottlingDeadlinePassed() ? 'danger' : 'success';
+                                    }),
+                            ]),
+                    ]),
+                Section::make('Constraint Summary')
+                    ->schema([
+                        TextEntry::make('constraint_summary')
+                            ->label('')
+                            ->getStateUsing(function (Allocation $record): string {
+                                $constraint = $record->constraint;
+
+                                return $constraint !== null ? $constraint->getSummary() : 'No constraints defined';
+                            })
+                            ->weight(FontWeight::Medium),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Tab 3: Capacity & Consumption - Breakdown by sellable SKU, channel, time.
+     */
+    protected function getCapacityTab(): Tab
+    {
+        return Tab::make('Capacity & Consumption')
+            ->icon('heroicon-o-chart-bar')
+            ->schema([
+                Section::make('Capacity Overview')
+                    ->description('Allocation capacity breakdown')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('total_quantity')
+                                    ->label('Total Capacity')
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->weight(FontWeight::Bold)
+                                    ->size(TextEntry\TextEntrySize::Large),
+                                TextEntry::make('sold_quantity')
+                                    ->label('Consumed')
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color('warning')
+                                    ->size(TextEntry\TextEntrySize::Large),
+                                TextEntry::make('remaining_quantity')
+                                    ->label('Remaining')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->remaining_quantity)
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color(fn (Allocation $record): string => $record->isNearExhaustion() ? 'danger' : 'success')
+                                    ->size(TextEntry\TextEntrySize::Large),
+                                TextEntry::make('consumption_percentage')
+                                    ->label('Utilization')
+                                    ->getStateUsing(function (Allocation $record): string {
+                                        if ($record->total_quantity === 0) {
+                                            return '0%';
+                                        }
+
+                                        return round(($record->sold_quantity / $record->total_quantity) * 100, 1).'%';
+                                    })
+                                    ->badge()
+                                    ->color(function (Allocation $record): string {
+                                        if ($record->total_quantity === 0) {
+                                            return 'gray';
+                                        }
+                                        $pct = ($record->sold_quantity / $record->total_quantity) * 100;
+                                        if ($pct >= 90) {
+                                            return 'danger';
+                                        }
+                                        if ($pct >= 70) {
+                                            return 'warning';
+                                        }
+
+                                        return 'success';
+                                    })
+                                    ->size(TextEntry\TextEntrySize::Large),
+                            ]),
+                    ]),
+                Section::make('Active Reservations Impact')
+                    ->description('Temporary holds affecting available quantity')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('active_reservations_count')
+                                    ->label('Active Reservations')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->activeReservations()->count())
+                                    ->numeric()
+                                    ->suffix(' reservations'),
+                                TextEntry::make('reserved_quantity')
+                                    ->label('Reserved Quantity')
+                                    ->getStateUsing(fn (Allocation $record): int => (int) $record->activeReservations()->sum('quantity'))
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color('warning'),
+                                TextEntry::make('available_for_sale')
+                                    ->label('Available for Sale')
+                                    ->getStateUsing(function (Allocation $record): int {
+                                        $service = app(AllocationService::class);
+
+                                        return $service->getRemainingAvailable($record);
+                                    })
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->color('success')
+                                    ->weight(FontWeight::Bold),
+                            ]),
+                    ]),
+                Section::make('Consumption Breakdown')
+                    ->description('Note: Detailed consumption by Sellable SKU, channel, and time will be available when Voucher tracking is implemented (US-015+)')
+                    ->icon('heroicon-o-clock')
+                    ->iconColor('gray')
+                    ->schema([
+                        TextEntry::make('consumption_note')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Consumption breakdown by Sellable SKU, sales channel, and time period will be populated once vouchers are issued from this allocation. This provides full traceability of how the allocation capacity was utilized.')
+                            ->html(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Tab 4: Reservations - List of temporary reservations with status.
+     */
+    protected function getReservationsTab(): Tab
+    {
+        return Tab::make('Reservations')
+            ->icon('heroicon-o-clock')
+            ->badge(fn (Allocation $record): ?string => $record->activeReservations()->count() > 0
+                ? (string) $record->activeReservations()->count()
+                : null)
+            ->badgeColor('warning')
+            ->schema([
+                Section::make('Temporary Reservations')
+                    ->description('Reservations temporarily block quantity but do not consume the allocation')
+                    ->schema([
+                        RepeatableEntry::make('temporaryReservations')
+                            ->label('')
+                            ->schema([
+                                Grid::make(6)
+                                    ->schema([
+                                        TextEntry::make('id')
+                                            ->label('Reservation ID')
+                                            ->copyable(),
+                                        TextEntry::make('quantity')
+                                            ->label('Quantity')
+                                            ->numeric()
+                                            ->suffix(' bottles'),
+                                        TextEntry::make('context_type')
+                                            ->label('Context')
+                                            ->badge()
+                                            ->formatStateUsing(fn (TemporaryReservation $record): string => $record->getContextTypeLabel())
+                                            ->color(fn (TemporaryReservation $record): string => $record->context_type->color()),
+                                        TextEntry::make('status')
+                                            ->label('Status')
+                                            ->badge()
+                                            ->formatStateUsing(fn (TemporaryReservation $record): string => $record->getStatusLabel())
+                                            ->color(fn (TemporaryReservation $record): string => $record->getStatusColor())
+                                            ->icon(fn (TemporaryReservation $record): string => $record->status->icon()),
+                                        TextEntry::make('expires_at')
+                                            ->label('Expires At')
+                                            ->dateTime()
+                                            ->color(fn (TemporaryReservation $record): string => $record->hasExpired() && $record->isActive() ? 'danger' : 'gray'),
+                                        TextEntry::make('context_reference')
+                                            ->label('Reference')
+                                            ->default('—')
+                                            ->copyable(),
+                                    ]),
+                            ])
+                            ->columns(1),
+                    ]),
+                Section::make('Reservation Summary')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('total_reservations')
+                                    ->label('Total Reservations')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->temporaryReservations()->count())
+                                    ->numeric(),
+                                TextEntry::make('active_reservations')
+                                    ->label('Active')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->temporaryReservations()->where('status', ReservationStatus::Active)->count())
+                                    ->numeric()
+                                    ->color('warning'),
+                                TextEntry::make('expired_reservations')
+                                    ->label('Expired')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->temporaryReservations()->where('status', ReservationStatus::Expired)->count())
+                                    ->numeric()
+                                    ->color('gray'),
+                                TextEntry::make('converted_reservations')
+                                    ->label('Converted')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->temporaryReservations()->where('status', ReservationStatus::Converted)->count())
+                                    ->numeric()
+                                    ->color('success'),
+                            ]),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Tab 5: Vouchers - Read-only list of vouchers issued from this allocation.
+     */
+    protected function getVouchersTab(): Tab
+    {
+        return Tab::make('Vouchers')
+            ->icon('heroicon-o-ticket')
+            ->schema([
+                Section::make('Issued Vouchers')
+                    ->description('Read-only list of vouchers issued from this allocation. Vouchers will be available once US-015 (Voucher model) is implemented.')
+                    ->icon('heroicon-o-ticket')
+                    ->schema([
+                        TextEntry::make('vouchers_note')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Voucher tracking will be available after the Voucher model is implemented (US-015). Each voucher represents a customer\'s entitlement to one bottle from this allocation. Vouchers inherit the allocation\'s lineage and constraints.')
+                            ->html(),
+                    ]),
+                Section::make('Voucher Statistics')
+                    ->description('Summary of voucher lifecycle states')
+                    ->schema([
+                        TextEntry::make('vouchers_coming_soon')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Voucher statistics (total issued, locked, redeemed, cancelled) will appear here once the Voucher module is implemented.')
+                            ->html()
+                            ->color('gray'),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Tab 6: Audit - Immutable timeline of events.
+     */
+    protected function getAuditTab(): Tab
+    {
+        return Tab::make('Audit')
+            ->icon('heroicon-o-document-text')
+            ->schema([
+                Section::make('Audit History')
+                    ->description('Immutable timeline of all changes made to this allocation')
+                    ->schema([
+                        RepeatableEntry::make('auditLogs')
+                            ->label('')
+                            ->schema([
+                                Grid::make(4)
+                                    ->schema([
+                                        TextEntry::make('event')
+                                            ->label('')
+                                            ->badge()
+                                            ->formatStateUsing(fn (AuditLog $record): string => $record->getEventLabel())
+                                            ->color(fn (AuditLog $record): string => $record->getEventColor())
+                                            ->icon(fn (AuditLog $record): string => $record->getEventIcon())
+                                            ->columnSpan(1),
+                                        TextEntry::make('user.name')
+                                            ->label('')
+                                            ->default('System')
+                                            ->icon('heroicon-o-user')
+                                            ->columnSpan(1),
+                                        TextEntry::make('created_at')
+                                            ->label('')
+                                            ->dateTime()
+                                            ->icon('heroicon-o-calendar')
+                                            ->columnSpan(1),
+                                        TextEntry::make('changes')
+                                            ->label('')
+                                            ->getStateUsing(fn (AuditLog $record): string => self::formatAuditChanges($record))
+                                            ->html()
+                                            ->columnSpan(1),
+                                    ]),
+                            ]),
+                    ]),
+                Section::make('Audit Information')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        TextEntry::make('audit_info')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Audit logs are immutable and cannot be modified or deleted. They provide a complete history of all changes to this allocation for compliance and traceability purposes. Events include creation, updates, status changes, and deletion.')
+                            ->html(),
+                    ]),
+            ]);
+    }
+
     protected function getHeaderActions(): array
     {
+        /** @var Allocation $record */
+        $record = $this->record;
+
         return [
             Actions\EditAction::make(),
+            Actions\Action::make('activate')
+                ->label('Activate')
+                ->icon('heroicon-o-play')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Activate Allocation')
+                ->modalDescription('Are you sure you want to activate this allocation? Once activated, constraints become read-only and the allocation can be consumed.')
+                ->visible(fn (): bool => $record->isDraft())
+                ->authorize('activate', $record)
+                ->action(function () use ($record): void {
+                    try {
+                        $service = app(AllocationService::class);
+                        $service->activate($record);
+
+                        Notification::make()
+                            ->title('Allocation Activated')
+                            ->body("Allocation #{$record->id} is now active and can be consumed.")
+                            ->success()
+                            ->send();
+
+                        $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->title('Activation Failed')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+            Actions\Action::make('close')
+                ->label('Close')
+                ->icon('heroicon-o-lock-closed')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Close Allocation')
+                ->modalDescription('Are you sure you want to close this allocation? Closed allocations cannot be reopened. If you need more supply, create a new allocation.')
+                ->visible(fn (): bool => $record->isActive() || $record->isExhausted())
+                ->authorize('close', $record)
+                ->action(function () use ($record): void {
+                    try {
+                        $service = app(AllocationService::class);
+                        $service->close($record);
+
+                        Notification::make()
+                            ->title('Allocation Closed')
+                            ->body("Allocation #{$record->id} has been closed.")
+                            ->success()
+                            ->send();
+
+                        $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->title('Close Failed')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                }),
+            Actions\ActionGroup::make([
+                Actions\DeleteAction::make(),
+                Actions\RestoreAction::make(),
+            ])->label('More')
+                ->icon('heroicon-o-ellipsis-vertical')
+                ->button(),
         ];
+    }
+
+    /**
+     * Format audit log changes for display.
+     */
+    protected static function formatAuditChanges(AuditLog $log): string
+    {
+        $oldValues = $log->old_values ?? [];
+        $newValues = $log->new_values ?? [];
+
+        if ($log->event === AuditLog::EVENT_CREATED) {
+            $fieldCount = count($newValues);
+
+            return "<span class='text-sm text-gray-500'>{$fieldCount} field(s) set</span>";
+        }
+
+        if ($log->event === AuditLog::EVENT_DELETED) {
+            return "<span class='text-sm text-gray-500'>Record deleted</span>";
+        }
+
+        $changes = [];
+        $allFields = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+
+        foreach ($allFields as $field) {
+            $oldValue = $oldValues[$field] ?? null;
+            $newValue = $newValues[$field] ?? null;
+
+            if ($oldValue !== $newValue) {
+                $fieldLabel = ucfirst(str_replace('_', ' ', $field));
+                $oldDisplay = self::formatValue($oldValue);
+                $newDisplay = self::formatValue($newValue);
+                $changes[] = "<strong>{$fieldLabel}</strong>: {$oldDisplay} → {$newDisplay}";
+            }
+        }
+
+        return count($changes) > 0
+            ? '<span class="text-sm">'.implode('<br>', $changes).'</span>'
+            : '<span class="text-sm text-gray-500">No field changes</span>';
+    }
+
+    /**
+     * Format a value for display in audit logs.
+     */
+    protected static function formatValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '<em class="text-gray-400">empty</em>';
+        }
+
+        if (is_array($value)) {
+            return '<em class="text-gray-500">['.count($value).' items]</em>';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        $stringValue = (string) $value;
+        if (strlen($stringValue) > 50) {
+            return htmlspecialchars(substr($stringValue, 0, 47)).'...';
+        }
+
+        return htmlspecialchars($stringValue);
     }
 }
