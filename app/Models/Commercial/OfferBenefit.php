@@ -80,14 +80,12 @@ class OfferBenefit extends Model
 
     /**
      * Get the discount rule referenced by this benefit.
-     * Note: DiscountRule model will be created in US-046
      *
-     * @return BelongsTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return BelongsTo<DiscountRule, $this>
      */
     public function discountRule(): BelongsTo
     {
-        // @phpstan-ignore argument.type (DiscountRule will be created in US-046)
-        return $this->belongsTo('App\\Models\\Commercial\\DiscountRule');
+        return $this->belongsTo(DiscountRule::class);
     }
 
     // =========================================================================
