@@ -278,3 +278,18 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - When conditionally showing form fields, use `->visible(fn (Get $get): bool => ...)` and `->required(fn (Get $get): bool => ...)` together
   - Check for existing Wine Variant by wine_master_id + vintage_year before creating to prevent duplicates
 ---
+
+## 2026-02-03 21:00 CET - US-015
+- Implemented Product Detail - Tab Overview with enhanced read-only control panel
+- Files changed:
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ViewWineVariant.php` (modified - enhanced overview with Liv-ex status, validate action, navigation buttons)
+- **Learnings for future iterations:**
+  - Use `InfolistActions` component with `InfolistAction` for adding action buttons in Infolist schema
+  - When accessing record in getHeaderActions(), use `$this->record` with PHPDoc `@var WineVariant $record`
+  - For RepeatableEntry schema items, closures don't receive parent record - use `$this->record` in component methods instead
+  - Use `->getStateUsing()` for computed/virtual fields like publish_readiness, livex_sync_status
+  - Use `->copyable()` on TextEntry for fields users may want to copy (LWIN, internal_code)
+  - Use `->visible(fn (WineVariant $record): bool => ...)` to conditionally show fields based on record state
+  - Validate action refreshes page with redirect to show updated infolist after validation runs
+  - Action navigation to edit page: generate URL with anchor (`#section-id`) for direct navigation to form section
+---
