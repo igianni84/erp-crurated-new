@@ -204,3 +204,22 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - RepeatableEntry works well for displaying audit log timeline in Infolist
   - Use htmlspecialchars() when displaying user-entered values in HTML to prevent XSS
 ---
+
+## 2026-02-03 18:10 CET - US-011
+- Implemented unified Product List view with all required columns, filters, search, and bulk actions
+- Files changed:
+  - `app/Enums/DataSource.php` (new - enum for liv_ex/manual data source)
+  - `database/migrations/2026_02_03_163628_add_data_source_to_wine_variants_table.php` (new - adds data_source, lwin_code, internal_code, thumbnail_url fields)
+  - `app/Models/Pim/WineVariant.php` (modified - added new fields and DataSource enum cast)
+  - `app/Filament/Resources/Pim/ProductResource.php` (new - unified product list view)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ListProducts.php` (new)
+- **Learnings for future iterations:**
+  - For PHPStan "nullsafe.neverNull" error, use explicit null check pattern: `$var = $obj->relation; $val = $var !== null ? $var->field : 'default';`
+  - Category filter for "has related model" uses `whereHas()` / `whereDoesntHave()` with relationship name
+  - Completeness filter approximation with raw SQL since it's a computed value - weights the optional fields
+  - Use custom sortable query `fn (Builder $query, string $direction)` for virtual/computed columns
+  - ImageColumn with `defaultImageUrl()` can use UI Avatars API for placeholder images
+  - Bulk actions can skip non-matching records gracefully and show notifications for both success and skipped
+  - View/Edit actions can redirect to another resource using `->url(fn ($record) => OtherResource::getUrl('view', ['record' => $record]))`
+  - Navigation sort 0 places Products at the top of PIM navigation group
+---
