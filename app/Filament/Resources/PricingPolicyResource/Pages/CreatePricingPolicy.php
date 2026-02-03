@@ -68,6 +68,7 @@ class CreatePricingPolicy extends CreateRecord
             $this->getInputsStep(),
             $this->getLogicStep(),
             $this->getScopeAndTargetStep(),
+            $this->getExecutionStep(),
         ];
     }
 
@@ -1435,6 +1436,317 @@ class CreatePricingPolicy extends CreateRecord
     }
 
     /**
+     * Step 5: Execution
+     * Defines the execution cadence of the Pricing Policy.
+     */
+    protected function getExecutionStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Execution')
+            ->description('Define when and how the policy executes')
+            ->icon('heroicon-o-play')
+            ->schema([
+                // Important note about policy execution
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('execution_info')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="p-4 rounded-lg border bg-blue-50 border-blue-200">
+                                    <div class="flex items-start gap-3">
+                                        <svg class="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="font-semibold text-blue-900">Important: Policies generate draft prices</p>
+                                            <p class="text-blue-800 mt-1">Pricing Policies generate prices into the target Price Book, but they <strong>never activate the Price Book directly</strong>. After policy execution, you must review and approve the generated prices before they take effect.</p>
+                                        </div>
+                                    </div>
+                                </div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+
+                // Execution Cadence section
+                Forms\Components\Section::make('Execution Cadence')
+                    ->description('Choose when this policy should generate prices')
+                    ->schema([
+                        Forms\Components\Radio::make('execution_cadence')
+                            ->label('')
+                            ->options([
+                                ExecutionCadence::Manual->value => ExecutionCadence::Manual->label(),
+                                ExecutionCadence::Scheduled->value => ExecutionCadence::Scheduled->label(),
+                                ExecutionCadence::EventTriggered->value => ExecutionCadence::EventTriggered->label(),
+                            ])
+                            ->descriptions([
+                                ExecutionCadence::Manual->value => 'Execute on-demand only. You will manually trigger the policy when needed.',
+                                ExecutionCadence::Scheduled->value => 'Execute automatically on a schedule. Great for regular price updates.',
+                                ExecutionCadence::EventTriggered->value => 'Execute automatically when specific events occur. Ideal for reactive pricing.',
+                            ])
+                            ->default(ExecutionCadence::Manual->value)
+                            ->required()
+                            ->live()
+                            ->columnSpanFull(),
+
+                        // Dynamic info based on selected cadence
+                        Forms\Components\Placeholder::make('cadence_details')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $cadence = $get('execution_cadence');
+
+                                if ($cadence === null) {
+                                    return new HtmlString('<p class="text-gray-500">Select an execution cadence to see more details.</p>');
+                                }
+
+                                $executionCadence = ExecutionCadence::from($cadence);
+
+                                $details = match ($executionCadence) {
+                                    ExecutionCadence::Manual => [
+                                        'icon' => $executionCadence->icon(),
+                                        'color' => 'gray',
+                                        'title' => 'Manual Execution',
+                                        'description' => 'The policy will only execute when you explicitly trigger it from the Policy Detail page.',
+                                        'use_cases' => [
+                                            'One-time price adjustments',
+                                            'Ad-hoc price reviews',
+                                            'Testing new pricing strategies',
+                                        ],
+                                    ],
+                                    ExecutionCadence::Scheduled => [
+                                        'icon' => $executionCadence->icon(),
+                                        'color' => 'blue',
+                                        'title' => 'Scheduled Execution',
+                                        'description' => 'The policy will execute automatically according to the schedule you define.',
+                                        'use_cases' => [
+                                            'Regular cost-based price updates',
+                                            'Weekly/monthly price adjustments',
+                                            'Automated price synchronization',
+                                        ],
+                                    ],
+                                    ExecutionCadence::EventTriggered => [
+                                        'icon' => $executionCadence->icon(),
+                                        'color' => 'amber',
+                                        'title' => 'Event-Triggered Execution',
+                                        'description' => 'The policy will execute automatically when specific events occur in the system.',
+                                        'use_cases' => [
+                                            'React to cost changes',
+                                            'Adjust to market price updates',
+                                            'Respond to currency fluctuations',
+                                        ],
+                                    ],
+                                };
+
+                                /** @var 'gray'|'blue'|'amber' $color */
+                                $color = $details['color'];
+                                $colorClass = match ($color) {
+                                    'gray' => 'bg-gray-50 border-gray-200',
+                                    'blue' => 'bg-blue-50 border-blue-200',
+                                    'amber' => 'bg-amber-50 border-amber-200',
+                                };
+
+                                $useCasesHtml = '<ul class="list-disc list-inside text-sm mt-2 space-y-1">';
+                                foreach ($details['use_cases'] as $useCase) {
+                                    $useCasesHtml .= "<li>{$useCase}</li>";
+                                }
+                                $useCasesHtml .= '</ul>';
+
+                                return new HtmlString(
+                                    "<div class=\"p-4 rounded-lg border {$colorClass}\">
+                                        <h4 class=\"font-semibold text-lg mb-2\">{$details['title']}</h4>
+                                        <p class=\"mb-3\">{$details['description']}</p>
+                                        <div class=\"text-sm\">
+                                            <p class=\"font-medium\">Best for:</p>
+                                            {$useCasesHtml}
+                                        </div>
+                                    </div>"
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Scheduled Options section
+                Forms\Components\Section::make('Schedule Configuration')
+                    ->description('Define when the policy should execute')
+                    ->visible(fn (Get $get): bool => $get('execution_cadence') === ExecutionCadence::Scheduled->value)
+                    ->schema([
+                        Forms\Components\Select::make('schedule_frequency')
+                            ->label('Frequency')
+                            ->options([
+                                'daily' => 'Daily',
+                                'weekly' => 'Weekly',
+                                'monthly' => 'Monthly',
+                            ])
+                            ->default('daily')
+                            ->required()
+                            ->live()
+                            ->helperText('How often should the policy execute?'),
+
+                        Forms\Components\Select::make('schedule_day_of_week')
+                            ->label('Day of Week')
+                            ->options([
+                                'monday' => 'Monday',
+                                'tuesday' => 'Tuesday',
+                                'wednesday' => 'Wednesday',
+                                'thursday' => 'Thursday',
+                                'friday' => 'Friday',
+                                'saturday' => 'Saturday',
+                                'sunday' => 'Sunday',
+                            ])
+                            ->default('monday')
+                            ->visible(fn (Get $get): bool => $get('schedule_frequency') === 'weekly')
+                            ->helperText('Which day of the week?'),
+
+                        Forms\Components\Select::make('schedule_day_of_month')
+                            ->label('Day of Month')
+                            ->options(
+                                collect(range(1, 28))->mapWithKeys(fn ($day): array => [
+                                    (string) $day => $day === 1 ? '1st' : ($day === 2 ? '2nd' : ($day === 3 ? '3rd' : "{$day}th")),
+                                ])->toArray()
+                            )
+                            ->default('1')
+                            ->visible(fn (Get $get): bool => $get('schedule_frequency') === 'monthly')
+                            ->helperText('Which day of the month? (1-28 to ensure execution in all months)'),
+
+                        Forms\Components\TimePicker::make('schedule_time')
+                            ->label('Time of Day')
+                            ->default('06:00')
+                            ->seconds(false)
+                            ->required()
+                            ->helperText('At what time should the policy execute? (Server timezone)'),
+
+                        Forms\Components\Placeholder::make('schedule_preview')
+                            ->label('Schedule Preview')
+                            ->content(function (Get $get): HtmlString {
+                                $frequency = $get('schedule_frequency') ?? 'daily';
+                                $time = $get('schedule_time') ?? '06:00';
+                                $dayOfWeek = $get('schedule_day_of_week') ?? 'monday';
+                                $dayOfMonth = $get('schedule_day_of_month') ?? '1';
+
+                                $schedule = match ($frequency) {
+                                    'daily' => "Every day at {$time}",
+                                    'weekly' => 'Every '.ucfirst($dayOfWeek)." at {$time}",
+                                    'monthly' => "On day {$dayOfMonth} of each month at {$time}",
+                                    default => "At {$time}",
+                                };
+
+                                return new HtmlString(
+                                    "<div class=\"p-3 rounded-lg border bg-green-50 border-green-200\">
+                                        <p class=\"font-medium text-green-800\">{$schedule}</p>
+                                        <p class=\"text-sm text-green-700 mt-1\">The policy will automatically execute at this schedule when activated.</p>
+                                    </div>"
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
+                // Event Triggers section
+                Forms\Components\Section::make('Event Triggers')
+                    ->description('Select which events should trigger policy execution')
+                    ->visible(fn (Get $get): bool => $get('execution_cadence') === ExecutionCadence::EventTriggered->value)
+                    ->schema([
+                        Forms\Components\CheckboxList::make('event_triggers')
+                            ->label('')
+                            ->options([
+                                'cost_change' => 'Cost Change',
+                                'emp_update' => 'EMP Update',
+                                'fx_change' => 'FX Rate Change',
+                            ])
+                            ->descriptions([
+                                'cost_change' => 'Execute when product cost is updated (for Cost + Margin policies)',
+                                'emp_update' => 'Execute when Estimated Market Price (EMP) is updated',
+                                'fx_change' => 'Execute when currency exchange rates change significantly',
+                            ])
+                            ->default(['cost_change'])
+                            ->columns(1)
+                            ->required()
+                            ->columnSpanFull(),
+
+                        Forms\Components\Placeholder::make('event_trigger_info')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $triggers = $get('event_triggers') ?? [];
+                                $policyType = $get('policy_type');
+
+                                $warnings = [];
+
+                                if (in_array('cost_change', $triggers, true) && $policyType !== PricingPolicyType::CostPlusMargin->value) {
+                                    $warnings[] = 'Cost Change trigger is most relevant for Cost + Margin policies.';
+                                }
+
+                                if (in_array('emp_update', $triggers, true) && $policyType !== PricingPolicyType::IndexBased->value) {
+                                    $warnings[] = 'EMP Update trigger is most relevant for Index-Based policies.';
+                                }
+
+                                if (in_array('fx_change', $triggers, true) && $policyType !== PricingPolicyType::IndexBased->value) {
+                                    $warnings[] = 'FX Change trigger is most relevant for Index-Based policies with FX rates.';
+                                }
+
+                                $warningHtml = '';
+                                if (! empty($warnings)) {
+                                    $warningHtml = '<div class="p-3 rounded-lg border bg-amber-50 border-amber-200 mt-3">
+                                        <p class="font-medium text-amber-800">Suggestions:</p>
+                                        <ul class="list-disc list-inside text-sm text-amber-700 mt-1">';
+                                    foreach ($warnings as $warning) {
+                                        $warningHtml .= "<li>{$warning}</li>";
+                                    }
+                                    $warningHtml .= '</ul></div>';
+                                }
+
+                                $triggerCount = count($triggers);
+                                $countText = $triggerCount > 0
+                                    ? "<p class=\"text-sm text-gray-600\">{$triggerCount} trigger(s) selected. The policy will execute when any of these events occur.</p>"
+                                    : '<p class="text-sm text-amber-600">Please select at least one trigger event.</p>';
+
+                                return new HtmlString($countText.$warningHtml);
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Manual Mode Info section
+                Forms\Components\Section::make('Manual Execution')
+                    ->description('How manual execution works')
+                    ->visible(fn (Get $get): bool => $get('execution_cadence') === ExecutionCadence::Manual->value)
+                    ->schema([
+                        Forms\Components\Placeholder::make('manual_info')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="space-y-4">
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-sm font-medium flex-shrink-0">1</span>
+                                        <div>
+                                            <p class="font-medium">Activate the Policy</p>
+                                            <p class="text-sm text-gray-600">After creation, activate the policy to enable execution.</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-sm font-medium flex-shrink-0">2</span>
+                                        <div>
+                                            <p class="font-medium">Run Dry Run (Optional)</p>
+                                            <p class="text-sm text-gray-600">Preview generated prices without writing to the Price Book.</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-sm font-medium flex-shrink-0">3</span>
+                                        <div>
+                                            <p class="font-medium">Execute the Policy</p>
+                                            <p class="text-sm text-gray-600">Click "Execute Now" to generate prices into the target Price Book.</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-start gap-3">
+                                        <span class="flex items-center justify-center w-6 h-6 rounded-full bg-gray-200 text-gray-700 text-sm font-medium flex-shrink-0">4</span>
+                                        <div>
+                                            <p class="font-medium">Review & Approve</p>
+                                            <p class="text-sm text-gray-600">Review generated prices in the Price Book and activate if satisfied.</p>
+                                        </div>
+                                    </div>
+                                </div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
      * Preview rounding for a given value and rule.
      */
     protected static function previewRounding(float $value, string $rule, string $direction): float
@@ -1488,8 +1800,10 @@ class CreatePricingPolicy extends CreateRecord
         // Set status to draft
         $data['status'] = PricingPolicyStatus::Draft->value;
 
-        // Set default execution cadence to manual (will be configurable in Step 5)
-        $data['execution_cadence'] = ExecutionCadence::Manual->value;
+        // Set execution cadence from Step 5 (defaults to manual if not set)
+        if (! isset($data['execution_cadence'])) {
+            $data['execution_cadence'] = ExecutionCadence::Manual->value;
+        }
 
         // Set input source based on policy type and step 2 selections
         $policyType = PricingPolicyType::from($data['policy_type']);
@@ -1593,6 +1907,19 @@ class CreatePricingPolicy extends CreateRecord
             }
         }
 
+        // Add Step 5: Execution configuration to logic_definition
+        $executionCadence = ExecutionCadence::from($data['execution_cadence']);
+        if ($executionCadence === ExecutionCadence::Scheduled) {
+            $logicDefinition['schedule'] = [
+                'frequency' => $data['schedule_frequency'] ?? 'daily',
+                'day_of_week' => $data['schedule_day_of_week'] ?? null,
+                'day_of_month' => $data['schedule_day_of_month'] ?? null,
+                'time' => $data['schedule_time'] ?? '06:00',
+            ];
+        } elseif ($executionCadence === ExecutionCadence::EventTriggered) {
+            $logicDefinition['event_triggers'] = $data['event_triggers'] ?? ['cost_change'];
+        }
+
         $data['logic_definition'] = $logicDefinition;
 
         // Store scope data in session for afterCreate hook
@@ -1649,7 +1976,13 @@ class CreatePricingPolicy extends CreateRecord
             $data['scope_product'],
             $data['scope_skus'],
             $data['scope_markets'],
-            $data['scope_channels']
+            $data['scope_channels'],
+            // Step 5 fields
+            $data['schedule_frequency'],
+            $data['schedule_day_of_week'],
+            $data['schedule_day_of_month'],
+            $data['schedule_time'],
+            $data['event_triggers']
         );
 
         return $data;
