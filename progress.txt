@@ -374,3 +374,18 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Empty state actions can duplicate header actions for better UX on empty relation managers
   - For integrity flags display, use badge with `getStateUsing()` to compute display from multiple boolean fields
 ---
+
+## 2026-02-03 23:45 CET - US-020
+- Implemented Product Detail - Tab Lifecycle for managing lifecycle state transitions
+- Files changed:
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added Lifecycle tab with full workflow management)
+- **Learnings for future iterations:**
+  - For displaying status workflow diagram, iterate through enum cases with array_search to find current index
+  - Use `<x-dynamic-component>` for rendering heroicons dynamically from enum properties
+  - Role-based visibility: use helper methods like `canApproveOrReject()`, `canPublish()`, `canArchive()` that check `Auth::user()->role->hasAtLeast()`
+  - For reject action with mandatory comment: use `->form([])` to add a textarea, then access `$data['field']` in the action closure
+  - Store rejection reason in audit log's `new_values` array alongside the status change
+  - Use `saveQuietly()` after manual audit log creation to avoid duplicate logging
+  - For reading AuditLog values with PHPStan, assign to intermediate variable with PHPDoc annotation: `/** @var array<string, mixed>|null $raw */ $raw = $log->old_values;`
+  - Recent status history: query AuditLog with `where('event', 'status_change')` and `orderByDesc('created_at')->limit(5)`
+---
