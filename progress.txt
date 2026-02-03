@@ -337,3 +337,23 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Completeness calculation: combine static model fields + dynamic attributes from attribute set
   - For attribute lock status: check AttributeValue.is_locked, respect Manager/Admin override capability
 ---
+
+## 2026-02-03 22:30 CET - US-018
+- Implemented Product Detail - Tab Media with full media management
+- Files changed:
+  - `database/migrations/2026_02_03_220000_create_product_media_table.php` (new - creates product_media table for images and documents)
+  - `app/Models/Pim/ProductMedia.php` (new - model with source tracking, URL generation, file management)
+  - `app/Models/Pim/WineVariant.php` (modified - added media(), livExMedia(), manualMedia() relationships, getPrimaryImage(), hasPrimaryImage() methods, updated blocking issues)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added getMediaSchema() with Liv-ex read-only section, manual uploads, media summary)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added loadMediaManagement(), saveMedia() methods for media persistence)
+- **Learnings for future iterations:**
+  - Use separate source column (liv_ex/manual) to distinguish read-only vs editable media
+  - For external URLs (Liv-ex), store in external_url; for uploads, store path in file_path
+  - Use `is_locked` boolean to prevent editing of Liv-ex media
+  - Primary image enforcement: add to BLOCKING_ISSUES_RULES with tab 'media'
+  - FileUpload component: use ->disk('public'), ->directory() for organized storage
+  - For repeater-based media management, load data in mutateFormDataBeforeFill(), save in afterSave()
+  - Use ->reorderable() and ->reorderableWithButtons() on Repeater for drag/drop
+  - Delete orphaned files when media records are deleted using model boot() deleting event
+  - PHPStan fix: use `$var = $arr['key'] ?? null; if ($var !== null)` instead of `isset() && !== null`
+---
