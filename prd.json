@@ -1,0 +1,205 @@
+{
+  "project": "Crurated ERP",
+  "branchName": "ralph/infrastructure",
+  "description": "Setup dell'infrastruttura base per l'ERP Crurated: Laravel 12, Filament 5, MySQL, autenticazione, autorizzazione e struttura modulare",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Inizializzazione progetto Laravel 12",
+      "description": "Come Developer, voglio un progetto Laravel 12 configurato correttamente per iniziare lo sviluppo.",
+      "acceptanceCriteria": [
+        "Progetto Laravel 12 creato con `laravel new`",
+        "Configurazione `.env` per MySQL",
+        "Git repository inizializzato con `.gitignore` appropriato",
+        "Composer dependencies installate",
+        "`php artisan serve` funziona correttamente",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Configurazione Database MySQL",
+      "description": "Come Developer, voglio il database MySQL configurato e connesso.",
+      "acceptanceCriteria": [
+        "Database `crurated_erp` creato",
+        "Configurazione in `.env` corretta",
+        "`php artisan migrate` esegue senza errori",
+        "Convenzioni naming: snake_case per tabelle e colonne",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Configurare code quality tools",
+      "description": "Come Developer, voglio strumenti di code quality per mantenere standard elevati.",
+      "acceptanceCriteria": [
+        "Laravel Pint installato e configurato",
+        "PHPStan installato (level 5 minimo)",
+        "Script composer: `lint`, `analyse`, `test`",
+        "Pre-commit hook opzionale per lint",
+        "CI/CD ready configuration",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Definire struttura directory modulare",
+      "description": "Come Developer, voglio una struttura directory organizzata per moduli.",
+      "acceptanceCriteria": [
+        "Directory `app/Models/Pim/` per modelli Module 0",
+        "Directory `app/Filament/Resources/Pim/` per risorse Filament",
+        "Directory `app/Enums/` per enumerazioni",
+        "Directory `app/Services/` per business logic",
+        "Directory `app/Traits/` per traits riutilizzabili",
+        "Namespace PSR-4 configurati in composer.json",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Setup base traits riutilizzabili",
+      "description": "Come Developer, voglio traits comuni per funzionalita condivise tra modelli.",
+      "acceptanceCriteria": [
+        "Trait `HasUuid` per UUID come primary key (opzionale)",
+        "Trait `Auditable` per audit logging",
+        "Trait `HasLifecycleStatus` per gestione stati",
+        "Documentazione uso traits in README",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Installazione Filament 5",
+      "description": "Come Developer, voglio Filament 5 installato e configurato come admin panel.",
+      "acceptanceCriteria": [
+        "Filament 5 installato via composer",
+        "Panel provider configurato in `app/Providers/Filament`",
+        "Asset pubblicati e compilati",
+        "Accesso a `/admin` mostra login page",
+        "Tema base configurato (colori Crurated se forniti)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Setup testing infrastructure",
+      "description": "Come Developer, voglio poter scrivere e eseguire test automatizzati.",
+      "acceptanceCriteria": [
+        "PHPUnit configurato",
+        "Database SQLite in-memory per test",
+        "Base TestCase configurato",
+        "Factory base per User",
+        "`php artisan test` esegue senza errori",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Setup environment configurations",
+      "description": "Come Developer, voglio configurazioni separate per dev/staging/production.",
+      "acceptanceCriteria": [
+        "`.env.example` con tutte le variabili necessarie",
+        "Configurazione logging appropriata",
+        "Configurazione cache (file per dev, redis ready per prod)",
+        "Configurazione queue (sync per dev, database/redis ready per prod)",
+        "Documentazione setup in README",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Setup User model e autenticazione",
+      "description": "Come Admin, voglio un sistema di login sicuro per accedere all'ERP.",
+      "acceptanceCriteria": [
+        "Model `User` con campi: name, email, password, role",
+        "Migration per tabella users",
+        "Filament auth configurato con User model",
+        "Login funzionante su `/admin/login`",
+        "Logout funzionante",
+        "Remember me functionality",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Implementare sistema ruoli base",
+      "description": "Come Super Admin, voglio assegnare ruoli agli utenti per controllare gli accessi.",
+      "acceptanceCriteria": [
+        "Enum `UserRole`: super_admin, admin, manager, editor, viewer",
+        "Campo `role` su User model",
+        "Policy base per controllo accessi",
+        "Super Admin puo fare tutto",
+        "Viewer puo solo leggere",
+        "Seeder per utente super_admin iniziale",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Gestione utenti in Filament",
+      "description": "Come Super Admin, voglio gestire gli utenti dell'ERP dal pannello admin.",
+      "acceptanceCriteria": [
+        "UserResource in Filament",
+        "Lista utenti con filtri per ruolo",
+        "Creazione utente con assegnazione ruolo",
+        "Modifica utente (no self-delete)",
+        "Reset password",
+        "Solo Super Admin puo gestire utenti",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Setup Filament navigation structure",
+      "description": "Come Operator, voglio una navigazione chiara nell'admin panel.",
+      "acceptanceCriteria": [
+        "Navigation group 'PIM' per Module 0",
+        "Navigation group 'System' per settings e users",
+        "Icone appropriate per ogni sezione",
+        "Ordinamento logico delle voci",
+        "Responsive sidebar",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
