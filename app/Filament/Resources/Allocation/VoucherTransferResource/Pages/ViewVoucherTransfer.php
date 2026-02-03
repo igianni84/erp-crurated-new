@@ -1,0 +1,290 @@
+<?php
+
+namespace App\Filament\Resources\Allocation\VoucherTransferResource\Pages;
+
+use App\Enums\Allocation\VoucherTransferStatus;
+use App\Filament\Resources\Allocation\VoucherTransferResource;
+use App\Models\Allocation\VoucherTransfer;
+use App\Services\Allocation\VoucherTransferService;
+use Filament\Actions;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
+use Filament\Resources\Pages\ViewRecord;
+
+class ViewVoucherTransfer extends ViewRecord
+{
+    protected static string $resource = VoucherTransferResource::class;
+
+    public function getTitle(): string
+    {
+        /** @var VoucherTransfer $record */
+        $record = $this->record;
+
+        return "Transfer #{$record->id}";
+    }
+
+    public function getSubheading(): ?string
+    {
+        /** @var VoucherTransfer $record */
+        $record = $this->record;
+
+        return "From {$record->fromCustomer?->name} to {$record->toCustomer?->name}";
+    }
+
+    public function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                // Header with status banner
+                Infolists\Components\Section::make()
+                    ->schema([
+                        Infolists\Components\Grid::make(3)
+                            ->schema([
+                                Infolists\Components\TextEntry::make('id')
+                                    ->label('Transfer ID')
+                                    ->copyable()
+                                    ->copyMessage('Transfer ID copied'),
+
+                                Infolists\Components\TextEntry::make('status')
+                                    ->label('Status')
+                                    ->badge()
+                                    ->formatStateUsing(fn (VoucherTransferStatus $state): string => $state->label())
+                                    ->color(fn (VoucherTransferStatus $state): string => $state->color())
+                                    ->icon(fn (VoucherTransferStatus $state): string => $state->icon()),
+
+                                Infolists\Components\TextEntry::make('status_description')
+                                    ->label('Status Details')
+                                    ->getStateUsing(fn (VoucherTransfer $record): string => $record->getStatusDescription()),
+                            ]),
+                    ])
+                    ->extraAttributes(function (): array {
+                        /** @var VoucherTransfer $record */
+                        $record = $this->record;
+
+                        return [
+                            'class' => 'border-l-4 '.match ($record->status) {
+                                VoucherTransferStatus::Pending => 'border-l-warning-500',
+                                VoucherTransferStatus::Accepted => 'border-l-success-500',
+                                VoucherTransferStatus::Cancelled => 'border-l-danger-500',
+                                VoucherTransferStatus::Expired => 'border-l-gray-500',
+                            },
+                        ];
+                    }),
+
+                // Voucher Information
+                Infolists\Components\Section::make('Voucher Information')
+                    ->icon('heroicon-o-ticket')
+                    ->schema([
+                        Infolists\Components\Grid::make(2)
+                            ->schema([
+                                Infolists\Components\TextEntry::make('voucher_id')
+                                    ->label('Voucher ID')
+                                    ->url(fn (VoucherTransfer $record): string => route('filament.admin.resources.vouchers.view', ['record' => $record->voucher_id]))
+                                    ->openUrlInNewTab()
+                                    ->color('primary')
+                                    ->copyable(),
+
+                                Infolists\Components\TextEntry::make('voucher_sku')
+                                    ->label('Bottle SKU')
+                                    ->getStateUsing(fn (VoucherTransfer $record): string => $record->voucher?->getBottleSkuLabel() ?? 'N/A'),
+
+                                Infolists\Components\TextEntry::make('voucher_lifecycle')
+                                    ->label('Current Voucher State')
+                                    ->badge()
+                                    ->getStateUsing(fn (VoucherTransfer $record): string => $record->voucher?->lifecycle_state->label() ?? 'N/A')
+                                    ->color(fn (VoucherTransfer $record): string => $record->voucher?->lifecycle_state->color() ?? 'gray'),
+
+                                Infolists\Components\TextEntry::make('voucher_allocation')
+                                    ->label('Allocation')
+                                    ->getStateUsing(fn (VoucherTransfer $record): string => "#{$record->voucher?->allocation_id}")
+                                    ->url(fn (VoucherTransfer $record): ?string => $record->voucher?->allocation_id
+                                        ? route('filament.admin.resources.allocations.view', ['record' => $record->voucher->allocation_id])
+                                        : null)
+                                    ->openUrlInNewTab()
+                                    ->color('primary'),
+                            ]),
+                    ]),
+
+                // Transfer Participants
+                Infolists\Components\Section::make('Transfer Participants')
+                    ->icon('heroicon-o-users')
+                    ->schema([
+                        Infolists\Components\Grid::make(2)
+                            ->schema([
+                                Infolists\Components\Group::make([
+                                    Infolists\Components\TextEntry::make('fromCustomer.name')
+                                        ->label('From Customer')
+                                        ->url(fn (VoucherTransfer $record): ?string => $record->fromCustomer
+                                            ? route('filament.admin.resources.customers.view', ['record' => $record->fromCustomer])
+                                            : null)
+                                        ->openUrlInNewTab()
+                                        ->color('primary'),
+                                    Infolists\Components\TextEntry::make('fromCustomer.email')
+                                        ->label('Email'),
+                                ])->columnSpan(1),
+
+                                Infolists\Components\Group::make([
+                                    Infolists\Components\TextEntry::make('toCustomer.name')
+                                        ->label('To Customer')
+                                        ->url(fn (VoucherTransfer $record): ?string => $record->toCustomer
+                                            ? route('filament.admin.resources.customers.view', ['record' => $record->toCustomer])
+                                            : null)
+                                        ->openUrlInNewTab()
+                                        ->color('primary'),
+                                    Infolists\Components\TextEntry::make('toCustomer.email')
+                                        ->label('Email'),
+                                ])->columnSpan(1),
+                            ]),
+
+                        Infolists\Components\TextEntry::make('transfer_note')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Transfers do not create new vouchers or consume allocation. They only change the voucher holder.')
+                            ->icon('heroicon-o-information-circle')
+                            ->color('gray')
+                            ->columnSpanFull(),
+                    ]),
+
+                // Timeline
+                Infolists\Components\Section::make('Timeline')
+                    ->icon('heroicon-o-clock')
+                    ->schema([
+                        Infolists\Components\Grid::make(2)
+                            ->schema([
+                                Infolists\Components\TextEntry::make('initiated_at')
+                                    ->label('Initiated')
+                                    ->dateTime(),
+
+                                Infolists\Components\TextEntry::make('expires_at')
+                                    ->label('Expires At')
+                                    ->dateTime()
+                                    ->color(fn (VoucherTransfer $record): string => $record->isPending() && $record->expires_at->isPast() ? 'danger' : 'gray')
+                                    ->suffix(fn (VoucherTransfer $record): string => $record->isPending() && $record->expires_at->isPast() ? ' (Expired!)' : ''),
+
+                                Infolists\Components\TextEntry::make('accepted_at')
+                                    ->label('Accepted At')
+                                    ->dateTime()
+                                    ->placeholder('Not accepted')
+                                    ->hidden(fn (VoucherTransfer $record): bool => $record->accepted_at === null),
+
+                                Infolists\Components\TextEntry::make('cancelled_at')
+                                    ->label('Cancelled At')
+                                    ->dateTime()
+                                    ->placeholder('Not cancelled')
+                                    ->hidden(fn (VoucherTransfer $record): bool => $record->cancelled_at === null),
+                            ]),
+                    ]),
+
+                // Event History
+                Infolists\Components\Section::make('Event History')
+                    ->icon('heroicon-o-clipboard-document-list')
+                    ->collapsed()
+                    ->schema([
+                        Infolists\Components\RepeatableEntry::make('auditLogs')
+                            ->label('')
+                            ->schema([
+                                Infolists\Components\Grid::make(4)
+                                    ->schema([
+                                        Infolists\Components\TextEntry::make('event')
+                                            ->label('Event')
+                                            ->badge()
+                                            ->color(fn (string $state): string => match ($state) {
+                                                'transfer_initiated' => 'info',
+                                                'transfer_accepted' => 'success',
+                                                'transfer_cancelled' => 'danger',
+                                                'transfer_expired' => 'gray',
+                                                default => 'gray',
+                                            }),
+
+                                        Infolists\Components\TextEntry::make('user.name')
+                                            ->label('User')
+                                            ->placeholder('System'),
+
+                                        Infolists\Components\TextEntry::make('created_at')
+                                            ->label('Time')
+                                            ->dateTime(),
+
+                                        Infolists\Components\TextEntry::make('changes')
+                                            ->label('Changes')
+                                            ->getStateUsing(function ($record): string {
+                                                $changes = [];
+                                                if (! empty($record->old_values)) {
+                                                    foreach ($record->old_values as $key => $value) {
+                                                        if (isset($record->new_values[$key])) {
+                                                            $changes[] = "{$key}: {$value} → {$record->new_values[$key]}";
+                                                        }
+                                                    }
+                                                }
+
+                                                return implode(', ', $changes) ?: 'See details';
+                                            }),
+                                    ]),
+                            ])
+                            ->placeholder('No audit logs recorded'),
+                    ]),
+            ]);
+    }
+
+    /**
+     * @return array<Actions\Action>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Actions\Action::make('cancel_transfer')
+                ->label('Cancel Transfer')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalHeading('Cancel Transfer')
+                ->modalDescription(function (): string {
+                    /** @var VoucherTransfer $record */
+                    $record = $this->record;
+
+                    return "Are you sure you want to cancel this transfer? The voucher will remain with {$record->fromCustomer?->name}.";
+                })
+                ->modalSubmitActionLabel('Yes, Cancel Transfer')
+                ->action(function (): void {
+                    try {
+                        /** @var VoucherTransfer $record */
+                        $record = $this->record;
+
+                        $service = app(VoucherTransferService::class);
+                        $service->cancelTransfer($record);
+
+                        Notification::make()
+                            ->title('Transfer cancelled')
+                            ->success()
+                            ->send();
+
+                        $this->refreshFormData([]);
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->title('Cannot cancel transfer')
+                            ->body($e->getMessage())
+                            ->danger()
+                            ->send();
+                    }
+                })
+                ->visible(function (): bool {
+                    /** @var VoucherTransfer $record */
+                    $record = $this->record;
+
+                    return $record->canBeCancelled();
+                })
+                ->authorize('cancelTransfer'),
+
+            Actions\Action::make('view_voucher')
+                ->label('View Voucher')
+                ->icon('heroicon-o-ticket')
+                ->color('gray')
+                ->url(function (): string {
+                    /** @var VoucherTransfer $record */
+                    $record = $this->record;
+
+                    return route('filament.admin.resources.vouchers.view', ['record' => $record->voucher_id]);
+                })
+                ->openUrlInNewTab(),
+        ];
+    }
+}
