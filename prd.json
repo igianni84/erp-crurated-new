@@ -1,670 +1,1068 @@
 {
-  "project": "ERP4 - Module A Allocations & Vouchers",
-  "branchName": "ralph/module-a-allocations",
-  "description": "Module A - Sistema autoritativo per la gestione della supply vendibile (Allocations) e delle obbligazioni verso i clienti (Vouchers/Entitlements) nell'ERP Crurated",
+  "project": "ERP4 - Module S Commercial",
+  "branchName": "ralph/module-s-commercial",
+  "description": "Module S - Sales & Commercial Management: The commercial brain of the ERP that governs Channels, Price Books, Pricing Policies, Offers, Discounts, Bundles, and pricing simulation",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Setup modello Allocation",
-      "description": "Come Admin, voglio definire il modello base per le allocazioni di supply vendibile a livello Bottle SKU.",
+      "title": "Setup modello Channel",
+      "description": "As an Admin, I want to define commercial channels as stable contexts for sales.",
       "acceptanceCriteria": [
-        "Tabella `allocations` con campi: id, uuid, bottle_sku_id (FK), source_type (enum), supply_form (enum), total_quantity, sold_quantity, remaining_quantity, expected_availability_start, expected_availability_end, serialization_required (boolean, default true), status (enum)",
+        "Tabella `channels` con campi: id, uuid, name, channel_type (enum), default_currency (string), allowed_commercial_models (JSON array), status (enum)",
+        "Enum `ChannelType`: b2c, b2b, private_club in app/Enums/Commercial/",
+        "Enum `ChannelStatus`: active, inactive in app/Enums/Commercial/",
         "Soft deletes abilitati",
-        "remaining_quantity calcolato come total_quantity - sold_quantity",
-        "Relazione: Allocation belongsTo BottleSku (WineVariant + Format)",
-        "Vincolo: total_quantity >= sold_quantity sempre",
+        "allowed_commercial_models può contenere: voucher_based, sell_through",
         "Typecheck e lint passano"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Implemented using wine_variant_id + format_id as bottle SKU reference (no separate BottleSku model exists). Enums also created as they were required for the model."
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Setup enums per Allocation",
-      "description": "Come Developer, voglio enums ben definiti per i tipi e stati delle allocazioni.",
+      "title": "Setup enums base per Commercial",
+      "description": "As a Developer, I want well-defined enums for types and statuses of commercial entities.",
       "acceptanceCriteria": [
-        "Enum `AllocationSourceType`: producer_allocation, owned_stock, passive_consignment, third_party_custody",
-        "Enum `AllocationSupplyForm`: bottled, liquid",
-        "Enum `AllocationStatus`: draft, active, exhausted, closed",
-        "Enums in `app/Enums/Allocation/`",
+        "Enum `PriceBookStatus`: draft, active, expired, archived",
+        "Enum `PricingPolicyStatus`: draft, active, paused, archived",
+        "Enum `PricingPolicyType`: cost_plus_margin, reference_price_book, index_based, fixed_adjustment, rounding",
+        "Enum `PricingPolicyInputSource`: cost, emp, price_book, external_index",
+        "Enum `OfferStatus`: draft, active, paused, expired, cancelled",
+        "Enum `OfferType`: standard, promotion, bundle",
+        "Enum `OfferVisibility`: public, restricted",
+        "Enum `ExecutionCadence`: manual, scheduled, event_triggered",
+        "All enums in `app/Enums/Commercial/`",
         "Typecheck e lint passano"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Enums were already created as part of US-001. All three enums exist in app/Enums/Allocation/ with proper values, labels, colors, and icons for Filament integration. AllocationStatus also includes transition logic helpers."
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Setup modello AllocationConstraint",
-      "description": "Come Admin, voglio definire i vincoli commerciali autoritativi di un'allocation.",
+      "title": "Setup modello EstimatedMarketPrice (EMP)",
+      "description": "As an Admin, I want to store estimated market prices as reference for pricing decisions.",
       "acceptanceCriteria": [
-        "Tabella `allocation_constraints` con: id, allocation_id (FK unique), allowed_channels (JSON array), allowed_geographies (JSON array), allowed_customer_types (JSON array), composition_constraint_group (string nullable), fungibility_exception (boolean default false)",
-        "Relazione: Allocation hasOne AllocationConstraint",
-        "AllocationConstraint creato automaticamente con Allocation",
-        "Vincoli sono editabili solo se Allocation è in Draft",
+        "Tabella `estimated_market_prices` con: id, sellable_sku_id (FK), market (string), emp_value (decimal 12,2), source (enum), confidence_level (enum), fetched_at (timestamp)",
+        "Enum `EmpSource`: livex, internal, composite in app/Enums/Commercial/",
+        "Enum `EmpConfidenceLevel`: high, medium, low in app/Enums/Commercial/",
+        "Relazione: EstimatedMarketPrice belongsTo SellableSku",
+        "Vincolo: combinazione sellable_sku_id + market unica",
+        "EMP è read-only in Module S (importato da processo esterno)",
         "Typecheck e lint passano"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Implemented AllocationConstraint model with migration, automatic creation on Allocation save, and validation to prevent editing when not in Draft status."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Setup modello LiquidAllocationConstraint",
-      "description": "Come Admin, voglio vincoli aggiuntivi per le liquid allocations.",
+      "title": "Channel List in Filament",
+      "description": "As an Operator, I want a list of commercial channels as an overview of the sales context.",
       "acceptanceCriteria": [
-        "Tabella `liquid_allocation_constraints` con: id, allocation_id (FK unique), allowed_bottling_formats (JSON array), allowed_case_configurations (JSON array), bottling_confirmation_deadline (date nullable)",
-        "Relazione: Allocation hasOne LiquidAllocationConstraint (solo se supply_form = liquid)",
-        "Validazione: allocation.supply_form deve essere 'liquid'",
-        "Typecheck e lint passano"
+        "ChannelResource in Filament con navigation group 'Commercial'",
+        "Lista con colonne: name, channel_type, default_currency, status, allowed_models (badges), updated_at",
+        "Filtri: channel_type, status",
+        "Ricerca per: name",
+        "Channels sono raramente modificati (sistema stabile)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Implemented LiquidAllocationConstraint model with migration. Validation in model's saving event ensures allocation.supply_form = liquid. Added liquidConstraint() hasOne relationship and isLiquid()/isBottled() helper methods to Allocation model."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Setup modello TemporaryReservation",
-      "description": "Come Developer, voglio un sistema di reservation temporanee per prevenire overselling durante checkout o negoziazioni.",
+      "title": "Channel Detail view",
+      "description": "As an Operator, I want to see the details of a commercial channel.",
       "acceptanceCriteria": [
-        "Tabella `temporary_reservations` con: id, uuid, allocation_id (FK), quantity, context_type (enum), context_reference (string nullable), status (enum), expires_at, created_by (FK users nullable)",
-        "Enum `ReservationContextType`: checkout, negotiation, manual_hold",
-        "Enum `ReservationStatus`: active, expired, cancelled, converted",
-        "Job schedulato per espirare reservations oltre expires_at",
-        "Reservation non consuma allocation, solo 'blocca' temporaneamente",
-        "Typecheck e lint passano"
+        "Tab Overview: name, type, currency, allowed_commercial_models",
+        "Tab Price Books: lista Price Books applicabili a questo canale",
+        "Tab Offers: lista Offers attivi su questo canale",
+        "Tab Audit: timeline eventi",
+        "Read-heavy view (canali sono configurazione stabile)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Implemented TemporaryReservation model with migration. Created ReservationContextType and ReservationStatus enums. Added ExpireReservationsJob scheduled every minute. Added temporaryReservations() and activeReservations() relationships to Allocation model."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "AllocationService per gestione allocation",
-      "description": "Come Developer, voglio un service per centralizzare la logica di allocation.",
+      "title": "Pricing Intelligence List view",
+      "description": "As an Operator, I want to view EMP for all Sellable SKUs as market reference.",
       "acceptanceCriteria": [
-        "Service class `AllocationService` in `app/Services/Allocation/`",
-        "Metodo `activate(Allocation)`: transizione draft → active",
-        "Metodo `close(Allocation)`: transizione active/exhausted → closed",
-        "Metodo `consumeAllocation(Allocation, quantity)`: decrementa remaining, incrementa sold",
-        "Metodo `checkAvailability(Allocation, quantity)`: verifica disponibilità (remaining - active_reservations >= quantity)",
-        "Metodo `getRemainingAvailable(Allocation)`: remaining - sum(active_reservations.quantity)",
-        "Validazioni con eccezioni esplicite",
-        "Typecheck e lint passano"
+        "Pagina Pricing Intelligence in Filament sotto Commercial",
+        "Lista con una riga per Sellable SKU + market",
+        "Colonne: sellable_sku (wine + vintage + format + packaging), market, emp_value, confidence, active_price_book_price (nullable), active_offer_price (nullable), delta_vs_emp (percentage), freshness_indicator",
+        "Filtri: market, confidence_level, deviation_range (e.g. >10%, >20%)",
+        "Ricerca per: SKU name, wine name",
+        "Evidenziazione per SKU con deviazione significativa (>15% da EMP)",
+        "Vista read-only (nessuna azione di modifica)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Implemented AllocationService with activate(), close(), consumeAllocation(), checkAvailability(), and getRemainingAvailable() methods. Includes transaction locking for race condition prevention and auto-exhausted transition when remaining reaches 0."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Allocation List in Filament",
-      "description": "Come Operator, voglio una lista allocations come entry point operativo del modulo.",
+      "title": "Pricing Intelligence Detail view",
+      "description": "As an Operator, I want to see detailed EMP analysis for a Sellable SKU.",
       "acceptanceCriteria": [
-        "AllocationResource in Filament con navigation group 'Allocations'",
-        "Lista con colonne: allocation_id, bottle_sku (wine+vintage+format), supply_form, source_type, status, total_qty, sold_qty, remaining_qty, availability_window, constraint_summary, updated_at",
-        "Filtri: status, source_type, supply_form, bottle_sku",
-        "Ricerca per: wine name, producer, bottle SKU, allocation ID",
-        "Closed allocations nascosti di default (filtro)",
-        "Indicatore visivo per allocations quasi esaurite (remaining < 10%)",
+        "Tab EMP Overview: valore corrente, source breakdown, last update, trend storico (chart)",
+        "Tab Comparisons: EMP vs Price Book prices (per channel), EMP vs active Offer prices",
+        "Tab Market Coverage: mercati con EMP, warning per dati mancanti/stale",
+        "Tab Signals & Alerts: outlier detection, deviazioni significative",
+        "Tab Audit: history aggiornamenti EMP",
+        "Nessuna azione di modifica (EMP è importato)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Implemented AllocationResource with navigation group 'Allocations'. Table includes all columns: id, bottle_sku, supply_form, source_type, status, total_qty, sold_qty, remaining_qty, availability_window, constraint_summary, updated_at. Filters: status (multi-select, excludes Closed by default), source_type (multi-select), supply_form, wine_variant (bottle SKU), near_exhaustion toggle, trashed. Search: wine name, producer, allocation ID. Near exhaustion indicator shows red color and icon when remaining < 10%. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Create Allocation wizard - Step 1 (Bottle SKU)",
-      "description": "Come Operator, voglio selezionare il Bottle SKU come primo step della creazione allocation.",
+      "title": "EMP Alerts in Commercial Overview",
+      "description": "As an Operator, I want to see alerts when prices deviate significantly from EMP.",
       "acceptanceCriteria": [
-        "Wizard step 1: selezione Wine + Vintage + Format (Bottle SKU)",
-        "Autocomplete search per wine name",
-        "Mostra solo formati esistenti per la wine variant selezionata",
-        "Messaggio chiaro: 'Allocation always happens at Bottle SKU level'",
-        "No concetti di sellable SKU o packaging a questo stadio",
+        "Widget in Commercial Overview che mostra count di SKU con prezzo >15% diverso da EMP",
+        "Link a Pricing Intelligence filtrato per deviazione",
+        "Alert severity basato su percentuale deviazione",
+        "Configurazione threshold in settings (default 15%)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Implemented wizard step 1 with: Wine selection via autocomplete search (by name or producer), Vintage selection (dynamically filtered by selected WineMaster), Format selection (all available formats). Includes Bottle SKU preview and info message explaining allocation at Bottle SKU level. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Create Allocation wizard - Step 2 (Source & Capacity)",
-      "description": "Come Operator, voglio definire source type, supply form e quantità.",
+      "title": "Setup modello PriceBook",
+      "description": "As an Admin, I want to define Price Books as authoritative pricing decisions.",
       "acceptanceCriteria": [
-        "Step 2 fields: source_type, supply_form, total_quantity, expected_availability_start, expected_availability_end, serialization_required",
-        "Inline guidance che spiega implicazioni di bottled vs liquid",
-        "Inline guidance per serialization requirement",
-        "Validazione: total_quantity > 0",
-        "Validazione: expected_availability_end >= expected_availability_start (se entrambi presenti)",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Tabella `price_books` con: id, uuid, name, market (string), channel_id (FK nullable), currency (string), valid_from (date), valid_to (date nullable), status (enum), approved_at (timestamp nullable), approved_by (FK users nullable)",
+        "Soft deletes abilitati",
+        "Relazione: PriceBook belongsTo Channel (optional)",
+        "Status transitions: draft → active (requires approval), active → expired (automatic o manual), expired → archived",
+        "Solo un PriceBook active per combinazione market+channel+currency alla volta",
+        "Typecheck e lint passano"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Implemented Step 2 with: source_type dropdown (all 4 AllocationSourceType options), supply_form dropdown with live guidance explaining bottled vs liquid implications, total_quantity field with minValue(1) validation, availability date range with afterOrEqual validation, serialization_required toggle with guidance about tracking implications. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Create Allocation wizard - Step 3 (Commercial Constraints)",
-      "description": "Come Operator, voglio definire i vincoli commerciali autoritativi dell'allocation.",
+      "title": "Setup modello PriceBookEntry",
+      "description": "As an Admin, I want to store prices for individual Sellable SKUs in a Price Book.",
       "acceptanceCriteria": [
-        "Step 3 fields: allowed_channels (multi-select), allowed_geographies (multi-select), allowed_customer_types (multi-select)",
-        "Opzioni channels: b2c, b2b, private_sales, wholesale, club",
-        "Opzioni customer_types: retail, trade, private_client, club_member, internal",
-        "Messaggio prominente: 'Constraints are AUTHORITATIVE. Module S must enforce them.'",
-        "Default: tutti i canali/geografie/customer types se non specificato",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Tabella `price_book_entries` con: id, price_book_id (FK), sellable_sku_id (FK), base_price (decimal 12,2), source (enum: manual, policy_generated), policy_id (FK nullable)",
+        "Enum `PriceSource`: manual, policy_generated in app/Enums/Commercial/",
+        "Relazione: PriceBookEntry belongsTo PriceBook, belongsTo SellableSku, belongsTo PricingPolicy (optional)",
+        "Vincolo: combinazione price_book_id + sellable_sku_id unica",
+        "base_price deve essere > 0",
+        "Typecheck e lint passano"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Implemented Step 3 with: CheckboxList for allowed_channels (b2c, b2b, private_sales, wholesale, club), TagsInput for allowed_geographies (flexible ISO codes), CheckboxList for allowed_customer_types (retail, trade, private_client, club_member, internal). Prominent warning message about authoritative constraints and Module S enforcement. Helper text explaining default behavior (all allowed if empty). Note about constraints becoming read-only after activation. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Create Allocation wizard - Step 4 (Advanced/Liquid Constraints)",
-      "description": "Come Operator, voglio definire vincoli avanzati e liquid-specific quando applicabile.",
+      "title": "PriceBook List in Filament",
+      "description": "As an Operator, I want a list of Price Books as entry point for pricing.",
       "acceptanceCriteria": [
-        "Step 4 collapsed by default, espanso solo se supply_form = liquid",
-        "Fields avanzati: composition_constraint_group, fungibility_exception",
-        "Fields liquid-only (visibili solo se supply_form = liquid): allowed_bottling_formats, allowed_case_configurations, bottling_confirmation_deadline",
-        "Spiegazione inline per composition constraints (vertical cases)",
+        "PriceBookResource in Filament con navigation group 'Commercial'",
+        "Lista con colonne: name, market, channel, currency, valid_from, valid_to, status, entries_count, last_updated",
+        "Filtri: status, channel, market, currency",
+        "Ricerca per: name",
+        "Indicatore visivo per Price Books in scadenza (< 30 giorni)",
+        "Indicatore visivo per Price Books con missing prices (SKU allocati senza entry)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Implemented Step 4 with: Liquid Allocation Constraints section (shown/expanded only for liquid supply_form) with allowed_bottling_formats (TagsInput), allowed_case_configurations (TagsInput), bottling_confirmation_deadline (DatePicker). Advanced Commercial Constraints section (always available, collapsed by default for bottled, expanded for liquid) with composition_constraint_group (TextInput) and fungibility_exception (Toggle). Inline guidance explaining composition groups for vertical cases and fungibility exceptions. LiquidAllocationConstraint created in afterCreate for liquid allocations. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-012",
-      "title": "Create Allocation wizard - Step 5 (Review & Create)",
-      "description": "Come Operator, voglio vedere un riepilogo prima di creare l'allocation.",
+      "title": "Create PriceBook wizard - Step 1 (Metadata)",
+      "description": "As an Operator, I want to define the base metadata of a Price Book.",
       "acceptanceCriteria": [
-        "Step 5: read-only summary di tutti i dati inseriti",
-        "Mostra warnings informativi (se presenti)",
-        "Allocation creata in status 'draft' by default",
-        "Messaggio: 'Draft allocations cannot be consumed and do not issue vouchers'",
-        "CTA: 'Create as Draft' (primary), 'Create and Activate' (secondary, role-based)",
+        "Step 1: name, market (select da lista mercati), channel_id (select nullable), currency",
+        "Validazione: name required, currency required",
+        "Messaggio: 'Price Books store base prices for all commercially available SKUs'",
+        "Preview mercati disponibili basato su allocations attive",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": "Implemented Step 5 with: Read-only summary sections for Bottle SKU, Source & Capacity, Commercial Constraints, Advanced Constraints (shown if set), and Liquid Constraints (shown for liquid allocations). Draft warning message displayed prominently. Two submit actions: 'Create as Draft' (primary) and 'Create and Activate' (secondary, role-based via AllocationPolicy). AllocationService.activate() called on create-and-activate flow with proper error handling and notifications. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-013",
-      "title": "Allocation Detail con 6 tabs",
-      "description": "Come Operator, voglio vedere tutti i dettagli di un'allocation organizzati in tabs.",
+      "title": "Create PriceBook wizard - Step 2 (Validity)",
+      "description": "As an Operator, I want to define the validity period of a Price Book.",
       "acceptanceCriteria": [
-        "Tab Overview: read-only control panel con status, quantities, availability window, lineage rule",
-        "Tab Constraints: vincoli commerciali, editabili solo se Draft",
-        "Tab Capacity & Consumption: breakdown consumo per sellable SKU, channel, time",
-        "Tab Reservations: lista temporary reservations con status",
-        "Tab Vouchers: lista read-only vouchers emessi da questa allocation",
-        "Tab Audit: timeline eventi immutabile",
-        "Azioni contestuali role-based: Activate (Draft→Active), Close (Active/Exhausted→Closed)",
+        "Step 2: valid_from (date), valid_to (date nullable)",
+        "Validazione: valid_to >= valid_from (se presente)",
+        "Warning se overlap con Price Book esistente per stessa combinazione market+channel",
+        "Spiegazione inline: 'Leave valid_to empty for indefinite validity'",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": true,
-      "notes": "Implemented allocation detail view with 6 tabs: Overview (status, quantities, availability window, lineage rule), Constraints (commercial constraints with edit link for Draft status, advanced constraints, liquid constraints), Capacity & Consumption (capacity overview, reservation impact, placeholder for future consumption breakdown), Reservations (list of temporary reservations with status), Vouchers (placeholder for future voucher list - US-015+), Audit (timeline of audit logs). Added header actions: Activate (Draft→Active) and Close (Active/Exhausted→Closed) with role-based authorization. Added auditLogs() morphMany relationship to Allocation model. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-014",
-      "title": "Allocation status transitions",
-      "description": "Come Admin, voglio che le transizioni di stato seguano regole precise.",
+      "title": "Create PriceBook wizard - Step 3 (Initial Prices)",
+      "description": "As an Operator, I want to optionally import initial prices during creation.",
       "acceptanceCriteria": [
-        "Transizioni valide: draft→active, active→exhausted (automatico quando remaining=0), active→closed, exhausted→closed",
-        "Transizione draft→active: constraints diventano read-only",
-        "Transizione invalida genera errore user-friendly",
-        "Status exhausted settato automaticamente quando remaining_quantity = 0",
-        "Closed allocation non può essere riaperta (creare nuova allocation)",
-        "Ogni transizione logga user_id, timestamp",
-        "Typecheck e lint passano"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Enhanced AllocationService with: logStatusTransition() method for audit logging (user_id, timestamp, old/new status), transitionTo() method with user-friendly errors showing allowed transitions, canTransitionTo() helper. All status changes now create AuditLog entries with EVENT_STATUS_CHANGE. Auto-exhausted on remaining=0 includes audit log. Constraints already protected by model boot events (AllocationConstraint and LiquidAllocationConstraint both prevent editing when not Draft)."
-    },
-    {
-      "id": "US-015",
-      "title": "Setup modello Voucher",
-      "description": "Come Admin, voglio il modello Voucher come entitlement atomico cliente.",
-      "acceptanceCriteria": [
-        "Tabella `vouchers` con: id, uuid, customer_id (FK), allocation_id (FK), bottle_sku_id (FK), sellable_sku_id (FK nullable), quantity (always 1), lifecycle_state (enum), tradable (boolean default true), giftable (boolean default true), suspended (boolean default false), sale_reference (string), created_at",
-        "Soft deletes abilitati",
-        "Relazione: Voucher belongsTo Customer, Allocation, BottleSku, SellableSku",
-        "Invariante: quantity = 1 sempre (1 voucher = 1 bottiglia o bottle-equivalent)",
-        "allocation_id è immutabile dopo creazione (lineage non negoziabile)",
-        "Typecheck e lint passano"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Implemented Voucher model with: vouchers table (id, uuid, customer_id, allocation_id, wine_variant_id, format_id, sellable_sku_id nullable, quantity default 1, lifecycle_state, tradable, giftable, suspended, sale_reference, created_by). Soft deletes enabled. BelongsTo relationships to Customer, Allocation, WineVariant, Format, SellableSku. Quantity=1 enforced via saving event. allocation_id immutability enforced via updating event. Created placeholder Customer model and migration for Module K integration. Used wine_variant_id + format_id as bottle SKU reference (consistent with Allocation pattern)."
-    },
-    {
-      "id": "US-016",
-      "title": "Setup enum VoucherLifecycleState",
-      "description": "Come Developer, voglio un enum per gli stati del ciclo di vita del voucher.",
-      "acceptanceCriteria": [
-        "Enum `VoucherLifecycleState`: issued, locked, redeemed, cancelled",
-        "Stati terminali: redeemed, cancelled (no ulteriori transizioni)",
-        "Transizioni valide: issued→locked, issued→cancelled, locked→redeemed, locked→issued (unlock)",
-        "Enum in `app/Enums/Allocation/`",
-        "Typecheck e lint passano"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Implemented VoucherLifecycleState enum with 4 states (issued, locked, redeemed, cancelled). Terminal states are redeemed and cancelled. Valid transitions: issued→locked, issued→cancelled, locked→redeemed, locked→issued. Updated Voucher model to use the enum via cast instead of string constants. Added helper methods for transitions: canTransitionTo(), allowedTransitions(), allowsTrading(), allowsFlagModification(), description()."
-    },
-    {
-      "id": "US-017",
-      "title": "Setup modello CaseEntitlement",
-      "description": "Come Admin, voglio raggruppare vouchers quando un cliente compra un fixed case.",
-      "acceptanceCriteria": [
-        "Tabella `case_entitlements` con: id, uuid, customer_id (FK), sellable_sku_id (FK), status (enum: intact, broken), created_at, broken_at (nullable), broken_reason (string nullable)",
-        "Relazione: CaseEntitlement hasMany Voucher (tramite pivot o FK su voucher)",
-        "Campo case_entitlement_id (FK nullable) su vouchers",
-        "Status passa a 'broken' irreversibilmente se un voucher viene trasferito, tradato o redento singolarmente",
-        "Typecheck e lint passano"
-      ],
-      "priority": 17,
-      "passes": true,
-      "notes": "Implemented CaseEntitlement model with: case_entitlements table (id, uuid, customer_id, sellable_sku_id, status enum, broken_at, broken_reason), CaseEntitlementStatus enum (intact, broken) with helper methods, hasMany vouchers() relationship, case_entitlement_id FK on vouchers table. Voucher model updated with caseEntitlement() relationship and isPartOfCase()/isPartOfIntactCase() helpers. Break logic will be triggered by future services (US-020+)."
-    },
-    {
-      "id": "US-018",
-      "title": "Setup modello VoucherTransfer",
-      "description": "Come Admin, voglio tracciare i trasferimenti di voucher tra clienti.",
-      "acceptanceCriteria": [
-        "Tabella `voucher_transfers` con: id, voucher_id (FK), from_customer_id (FK), to_customer_id (FK), status (enum), initiated_at, expires_at, accepted_at (nullable), cancelled_at (nullable)",
-        "Enum `VoucherTransferStatus`: pending, accepted, cancelled, expired",
-        "Relazione: Voucher hasMany VoucherTransfer",
-        "Transfer non crea nuovo voucher, cambia solo holder",
-        "Transfer non consuma allocation",
-        "Typecheck e lint passano"
-      ],
-      "priority": 18,
-      "passes": true,
-      "notes": "Implemented VoucherTransfer model with: voucher_transfers table (id, voucher_id, from_customer_id, to_customer_id, status, initiated_at, expires_at, accepted_at, cancelled_at), VoucherTransferStatus enum (pending, accepted, cancelled, expired) with transition helpers, BelongsTo relationships to Voucher, fromCustomer, toCustomer. Added voucherTransfers() and pendingTransfers() relationships to Voucher model plus hasPendingTransfer() and getPendingTransfer() helpers. Transfer does not create new voucher or consume allocation - only changes holder."
-    },
-    {
-      "id": "US-019",
-      "title": "VoucherService per gestione vouchers",
-      "description": "Come Developer, voglio un service per centralizzare la logica dei voucher.",
-      "acceptanceCriteria": [
-        "Service class `VoucherService` in `app/Services/Allocation/`",
-        "Metodo `issueVouchers(Allocation, Customer, SellableSku, saleReference, quantity)`: crea vouchers e consuma allocation",
-        "Metodo `lockForFulfillment(Voucher)`: issued → locked",
-        "Metodo `unlock(Voucher)`: locked → issued",
-        "Metodo `redeem(Voucher)`: locked → redeemed",
-        "Metodo `cancel(Voucher)`: issued → cancelled",
-        "Metodo `suspend(Voucher)`: setta suspended = true",
-        "Metodo `reactivate(Voucher)`: setta suspended = false",
-        "Validazioni con eccezioni esplicite per transizioni invalide",
-        "Typecheck e lint passano"
-      ],
-      "priority": 19,
-      "passes": true,
-      "notes": "Implemented VoucherService with all required methods: issueVouchers (creates vouchers and consumes allocation via AllocationService), lockForFulfillment/unlock/redeem/cancel (lifecycle transitions with validation), suspend/reactivate (behavioral flag management). Added setTradable/setGiftable helper methods. All operations log to AuditLog with new event types (lifecycle_change, flag_change, voucher_issued, voucher_suspended, voucher_reactivated)."
-    },
-    {
-      "id": "US-020",
-      "title": "CaseEntitlementService per gestione case",
-      "description": "Come Developer, voglio un service per gestire la logica dei case entitlements.",
-      "acceptanceCriteria": [
-        "Service class `CaseEntitlementService` in `app/Services/Allocation/`",
-        "Metodo `createFromVouchers(array vouchers, Customer, SellableSku)`: crea CaseEntitlement e associa vouchers",
-        "Metodo `breakEntitlement(CaseEntitlement, reason)`: status → broken, irreversibile",
-        "Metodo `isIntact(CaseEntitlement)`: verifica che tutti i vouchers siano con stesso holder e non redenti",
-        "Trigger automatico di break quando un voucher del case viene trasferito/tradato/redento",
-        "Typecheck e lint passano"
-      ],
-      "priority": 20,
-      "passes": true,
-      "notes": "Implemented CaseEntitlementService with all required methods: createFromVouchers (creates CaseEntitlement and associates vouchers with validation), breakEntitlement (irreversible status transition to Broken with reason logging), isIntact (delegates to model's checkIntegrity for voucher state verification). Added breakIfVoucherInCase helper for automatic break trigger when voucher operations occur. Break reasons are constants: transfer, trade, partial_redemption. All operations logged to AuditLog."
-    },
-    {
-      "id": "US-021",
-      "title": "VoucherTransferService per gifting",
-      "description": "Come Developer, voglio un service per gestire i trasferimenti voucher.",
-      "acceptanceCriteria": [
-        "Service class `VoucherTransferService` in `app/Services/Allocation/`",
-        "Metodo `initiateTransfer(Voucher, toCustomer, expiresAt)`: crea pending transfer",
-        "Metodo `acceptTransfer(VoucherTransfer)`: aggiorna voucher.customer_id, status → accepted",
-        "Metodo `cancelTransfer(VoucherTransfer)`: status → cancelled",
-        "Metodo `expireTransfers()`: job per expirare pending transfers",
-        "Validazioni: voucher non locked, non suspended, non già in pending transfer",
-        "Se voucher in CaseEntitlement, break entitlement on accept",
-        "Typecheck e lint passano"
-      ],
-      "priority": 21,
-      "passes": true,
-      "notes": "Implemented VoucherTransferService with all required methods: initiateTransfer (creates pending transfer with validations for voucher state, suspended, pending transfer, giftable flag), acceptTransfer (updates customer_id with DB transaction, breaks CaseEntitlement if voucher is part of one), cancelTransfer (status → cancelled), expireTransfer/expireTransfers (for scheduled job). Created ExpireTransfersJob scheduled every minute. Added AuditLog event constants for transfer operations (initiated, accepted, cancelled, expired). All operations logged to both Voucher and VoucherTransfer audit logs."
-    },
-    {
-      "id": "US-022",
-      "title": "Voucher List in Filament",
-      "description": "Come Operator, voglio una lista vouchers come entry point per gli entitlements cliente.",
-      "acceptanceCriteria": [
-        "VoucherResource in Filament con navigation group 'Vouchers'",
-        "Lista con colonne: voucher_id, customer, bottle_sku, sellable_sku, allocation_id, lifecycle_state, flags (badges: tradable, giftable, suspended), created_at",
-        "Filtri: lifecycle_state, allocation_id, customer, suspended",
-        "Ricerca per: voucher_id, customer name, wine name, allocation_id",
-        "Redeemed e cancelled nascosti di default",
-        "**NO azione Create** - vouchers creati solo da sale confirmation",
+        "Step 3 opzionale: scelta import method",
+        "Opzioni: Empty (add prices later), Clone from existing Price Book, Import from CSV",
+        "Clone: select source Price Book, preview entries count",
+        "CSV: template download, upload, validation preview",
+        "Messaggio: 'You can add or modify prices after creation'",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Create PriceBook wizard - Step 4 (Review & Create)",
+      "description": "As an Operator, I want to see a summary before creating the Price Book.",
+      "acceptanceCriteria": [
+        "Step 4: summary di tutti i dati inseriti",
+        "Price Book creato in status 'draft'",
+        "Messaggio: 'Draft Price Books are not used for pricing until activated'",
+        "CTA: 'Create as Draft'",
+        "Redirect a Price Book Detail dopo creazione",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "PriceBook Detail con 5 tabs",
+      "description": "As an Operator, I want to see all details of a Price Book organized in tabs.",
+      "acceptanceCriteria": [
+        "Tab Overview: summary, status, validity, coverage stats, linked policies, linked offers",
+        "Tab Prices: grid editabile di Sellable SKU + price + source + EMP reference",
+        "Tab Scope & Applicability: market, channel, currency, priority rules",
+        "Tab Lifecycle: activation history, approval info, expiration",
+        "Tab Audit: timeline completa modifiche",
+        "Azioni contestuali: Activate (draft→active, richiede approvazione), Archive (active→archived)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "PriceBook Prices grid editing",
+      "description": "As an Operator, I want to edit prices directly in the Price Book grid.",
+      "acceptanceCriteria": [
+        "Grid paginata con search e filtri",
+        "Colonne: sellable_sku, base_price (editable), source (badge), emp_value, delta_vs_emp",
+        "Inline edit per base_price",
+        "Bulk edit: select multiple rows, set price o percentage adjustment",
+        "Source diventa 'manual' quando prezzo è editato manualmente",
+        "Filtro: 'Missing prices' (SKU allocati senza entry)",
+        "Filtro: 'Policy-generated' vs 'Manual'",
+        "Editing permesso solo se Price Book è Draft",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "PriceBook activation workflow",
+      "description": "As an Admin, I want Price Book activation to require explicit approval.",
+      "acceptanceCriteria": [
+        "Transizione draft → active richiede ruolo approver",
+        "Approvazione registra approved_at e approved_by",
+        "Attivazione verifica: almeno 1 price entry presente",
+        "Attivazione verifica: no overlap con altro PriceBook active per stessa combinazione",
+        "Se overlap, richiede conferma per expire il precedente",
+        "Prices diventano read-only dopo attivazione (create new version per modifiche)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "PriceBookService per gestione Price Books",
+      "description": "As a Developer, I want a service to centralize Price Book logic.",
+      "acceptanceCriteria": [
+        "Service class `PriceBookService` in `app/Services/Commercial/`",
+        "Metodo `activate(PriceBook)`: draft → active con validazioni",
+        "Metodo `archive(PriceBook)`: active → archived",
+        "Metodo `cloneToNew(PriceBook, newMetadata)`: crea nuovo draft da esistente",
+        "Metodo `getActiveForContext(channel, market, currency)`: trova Price Book applicabile",
+        "Metodo `getPriceForSku(PriceBook, SellableSku)`: restituisce PriceBookEntry o null",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Setup modello PricingPolicy",
+      "description": "As an Admin, I want to define Pricing Policies to automate price generation.",
+      "acceptanceCriteria": [
+        "Tabella `pricing_policies` con: id, uuid, name, policy_type (enum), input_source (enum), target_price_book_id (FK nullable), logic_definition (JSON), execution_cadence (enum), status (enum), last_executed_at (timestamp nullable)",
+        "Soft deletes abilitati",
+        "Relazione: PricingPolicy belongsTo PriceBook (target)",
+        "logic_definition contiene: margin_percentage, markup_value, rounding_rule, tiered_logic (optional)",
+        "Policies generano draft prices, mai attivano direttamente",
+        "Typecheck e lint passano"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Setup modello PricingPolicyScope",
+      "description": "As an Admin, I want to define the application scope of a Pricing Policy.",
+      "acceptanceCriteria": [
+        "Tabella `pricing_policy_scopes` con: id, pricing_policy_id (FK), scope_type (enum: all, category, product, sku), scope_reference (string nullable), markets (JSON array nullable), channels (JSON array nullable)",
+        "Enum `PolicyScopeType`: all, category, product, sku in app/Enums/Commercial/",
+        "Relazione: PricingPolicy hasOne PricingPolicyScope",
+        "Scope risolve sempre a Sellable SKUs sottostanti",
+        "Policies applicano solo a SKU commercialmente disponibili (allocation-derived)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Setup modello PricingPolicyExecution",
+      "description": "As an Admin, I want to track Pricing Policy executions.",
+      "acceptanceCriteria": [
+        "Tabella `pricing_policy_executions` con: id, pricing_policy_id (FK), executed_at, execution_type (enum: manual, scheduled, dry_run), skus_processed (int), prices_generated (int), errors_count (int), status (enum: success, partial, failed), log_summary (text nullable)",
+        "Enum `ExecutionType`: manual, scheduled, dry_run in app/Enums/Commercial/",
+        "Enum `ExecutionStatus`: success, partial, failed in app/Enums/Commercial/",
+        "Relazione: PricingPolicy hasMany PricingPolicyExecution",
+        "Execution log immutabile",
+        "Typecheck e lint passano"
+      ],
       "priority": 22,
-      "passes": true,
-      "notes": "Implemented VoucherResource with navigation group 'Vouchers'. Table includes all columns: id, customer (with link), bottle_sku, sellable_sku, allocation_id (with link), lifecycle_state (badge with color/icon from enum), flags (combined badge showing tradable/giftable/suspended). Filters: lifecycle_state (multi-select, default excludes Redeemed/Cancelled), allocation, customer, suspended (ternary), trashed. Search: voucher_id, customer name/email, wine name/producer, allocation_id. No Create action - canCreate() returns false and ListVouchers has empty getHeaderActions(). Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-023",
-      "title": "Voucher Detail view",
-      "description": "Come Operator, voglio vedere tutti i dettagli di un voucher.",
+      "title": "PricingPolicy List in Filament",
+      "description": "As an Operator, I want a list of Pricing Policies to manage price automation.",
       "acceptanceCriteria": [
-        "Header: voucher_id, customer (current holder), lifecycle_state con banner prominente",
-        "Section 1 - What was sold: sellable_sku, bottle_sku, quantity (=1), case_entitlement (if any) con status",
-        "Section 2 - Allocation lineage: allocation_id (link), source_type, constraints snapshot, serialization requirement. Messaggio: 'Lineage can never be modified'",
-        "Section 3 - Lifecycle state: stato corrente, diagramma transizioni (read-only)",
-        "Section 4 - Behavioral flags: tradable, giftable, suspended con toggle (role-based)",
-        "Section 5 - Transfer context: pending transfers, external trading reference",
-        "Section 6 - Event history: audit trail immutabile",
+        "PricingPolicyResource in Filament con navigation group 'Commercial'",
+        "Lista con colonne: name, policy_type, input_source, target_price_book, status, last_executed, next_scheduled (se scheduled)",
+        "Filtri: status, policy_type, target_price_book",
+        "Ricerca per: name",
+        "Indicatore visivo per policies con esecuzioni fallite",
+        "CTA: Create Pricing Policy",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
-      "passes": true,
-      "notes": "Implemented Voucher Detail view with all 6 sections: Header (voucher ID, customer, lifecycle state with banner), Section 1 - What Was Sold (sellable SKU, bottle SKU, quantity=1, case entitlement if any with status), Section 2 - Allocation Lineage (allocation ID link, source type, supply form, serialization, constraints snapshot with 'Lineage can never be modified' warning), Section 3 - Lifecycle State (current state badge, description, allowed transitions, terminal status, visual transition diagram), Section 4 - Behavioral Flags (tradable, giftable, suspended toggles with helper text and info message), Section 5 - Transfer Context (pending transfers list, transfer history collapsed), Section 6 - Event History (audit logs with formatted changes). Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-024",
-      "title": "Voucher behavioral flags management",
-      "description": "Come Operator, voglio gestire i flags comportamentali dei voucher.",
+      "title": "Create PricingPolicy wizard - Step 1 (Type)",
+      "description": "As an Operator, I want to select the type of Pricing Policy.",
       "acceptanceCriteria": [
-        "Toggle tradable, giftable solo se voucher è issued (non locked/redeemed/cancelled)",
-        "Toggle suspended solo se voucher non è terminale",
-        "Suspended override altri flags (blocca tutte le operazioni)",
-        "Ogni toggle richiede conferma e genera audit event",
-        "Flags non modificabili se voucher è suspended (tranne per unsuspend)",
+        "Step 1: name, policy_type selection",
+        "Opzioni type: Cost + Margin, Reference Price Book, External Index (EMP/FX), Fixed Adjustment, Rounding/Normalization",
+        "Descrizione inline per ogni tipo",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 24,
-      "passes": true,
-      "notes": "Implemented flag toggle actions in ViewVoucher page with confirmation dialogs. Created VoucherPolicy for role-based authorization with manageFlags, setTradable, setGiftable, suspend, reactivate permissions. Toggle tradable/giftable visible only when voucher is issued and not suspended. Suspend visible when not suspended and not terminal. Reactivate visible only when suspended and not terminal. All operations use VoucherService methods which include audit logging. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-025",
-      "title": "Voucher transfer UI",
-      "description": "Come Operator, voglio gestire i trasferimenti voucher dall'admin panel.",
+      "title": "Create PricingPolicy wizard - Step 2 (Inputs)",
+      "description": "As an Operator, I want to define the inputs of the Pricing Policy.",
       "acceptanceCriteria": [
-        "Azione 'Initiate Transfer' visibile solo se voucher è issued, non suspended, non in pending transfer",
-        "Form: select recipient customer, expiration date",
-        "Pending transfer visibile in voucher detail con actions: Cancel Transfer",
-        "Accept Transfer non disponibile da admin (fatto dal recipient nel customer portal)",
-        "Messaggio chiaro: 'Transfers do not create new vouchers or consume allocation'",
+        "Step 2 campi dinamici basati su policy_type",
+        "Cost + Margin: cost_source selection",
+        "Reference Price Book: source_price_book_id selection",
+        "External Index: index_type (emp, fx_rate), currency conversion rules",
+        "Fixed Adjustment: adjustment_type (percentage, fixed_amount), value",
+        "Rounding: rounding_rule (.90, .95, .99, nearest_5)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 25,
-      "passes": true,
-      "notes": "Implemented Initiate Transfer action with form (customer search select + expiration date picker). Form includes info message explaining transfers don't create new vouchers. Cancel Transfer action visible when pending transfer exists. Both actions use VoucherTransferService methods with audit logging. Added initiateTransfer and cancelTransfer permissions to VoucherPolicy. Visibility rules: Initiate Transfer visible when voucher is issued, not suspended, not in pending transfer, and giftable. Cancel Transfer visible when pending transfer exists. Accept Transfer not available from admin (done by recipient in customer portal). Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-026",
-      "title": "Customer Vouchers tab",
-      "description": "Come Operator, voglio vedere i vouchers di un cliente dal Customer Detail.",
+      "title": "Create PricingPolicy wizard - Step 3 (Logic)",
+      "description": "As an Operator, I want to define the calculation logic of the Pricing Policy.",
       "acceptanceCriteria": [
-        "Tab Vouchers in CustomerResource detail view",
-        "Lista vouchers del customer con: voucher_id, bottle_sku, lifecycle_state, flags",
-        "Filtri per lifecycle_state",
-        "Link a voucher detail",
-        "Summary: total vouchers, issued, locked, redeemed",
+        "Step 3: pricing logic builder",
+        "Margin/Markup: percentage o fixed amount",
+        "Tiered logic: different margins per category/SKU (optional)",
+        "Rounding rules: floor, ceil, nearest, specific pattern",
+        "Preview: formula plain-language ('Cost + 25% margin, rounded to .99')",
+        "Validazione: logic coerente con policy_type",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 26,
-      "passes": true,
-      "notes": "Implemented CustomerResource with full CRUD operations in Filament (navigation group 'Customers'). Customer list shows: id, name, email, status badge, vouchers count, created_at. ViewCustomer page has 2 tabs: Overview (customer info, status, dates) and Vouchers (summary with total/issued/locked/redeemed counts, voucher list with voucher_id link, bottle_sku, lifecycle_state badge, flags badge, allocation link, created_at). Includes 'View All in Vouchers List' action that links to VoucherResource with customer filter. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-027",
-      "title": "Allocation Vouchers tab (read-only)",
-      "description": "Come Operator, voglio vedere i vouchers emessi da un'allocation.",
+      "title": "Create PricingPolicy wizard - Step 4 (Scope & Target)",
+      "description": "As an Operator, I want to define scope and target of the Pricing Policy.",
       "acceptanceCriteria": [
-        "Tab Vouchers in AllocationResource già implementato (US-013)",
-        "Lista read-only: voucher_id, customer, lifecycle_state, created_at",
-        "Nessuna azione di modifica da questo tab",
-        "Link a voucher detail",
-        "Summary: total issued, locked, redeemed, cancelled",
+        "Step 4: target_price_book_id (required), scope definition",
+        "Scope options: All commercially available SKUs, Specific categories, Specific products, Specific SKUs",
+        "Market/Channel filters (optional)",
+        "Preview: count of SKUs che saranno affected",
+        "Warning se scope include SKU senza allocation attiva",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 27,
-      "passes": true,
-      "notes": "Implemented Vouchers tab in ViewAllocation page with: Voucher Summary section showing counts (total issued, issued, locked, redeemed, cancelled) with lifecycle state icons and colors. Issued Vouchers section with RepeatableEntry showing voucher_id (link to detail), customer name, lifecycle_state badge, flags badge, created_at. 'View All in Vouchers List' header action links to VoucherResource filtered by allocation. Tab badge shows voucher count. No modification actions available (read-only). Empty state message when no vouchers. Lineage Information section explaining voucher lineage. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-028",
-      "title": "CaseEntitlement management",
-      "description": "Come Operator, voglio vedere e gestire i case entitlements.",
+      "title": "Create PricingPolicy wizard - Step 5 (Execution)",
+      "description": "As an Operator, I want to define the execution cadence of the Pricing Policy.",
       "acceptanceCriteria": [
-        "CaseEntitlementResource in Filament (lightweight, read-focused)",
-        "Lista: entitlement_id, customer, sellable_sku, status (intact/broken), vouchers_count, created_at",
-        "Filtri: status, customer",
-        "Detail view: vouchers nel case, status, broken_at, broken_reason",
-        "NO azioni manuali per break (avviene automaticamente)",
+        "Step 5: execution_cadence selection",
+        "Manual: solo esecuzione on-demand",
+        "Scheduled: frequency (daily, weekly), time of day",
+        "Event-triggered: triggers (cost_change, emp_update, fx_change)",
+        "Spiegazione: 'Policies generate draft prices, never activate them directly'",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 28,
-      "passes": true,
-      "notes": "Implemented CaseEntitlementResource in Filament with navigation group 'Vouchers'. List shows: entitlement_id (copyable), customer (link to detail), sellable_sku, status badge (intact/broken with color and icon), vouchers_count (with withCount), created_at, broken_at. Filters: status (multi-select), customer (searchable). Detail view: Header with status banner, Case Details section (SKU, bottles count, integrity status), Vouchers in Case section (summary counts + RepeatableEntry with link to voucher detail, bottle SKU, current holder, lifecycle state, flags), Break Information section (shown only if broken with broken_at, broken_reason), Event History section (audit logs). No manual break actions - break happens automatically via CaseEntitlementService. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-029",
-      "title": "CaseEntitlement breakability rules",
-      "description": "Come Developer, voglio che il case si rompa automaticamente secondo le regole.",
+      "title": "Create PricingPolicy wizard - Step 6 (Review & Create)",
+      "description": "As an Operator, I want to see a summary before creating the Pricing Policy.",
       "acceptanceCriteria": [
-        "Case diventa broken quando: un voucher viene trasferito, un voucher viene tradato, un voucher viene redento singolarmente",
-        "Break è irreversibile",
-        "broken_reason registra la causa (transfer, trade, partial_redemption)",
-        "Vouchers rimanenti restano validi ma si comportano come loose bottles",
-        "Event logged per audit",
-        "Typecheck e lint passano"
+        "Step 6: summary completo di tutti i dati",
+        "Preview: formula plain-language",
+        "Preview: scope resolved (count SKUs)",
+        "Policy creata in status 'draft'",
+        "CTA: 'Create as Draft', 'Create and Activate'",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 29,
-      "passes": true,
-      "notes": "Integrated automatic case breaking into VoucherService.redeem() with REASON_PARTIAL_REDEMPTION. VoucherTransferService.acceptTransfer() already calls breakIfVoucherInCase() with REASON_TRANSFER. Trading (REASON_TRADE) will be triggered by US-032 external trading feature. Break is irreversible (CaseEntitlementStatus.canBeBroken() returns false once Broken). All breaks logged via CaseEntitlementService.logCaseEvent() with EVENT_STATUS_CHANGE. Vouchers remain valid after case break."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-030",
-      "title": "Customer Case Entitlements view",
-      "description": "Come Operator, voglio vedere i case entitlements di un cliente.",
+      "title": "PricingPolicy Detail con 7 tabs",
+      "description": "As an Operator, I want to see all details of a Pricing Policy.",
       "acceptanceCriteria": [
-        "Sezione Case Entitlements in Customer Detail (o sotto-sezione del tab Vouchers)",
-        "Lista: entitlement_id, sellable_sku, status, vouchers count",
-        "Indicatore visivo per INTACT vs BROKEN",
-        "Link a CaseEntitlement detail",
+        "Tab Overview: summary, status, last execution result",
+        "Tab Logic: inputs, calculations, rounding, formula preview",
+        "Tab Scope: resolved SKUs, markets, channels",
+        "Tab Execution: manual run button, scheduling info, dry run button",
+        "Tab Impact Preview: old price vs new price, EMP delta, warnings",
+        "Tab Lifecycle: status transitions, activation history",
+        "Tab Audit: immutable log changes and executions",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 30,
-      "passes": true,
-      "notes": "Implemented Case Entitlements section in Customer Vouchers tab with: caseEntitlements() relationship on Customer model, summary counts (total, intact, broken) with visual indicators, RepeatableEntry list showing entitlement_id (link to detail), sellable_sku, status badge (success for Intact, danger for Broken), vouchers count. Section is collapsible (collapsed by default when no cases), includes 'View All in Cases List' header action linking to CaseEntitlementResource filtered by customer. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-031",
-      "title": "Transfer List globale",
-      "description": "Come Operator, voglio vedere tutti i trasferimenti voucher pendenti.",
+      "title": "PricingPolicy execution (manual & dry-run)",
+      "description": "As an Operator, I want to execute a Pricing Policy manually or in dry-run.",
       "acceptanceCriteria": [
-        "VoucherTransferResource in Filament",
-        "Lista: transfer_id, voucher_id, from_customer, to_customer, status, initiated_at, expires_at",
-        "Filtri: status, date range",
-        "Azioni role-based: Cancel Transfer (su pending)",
-        "Link a voucher detail",
+        "Button 'Execute Now' in Policy Detail (solo se status = active)",
+        "Button 'Dry Run' disponibile sempre per preview",
+        "Dry Run: genera preview senza scrivere su Price Book",
+        "Execute: scrive prices su target Price Book come policy_generated",
+        "Confirmation dialog con impatto (N SKUs, M prices changed)",
+        "Execution log creato con risultati",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 31,
-      "passes": true,
-      "notes": "Implemented VoucherTransferResource in Filament with navigation group 'Vouchers'. List shows all columns: transfer_id (copyable), voucher_id (link to voucher detail), from_customer (link to customer detail with email description), to_customer (link with email), status badge (color/icon from enum), initiated_at, expires_at (with expired indicator). Filters: status (multi-select, default Pending), date range (initiated_from/until), from_customer, to_customer, voucher_id. Cancel Transfer action (role-based via VoucherTransferPolicy, visible on pending transfers). Detail view with status banner, voucher info section, transfer participants section, timeline section, event history. VoucherTransferPolicy registered in AppServiceProvider. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-032",
-      "title": "External trading suspension",
-      "description": "Come Developer, voglio gestire la sospensione voucher durante trading esterno.",
+      "title": "PricingPolicyService per gestione policies",
+      "description": "As a Developer, I want a service to centralize Pricing Policy logic.",
       "acceptanceCriteria": [
-        "Campo external_trading_reference (string nullable) su vouchers",
-        "Quando suspended=true e external_trading_reference presente, mostra 'Suspended for external trading'",
-        "API/callback per: suspend_for_trading(voucher, reference), complete_trading(voucher, new_customer)",
-        "complete_trading aggiorna customer_id e unsuspend, preserva lineage",
-        "Voucher sospeso non può essere redento, trasferito, o modificato",
+        "Service class `PricingPolicyService` in `app/Services/Commercial/`",
+        "Metodo `activate(PricingPolicy)`: draft → active",
+        "Metodo `pause(PricingPolicy)`: active → paused",
+        "Metodo `archive(PricingPolicy)`: active/paused → archived",
+        "Metodo `execute(PricingPolicy, isDryRun = false)`: esegue logica e genera prices",
+        "Metodo `resolveScope(PricingPolicy)`: restituisce collection di SellableSku",
+        "Metodo `calculatePrice(PricingPolicy, SellableSku)`: calcola singolo prezzo",
+        "Job per scheduled execution",
         "Typecheck e lint passano"
       ],
       "priority": 32,
-      "passes": true,
-      "notes": "Implemented external_trading_reference field on vouchers table. Added suspendForTrading() and completeTrading() methods to VoucherService. UI updated to show 'Suspended for external trading' with trading reference when applicable. Case entitlement breaks automatically when voucher is suspended for trading (REASON_TRADE). Added TRADING_SUSPENDED and TRADING_COMPLETED audit log events. Lineage preserved on trading completion - only customer_id changes. API endpoint will be implemented in US-033."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-033",
-      "title": "Trading completion callback",
-      "description": "Come Developer, voglio un endpoint per ricevere completamento trading esterno.",
+      "title": "Setup modello Offer",
+      "description": "As an Admin, I want to define Offers as the activation of sellability for Sellable SKUs.",
       "acceptanceCriteria": [
-        "API endpoint POST /api/vouchers/{voucher}/trading-complete",
-        "Payload: new_customer_id, trading_reference",
-        "Validazione: voucher suspended, trading_reference match",
-        "Azione: customer_id = new_customer_id, suspended = false, external_trading_reference = null",
-        "Event logged con old/new customer",
+        "Tabella `offers` con: id, uuid, name, sellable_sku_id (FK), channel_id (FK), price_book_id (FK), offer_type (enum), visibility (enum), valid_from (datetime), valid_to (datetime nullable), status (enum), campaign_tag (string nullable)",
+        "Soft deletes abilitati",
+        "Relazione: Offer belongsTo SellableSku, Channel, PriceBook",
+        "Invariante: 1 Offer = 1 Sellable SKU (bundles sono composite SKUs)",
+        "Offer non porta price direttamente, risolve via PriceBook",
         "Typecheck e lint passano"
       ],
       "priority": 33,
-      "passes": true,
-      "notes": "Implemented API endpoint POST /api/vouchers/{voucher}/trading-complete with TradingCompleteRequest validation (new_customer_id required exists:customers, trading_reference required string). VoucherController.tradingComplete() calls VoucherService.completeTrading() which validates: voucher is suspended, has external_trading_reference, trading_reference matches, voucher not terminal. On success: customer_id updated, suspended=false, external_trading_reference=null, EVENT_TRADING_COMPLETED logged with old/new customer. Returns JSON response with success/data or error (422)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-034",
-      "title": "Allocation lineage enforcement",
-      "description": "Come Developer, voglio che la lineage dell'allocation sia enforced in tutto il sistema.",
+      "title": "Setup modello OfferEligibility",
+      "description": "As an Admin, I want to define eligibility conditions for an Offer.",
       "acceptanceCriteria": [
-        "allocation_id su Voucher è immutabile (no update permesso)",
-        "Fulfillment (Module C) deve validare che bottiglia fisica appartenga alla stessa allocation lineage",
-        "Tentativo di fulfill con bottiglia da altra allocation genera errore",
-        "UI mostra warning prominente: 'Not fulfillable outside lineage'",
-        "Test che verifica immutabilità allocation_id",
+        "Tabella `offer_eligibilities` con: id, offer_id (FK), allowed_markets (JSON array), allowed_customer_types (JSON array), allowed_membership_tiers (JSON array nullable), allocation_constraint_id (FK nullable)",
+        "Relazione: Offer hasOne OfferEligibility",
+        "Eligibility non può override constraints di Module A",
+        "allocation_constraint_id referenzia vincolo autoritativo da allocation",
         "Typecheck e lint passano"
       ],
       "priority": 34,
-      "passes": true,
-      "notes": "Implemented lineage enforcement: allocation_id immutability enforced via Voucher model boot event (already existed), VoucherService.validateFulfillmentLineage() for Module C validation (throws on mismatch), canFulfillWithBottleFromAllocation() and checkFulfillmentEligibility() helpers, Voucher model helpers (canBeFulfilledFromAllocation, hasLineageIssues, getLineageConstraintMessage), prominent UI warning in ViewVoucher with NOT FULFILLABLE OUTSIDE LINEAGE in danger-styled box. VoucherLineageTest added with 8 tests verifying immutability and lineage validation. Database-level NOT NULL constraint ensures allocation_id is always set."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-035",
-      "title": "Concurrent transfer and lock handling",
-      "description": "Come Developer, voglio gestire correttamente conflitti tra transfer e fulfillment lock.",
+      "title": "Setup modello OfferBenefit",
+      "description": "As an Admin, I want to define benefits applied by an Offer.",
       "acceptanceCriteria": [
-        "Se voucher diventa locked mentre transfer è pending, transfer acceptance viene bloccato",
-        "UI mostra: 'Locked during transfer - acceptance blocked'",
-        "Transfer può essere cancelled",
-        "Timestamps espliciti per ordinamento eventi",
-        "Test per scenario race condition",
+        "Tabella `offer_benefits` con: id, offer_id (FK), benefit_type (enum), benefit_value (decimal nullable), discount_rule_id (FK nullable)",
+        "Enum `BenefitType`: none, percentage_discount, fixed_discount, fixed_price in app/Enums/Commercial/",
+        "Relazione: Offer hasOne OfferBenefit",
+        "benefit_type = none significa prezzo da Price Book senza modifiche",
+        "discount_rule_id per referenziare regole riutilizzabili",
         "Typecheck e lint passano"
       ],
       "priority": 35,
-      "passes": true,
-      "notes": "Implemented race condition handling: VoucherTransfer model has isAcceptanceBlockedByLock(), canCurrentlyBeAccepted(), getAcceptanceBlockedReason() helpers. Voucher model has hasPendingTransferBlockedByLock(), getLockedAtTimestamp(). VoucherTransferService.acceptTransfer() throws 'Locked during transfer - acceptance blocked' with timestamp. VoucherService logs transitioned_at in lifecycle audit logs. UI shows prominent warning banner in ViewVoucher and ViewVoucherTransfer. List view shows BLOCKED badge. Transfer can still be cancelled. 8 comprehensive tests in VoucherTransferConcurrencyTest."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-036",
-      "title": "Duplicate voucher prevention (idempotency)",
-      "description": "Come Developer, voglio prevenire creazione duplicata di vouchers per stesso sale.",
+      "title": "Offer List in Filament",
+      "description": "As an Operator, I want a list of Offers as entry point for sellability management.",
       "acceptanceCriteria": [
-        "Campo sale_reference su vouchers è unique per allocation+customer combination",
-        "Validazione in VoucherService.issueVouchers che verifica duplicati",
-        "Se duplicato, return vouchers esistenti invece di crearne nuovi",
-        "Log warning per attempted duplicate",
-        "Typecheck e lint passano"
+        "OfferResource in Filament con navigation group 'Commercial'",
+        "Lista con colonne: name, sellable_sku, offer_type, channel, status, valid_from, valid_to, visibility",
+        "Filtri: status, offer_type, channel, visibility, validity_period",
+        "Ricerca per: name, SKU name, wine name",
+        "Indicatore visivo per Offers in scadenza (< 7 giorni)",
+        "Bulk actions: Create offers for selected SKUs, Pause, Archive",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 36,
-      "passes": true,
-      "notes": "Implemented idempotency: unique constraint on (allocation_id, customer_id, sale_reference) in migration, VoucherService.issueVouchers checks for existing vouchers first and returns them instead of creating duplicates, warning logged to both Laravel log and AuditLog with EVENT_DUPLICATE_VOUCHER_REQUEST. Added findExistingVouchers() and hasExistingVouchers() helper methods to VoucherService."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-037",
-      "title": "Voucher without allocation (quarantine)",
-      "description": "Come Developer, voglio gestire vouchers anomali senza allocation.",
+      "title": "Create Offer wizard - Step 1 (Product)",
+      "description": "As an Operator, I want to select the Sellable SKU for a new Offer.",
       "acceptanceCriteria": [
-        "Constraint: allocation_id non può essere null (database level)",
-        "Se data import crea voucher senza allocation, validation failure",
-        "Processo di quarantine per vouchers problematici (fuori scope normale)",
-        "UI flag per vouchers 'anomali' che richiedono intervento manuale",
-        "Typecheck e lint passano"
+        "Step 1: sellable_sku_id selection con autocomplete",
+        "Mostra solo SKU con allocation attiva per almeno un channel",
+        "Preview: allocation info, available channels, EMP (se presente)",
+        "Warning se SKU non ha EMP",
+        "Messaggio: '1 Offer = 1 Sellable SKU'",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 37,
-      "passes": true,
-      "notes": "Implemented quarantine system: requires_attention flag + attention_reason field on vouchers table. VoucherAnomalyService for quarantine/unquarantine operations. VoucherService.validateForImport() and createFromImport() for data import validation. UI shows anomaly indicator column in list + prominent quarantine warning section in detail view. TernaryFilter for requires_attention. Database-level NOT NULL constraint on allocation_id (already existed in original migration). Comprehensive test suite (12 tests) verifying all quarantine functionality."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-038",
-      "title": "Audit log per Allocations",
-      "description": "Come Compliance Officer, voglio un log immutabile per tutte le modifiche alle allocations.",
+      "title": "Create Offer wizard - Step 2 (Channel & Eligibility)",
+      "description": "As an Operator, I want to define channel and eligibility for the Offer.",
       "acceptanceCriteria": [
-        "Trait Auditable applicato a: Allocation, AllocationConstraint, LiquidAllocationConstraint, TemporaryReservation",
-        "Eventi loggati: creation, status_change, constraint_edit (draft only), quantity_change, close",
-        "Tab Audit in Allocation Detail con timeline",
-        "Filtri per tipo evento e date range",
-        "Audit logs sono immutabili",
-        "Typecheck e lint passano"
+        "Step 2: channel_id selection, eligibility fields",
+        "Channel: solo channels permessi dall'allocation constraint",
+        "Eligibility: allowed_markets (multi-select, constrained by allocation), allowed_customer_types (multi-select)",
+        "Warning prominente: 'Eligibility cannot override Allocation constraints'",
+        "Preview: allocation constraints applicabili",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 38,
-      "passes": true,
-      "notes": "Enhanced Auditable trait to auto-log created, updated, deleted events to AuditLog table. Applied trait to Allocation, AllocationConstraint, LiquidAllocationConstraint, TemporaryReservation models and added auditLogs() morphMany relationships. Audit tab in Allocation Detail now includes filters for event type (created, updated, deleted, status_change) and date range with Filter and Clear Filters header actions. Audit logs are immutable (AuditLog model only has created_at, no updated_at)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-039",
-      "title": "Audit log per Vouchers",
-      "description": "Come Compliance Officer, voglio un log immutabile per tutte le modifiche ai vouchers.",
+      "title": "Create Offer wizard - Step 3 (Pricing)",
+      "description": "As an Operator, I want to define the pricing of the Offer.",
       "acceptanceCriteria": [
-        "Trait Auditable applicato a: Voucher, CaseEntitlement, VoucherTransfer",
-        "Eventi loggati: issuance, lifecycle_change, flag_change, transfer_initiated, transfer_accepted, suspension, reactivation",
-        "Section Event History in Voucher Detail con timeline",
-        "Filtri per tipo evento e date range",
-        "Audit logs sono immutabili",
-        "Typecheck e lint passano"
+        "Step 3: price_book_id selection, benefit configuration",
+        "Price Book: mostra solo PriceBooks active per channel/market selezionato",
+        "Preview: base_price da Price Book, EMP comparison",
+        "Benefit type: None (use Price Book price), Percentage Discount, Fixed Discount, Fixed Override Price",
+        "Se benefit, input value corrispondente",
+        "Preview: final price dopo benefit",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 39,
-      "passes": true,
-      "notes": "Applied Auditable trait to Voucher, CaseEntitlement, VoucherTransfer models. Added migrations for audit columns (updated_by on vouchers, created_by/updated_by on case_entitlements and voucher_transfers). Enhanced Voucher Detail Event History section with filters for event type and date range. All voucher events (issuance, lifecycle_change, flag_change, transfer_initiated, transfer_accepted, suspension, reactivation) are logged by services. Audit logs are immutable (only created_at, no updated_at)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-040",
-      "title": "Allocation & Voucher dashboard",
-      "description": "Come Operations Manager, voglio una dashboard per monitorare la salute del sistema A&V.",
+      "title": "Create Offer wizard - Step 4 (Validity & Visibility)",
+      "description": "As an Operator, I want to define validity period and visibility of the Offer.",
       "acceptanceCriteria": [
-        "Dashboard page in Filament",
-        "Widgets allocations: total active, near exhaustion, closed this month",
-        "Widgets vouchers: total issued, pending redemption, redeemed this month",
-        "Widget reservations: active count, expired today",
-        "Widget transfers: pending count, failed transfers",
-        "Link rapidi a problemi (allocations quasi esaurite, transfers scaduti)",
+        "Step 4: name, offer_type, visibility, valid_from, valid_to, campaign_tag",
+        "offer_type: standard, promotion (implica discount), bundle",
+        "visibility: public, restricted",
+        "Validazione: valid_to > valid_from (se presente)",
+        "campaign_tag per raggruppamento (optional)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 40,
-      "passes": true,
-      "notes": "Implemented AllocationVoucherDashboard page in Filament with navigation group 'Allocations'. Summary cards: Active Allocations, Near Exhaustion, Issued Vouchers, Pending Transfers. Distribution charts: Allocations by Status, Vouchers by State. Detailed metrics: Pending Redemption, Redeemed This Month, Active Reservations, Expired Reservations Today, Closed Allocations This Month, Failed Transfers This Month. Problem areas sections: Near Exhaustion Allocations list (top 10 with quick links), Expired Transfers Today list. All cards and sections link to filtered resource lists for quick navigation. Browser verification deferred to future story."
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Create Offer wizard - Step 5 (Review & Create)",
+      "description": "As an Operator, I want to see a summary before creating the Offer.",
+      "acceptanceCriteria": [
+        "Step 5: summary completo",
+        "Preview: SKU, channel, eligibility, pricing, validity",
+        "Warning per conflitti con Offers esistenti (stesso SKU, channel, overlapping validity)",
+        "Offer creato in status 'draft'",
+        "CTA: 'Create as Draft', 'Create and Activate'",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Offer Detail con 7 tabs",
+      "description": "As an Operator, I want to see all details of an Offer.",
+      "acceptanceCriteria": [
+        "Tab Overview: summary, status, final price computed",
+        "Tab Eligibility: markets, customer types, allocation constraints",
+        "Tab Benefit: discount/fixed price config, resolved final price",
+        "Tab Products: Sellable SKU info, allocation lineage",
+        "Tab Priority & Conflicts: conflicting offers, resolution rules",
+        "Tab Simulation: price testing per questo Offer",
+        "Tab Audit: full traceability",
+        "Azioni: Activate, Pause, Cancel",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Offer status transitions",
+      "description": "As an Admin, I want Offer status transitions to follow precise rules.",
+      "acceptanceCriteria": [
+        "Transizioni valide: draft→active, active→paused, paused→active, active→expired (automatico), any→cancelled",
+        "Attivazione verifica: eligibility non viola allocation constraints",
+        "Attivazione verifica: Price Book referenced è active",
+        "expired settato automaticamente quando now > valid_to",
+        "cancelled è terminale (no reactivation)",
+        "Ogni transizione logga user_id, timestamp",
+        "Typecheck e lint passano"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Bulk Offer creation",
+      "description": "As an Operator, I want to create Offers in bulk for multiple Sellable SKUs.",
+      "acceptanceCriteria": [
+        "Entry point: Offer List (select SKUs), Allocation detail, Price Book detail",
+        "Wizard bulk: select target channel, Price Book, shared eligibility, shared benefit, shared validity",
+        "Preview: lista Offers che saranno creati",
+        "Ogni SKU genera 1 Offer indipendente",
+        "Validation: tutti gli SKU devono avere allocation per channel selezionato",
+        "Progress indicator durante creazione",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "OfferService per gestione Offers",
+      "description": "As a Developer, I want a service to centralize Offer logic.",
+      "acceptanceCriteria": [
+        "Service class `OfferService` in `app/Services/Commercial/`",
+        "Metodo `activate(Offer)`: draft → active con validazioni",
+        "Metodo `pause(Offer)`: active → paused",
+        "Metodo `cancel(Offer)`: any → cancelled",
+        "Metodo `getActiveForContext(SellableSku, Channel, Customer)`: trova Offer applicabile",
+        "Metodo `resolvePrice(Offer)`: calcola final price (base + benefit)",
+        "Metodo `validateEligibility(Offer, Customer)`: verifica customer eligibility",
+        "Job per auto-expire Offers scaduti",
+        "Typecheck e lint passano"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Setup modello DiscountRule",
+      "description": "As an Admin, I want to define reusable discount rules.",
+      "acceptanceCriteria": [
+        "Tabella `discount_rules` con: id, uuid, name, rule_type (enum), logic_definition (JSON), status (enum: active, inactive)",
+        "Enum `DiscountRuleType`: percentage, fixed_amount, tiered, volume_based in app/Enums/Commercial/",
+        "Enum `DiscountRuleStatus`: active, inactive in app/Enums/Commercial/",
+        "logic_definition contiene: value, tiers (per tiered), thresholds (per volume)",
+        "DiscountRules sono definitions, non si applicano da sole",
+        "Typecheck e lint passano"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "DiscountRule List in Filament",
+      "description": "As an Operator, I want a list of reusable discount rules.",
+      "acceptanceCriteria": [
+        "DiscountRuleResource in Filament sotto Commercial > Discounts & Rules",
+        "Lista con colonne: name, rule_type, summary (plain-language), status, offers_using_count",
+        "Filtri: rule_type, status",
+        "Ricerca per: name",
+        "Lightweight UI (advanced users)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "DiscountRule CRUD",
+      "description": "As an Operator, I want to create and modify discount rules.",
+      "acceptanceCriteria": [
+        "Create: name, rule_type, logic builder",
+        "Logic builder dinamico per tipo: percentage (value), fixed_amount (value), tiered (tiers array), volume_based (thresholds)",
+        "Preview: plain-language explanation ('15% off', '€10 off when qty >= 6')",
+        "Edit: solo se nessun Offer active la sta usando",
+        "Delete: solo se non referenziata da alcun Offer",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "Setup modello Bundle",
+      "description": "As an Admin, I want to define Bundles as commercial groupings of Sellable SKUs.",
+      "acceptanceCriteria": [
+        "Tabella `bundles` con: id, uuid, name, bundle_sku (string unique), pricing_logic (enum), fixed_price (decimal nullable), status (enum: draft, active, inactive)",
+        "Enum `BundlePricingLogic`: sum_components, fixed_price, percentage_off_sum in app/Enums/Commercial/",
+        "Enum `BundleStatus`: draft, active, inactive in app/Enums/Commercial/",
+        "Bundle genera un Sellable SKU composito in PIM (reference)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Setup modello BundleComponent",
+      "description": "As an Admin, I want to define the components of a Bundle.",
+      "acceptanceCriteria": [
+        "Tabella `bundle_components` con: id, bundle_id (FK), sellable_sku_id (FK), quantity (int default 1)",
+        "Relazione: Bundle hasMany BundleComponent, BundleComponent belongsTo SellableSku",
+        "Validazione: quantity > 0",
+        "Componenti sono Sellable SKUs (non Bottle SKUs)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-051",
+      "title": "Bundle List in Filament",
+      "description": "As an Operator, I want a list of commercial Bundles.",
+      "acceptanceCriteria": [
+        "BundleResource in Filament sotto Commercial > Bundles",
+        "Lista con colonne: name, bundle_sku, pricing_logic, components_count, status, computed_price",
+        "Filtri: status, pricing_logic",
+        "Ricerca per: name, bundle_sku",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 51,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-052",
+      "title": "Bundle CRUD con component management",
+      "description": "As an Operator, I want to create and modify Bundles with their components.",
+      "acceptanceCriteria": [
+        "Create wizard: name, bundle_sku (auto-generated o manual), pricing_logic",
+        "Component selection: add Sellable SKUs con quantity",
+        "Pricing: sum_components (auto), fixed_price (input), percentage_off_sum (input %)",
+        "Preview: computed price, component list",
+        "Edit: components editabili solo se status = draft",
+        "Activation: genera/aggiorna Sellable SKU composito in PIM",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 52,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-053",
+      "title": "BundleService per gestione Bundles",
+      "description": "As a Developer, I want a service to centralize Bundle logic.",
+      "acceptanceCriteria": [
+        "Service class `BundleService` in `app/Services/Commercial/`",
+        "Metodo `activate(Bundle)`: draft → active, sincronizza con PIM",
+        "Metodo `calculatePrice(Bundle, PriceBook)`: calcola prezzo basato su logic",
+        "Metodo `validateComponents(Bundle)`: verifica tutti i componenti hanno allocation",
+        "Metodo `getComponentsPrice(Bundle, PriceBook)`: somma prezzi componenti",
+        "Typecheck e lint passano"
+      ],
+      "priority": 53,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-054",
+      "title": "Price Simulation page",
+      "description": "As an Operator, I want to simulate end-to-end price resolution for debugging.",
+      "acceptanceCriteria": [
+        "Pagina Simulation in Filament sotto Commercial",
+        "Inputs: sellable_sku_id, customer_id (optional), channel_id, date, quantity",
+        "Auto-suggest per tutti i campi",
+        "CTA: 'Simulate'",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 54,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-055",
+      "title": "Simulation results display",
+      "description": "As an Operator, I want to see simulation results with full breakdown.",
+      "acceptanceCriteria": [
+        "Output section con breakdown steps:",
+        "1. Allocation Check: allocation lineage, constraints, availability",
+        "2. EMP Reference: EMP value (se disponibile)",
+        "3. Price Book Resolution: quale Price Book applicato, base_price",
+        "4. Offer Resolution: quale Offer applicato, benefit applied",
+        "5. Final Price: prezzo finale con explanation",
+        "Se blocco (no allocation, no offer), mostra errore specifico",
+        "Highlight per ogni step: source, rationale",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 55,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-056",
+      "title": "SimulationService per calcoli",
+      "description": "As a Developer, I want a service to perform pricing simulation.",
+      "acceptanceCriteria": [
+        "Service class `SimulationService` in `app/Services/Commercial/`",
+        "Metodo `simulate(SellableSku, ?Customer, Channel, date, quantity)`: restituisce SimulationResult",
+        "SimulationResult contiene: allocation_check, emp_reference, price_book_resolution, offer_resolution, final_price, errors",
+        "Integrazione con AllocationService per check disponibilità",
+        "Integrazione con OfferService per risoluzione offer",
+        "Typecheck e lint passano"
+      ],
+      "priority": 56,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-057",
+      "title": "Commercial Overview dashboard",
+      "description": "As an Operator, I want a dashboard as control panel for all commercial activities.",
+      "acceptanceCriteria": [
+        "Pagina Overview come landing page di Commercial",
+        "Widget: Active Price Books count by status",
+        "Widget: Active Offers count by status",
+        "Widget: Pricing Policies with last execution status",
+        "Widget: EMP Coverage (% SKU con EMP)",
+        "Widget: Alerts (expiring offers, price deviations, policy failures)",
+        "Links rapidi: Create Price Book, Create Offer, Create Policy",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 57,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-058",
+      "title": "Commercial Calendar view",
+      "description": "As an Operator, I want a calendar view of commercial activities.",
+      "acceptanceCriteria": [
+        "Calendar component in Commercial Overview",
+        "Eventi: Price Book validity periods (colored bars), Offer validity periods, Pricing Policy scheduled executions",
+        "Filtri: tipo evento, channel",
+        "Click su evento apre detail",
+        "Vista: mese, settimana",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 58,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-059",
+      "title": "Upcoming expirations widget",
+      "description": "As an Operator, I want to see commercial elements about to expire.",
+      "acceptanceCriteria": [
+        "Widget in Overview: Upcoming Expirations",
+        "Lista: Offers expiring in 7 days, Price Books expiring in 30 days",
+        "Ordinato per data scadenza",
+        "Link a detail per ogni item",
+        "Badge urgenza per < 3 giorni",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 59,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-060",
+      "title": "Audit log per entita Commercial",
+      "description": "As a Compliance Officer, I want an immutable log for all changes to commercial entities.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a: Channel, PriceBook, PriceBookEntry, PricingPolicy, Offer, OfferEligibility, OfferBenefit, DiscountRule, Bundle",
+        "Eventi loggati: creation, update, status_change, activation, expiration",
+        "Ogni entità ha Tab Audit in detail view",
+        "Audit logs immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 60,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-061",
+      "title": "Global Commercial Audit page",
+      "description": "As a Compliance Officer, I want a global view of all commercial audit events.",
+      "acceptanceCriteria": [
+        "Pagina Audit in Filament sotto Commercial",
+        "Lista unificata tutti gli audit events di Commercial",
+        "Filtri: entity_type, event_type, date_range, user",
+        "Ricerca per: entity_id, user_name",
+        "Export CSV per compliance",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 61,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-062",
+      "title": "Pricing Policy execution history",
+      "description": "As an Operator, I want to see complete execution history for Pricing Policies.",
+      "acceptanceCriteria": [
+        "Tab Execution History in Pricing Policy Detail",
+        "Lista esecuzioni: date, type (manual/scheduled/dry_run), skus_processed, prices_generated, errors, status",
+        "Expand per vedere log_summary",
+        "Link a Price Book target per vedere prices generated",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 62,
+      "passes": false,
+      "notes": ""
     }
   ]
 }
