@@ -624,3 +624,120 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - ViewRecord pages can use `->hidden()` and `->collapsed()` based on record state for conditional section display
   - For "View All" filtered links, may need to add custom filter to VoucherResource for case_entitlement_id
 ---
+
+## 2026-02-03 - US-029
+- What was implemented: Automatic case breaking rules when voucher operations occur
+- Files changed:
+  - `app/Services/Allocation/VoucherService.php` (added CaseEntitlementService injection and breakIfVoucherInCase call in redeem())
+- **Features implemented:**
+  - VoucherService now injects CaseEntitlementService for automatic case breaking
+  - redeem() method calls breakIfVoucherInCase() with REASON_PARTIAL_REDEMPTION
+  - Break triggers (already implemented or to be implemented):
+    - Transfer: VoucherTransferService.acceptTransfer() with REASON_TRANSFER (already existed from US-021)
+    - Partial Redemption: VoucherService.redeem() with REASON_PARTIAL_REDEMPTION (new in this story)
+    - Trade: Will be triggered by US-032 external trading feature (future)
+  - Break is irreversible: CaseEntitlementStatus.canBeBroken() returns false once status is Broken
+  - Vouchers remain valid after case break (behave as loose bottles)
+  - All break events logged via CaseEntitlementService.logCaseEvent() with EVENT_STATUS_CHANGE
+- **Learnings for future iterations:**
+  - Case breaking logic is centralized in CaseEntitlementService.breakIfVoucherInCase() - call this from any service that performs operations that would break case integrity
+  - REASON_TRADE will need to be integrated in US-032 when external trading suspension is implemented
+  - VoucherService needs both AllocationService and CaseEntitlementService injected for its operations
+---
+
+## 2026-02-03 - US-030
+- What was implemented: Customer Case Entitlements view - section in Customer Detail to view case entitlements
+- Files changed:
+  - `app/Models/Customer/Customer.php` (added caseEntitlements() hasMany relationship)
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php` (added getCaseEntitlementsSection method)
+- **Features implemented:**
+  - caseEntitlements() relationship on Customer model for loading case entitlements
+  - Case Entitlements section added to Vouchers tab in Customer Detail view
+  - Summary with counts: Total Cases, Intact (success color), Broken (danger color)
+  - Visual indicators: success green for Intact status, danger red for Broken status
+  - RepeatableEntry list with: entitlement_id (link to detail, copyable), sellable_sku, status badge with color/icon, vouchers count
+  - 'View All in Cases List' header action linking to CaseEntitlementResource filtered by customer
+  - Section is collapsible, collapsed by default when customer has no case entitlements
+  - Placeholder message when no case entitlements found
+- **Learnings for future iterations:**
+  - Use getCaseEntitlementsSection() pattern for reusable section components with pre-computed counts
+  - Pass pre-computed counts to section method to avoid redundant queries
+  - Section collapsible state can be controlled dynamically with `->collapsed($totalCaseEntitlements === 0)`
+  - PHPStan reports nullsafe operator `?->` as unnecessary when Filament guarantees relationship loading - use `->` instead
+---
+
+## 2026-02-03 - US-031
+- What was implemented: VoucherTransferResource in Filament for global transfer management
+- Files changed:
+  - `app/Filament/Resources/Allocation/VoucherTransferResource.php` (new)
+  - `app/Filament/Resources/Allocation/VoucherTransferResource/Pages/ListVoucherTransfers.php` (new)
+  - `app/Filament/Resources/Allocation/VoucherTransferResource/Pages/ViewVoucherTransfer.php` (new)
+  - `app/Policies/VoucherTransferPolicy.php` (new)
+  - `app/Providers/AppServiceProvider.php` (registered VoucherTransferPolicy)
+- **Features implemented:**
+  - VoucherTransferResource in navigation group 'Vouchers' with arrows-right-left icon, navigation sort 3
+  - List view with columns: transfer_id (copyable), voucher_id (link to voucher detail, primary color), from_customer (link with email description), to_customer (link with email), status badge (color/icon from VoucherTransferStatus enum), initiated_at, expires_at (with visual expired indicator when pending and past), accepted_at (toggleable), cancelled_at (toggleable)
+  - Filters: status (multi-select, default Pending), date_range (initiated_from/until via DatePicker), from_customer (searchable select), to_customer (searchable select), voucher (text input)
+  - Cancel Transfer action in table (role-based via authorize('cancelTransfer'), visible only when canBeCancelled())
+  - Detail view with: Status banner (color-coded border based on status), Voucher Information section (voucher ID link, bottle SKU, lifecycle state badge, allocation link), Transfer Participants section (from/to customer with names and emails), Timeline section (initiated_at, expires_at with expired indicator, accepted_at/cancelled_at when applicable), Event History section (collapsed, showing audit logs)
+  - Header actions in detail view: Cancel Transfer (with confirmation dialog), View Voucher (link to voucher detail)
+  - VoucherTransferPolicy with viewAny, view, cancelTransfer permissions
+  - No create action - canCreate() returns false (transfers created from Voucher detail page)
+- **Learnings for future iterations:**
+  - Infolists don't have Placeholder component like Forms - use TextEntry with getStateUsing() and icon() for info messages instead
+  - For color-coded section borders, use extraAttributes() with a function that casts $this->record to the correct type for PHPStan
+  - VoucherTransfer model already has excellent helper methods: canBeCancelled(), isPending(), hasExpired(), getStatusLabel/Color/Icon/Description()
+  - Use `->description()` on TextColumn to show secondary info like email below customer name
+---
+
+## 2026-02-03 - US-032
+- What was implemented: External trading suspension for vouchers
+- Files changed:
+  - `database/migrations/2026_02_03_340000_add_external_trading_reference_to_vouchers_table.php` (new) - adds external_trading_reference field
+  - `app/Models/Allocation/Voucher.php` (added external_trading_reference field and helper methods)
+  - `app/Models/AuditLog.php` (added TRADING_SUSPENDED and TRADING_COMPLETED event constants)
+  - `app/Services/Allocation/VoucherService.php` (added suspendForTrading and completeTrading methods)
+  - `app/Filament/Resources/Allocation/VoucherResource.php` (updated flags column for trading display)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (added External Trading section and updated suspension display)
+- **Features implemented:**
+  - external_trading_reference field (string nullable) on vouchers table
+  - suspendForTrading(voucher, tradingReference): Suspends voucher with trading reference, validates tradable state, breaks case entitlement
+  - completeTrading(voucher, tradingReference, newCustomer): Validates trading reference match, transfers to new customer, unsuspends, preserves lineage
+  - UI shows 'Suspended for external trading' when suspended=true AND external_trading_reference is present
+  - Voucher list shows 'Trading' badge (warning color) instead of 'Suspended' when trading
+  - External Trading section in Transfer Context shows trading status and reference
+  - reactivate() method also clears external_trading_reference for consistency
+  - Case entitlement breaks automatically with REASON_TRADE when suspended for trading
+- **Learnings for future iterations:**
+  - External trading is distinct from manual suspension - always check isSuspendedForTrading() for specific messaging
+  - suspendForTrading requires voucher to be issued, tradable, not already suspended, and no pending transfer
+  - completeTrading validates trading reference matches before transferring - security measure against mismatched references
+  - Breaking case on suspend_for_trading (not on complete) because the decision to trade breaks case integrity
+  - Use getSuspensionReason() helper for UI display of suspension reason
+---
+
+## 2026-02-03 - US-033
+- What was implemented: API endpoint for trading completion callback from external trading platforms
+- Files changed:
+  - `routes/api.php` (new) - API routes file with /api/vouchers/{voucher}/trading-complete endpoint
+  - `bootstrap/app.php` (updated) - Added api.php route registration
+  - `app/Http/Controllers/Api/VoucherController.php` (new) - API controller with tradingComplete method
+  - `app/Http/Requests/Api/Voucher/TradingCompleteRequest.php` (new) - Form request validation
+- **Features implemented:**
+  - POST /api/vouchers/{voucher}/trading-complete endpoint
+  - TradingCompleteRequest validation: new_customer_id (required, integer, exists:customers), trading_reference (required, string, max:255)
+  - VoucherController.tradingComplete() method that:
+    - Validates request payload via TradingCompleteRequest
+    - Finds the new customer by ID
+    - Calls VoucherService.completeTrading() which validates: voucher is suspended, has external_trading_reference, trading_reference matches, voucher not terminal
+    - Returns JSON success response with voucher data (id, new_customer_id, lifecycle_state, suspended=false, external_trading_reference=null)
+    - Returns 422 error response with validation_error for InvalidArgumentException
+  - Event logged via AuditLog.EVENT_TRADING_COMPLETED with old/new customer_id
+- **Learnings for future iterations:**
+  - Laravel 11 uses bootstrap/app.php for route registration with `api:` parameter in withRouting()
+  - Form requests in `app/Http/Requests/Api/{Module}/` directory structure
+  - API controllers in `app/Http/Controllers/Api/` directory
+  - Use `validated('field_name')` method on FormRequest to get validated single values
+  - VoucherService.completeTrading() handles all business validation - controller just orchestrates
+  - Return 422 status for business validation errors (not 400)
+---
