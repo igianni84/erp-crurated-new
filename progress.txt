@@ -279,3 +279,35 @@
   - Policy methods receive both authenticated user and target model for fine-grained control
   - Test policy methods directly via `new UserPolicy()->methodName()` without needing Gate facade
 ---
+
+## 2026-02-03 - US-011
+- What was implemented:
+  - Created UserResource in app/Filament/Resources/ with full CRUD functionality
+  - Table with name, email, role columns (searchable, sortable)
+  - Role displayed as badge with color and icon from UserRole enum
+  - SelectFilter for filtering users by role
+  - Form with User Information and Password sections
+  - Password confirmation with optional update on edit
+  - Self-delete protection: delete action hidden when viewing self
+  - Navigation group "System" with users icon
+  - Created ListUsers, CreateUser, EditUser pages
+  - Added @property PHPDoc to EditUser for PHPStan type safety
+  - Created comprehensive test suite with 15 tests
+- Files changed:
+  - app/Filament/Resources/UserResource.php (new)
+  - app/Filament/Resources/UserResource/Pages/ListUsers.php (new)
+  - app/Filament/Resources/UserResource/Pages/CreateUser.php (new)
+  - app/Filament/Resources/UserResource/Pages/EditUser.php (new)
+  - tests/Feature/Filament/UserResourceTest.php (new - 15 tests)
+  - prd.json (marked US-011 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Filament resources auto-discover pages in {ResourceName}/Pages/ directory
+  - Use @property PHPDoc on Filament page classes to type the $record property for PHPStan
+  - UserRole enum methods (label, color, icon) integrate seamlessly with Filament badges
+  - Use `->hidden(fn (User $record): bool => ...)` to conditionally hide table actions
+  - Filament forms support `->dehydrateStateUsing()` for custom state transformation (e.g., hashing passwords)
+  - Use `->dehydrated(fn (?string $state): bool => filled($state))` to skip empty password fields on edit
+  - Filament resources in System navigation group automatically appear there
+  - Test Filament resources with `Livewire::test(PageClass::class)` and methods like `assertCanSeeTableRecords`, `filterTable`, `searchTable`
+---
