@@ -133,6 +133,17 @@ class Allocation extends Model
     }
 
     /**
+     * Get the liquid-specific constraints for this allocation.
+     * Only applicable when supply_form = liquid.
+     *
+     * @return HasOne<LiquidAllocationConstraint, $this>
+     */
+    public function liquidConstraint(): HasOne
+    {
+        return $this->hasOne(LiquidAllocationConstraint::class);
+    }
+
+    /**
      * Get the remaining quantity (total - sold).
      * This is a computed attribute.
      */
@@ -171,6 +182,22 @@ class Allocation extends Model
     public function isClosed(): bool
     {
         return $this->status === AllocationStatus::Closed;
+    }
+
+    /**
+     * Check if the allocation is for liquid supply.
+     */
+    public function isLiquid(): bool
+    {
+        return $this->supply_form === AllocationSupplyForm::Liquid;
+    }
+
+    /**
+     * Check if the allocation is for bottled supply.
+     */
+    public function isBottled(): bool
+    {
+        return $this->supply_form === AllocationSupplyForm::Bottled;
     }
 
     /**
