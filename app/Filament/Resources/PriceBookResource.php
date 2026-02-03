@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Enums\Commercial\PriceBookStatus;
 use App\Filament\Resources\PriceBookResource\Pages;
+use App\Filament\Resources\PriceBookResource\RelationManagers;
 use App\Models\Commercial\PriceBook;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -200,7 +201,7 @@ class PriceBookResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\EntriesRelationManager::class,
         ];
     }
 

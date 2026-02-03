@@ -167,6 +167,16 @@ class SellableSku extends Model
     }
 
     /**
+     * Get the estimated market prices for this SKU.
+     *
+     * @return HasMany<\App\Models\Commercial\EstimatedMarketPrice, $this>
+     */
+    public function estimatedMarketPrices(): HasMany
+    {
+        return $this->hasMany(\App\Models\Commercial\EstimatedMarketPrice::class);
+    }
+
+    /**
      * Check if the SKU is in draft status.
      */
     public function isDraft(): bool
