@@ -278,8 +278,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented CaseEntitlement model with: case_entitlements table (id, uuid, customer_id, sellable_sku_id, status enum, broken_at, broken_reason), CaseEntitlementStatus enum (intact, broken) with helper methods, hasMany vouchers() relationship, case_entitlement_id FK on vouchers table. Voucher model updated with caseEntitlement() relationship and isPartOfCase()/isPartOfIntactCase() helpers. Break logic will be triggered by future services (US-020+)."
     },
     {
       "id": "US-018",

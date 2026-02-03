@@ -324,3 +324,26 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Add allowsTrading() to VoucherLifecycleState since trading is only allowed in Issued state
   - description() method useful for UI tooltips and explanatory text
 ---
+
+## 2026-02-03 - US-017
+- What was implemented: CaseEntitlement model for grouping vouchers when a customer buys a fixed case
+- Files changed:
+  - `database/migrations/2026_02_03_310000_create_case_entitlements_table.php` (new)
+  - `database/migrations/2026_02_03_320000_add_case_entitlement_id_to_vouchers_table.php` (new)
+  - `app/Enums/Allocation/CaseEntitlementStatus.php` (new)
+  - `app/Models/Allocation/CaseEntitlement.php` (new)
+  - `app/Models/Allocation/Voucher.php` (added case_entitlement_id and relationship)
+- **Features implemented:**
+  - CaseEntitlement model with: customer_id, sellable_sku_id, status (enum), broken_at, broken_reason
+  - CaseEntitlementStatus enum with Intact and Broken states
+  - Enum helpers: label(), color(), icon(), canBeBroken(), isBroken(), isIntact()
+  - CaseEntitlement relationships: belongsTo Customer, belongsTo SellableSku, hasMany Voucher
+  - CaseEntitlement helpers: isIntact(), isBroken(), canBeBroken(), getVouchersCount(), checkIntegrity()
+  - Voucher model: added case_entitlement_id to fillable, caseEntitlement() relationship
+  - Voucher helpers: isPartOfCase(), isPartOfIntactCase()
+- **Learnings for future iterations:**
+  - CaseEntitlement does NOT use soft deletes (once created, it exists permanently for audit trail)
+  - The break logic is NOT implemented yet in boot events - it will be triggered by CaseEntitlementService (US-020)
+  - checkIntegrity() method can be used to verify case integrity before operations
+  - Break reason values will be: 'transfer', 'trade', 'partial_redemption' (to be enforced by service)
+---
