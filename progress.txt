@@ -420,3 +420,22 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - For colorful summary cards, use Filament color classes: bg-{color}-50, text-{color}-600 with dark mode variants
   - Navigation sort -1 places the page before other items in the navigation group
 ---
+
+## 2026-02-03 - US-023
+- Implemented Composite Sellable SKUs (bundle) support
+- Files changed:
+  - `database/migrations/2026_02_03_240000_add_composite_sku_support.php` (new - adds is_composite to sellable_skus and creates composite_sku_items table)
+  - `app/Models/Pim/CompositeSkuItem.php` (new - model for bundle component items with quantity)
+  - `app/Models/Pim/SellableSku.php` (modified - added is_composite field, compositeItems/partOfComposites relationships, validation methods)
+  - `app/Filament/Resources/Pim/WineVariantResource/RelationManagers/SellableSkusRelationManager.php` (modified - added composite SKU UI with toggle, component selection, and validation)
+- **Learnings for future iterations:**
+  - For composite/bundle SKUs: separate `is_composite` boolean flag on main SKU, with related `composite_sku_items` table for components
+  - Composite items use two FKs to same table: `composite_sku_id` (the bundle) and `sellable_sku_id` (the component)
+  - When overriding methods that already exist in model, replace the original instead of adding duplicate
+  - For SKU form with conditional sections: use `->visible(fn (Get $get): bool => ...)` to show/hide based on is_composite toggle
+  - For Repeater relationship data in CreateAction: use `->using()` with custom creation logic to handle nested relationships
+  - Composite SKU code format: `{WINE}-{VINTAGE}-BUNDLE-{N}` where N is sequential number
+  - Validation for composite activation: all component SKUs must be active before bundle can be activated
+  - Use `->disabled()` on action buttons with validation check closure to prevent invalid activations
+  - Bulk actions should catch RuntimeException from model validation and report skipped items
+---
