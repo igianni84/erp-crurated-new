@@ -21,7 +21,8 @@ use Illuminate\Support\Facades\DB;
 class VoucherService
 {
     public function __construct(
-        protected AllocationService $allocationService
+        protected AllocationService $allocationService,
+        protected CaseEntitlementService $caseEntitlementService
     ) {}
 
     /**
@@ -157,6 +158,9 @@ class VoucherService
      * This is a terminal state - the voucher cannot be modified after redemption.
      * Typically called when physical fulfillment is complete.
      *
+     * If the voucher is part of a CaseEntitlement, redeeming it singularly
+     * will break the case (partial redemption).
+     *
      * @throws \InvalidArgumentException If transition is not allowed or voucher is suspended
      */
     public function redeem(Voucher $voucher): Voucher
@@ -169,6 +173,12 @@ class VoucherService
                 .'Only locked vouchers can be redeemed.'
             );
         }
+
+        // Break the case entitlement if voucher is part of one (partial redemption)
+        $this->caseEntitlementService->breakIfVoucherInCase(
+            $voucher,
+            CaseEntitlementService::REASON_PARTIAL_REDEMPTION
+        );
 
         $oldState = $voucher->lifecycle_state;
         $voucher->lifecycle_state = VoucherLifecycleState::Redeemed;
