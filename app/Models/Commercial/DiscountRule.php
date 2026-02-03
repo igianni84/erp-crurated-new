@@ -193,7 +193,7 @@ class DiscountRule extends Model
     /**
      * Get the tiers from logic_definition (for tiered type).
      *
-     * @return array<int, array{min?: float, max?: float, value: float}>
+     * @return list<array<string, mixed>>
      */
     public function getTiers(): array
     {
@@ -203,7 +203,7 @@ class DiscountRule extends Model
     /**
      * Get the thresholds from logic_definition (for volume_based type).
      *
-     * @return array<int, array{min_qty: int, value: float}>
+     * @return list<array<string, mixed>>
      */
     public function getThresholds(): array
     {
