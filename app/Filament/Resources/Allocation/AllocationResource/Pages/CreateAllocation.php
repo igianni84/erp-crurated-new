@@ -49,7 +49,8 @@ class CreateAllocation extends CreateRecord
         return [
             $this->getBottleSkuStep(),
             $this->getSourceAndCapacityStep(),
-            // Future steps will be added in US-010, US-011, US-012
+            $this->getCommercialConstraintsStep(),
+            // Future steps will be added in US-011, US-012
         ];
     }
 
@@ -314,6 +315,75 @@ class CreateAllocation extends CreateRecord
     }
 
     /**
+     * Step 3: Commercial Constraints
+     * Defines the authoritative commercial constraints for the allocation
+     */
+    protected function getCommercialConstraintsStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Commercial Constraints')
+            ->description('Define where and to whom this allocation can be sold')
+            ->icon('heroicon-o-shield-check')
+            ->schema([
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('constraints_warning')
+                            ->label('')
+                            ->content('⚠️ **AUTHORITATIVE CONSTRAINTS** — These constraints are binding and will be enforced by Module S (Sales). Any sale that violates these constraints will be rejected. If no values are selected for a constraint category, all options are allowed by default.')
+                            ->columnSpanFull(),
+                    ]),
+
+                Forms\Components\Section::make('Sales Channels')
+                    ->description('Which sales channels can sell from this allocation?')
+                    ->schema([
+                        Forms\Components\CheckboxList::make('constraint.allowed_channels')
+                            ->label('Allowed Channels')
+                            ->options([
+                                'b2c' => 'B2C (Direct to Consumer)',
+                                'b2b' => 'B2B (Business to Business)',
+                                'private_sales' => 'Private Sales',
+                                'wholesale' => 'Wholesale',
+                                'club' => 'Club (Members Only)',
+                            ])
+                            ->columns(2)
+                            ->helperText('Leave empty to allow all channels'),
+                    ]),
+
+                Forms\Components\Section::make('Geographic Restrictions')
+                    ->description('Which geographic regions can receive from this allocation?')
+                    ->schema([
+                        Forms\Components\TagsInput::make('constraint.allowed_geographies')
+                            ->label('Allowed Geographies')
+                            ->placeholder('Add geography codes (e.g., IT, FR, US, EU)...')
+                            ->helperText('Enter ISO country codes or region codes. Leave empty to allow all geographies.'),
+                    ]),
+
+                Forms\Components\Section::make('Customer Types')
+                    ->description('Which customer types can purchase from this allocation?')
+                    ->schema([
+                        Forms\Components\CheckboxList::make('constraint.allowed_customer_types')
+                            ->label('Allowed Customer Types')
+                            ->options([
+                                'retail' => 'Retail Customers',
+                                'trade' => 'Trade Customers',
+                                'private_client' => 'Private Clients',
+                                'club_member' => 'Club Members',
+                                'internal' => 'Internal (Staff/Company)',
+                            ])
+                            ->columns(2)
+                            ->helperText('Leave empty to allow all customer types'),
+                    ]),
+
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('constraints_info')
+                            ->label('')
+                            ->content('**Note:** Constraints become read-only once the allocation is activated. To modify constraints, the allocation must remain in Draft status.')
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
      * Format a WineMaster record for display in select options.
      */
     protected static function formatWineMasterOption(WineMaster $wineMaster): string
@@ -355,7 +425,7 @@ class CreateAllocation extends CreateRecord
 
     /**
      * Mutate form data before creating the record.
-     * Removes the temporary wine_master_id field.
+     * Removes temporary fields and extracts nested constraint data.
      *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
@@ -365,6 +435,50 @@ class CreateAllocation extends CreateRecord
         // Remove wine_master_id as it's only used for cascading selects
         unset($data['wine_master_id']);
 
+        // Extract constraint data for later use (will be applied to AllocationConstraint after creation)
+        // The constraint is auto-created by Allocation model, we just need to store the data
+        if (isset($data['constraint'])) {
+            // Store constraint data in session for afterCreate
+            session(['allocation_constraint_data' => $data['constraint']]);
+            unset($data['constraint']);
+        }
+
         return $data;
+    }
+
+    /**
+     * After creating the allocation, update the auto-created constraint with the wizard data.
+     */
+    protected function afterCreate(): void
+    {
+        $constraintData = session('allocation_constraint_data');
+        session()->forget('allocation_constraint_data');
+
+        if ($constraintData !== null) {
+            /** @var \App\Models\Allocation\Allocation $allocation */
+            $allocation = $this->record;
+            $constraint = $allocation->constraint;
+
+            if ($constraint !== null) {
+                // Only update if there's actual data (empty arrays mean "allow all")
+                $updateData = [];
+
+                if (! empty($constraintData['allowed_channels'])) {
+                    $updateData['allowed_channels'] = $constraintData['allowed_channels'];
+                }
+
+                if (! empty($constraintData['allowed_geographies'])) {
+                    $updateData['allowed_geographies'] = $constraintData['allowed_geographies'];
+                }
+
+                if (! empty($constraintData['allowed_customer_types'])) {
+                    $updateData['allowed_customer_types'] = $constraintData['allowed_customer_types'];
+                }
+
+                if (! empty($updateData)) {
+                    $constraint->update($updateData);
+                }
+            }
+        }
     }
 }
