@@ -23,6 +23,11 @@
 - UserFactory available at database/factories/UserFactory.php
 - Filament auth tests: Use `Livewire::test(Login::class)->fillForm([...])->call('authenticate')` pattern
 - User model implements FilamentUser interface with canAccessPanel() method
+- UserRole enum: SuperAdmin, Admin, Manager, Editor, Viewer - with level-based hierarchy (100 to 20)
+- Use @property PHPDoc on models for enum-cast properties so PHPStan understands the type
+- UserFactory has state methods: ->superAdmin(), ->admin(), ->manager(), ->editor(), ->viewer()
+- Policies in app/Policies/ are auto-discovered by Laravel (UserPolicy for User model)
+- UserSeeder creates initial super_admin user (admin@crurated.com / password)
 
 ---
 
@@ -238,3 +243,39 @@
   - Filament stores auth tests under tests/Feature/Filament/ by convention
 ---
 
+
+## 2026-02-03 - US-010
+- What was implemented:
+  - Created UserRole enum with 5 roles: super_admin, admin, manager, editor, viewer
+  - Added level-based permission hierarchy (SuperAdmin=100, Admin=80, Manager=60, Editor=40, Viewer=20)
+  - Added helper methods to UserRole: label(), color(), icon(), level(), hasAtLeast(), canManageUsers(), canEdit(), isReadOnly()
+  - Updated User model to cast role field to UserRole enum
+  - Added @property PHPDoc annotation for role field to satisfy PHPStan
+  - Added helper methods to User: isSuperAdmin(), isAdmin(), canManageUsers(), canEdit(), isViewer()
+  - Created UserPolicy with role-based access control (only super_admin can manage users)
+  - UserPolicy prevents self-deletion
+  - Created UserSeeder with initial super_admin user (admin@crurated.com)
+  - Updated UserFactory with state methods for all role types
+  - Updated existing AuthenticationTest to use UserRole enum
+  - Added UserRoleTest with 15 tests for enum and model role methods
+  - Added UserPolicyTest with 11 tests for policy authorization
+- Files changed:
+  - app/Enums/UserRole.php (new - role enum)
+  - app/Policies/UserPolicy.php (new - access control policy)
+  - app/Models/User.php (added role cast, helper methods, PHPDoc)
+  - database/factories/UserFactory.php (added role state methods)
+  - database/seeders/UserSeeder.php (new - super_admin seeder)
+  - database/seeders/DatabaseSeeder.php (calls UserSeeder)
+  - tests/Feature/Filament/AuthenticationTest.php (updated to use UserRole enum)
+  - tests/Feature/UserRoleTest.php (new - 15 role tests)
+  - tests/Feature/UserPolicyTest.php (new - 11 policy tests)
+  - prd.json (marked US-010 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Eloquent enum casts need @property PHPDoc annotations for PHPStan to understand the type
+  - Laravel auto-discovers policies in app/Policies/ following {Model}Policy naming convention
+  - Use level-based hierarchy for role comparisons (hasAtLeast) instead of hardcoding multiple role checks
+  - UserFactory state methods (->superAdmin(), etc.) make tests more readable
+  - Policy methods receive both authenticated user and target model for fine-grained control
+  - Test policy methods directly via `new UserPolicy()->methodName()` without needing Gate facade
+---
