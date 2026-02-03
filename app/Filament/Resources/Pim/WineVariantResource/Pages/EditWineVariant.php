@@ -71,9 +71,21 @@ class EditWineVariant extends EditRecord
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Publish Wine Variant')
-                    ->modalDescription('Are you sure you want to publish this wine variant? This will make it visible.')
+                    ->modalDescription(fn (): string => $record->hasBlockingIssues()
+                        ? 'Cannot publish: there are blocking issues that must be resolved first.'
+                        : 'Are you sure you want to publish this wine variant? This will make it visible.')
                     ->visible(fn (): bool => $record->canTransitionTo(ProductLifecycleStatus::Published))
+                    ->disabled(fn (): bool => $record->hasBlockingIssues())
                     ->action(function () use ($record): void {
+                        if ($record->hasBlockingIssues()) {
+                            Notification::make()
+                                ->title('Cannot Publish')
+                                ->body('Resolve all blocking issues before publishing.')
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
                         $record->publish();
                         Notification::make()
                             ->title('Published')

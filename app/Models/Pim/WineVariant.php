@@ -195,4 +195,128 @@ class WineVariant extends Model
 
         return $incomplete;
     }
+
+    /**
+     * Blocking issue definition: field, tab, message, severity.
+     *
+     * @var array<string, array{tab: string, message: string, priority: int}>
+     */
+    public const BLOCKING_ISSUES_RULES = [
+        'wine_master_id' => [
+            'tab' => 'core_info',
+            'message' => 'Wine Master is required',
+            'priority' => 1,
+        ],
+        'vintage_year' => [
+            'tab' => 'core_info',
+            'message' => 'Vintage year is required',
+            'priority' => 2,
+        ],
+        'has_sellable_skus' => [
+            'tab' => 'sellable_skus',
+            'message' => 'At least one Sellable SKU is required for publication',
+            'priority' => 3,
+        ],
+    ];
+
+    /**
+     * Warning issue definition: field, tab, message.
+     *
+     * @var array<string, array{tab: string, message: string, priority: int}>
+     */
+    public const WARNING_RULES = [
+        'alcohol_percentage' => [
+            'tab' => 'core_info',
+            'message' => 'Alcohol percentage is recommended',
+            'priority' => 1,
+        ],
+        'drinking_window_start' => [
+            'tab' => 'core_info',
+            'message' => 'Drinking window start year is recommended',
+            'priority' => 2,
+        ],
+        'drinking_window_end' => [
+            'tab' => 'core_info',
+            'message' => 'Drinking window end year is recommended',
+            'priority' => 3,
+        ],
+        'critic_scores' => [
+            'tab' => 'attributes',
+            'message' => 'Critic scores improve product discoverability',
+            'priority' => 4,
+        ],
+        'production_notes' => [
+            'tab' => 'attributes',
+            'message' => 'Production notes provide valuable context',
+            'priority' => 5,
+        ],
+    ];
+
+    /**
+     * Get blocking issues that prevent publication.
+     *
+     * @return list<array{field: string, tab: string, message: string, priority: int}>
+     */
+    public function getBlockingIssues(): array
+    {
+        $issues = [];
+
+        foreach (self::BLOCKING_ISSUES_RULES as $field => $config) {
+            if (! $this->isFieldComplete($field)) {
+                $issues[] = [
+                    'field' => $field,
+                    'tab' => $config['tab'],
+                    'message' => $config['message'],
+                    'priority' => $config['priority'],
+                ];
+            }
+        }
+
+        // Sort by priority
+        usort($issues, fn (array $a, array $b): int => $a['priority'] <=> $b['priority']);
+
+        return $issues;
+    }
+
+    /**
+     * Get warnings (non-blocking issues).
+     *
+     * @return list<array{field: string, tab: string, message: string, priority: int}>
+     */
+    public function getWarnings(): array
+    {
+        $warnings = [];
+
+        foreach (self::WARNING_RULES as $field => $config) {
+            if (! $this->isFieldComplete($field)) {
+                $warnings[] = [
+                    'field' => $field,
+                    'tab' => $config['tab'],
+                    'message' => $config['message'],
+                    'priority' => $config['priority'],
+                ];
+            }
+        }
+
+        // Sort by priority
+        usort($warnings, fn (array $a, array $b): int => $a['priority'] <=> $b['priority']);
+
+        return $warnings;
+    }
+
+    /**
+     * Check if the wine variant has any blocking issues.
+     */
+    public function hasBlockingIssues(): bool
+    {
+        return count($this->getBlockingIssues()) > 0;
+    }
+
+    /**
+     * Check if the wine variant can be published (no blocking issues).
+     */
+    public function canPublish(): bool
+    {
+        return ! $this->hasBlockingIssues();
+    }
 }

@@ -175,6 +175,7 @@ class WineVariantResource extends Resource
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\ActionGroup::make([
                     Tables\Actions\Action::make('submit_for_review')
                         ->label('Submit for Review')
@@ -227,9 +228,21 @@ class WineVariantResource extends Resource
                         ->color('success')
                         ->requiresConfirmation()
                         ->modalHeading('Publish Wine Variant')
-                        ->modalDescription('Are you sure you want to publish this wine variant? This will make it visible.')
+                        ->modalDescription(fn (WineVariant $record): string => $record->hasBlockingIssues()
+                            ? 'Cannot publish: there are blocking issues that must be resolved first.'
+                            : 'Are you sure you want to publish this wine variant? This will make it visible.')
                         ->visible(fn (WineVariant $record): bool => $record->canTransitionTo(ProductLifecycleStatus::Published))
+                        ->disabled(fn (WineVariant $record): bool => $record->hasBlockingIssues())
                         ->action(function (WineVariant $record): void {
+                            if ($record->hasBlockingIssues()) {
+                                Notification::make()
+                                    ->title('Cannot Publish')
+                                    ->body('Resolve all blocking issues before publishing.')
+                                    ->danger()
+                                    ->send();
+
+                                return;
+                            }
                             $record->publish();
                             Notification::make()
                                 ->title('Published')
@@ -279,6 +292,7 @@ class WineVariantResource extends Resource
         return [
             'index' => Pages\ListWineVariants::route('/'),
             'create' => Pages\CreateWineVariant::route('/create'),
+            'view' => Pages\ViewWineVariant::route('/{record}'),
             'edit' => Pages\EditWineVariant::route('/{record}/edit'),
         ];
     }
