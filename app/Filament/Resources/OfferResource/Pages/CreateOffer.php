@@ -2,14 +2,19 @@
 
 namespace App\Filament\Resources\OfferResource\Pages;
 
+use App\Enums\Commercial\BenefitType;
 use App\Enums\Commercial\OfferStatus;
 use App\Enums\Commercial\OfferType;
 use App\Enums\Commercial\OfferVisibility;
+use App\Enums\Commercial\PriceBookStatus;
 use App\Filament\Resources\OfferResource;
 use App\Models\Allocation\Allocation;
 use App\Models\Commercial\Channel;
 use App\Models\Commercial\EstimatedMarketPrice;
+use App\Models\Commercial\OfferBenefit;
 use App\Models\Commercial\OfferEligibility;
+use App\Models\Commercial\PriceBook;
+use App\Models\Commercial\PriceBookEntry;
 use App\Models\Pim\SellableSku;
 use Filament\Forms;
 use Filament\Forms\Components\Wizard;
@@ -685,26 +690,420 @@ class CreateOffer extends CreateRecord
     }
 
     /**
-     * Step 3: Pricing (placeholder for US-039)
+     * Step 3: Pricing
+     * Define the pricing of the Offer - Price Book selection and benefit configuration.
      */
     protected function getPricingStep(): Wizard\Step
     {
         return Wizard\Step::make('Pricing')
-            ->description('Define pricing (Coming in US-039)')
+            ->description('Define pricing and discounts')
             ->icon('heroicon-o-currency-euro')
             ->schema([
-                Forms\Components\Section::make('Pricing')
-                    ->description('This step will be implemented in US-039')
+                // Price Book Selection
+                Forms\Components\Section::make('Price Book Selection')
+                    ->description('Select the Price Book that provides base prices for this offer')
                     ->schema([
                         Forms\Components\Select::make('price_book_id')
                             ->label('Price Book')
-                            ->relationship('priceBook', 'name')
+                            ->required()
                             ->searchable()
                             ->preload()
+                            ->live()
+                            ->native(false)
+                            ->placeholder('Select a Price Book...')
+                            ->options(function (Get $get): array {
+                                $channelId = $get('channel_id');
+
+                                // Query for active Price Books
+                                $query = PriceBook::query()
+                                    ->where('status', PriceBookStatus::Active);
+
+                                // If channel is selected, filter by channel or null (global)
+                                if ($channelId !== null) {
+                                    $query->where(function (\Illuminate\Database\Eloquent\Builder $q) use ($channelId): void {
+                                        $q->where('channel_id', $channelId)
+                                            ->orWhereNull('channel_id');
+                                    });
+                                }
+
+                                // Filter for valid dates
+                                $query->where('valid_from', '<=', now())
+                                    ->where(function (\Illuminate\Database\Eloquent\Builder $q): void {
+                                        $q->whereNull('valid_to')
+                                            ->orWhere('valid_to', '>=', now());
+                                    });
+
+                                return $query->get()->mapWithKeys(function (PriceBook $priceBook): array {
+                                    $label = $priceBook->name.' ('.$priceBook->market.' / '.$priceBook->currency.')';
+
+                                    return [$priceBook->id => $label];
+                                })->toArray();
+                            })
+                            ->helperText('Only active Price Books within their validity period are shown'),
+
+                        // Price Book Preview
+                        Forms\Components\Placeholder::make('price_book_preview')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('price_book_id') !== null)
+                            ->content(function (Get $get): HtmlString {
+                                $priceBookId = $get('price_book_id');
+                                if ($priceBookId === null) {
+                                    return new HtmlString('');
+                                }
+
+                                $priceBook = PriceBook::with('channel')->find($priceBookId);
+                                if ($priceBook === null) {
+                                    return new HtmlString('<div class="text-gray-500">Price Book not found</div>');
+                                }
+
+                                return new HtmlString($this->buildPriceBookPreviewHtml($priceBook, $get('sellable_sku_id')));
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Base Price Preview (from selected Price Book)
+                Forms\Components\Section::make('Base Price Preview')
+                    ->description('Base price from the selected Price Book and EMP comparison')
+                    ->visible(fn (Get $get): bool => $get('price_book_id') !== null && $get('sellable_sku_id') !== null)
+                    ->schema([
+                        Forms\Components\Placeholder::make('base_price_preview')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $priceBookId = $get('price_book_id');
+                                $skuId = $get('sellable_sku_id');
+
+                                if ($priceBookId === null || $skuId === null) {
+                                    return new HtmlString('<div class="text-gray-500">Select a Price Book and SKU to see pricing</div>');
+                                }
+
+                                $priceBook = PriceBook::find($priceBookId);
+                                $sku = SellableSku::with('estimatedMarketPrices')->find($skuId);
+
+                                if ($priceBook === null || $sku === null) {
+                                    return new HtmlString('<div class="text-gray-500">Price Book or SKU not found</div>');
+                                }
+
+                                return new HtmlString($this->buildBasePricePreviewHtml($priceBook, $sku));
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Benefit Configuration
+                Forms\Components\Section::make('Benefit Configuration')
+                    ->description('Apply discounts or price overrides to the base price')
+                    ->schema([
+                        Forms\Components\Radio::make('benefit_type')
+                            ->label('Benefit Type')
                             ->required()
-                            ->native(false),
+                            ->live()
+                            ->options(collect(BenefitType::cases())->mapWithKeys(fn (BenefitType $type) => [
+                                $type->value => $type->label(),
+                            ]))
+                            ->descriptions(collect(BenefitType::cases())->mapWithKeys(fn (BenefitType $type) => [
+                                $type->value => $type->description(),
+                            ]))
+                            ->default(BenefitType::None->value)
+                            ->columns(2),
+
+                        // Value input for discount types
+                        Forms\Components\TextInput::make('benefit_value')
+                            ->label(fn (Get $get): string => match ($get('benefit_type')) {
+                                BenefitType::PercentageDiscount->value => 'Discount Percentage (%)',
+                                BenefitType::FixedDiscount->value => 'Discount Amount',
+                                BenefitType::FixedPrice->value => 'Fixed Price',
+                                default => 'Value',
+                            })
+                            ->numeric()
+                            ->live(onBlur: true)
+                            ->minValue(0)
+                            ->step(0.01)
+                            ->visible(fn (Get $get): bool => in_array($get('benefit_type'), [
+                                BenefitType::PercentageDiscount->value,
+                                BenefitType::FixedDiscount->value,
+                                BenefitType::FixedPrice->value,
+                            ]))
+                            ->required(fn (Get $get): bool => in_array($get('benefit_type'), [
+                                BenefitType::PercentageDiscount->value,
+                                BenefitType::FixedDiscount->value,
+                                BenefitType::FixedPrice->value,
+                            ]))
+                            ->suffix(fn (Get $get): string => match ($get('benefit_type')) {
+                                BenefitType::PercentageDiscount->value => '%',
+                                default => '',
+                            })
+                            ->prefix(fn (Get $get): string => match ($get('benefit_type')) {
+                                BenefitType::FixedDiscount->value, BenefitType::FixedPrice->value => '€',
+                                default => '',
+                            })
+                            ->helperText(fn (Get $get): string => match ($get('benefit_type')) {
+                                BenefitType::PercentageDiscount->value => 'Enter the percentage discount (e.g., 10 for 10% off)',
+                                BenefitType::FixedDiscount->value => 'Enter the fixed amount to subtract from the base price',
+                                BenefitType::FixedPrice->value => 'Enter the fixed price that overrides the base price',
+                                default => '',
+                            }),
+
+                        // Percentage validation warning
+                        Forms\Components\Placeholder::make('percentage_warning')
+                            ->label('')
+                            ->visible(function (Get $get): bool {
+                                $benefitType = $get('benefit_type');
+                                $value = $get('benefit_value');
+
+                                return $benefitType === BenefitType::PercentageDiscount->value
+                                    && $value !== null
+                                    && (float) $value > 100;
+                            })
+                            ->content(new HtmlString(
+                                '<div class="rounded-lg bg-danger-50 dark:bg-danger-950 p-3 border border-danger-300 dark:border-danger-700">'
+                                .'<p class="text-sm text-danger-700 dark:text-danger-300">'
+                                .'<strong>Warning:</strong> Percentage discount cannot exceed 100%'
+                                .'</p>'
+                                .'</div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+
+                // Final Price Preview
+                Forms\Components\Section::make('Final Price Preview')
+                    ->description('Preview of the final price after applying benefits')
+                    ->visible(fn (Get $get): bool => $get('price_book_id') !== null && $get('sellable_sku_id') !== null)
+                    ->schema([
+                        Forms\Components\Placeholder::make('final_price_preview')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $priceBookId = $get('price_book_id');
+                                $skuId = $get('sellable_sku_id');
+                                $benefitType = $get('benefit_type');
+                                $benefitValue = $get('benefit_value');
+
+                                if ($priceBookId === null || $skuId === null) {
+                                    return new HtmlString('<div class="text-gray-500">Select a Price Book and SKU to see pricing</div>');
+                                }
+
+                                return new HtmlString($this->buildFinalPricePreviewHtml($priceBookId, $skuId, $benefitType, $benefitValue));
+                            })
+                            ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    /**
+     * Build HTML preview for selected Price Book.
+     */
+    protected function buildPriceBookPreviewHtml(PriceBook $priceBook, ?string $skuId): string
+    {
+        $statusColor = $priceBook->getStatusColor();
+        $channelName = $priceBook->channel !== null ? $priceBook->channel->name : 'All Channels';
+        $entriesCount = $priceBook->entries()->count();
+
+        // Check if there's a price entry for the selected SKU
+        $hasEntryForSku = false;
+        if ($skuId !== null) {
+            $hasEntryForSku = $priceBook->entries()->where('sellable_sku_id', $skuId)->exists();
+        }
+
+        $skuWarning = '';
+        if ($skuId !== null && ! $hasEntryForSku) {
+            $skuWarning = '<div class="mt-3 p-2 rounded bg-warning-50 dark:bg-warning-950 border border-warning-300 dark:border-warning-700">'
+                .'<p class="text-sm text-warning-700 dark:text-warning-300">'
+                .'<strong>Warning:</strong> This Price Book does not have a price entry for the selected SKU. '
+                .'You may need to add an entry or select a different Price Book.'
+                .'</p>'
+                .'</div>';
+        }
+
+        return '<div class="rounded-lg bg-gray-50 dark:bg-gray-900 p-4 border border-gray-200 dark:border-gray-700">'
+            .'<div class="grid grid-cols-2 md:grid-cols-5 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Market</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200">'.$priceBook->market.'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Currency</p>'
+            .'<p class="text-sm font-medium text-gray-900 dark:text-gray-100">'.$priceBook->currency.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Channel</p>'
+            .'<p class="text-sm text-gray-600 dark:text-gray-400">'.$channelName.'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</p>'
+            .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$statusColor.'-100 text-'.$statusColor.'-800 dark:bg-'.$statusColor.'-900 dark:text-'.$statusColor.'-200">'.$priceBook->getStatusLabel().'</span>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Price Entries</p>'
+            .'<p class="text-sm font-medium text-gray-900 dark:text-gray-100">'.$entriesCount.'</p>'
+            .'</div>'
+            .'</div>'
+            .'<div class="mt-3 text-xs text-gray-500 dark:text-gray-400">'
+            .'Valid: '.$priceBook->valid_from->format('Y-m-d').' → '.($priceBook->valid_to !== null ? $priceBook->valid_to->format('Y-m-d') : 'Indefinite')
+            .'</div>'
+            .$skuWarning
+            .'</div>';
+    }
+
+    /**
+     * Build HTML preview for base price from Price Book and EMP comparison.
+     */
+    protected function buildBasePricePreviewHtml(PriceBook $priceBook, SellableSku $sku): string
+    {
+        // Get price entry for this SKU
+        $priceEntry = PriceBookEntry::where('price_book_id', $priceBook->id)
+            ->where('sellable_sku_id', $sku->id)
+            ->first();
+
+        $basePrice = $priceEntry !== null ? (float) $priceEntry->base_price : null;
+        $currency = $priceBook->currency;
+
+        // Get EMP for comparison (using the Price Book's market)
+        $emp = EstimatedMarketPrice::where('sellable_sku_id', $sku->id)
+            ->where('market', $priceBook->market)
+            ->first();
+
+        $empValue = $emp !== null ? (float) $emp->emp_value : null;
+
+        // Build the HTML
+        $basePriceDisplay = $basePrice !== null
+            ? '<span class="text-2xl font-bold text-gray-900 dark:text-gray-100">'.$currency.' '.number_format($basePrice, 2).'</span>'
+            : '<span class="text-lg text-warning-600 dark:text-warning-400">No price entry found</span>';
+
+        $sourceDisplay = '';
+        if ($priceEntry !== null) {
+            $sourceColor = $priceEntry->getSourceColor();
+            $sourceDisplay = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$sourceColor.'-100 text-'.$sourceColor.'-800 dark:bg-'.$sourceColor.'-900 dark:text-'.$sourceColor.'-200">'.$priceEntry->getSourceLabel().'</span>';
+        }
+
+        // EMP comparison
+        $empSection = '';
+        if ($emp !== null && $empValue !== null) {
+            $empConfidenceColor = $emp->confidence_level->color();
+
+            $deltaSection = '';
+            if ($basePrice !== null && $empValue > 0) {
+                $delta = (($basePrice - $empValue) / $empValue) * 100;
+                $deltaColor = abs($delta) > 15 ? 'danger' : (abs($delta) > 10 ? 'warning' : 'success');
+                $deltaSign = $delta >= 0 ? '+' : '';
+                $deltaSection = '<div>'
+                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Delta vs EMP</p>'
+                    .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$deltaColor.'-100 text-'.$deltaColor.'-800 dark:bg-'.$deltaColor.'-900 dark:text-'.$deltaColor.'-200">'.$deltaSign.number_format($delta, 1).'%</span>'
+                    .'</div>';
+            }
+
+            $empSection = '<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">'
+                .'<p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">EMP Reference ('.$priceBook->market.')</p>'
+                .'<div class="grid grid-cols-3 gap-4">'
+                .'<div>'
+                .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">EMP Value</p>'
+                .'<span class="text-lg font-semibold text-gray-700 dark:text-gray-300">'.$currency.' '.number_format($empValue, 2).'</span>'
+                .'</div>'
+                .'<div>'
+                .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Confidence</p>'
+                .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$empConfidenceColor.'-100 text-'.$empConfidenceColor.'-800 dark:bg-'.$empConfidenceColor.'-900 dark:text-'.$empConfidenceColor.'-200">'.$emp->confidence_level->label().'</span>'
+                .'</div>'
+                .$deltaSection
+                .'</div>'
+                .'</div>';
+        } else {
+            $empSection = '<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">'
+                .'<p class="text-sm text-gray-500 dark:text-gray-400 italic">No EMP data available for market: '.$priceBook->market.'</p>'
+                .'</div>';
+        }
+
+        return '<div class="rounded-lg bg-gray-50 dark:bg-gray-900 p-4 border border-gray-200 dark:border-gray-700">'
+            .'<div class="flex items-center justify-between">'
+            .'<div>'
+            .'<p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Base Price from Price Book</p>'
+            .$basePriceDisplay
+            .'</div>'
+            .'<div class="text-right">'
+            .$sourceDisplay
+            .'</div>'
+            .'</div>'
+            .$empSection
+            .'</div>';
+    }
+
+    /**
+     * Build HTML preview for final price after benefit.
+     */
+    protected function buildFinalPricePreviewHtml(?string $priceBookId, ?string $skuId, ?string $benefitType, ?string $benefitValue): string
+    {
+        if ($priceBookId === null || $skuId === null) {
+            return '<div class="text-gray-500">Select a Price Book and SKU to see pricing</div>';
+        }
+
+        $priceBook = PriceBook::find($priceBookId);
+        if ($priceBook === null) {
+            return '<div class="text-gray-500">Price Book not found</div>';
+        }
+
+        // Get price entry for this SKU
+        $priceEntry = PriceBookEntry::where('price_book_id', $priceBookId)
+            ->where('sellable_sku_id', $skuId)
+            ->first();
+
+        if ($priceEntry === null) {
+            return '<div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-4 border border-warning-300 dark:border-warning-700">'
+                .'<p class="text-warning-700 dark:text-warning-300">'
+                .'<strong>No Price Entry:</strong> The selected Price Book does not have a price entry for this SKU. '
+                .'Please select a different Price Book or add a price entry first.'
+                .'</p>'
+                .'</div>';
+        }
+
+        $basePrice = (float) $priceEntry->base_price;
+        $currency = $priceBook->currency;
+
+        // Calculate final price based on benefit type
+        $benefitTypeEnum = $benefitType !== null ? BenefitType::tryFrom($benefitType) : BenefitType::None;
+        $benefitValueFloat = $benefitValue !== null ? (float) $benefitValue : 0;
+
+        $finalPrice = match ($benefitTypeEnum) {
+            BenefitType::None => $basePrice,
+            BenefitType::PercentageDiscount => max(0, $basePrice - ($basePrice * min($benefitValueFloat, 100) / 100)),
+            BenefitType::FixedDiscount => max(0, $basePrice - $benefitValueFloat),
+            BenefitType::FixedPrice => max(0, $benefitValueFloat),
+            default => $basePrice,
+        };
+
+        $discount = $basePrice - $finalPrice;
+        $discountPercentage = $basePrice > 0 ? ($discount / $basePrice) * 100 : 0;
+
+        // Build benefit description
+        $benefitDescription = match ($benefitTypeEnum) {
+            BenefitType::None => 'No benefit applied - using Price Book price',
+            BenefitType::PercentageDiscount => number_format(min($benefitValueFloat, 100), 0).'% discount applied',
+            BenefitType::FixedDiscount => $currency.' '.number_format($benefitValueFloat, 2).' discount applied',
+            BenefitType::FixedPrice => 'Fixed price override',
+            default => 'No benefit applied',
+        };
+
+        // Color coding based on discount
+        $priceColor = $discount > 0 ? 'success' : ($discount < 0 ? 'warning' : 'gray');
+
+        return '<div class="rounded-lg bg-'.$priceColor.'-50 dark:bg-'.$priceColor.'-950 p-4 border border-'.$priceColor.'-200 dark:border-'.$priceColor.'-800">'
+            .'<div class="grid grid-cols-2 md:grid-cols-4 gap-4">'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Base Price</p>'
+            .'<p class="text-lg font-medium text-gray-700 dark:text-gray-300">'.$currency.' '.number_format($basePrice, 2).'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Discount</p>'
+            .'<p class="text-lg font-medium text-'.$priceColor.'-700 dark:text-'.$priceColor.'-300">'.($discount > 0 ? '-'.$currency.' '.number_format($discount, 2) : '-').'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Final Price</p>'
+            .'<p class="text-2xl font-bold text-'.$priceColor.'-800 dark:text-'.$priceColor.'-200">'.$currency.' '.number_format($finalPrice, 2).'</p>'
+            .'</div>'
+            .'<div>'
+            .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Savings</p>'
+            .'<p class="text-lg font-medium text-'.$priceColor.'-700 dark:text-'.$priceColor.'-300">'.($discountPercentage > 0 ? number_format($discountPercentage, 1).'%' : '-').'</p>'
+            .'</div>'
+            .'</div>'
+            .'<div class="mt-3 pt-3 border-t border-'.$priceColor.'-200 dark:border-'.$priceColor.'-700">'
+            .'<p class="text-sm text-'.$priceColor.'-700 dark:text-'.$priceColor.'-300">'.$benefitDescription.'</p>'
+            .'</div>'
+            .'</div>';
     }
 
     /**
@@ -935,6 +1334,14 @@ class CreateOffer extends CreateRecord
         ];
         session(['offer_eligibility_data' => $eligibilityData]);
 
+        // Store benefit data in session for use in afterCreate
+        // These fields are not part of the Offer model
+        $benefitData = [
+            'benefit_type' => $data['benefit_type'] ?? BenefitType::None->value,
+            'benefit_value' => $data['benefit_value'] ?? null,
+        ];
+        session(['offer_benefit_data' => $benefitData]);
+
         // Get the first applicable allocation constraint ID for reference
         $skuId = $data['sellable_sku_id'] ?? null;
         if ($skuId !== null) {
@@ -951,8 +1358,9 @@ class CreateOffer extends CreateRecord
             }
         }
 
-        // Remove eligibility fields from offer data (they belong to OfferEligibility)
+        // Remove eligibility and benefit fields from offer data (they belong to separate models)
         unset($data['allowed_markets'], $data['allowed_customer_types']);
+        unset($data['benefit_type'], $data['benefit_value']);
 
         return $data;
     }
@@ -977,8 +1385,27 @@ class CreateOffer extends CreateRecord
             'allocation_constraint_id' => $allocationConstraintId,
         ]);
 
+        // Create OfferBenefit record
+        $benefitData = session('offer_benefit_data', []);
+        $benefitType = $benefitData['benefit_type'] ?? BenefitType::None->value;
+        $benefitValue = $benefitData['benefit_value'] ?? null;
+
+        // Only store value if the benefit type requires it
+        $benefitTypeEnum = BenefitType::tryFrom($benefitType);
+        $storedValue = null;
+        if ($benefitTypeEnum !== null && $benefitTypeEnum->requiresValue() && $benefitValue !== null) {
+            $storedValue = (string) $benefitValue;
+        }
+
+        OfferBenefit::create([
+            'offer_id' => $offer->id,
+            'benefit_type' => $benefitType,
+            'benefit_value' => $storedValue,
+            'discount_rule_id' => null,
+        ]);
+
         // Clean up session
-        session()->forget(['offer_eligibility_data', 'offer_allocation_constraint_id']);
+        session()->forget(['offer_eligibility_data', 'offer_allocation_constraint_id', 'offer_benefit_data']);
 
         // If activated, log the activation
         if ($this->activateAfterCreate) {
