@@ -62,6 +62,11 @@ class WineVariantResource extends Resource
                             ->schema([
                                 self::getSellableSkusSchema(),
                             ]),
+                        Forms\Components\Tabs\Tab::make('Lifecycle')
+                            ->icon('heroicon-o-arrow-path')
+                            ->schema([
+                                self::getLifecycleSchema(),
+                            ]),
                     ])
                     ->columnSpanFull()
                     ->persistTabInQueryString(),
@@ -1147,6 +1152,578 @@ class WineVariantResource extends Resource
                 ->collapsed()
                 ->collapsible(),
         ]);
+    }
+
+    /**
+     * Get the Lifecycle tab schema.
+     */
+    protected static function getLifecycleSchema(): Forms\Components\Component
+    {
+        return Forms\Components\Group::make([
+            // Current Status Section
+            Forms\Components\Section::make('Current Status')
+                ->description('View and manage the lifecycle status of this product')
+                ->icon('heroicon-o-arrow-path')
+                ->schema([
+                    Forms\Components\Placeholder::make('status_display')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product first to see lifecycle status.</div>';
+                            }
+
+                            $status = $record->lifecycle_status;
+                            $statusColor = $status->color();
+                            $statusIcon = $status->icon();
+                            $statusLabel = $status->label();
+
+                            // Color classes mapping
+                            $colorClasses = match ($statusColor) {
+                                'gray' => ['bg-gray-100 dark:bg-gray-800', 'text-gray-800 dark:text-gray-200', 'border-gray-300 dark:border-gray-600'],
+                                'warning' => ['bg-yellow-100 dark:bg-yellow-900/30', 'text-yellow-800 dark:text-yellow-200', 'border-yellow-300 dark:border-yellow-600'],
+                                'info' => ['bg-blue-100 dark:bg-blue-900/30', 'text-blue-800 dark:text-blue-200', 'border-blue-300 dark:border-blue-600'],
+                                'success' => ['bg-green-100 dark:bg-green-900/30', 'text-green-800 dark:text-green-200', 'border-green-300 dark:border-green-600'],
+                                'danger' => ['bg-red-100 dark:bg-red-900/30', 'text-red-800 dark:text-red-200', 'border-red-300 dark:border-red-600'],
+                                default => ['bg-gray-100 dark:bg-gray-800', 'text-gray-800 dark:text-gray-200', 'border-gray-300 dark:border-gray-600'],
+                            };
+
+                            $html = '<div class="'.$colorClasses[0].' '.$colorClasses[2].' border rounded-xl p-6">';
+                            $html .= '<div class="flex items-center gap-4">';
+                            $html .= '<div class="flex-shrink-0">';
+                            $html .= '<div class="w-16 h-16 rounded-full '.$colorClasses[0].' flex items-center justify-center">';
+                            $html .= '<x-dynamic-component component="'.$statusIcon.'" class="w-8 h-8 '.$colorClasses[1].'" />';
+                            $html .= '</div>';
+                            $html .= '</div>';
+                            $html .= '<div class="flex-1">';
+                            $html .= '<h3 class="text-2xl font-bold '.$colorClasses[1].'">'.$statusLabel.'</h3>';
+                            $html .= '<p class="text-sm '.$colorClasses[1].' opacity-75 mt-1">'.$status->transitionConfirmation().'</p>';
+                            $html .= '</div>';
+                            $html .= '</div>';
+                            $html .= '</div>';
+
+                            // Show workflow diagram
+                            $html .= '<div class="mt-6">';
+                            $html .= '<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Lifecycle Workflow</h4>';
+                            $html .= '<div class="flex items-center justify-between gap-2 overflow-x-auto py-2">';
+
+                            $statuses = ProductLifecycleStatus::cases();
+                            $currentIndex = array_search($status, $statuses);
+
+                            foreach ($statuses as $index => $s) {
+                                $isActive = $s === $status;
+                                $isPast = $index < $currentIndex;
+                                $sColor = $s->color();
+
+                                $stepBg = $isActive ? match ($sColor) {
+                                    'gray' => 'bg-gray-500',
+                                    'warning' => 'bg-yellow-500',
+                                    'info' => 'bg-blue-500',
+                                    'success' => 'bg-green-500',
+                                    'danger' => 'bg-red-500',
+                                    default => 'bg-gray-500',
+                                } : ($isPast ? 'bg-gray-400 dark:bg-gray-600' : 'bg-gray-200 dark:bg-gray-700');
+
+                                $textColor = $isActive ? 'text-white' : ($isPast ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-500');
+                                $labelColor = $isActive ? 'text-gray-900 dark:text-white font-semibold' : ($isPast ? 'text-gray-600 dark:text-gray-400' : 'text-gray-400 dark:text-gray-500');
+
+                                $html .= '<div class="flex flex-col items-center min-w-[80px]">';
+                                $html .= '<div class="w-10 h-10 rounded-full '.$stepBg.' flex items-center justify-center '.$textColor.'">';
+                                if ($isPast) {
+                                    $html .= '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                                } else {
+                                    $html .= '<span class="text-sm font-medium">'.($index + 1).'</span>';
+                                }
+                                $html .= '</div>';
+                                $html .= '<span class="text-xs mt-2 '.$labelColor.'">'.$s->label().'</span>';
+                                $html .= '</div>';
+
+                                if ($index < count($statuses) - 1) {
+                                    $lineColor = $isPast ? 'bg-gray-400 dark:bg-gray-600' : 'bg-gray-200 dark:bg-gray-700';
+                                    $html .= '<div class="flex-1 h-0.5 '.$lineColor.' min-w-[20px]"></div>';
+                                }
+                            }
+
+                            $html .= '</div>';
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ]),
+
+            // Publish Readiness Section
+            Forms\Components\Section::make('Publish Readiness Checklist')
+                ->description('Requirements that must be met before publishing')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->schema([
+                    Forms\Components\Placeholder::make('readiness_checklist')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product first to see readiness checklist.</div>';
+                            }
+
+                            $blockingIssues = $record->getBlockingIssues();
+                            $warnings = $record->getWarnings();
+                            $canPublish = $record->canPublish();
+
+                            $html = '';
+
+                            // Overall status
+                            if ($canPublish) {
+                                $html .= '<div class="p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 mb-4">';
+                                $html .= '<div class="flex items-center gap-3">';
+                                $html .= '<svg class="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                                $html .= '<div>';
+                                $html .= '<h4 class="font-semibold text-green-800 dark:text-green-200">Ready for Publication</h4>';
+                                $html .= '<p class="text-sm text-green-700 dark:text-green-300">All blocking requirements have been met.</p>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            } else {
+                                $html .= '<div class="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 mb-4">';
+                                $html .= '<div class="flex items-center gap-3">';
+                                $html .= '<svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+                                $html .= '<div>';
+                                $html .= '<h4 class="font-semibold text-red-800 dark:text-red-200">Not Ready for Publication</h4>';
+                                $html .= '<p class="text-sm text-red-700 dark:text-red-300">'.count($blockingIssues).' blocking issue(s) must be resolved.</p>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+
+                            // Blocking Issues
+                            if (count($blockingIssues) > 0) {
+                                $html .= '<div class="mb-4">';
+                                $html .= '<h4 class="text-sm font-semibold text-red-700 dark:text-red-300 mb-2 flex items-center gap-2">';
+                                $html .= '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+                                $html .= 'Blocking Issues ('.count($blockingIssues).')';
+                                $html .= '</h4>';
+                                $html .= '<ul class="space-y-2">';
+                                foreach ($blockingIssues as $issue) {
+                                    $tabLabel = match ($issue['tab']) {
+                                        'core_info' => 'Core Info',
+                                        'attributes' => 'Attributes',
+                                        'media' => 'Media',
+                                        'sellable_skus' => 'Sellable SKUs',
+                                        default => ucfirst(str_replace('_', ' ', $issue['tab'])),
+                                    };
+                                    $html .= '<li class="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-900/10 rounded-lg">';
+                                    $html .= '<svg class="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>';
+                                    $html .= '<div class="flex-1">';
+                                    $html .= '<p class="text-sm font-medium text-red-800 dark:text-red-200">'.$issue['message'].'</p>';
+                                    $html .= '<p class="text-xs text-red-600 dark:text-red-400 mt-1">Go to: <span class="font-medium">'.$tabLabel.' tab</span></p>';
+                                    $html .= '</div>';
+                                    $html .= '</li>';
+                                }
+                                $html .= '</ul>';
+                                $html .= '</div>';
+                            }
+
+                            // Warnings
+                            if (count($warnings) > 0) {
+                                $html .= '<div>';
+                                $html .= '<h4 class="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-2 flex items-center gap-2">';
+                                $html .= '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+                                $html .= 'Warnings ('.count($warnings).')';
+                                $html .= '</h4>';
+                                $html .= '<ul class="space-y-2">';
+                                foreach ($warnings as $warning) {
+                                    $tabLabel = match ($warning['tab']) {
+                                        'core_info' => 'Core Info',
+                                        'attributes' => 'Attributes',
+                                        'media' => 'Media',
+                                        'sellable_skus' => 'Sellable SKUs',
+                                        default => ucfirst(str_replace('_', ' ', $warning['tab'])),
+                                    };
+                                    $html .= '<li class="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg">';
+                                    $html .= '<svg class="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>';
+                                    $html .= '<div class="flex-1">';
+                                    $html .= '<p class="text-sm font-medium text-yellow-800 dark:text-yellow-200">'.$warning['message'].'</p>';
+                                    $html .= '<p class="text-xs text-yellow-600 dark:text-yellow-400 mt-1">Go to: <span class="font-medium">'.$tabLabel.' tab</span></p>';
+                                    $html .= '</div>';
+                                    $html .= '</li>';
+                                }
+                                $html .= '</ul>';
+                                $html .= '</div>';
+                            }
+
+                            // No issues
+                            if (count($blockingIssues) === 0 && count($warnings) === 0) {
+                                $html .= '<div class="text-center py-8">';
+                                $html .= '<svg class="w-12 h-12 mx-auto text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                                $html .= '<p class="mt-2 text-gray-600 dark:text-gray-400">All requirements met. No issues found.</p>';
+                                $html .= '</div>';
+                            }
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ])
+                ->collapsible(),
+
+            // Lifecycle Actions Section
+            Forms\Components\Section::make('Lifecycle Actions')
+                ->description('Transition the product through the approval workflow')
+                ->icon('heroicon-o-play')
+                ->schema([
+                    Forms\Components\Placeholder::make('available_actions_info')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product first to see available actions.</div>';
+                            }
+
+                            $allowedTransitions = $record->getAllowedTransitions();
+
+                            if (count($allowedTransitions) === 0) {
+                                if ($record->isArchived()) {
+                                    return '<div class="p-4 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                        <div class="flex items-center gap-3">
+                                            <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg>
+                                            <div>
+                                                <h4 class="font-medium text-gray-700 dark:text-gray-300">Product Archived</h4>
+                                                <p class="text-sm text-gray-600 dark:text-gray-400">This product has been archived and cannot be modified.</p>
+                                            </div>
+                                        </div>
+                                    </div>';
+                                }
+
+                                return '<div class="text-gray-500 dark:text-gray-400">No transitions available from the current status.</div>';
+                            }
+
+                            $html = '<div class="space-y-3">';
+                            $html .= '<p class="text-sm text-gray-600 dark:text-gray-400 mb-4">The following actions are available based on the current status and your role:</p>';
+
+                            foreach ($allowedTransitions as $targetStatus) {
+                                $color = $targetStatus->color();
+                                $icon = $targetStatus->icon();
+                                $label = $targetStatus->transitionActionLabel();
+                                $description = $targetStatus->transitionConfirmation();
+
+                                $bgClass = match ($color) {
+                                    'gray' => 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700',
+                                    'warning' => 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700',
+                                    'info' => 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700',
+                                    'success' => 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700',
+                                    'danger' => 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700',
+                                    default => 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700',
+                                };
+
+                                $textClass = match ($color) {
+                                    'gray' => 'text-gray-800 dark:text-gray-200',
+                                    'warning' => 'text-yellow-800 dark:text-yellow-200',
+                                    'info' => 'text-blue-800 dark:text-blue-200',
+                                    'success' => 'text-green-800 dark:text-green-200',
+                                    'danger' => 'text-red-800 dark:text-red-200',
+                                    default => 'text-gray-800 dark:text-gray-200',
+                                };
+
+                                $html .= '<div class="p-4 rounded-lg border '.$bgClass.'">';
+                                $html .= '<div class="flex items-center justify-between">';
+                                $html .= '<div class="flex items-center gap-3">';
+                                $html .= '<x-dynamic-component component="'.$icon.'" class="w-6 h-6 '.$textClass.'" />';
+                                $html .= '<div>';
+                                $html .= '<h4 class="font-medium '.$textClass.'">'.$label.'</h4>';
+                                $html .= '<p class="text-sm opacity-75 '.$textClass.'">'.$description.'</p>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                                $html .= '<span class="text-xs px-2 py-1 rounded bg-white/50 dark:bg-black/20 '.$textClass.'">'.$targetStatus->label().'</span>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+
+                            $html .= '</div>';
+                            $html .= '<p class="text-xs text-gray-500 dark:text-gray-400 mt-4">Use the action buttons in the page header to perform transitions.</p>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+
+                    // Lifecycle actions
+                    Forms\Components\Actions::make([
+                        Forms\Components\Actions\Action::make('lifecycle_submit_for_review')
+                            ->label('Submit for Review')
+                            ->icon('heroicon-o-paper-airplane')
+                            ->color('warning')
+                            ->requiresConfirmation()
+                            ->modalHeading('Submit for Review')
+                            ->modalDescription('Are you sure you want to submit this product for review?')
+                            ->modalSubmitActionLabel('Submit')
+                            ->visible(fn (?WineVariant $record): bool => $record !== null && $record->canTransitionTo(ProductLifecycleStatus::InReview))
+                            ->action(function (WineVariant $record): void {
+                                $record->submitForReview();
+                                Notification::make()
+                                    ->title('Submitted for Review')
+                                    ->body('The product has been submitted for review.')
+                                    ->success()
+                                    ->send();
+                            }),
+
+                        Forms\Components\Actions\Action::make('lifecycle_approve')
+                            ->label('Approve')
+                            ->icon('heroicon-o-check')
+                            ->color('info')
+                            ->requiresConfirmation()
+                            ->modalHeading('Approve Product')
+                            ->modalDescription('Are you sure you want to approve this product?')
+                            ->modalSubmitActionLabel('Approve')
+                            ->visible(fn (?WineVariant $record): bool => $record !== null && $record->canTransitionTo(ProductLifecycleStatus::Approved) && self::canApproveOrReject())
+                            ->action(function (WineVariant $record): void {
+                                $record->approve();
+                                Notification::make()
+                                    ->title('Product Approved')
+                                    ->body('The product has been approved and is ready for publication.')
+                                    ->success()
+                                    ->send();
+                            }),
+
+                        Forms\Components\Actions\Action::make('lifecycle_reject')
+                            ->label('Reject')
+                            ->icon('heroicon-o-x-mark')
+                            ->color('danger')
+                            ->form([
+                                Forms\Components\Textarea::make('rejection_reason')
+                                    ->label('Rejection Reason')
+                                    ->helperText('Please provide a reason for rejecting this product. This will be recorded in the audit log.')
+                                    ->required()
+                                    ->rows(3)
+                                    ->placeholder('Enter the reason for rejection...'),
+                            ])
+                            ->modalHeading('Reject Product')
+                            ->modalDescription('Please provide a reason for rejecting this product.')
+                            ->modalSubmitActionLabel('Reject')
+                            ->visible(fn (?WineVariant $record): bool => $record !== null && $record->canTransitionTo(ProductLifecycleStatus::Draft) && $record->isInReview() && self::canApproveOrReject())
+                            ->action(function (WineVariant $record, array $data): void {
+                                // Store rejection reason in audit log
+                                \App\Models\AuditLog::create([
+                                    'auditable_type' => WineVariant::class,
+                                    'auditable_id' => $record->id,
+                                    'event' => 'status_change',
+                                    'old_values' => ['lifecycle_status' => $record->lifecycle_status->value],
+                                    'new_values' => [
+                                        'lifecycle_status' => ProductLifecycleStatus::Draft->value,
+                                        'rejection_reason' => $data['rejection_reason'],
+                                    ],
+                                    'user_id' => Auth::id(),
+                                ]);
+
+                                $record->lifecycle_status = ProductLifecycleStatus::Draft;
+                                $record->saveQuietly(); // Use saveQuietly to avoid duplicate audit logs
+
+                                Notification::make()
+                                    ->title('Product Rejected')
+                                    ->body('The product has been rejected and returned to draft status.')
+                                    ->warning()
+                                    ->send();
+                            }),
+
+                        Forms\Components\Actions\Action::make('lifecycle_publish')
+                            ->label('Publish')
+                            ->icon('heroicon-o-check-circle')
+                            ->color('success')
+                            ->requiresConfirmation()
+                            ->modalHeading('Publish Product')
+                            ->modalDescription(fn (?WineVariant $record): string => $record !== null && $record->hasBlockingIssues()
+                                ? 'Cannot publish: there are blocking issues that must be resolved first.'
+                                : 'Are you sure you want to publish this product? This will make it visible to customers.')
+                            ->modalSubmitActionLabel('Publish')
+                            ->visible(fn (?WineVariant $record): bool => $record !== null && $record->canTransitionTo(ProductLifecycleStatus::Published) && self::canPublish())
+                            ->disabled(fn (?WineVariant $record): bool => $record !== null && $record->hasBlockingIssues())
+                            ->action(function (WineVariant $record): void {
+                                if ($record->hasBlockingIssues()) {
+                                    Notification::make()
+                                        ->title('Cannot Publish')
+                                        ->body('Resolve all blocking issues before publishing.')
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                $record->publish();
+                                Notification::make()
+                                    ->title('Product Published')
+                                    ->body('The product is now live and visible to customers.')
+                                    ->success()
+                                    ->send();
+                            }),
+
+                        Forms\Components\Actions\Action::make('lifecycle_archive')
+                            ->label('Archive')
+                            ->icon('heroicon-o-archive-box')
+                            ->color('danger')
+                            ->requiresConfirmation()
+                            ->modalHeading('Archive Product')
+                            ->modalDescription('Are you sure you want to archive this product? It will no longer be active or visible.')
+                            ->modalSubmitActionLabel('Archive')
+                            ->visible(fn (?WineVariant $record): bool => $record !== null && $record->canTransitionTo(ProductLifecycleStatus::Archived) && self::canArchive())
+                            ->action(function (WineVariant $record): void {
+                                $record->archive();
+                                Notification::make()
+                                    ->title('Product Archived')
+                                    ->body('The product has been archived.')
+                                    ->success()
+                                    ->send();
+                            }),
+                    ])
+                        ->visible(fn (?WineVariant $record): bool => $record !== null && count($record->getAllowedTransitions()) > 0)
+                        ->columnSpanFull(),
+                ])
+                ->collapsible(),
+
+            // Recent Status History
+            Forms\Components\Section::make('Recent Status Changes')
+                ->description('Recent lifecycle status changes for this product')
+                ->icon('heroicon-o-clock')
+                ->schema([
+                    Forms\Components\Placeholder::make('recent_status_history')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product first to see status history.</div>';
+                            }
+
+                            $statusChanges = \App\Models\AuditLog::where('auditable_type', WineVariant::class)
+                                ->where('auditable_id', $record->id)
+                                ->where('event', 'status_change')
+                                ->with('user')
+                                ->orderByDesc('created_at')
+                                ->limit(5)
+                                ->get();
+
+                            if ($statusChanges->isEmpty()) {
+                                return '<div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <svg class="w-12 h-12 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <p class="mt-2">No status changes recorded yet.</p>
+                                </div>';
+                            }
+
+                            $html = '<div class="space-y-4">';
+
+                            foreach ($statusChanges as $log) {
+                                /** @var array<string, mixed>|null $rawOldValues */
+                                $rawOldValues = $log->old_values;
+                                /** @var array<string, mixed> $oldValues */
+                                $oldValues = $rawOldValues ?? [];
+                                /** @var array<string, mixed>|null $rawNewValues */
+                                $rawNewValues = $log->new_values;
+                                /** @var array<string, mixed> $newValues */
+                                $newValues = $rawNewValues ?? [];
+
+                                $oldStatusValue = isset($oldValues['lifecycle_status']) && is_string($oldValues['lifecycle_status'])
+                                    ? $oldValues['lifecycle_status']
+                                    : null;
+                                $newStatusValue = isset($newValues['lifecycle_status']) && is_string($newValues['lifecycle_status'])
+                                    ? $newValues['lifecycle_status']
+                                    : null;
+
+                                $oldStatus = $oldStatusValue !== null ? ProductLifecycleStatus::tryFrom($oldStatusValue) : null;
+                                $newStatus = $newStatusValue !== null ? ProductLifecycleStatus::tryFrom($newStatusValue) : null;
+
+                                $oldLabel = $oldStatus !== null ? $oldStatus->label() : 'Unknown';
+                                $newLabel = $newStatus !== null ? $newStatus->label() : 'Unknown';
+
+                                $newColor = $newStatus !== null ? $newStatus->color() : 'gray';
+                                /** @var 'gray'|'warning'|'info'|'success'|'danger' $newColor */
+                                $colorClass = match ($newColor) {
+                                    'gray' => 'border-l-gray-400',
+                                    'warning' => 'border-l-yellow-400',
+                                    'info' => 'border-l-blue-400',
+                                    'success' => 'border-l-green-400',
+                                    'danger' => 'border-l-red-400',
+                                };
+
+                                $user = $log->user;
+                                $userName = $user !== null ? $user->name : 'System';
+                                $time = $log->created_at->diffForHumans();
+                                $fullTime = $log->created_at->format('M d, Y H:i');
+
+                                $html .= '<div class="border-l-4 '.$colorClass.' pl-4 py-2">';
+                                $html .= '<div class="flex items-center justify-between">';
+                                $html .= '<div>';
+                                $html .= '<p class="font-medium text-gray-900 dark:text-gray-100">'.$oldLabel.' → '.$newLabel.'</p>';
+
+                                // Show rejection reason if present
+                                $rejectionReason = isset($newValues['rejection_reason']) && is_string($newValues['rejection_reason'])
+                                    ? $newValues['rejection_reason']
+                                    : null;
+                                if ($rejectionReason !== null) {
+                                    $html .= '<p class="text-sm text-red-600 dark:text-red-400 mt-1">';
+                                    $html .= '<span class="font-medium">Reason:</span> '.htmlspecialchars($rejectionReason);
+                                    $html .= '</p>';
+                                }
+
+                                $html .= '<p class="text-sm text-gray-600 dark:text-gray-400">by '.$userName.'</p>';
+                                $html .= '</div>';
+                                $html .= '<span class="text-xs text-gray-500 dark:text-gray-400" title="'.$fullTime.'">'.$time.'</span>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ])
+                ->collapsed()
+                ->collapsible(),
+        ]);
+    }
+
+    /**
+     * Check if the current user can approve or reject products.
+     */
+    protected static function canApproveOrReject(): bool
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $role = $user->role;
+
+        // Managers and above can approve/reject
+        return $role !== null && $role->hasAtLeast(UserRole::Manager);
+    }
+
+    /**
+     * Check if the current user can publish products.
+     */
+    protected static function canPublish(): bool
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $role = $user->role;
+
+        // Managers and above can publish
+        return $role !== null && $role->hasAtLeast(UserRole::Manager);
+    }
+
+    /**
+     * Check if the current user can archive products.
+     */
+    protected static function canArchive(): bool
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $role = $user->role;
+
+        // Admins and above can archive
+        return $role !== null && $role->hasAtLeast(UserRole::Admin);
     }
 
     /**
