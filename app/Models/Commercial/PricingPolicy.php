@@ -130,6 +130,44 @@ class PricingPolicy extends Model
     }
 
     /**
+     * Get the executions for this policy.
+     *
+     * @return HasMany<PricingPolicyExecution, $this>
+     */
+    public function executions(): HasMany
+    {
+        return $this->hasMany(PricingPolicyExecution::class);
+    }
+
+    /**
+     * Get the latest execution for this policy.
+     */
+    public function latestExecution(): ?PricingPolicyExecution
+    {
+        return $this->executions()->latest('executed_at')->first();
+    }
+
+    /**
+     * Get the count of successful executions.
+     */
+    public function successfulExecutionsCount(): int
+    {
+        return $this->executions()
+            ->where('status', \App\Enums\Commercial\ExecutionStatus::Success)
+            ->count();
+    }
+
+    /**
+     * Get the count of failed executions.
+     */
+    public function failedExecutionsCount(): int
+    {
+        return $this->executions()
+            ->where('status', \App\Enums\Commercial\ExecutionStatus::Failed)
+            ->count();
+    }
+
+    /**
      * Check if the policy is in draft status.
      */
     public function isDraft(): bool
