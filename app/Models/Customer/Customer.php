@@ -74,6 +74,16 @@ class Customer extends Model
     }
 
     /**
+     * Get the case entitlements owned by this customer.
+     *
+     * @return HasMany<\App\Models\Allocation\CaseEntitlement, $this>
+     */
+    public function caseEntitlements(): HasMany
+    {
+        return $this->hasMany(\App\Models\Allocation\CaseEntitlement::class);
+    }
+
+    /**
      * Check if the customer is active.
      */
     public function isActive(): bool

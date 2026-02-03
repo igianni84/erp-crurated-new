@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 
+use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Filament\Resources\Allocation\CaseEntitlementResource;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
+use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
 use Filament\Actions;
@@ -115,6 +118,11 @@ class ViewCustomer extends ViewRecord
         $lockedCount = $record->vouchers()->where('lifecycle_state', VoucherLifecycleState::Locked)->count();
         $redeemedCount = $record->vouchers()->where('lifecycle_state', VoucherLifecycleState::Redeemed)->count();
 
+        // Case entitlements counts
+        $totalCaseEntitlements = $record->caseEntitlements()->count();
+        $intactCasesCount = $record->caseEntitlements()->where('status', CaseEntitlementStatus::Intact)->count();
+        $brokenCasesCount = $record->caseEntitlements()->where('status', CaseEntitlementStatus::Broken)->count();
+
         return Tab::make('Vouchers')
             ->icon('heroicon-o-ticket')
             ->badge($totalVouchers > 0 ? (string) $totalVouchers : null)
@@ -174,6 +182,92 @@ class ViewCustomer extends ViewRecord
                     ->schema([
                         $this->getVoucherList(),
                     ]),
+                $this->getCaseEntitlementsSection($record, $totalCaseEntitlements, $intactCasesCount, $brokenCasesCount),
+            ]);
+    }
+
+    /**
+     * Get the Case Entitlements section for the Vouchers tab.
+     */
+    protected function getCaseEntitlementsSection(Customer $record, int $totalCaseEntitlements, int $intactCasesCount, int $brokenCasesCount): Section
+    {
+        return Section::make('Case Entitlements')
+            ->description('Cases (multi-bottle packages) owned by this customer. Click on an entitlement ID to view details.')
+            ->icon('heroicon-o-cube')
+            ->headerActions([
+                \Filament\Infolists\Components\Actions\Action::make('view_all_cases')
+                    ->label('View All in Cases List')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->url(fn (): string => CaseEntitlementResource::getUrl('index', [
+                        'tableFilters' => [
+                            'customer' => ['customer_id' => $record->id],
+                        ],
+                    ]))
+                    ->openUrlInNewTab()
+                    ->visible($totalCaseEntitlements > 0),
+            ])
+            ->collapsed($totalCaseEntitlements === 0)
+            ->collapsible()
+            ->schema([
+                // Case Entitlements Summary
+                Grid::make(3)
+                    ->schema([
+                        TextEntry::make('total_cases')
+                            ->label('Total Cases')
+                            ->getStateUsing(fn (): int => $totalCaseEntitlements)
+                            ->numeric()
+                            ->weight(FontWeight::Bold)
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->icon('heroicon-o-cube'),
+                        TextEntry::make('intact_cases')
+                            ->label('Intact')
+                            ->getStateUsing(fn (): int => $intactCasesCount)
+                            ->numeric()
+                            ->color('success')
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->icon('heroicon-o-check-circle')
+                            ->helperText('Complete and unmodified'),
+                        TextEntry::make('broken_cases')
+                            ->label('Broken')
+                            ->getStateUsing(fn (): int => $brokenCasesCount)
+                            ->numeric()
+                            ->color('danger')
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->icon('heroicon-o-x-circle')
+                            ->helperText('Individual vouchers modified'),
+                    ]),
+
+                // Case Entitlements List
+                RepeatableEntry::make('caseEntitlements')
+                    ->label('')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('id')
+                                    ->label('Entitlement ID')
+                                    ->copyable()
+                                    ->copyMessage('Entitlement ID copied')
+                                    ->url(fn (CaseEntitlement $caseEntitlement): string => CaseEntitlementResource::getUrl('view', ['record' => $caseEntitlement]))
+                                    ->color('primary')
+                                    ->weight(FontWeight::Bold),
+                                TextEntry::make('sellable_sku')
+                                    ->label('Sellable SKU')
+                                    ->getStateUsing(fn (CaseEntitlement $caseEntitlement): string => $caseEntitlement->sellableSku->sku_code ?? 'N/A'),
+                                TextEntry::make('status')
+                                    ->label('Status')
+                                    ->badge()
+                                    ->formatStateUsing(fn (CaseEntitlementStatus $state): string => $state->label())
+                                    ->color(fn (CaseEntitlementStatus $state): string => $state->color())
+                                    ->icon(fn (CaseEntitlementStatus $state): string => $state->icon()),
+                                TextEntry::make('vouchers_count')
+                                    ->label('Vouchers')
+                                    ->getStateUsing(fn (CaseEntitlement $caseEntitlement): int => $caseEntitlement->vouchers()->count())
+                                    ->badge()
+                                    ->color('gray'),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->placeholder('No case entitlements found for this customer.'),
             ]);
     }
 
