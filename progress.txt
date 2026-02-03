@@ -6,6 +6,7 @@ Started: Tue Feb  3 18:51:45 CET 2026
 - Enums should be PHP 8.1+ backed enums with `label()`, `color()`, and `icon()` helper methods for Filament integration
 - Allocation-related enums go in `app/Enums/Allocation/`
 - Use wine_variant_id + format_id as bottle SKU reference (no separate BottleSku model exists)
+- Jobs go in `app/Jobs/{Module}/` - schedule in `routes/console.php` using `Schedule::job()->everyMinute()`
 
 ---
 
@@ -33,4 +34,36 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - The `constraint()` relationship uses HasOne pattern; the FK is `allocation_id` on the constraints table with unique constraint
   - JSON array fields use `'array'` cast in Laravel and `@property array<string>|null` PHPDoc for PHPStan
   - Helper methods: `getAllChannels()`, `getAllCustomerTypes()` return available options; `isChannelAllowed()`, etc. for constraint checking
+---
+
+## 2026-02-03 - US-004
+- What was implemented: LiquidAllocationConstraint model for liquid-specific allocation constraints
+- Files changed:
+  - `database/migrations/2026_02_03_270000_create_liquid_allocation_constraints_table.php` (new)
+  - `app/Models/Allocation/LiquidAllocationConstraint.php` (new)
+  - `app/Models/Allocation/Allocation.php` (added liquidConstraint() relationship and isLiquid()/isBottled() helpers)
+- **Learnings for future iterations:**
+  - LiquidAllocationConstraint has a `saving` event that validates `allocation.supply_form === AllocationSupplyForm::Liquid`
+  - Unlike AllocationConstraint, LiquidAllocationConstraint is NOT auto-created on Allocation creation (only applicable for liquid allocations)
+  - Both constraint models follow the same pattern: unique FK to allocation_id, `updating` event to prevent edits on non-Draft allocations
+  - Added `isLiquid()` and `isBottled()` helper methods to Allocation model for easier supply_form checks
+---
+
+## 2026-02-03 - US-005
+- What was implemented: TemporaryReservation model for temporary holds on allocation quantity to prevent overselling
+- Files changed:
+  - `database/migrations/2026_02_03_280000_create_temporary_reservations_table.php` (new)
+  - `app/Models/Allocation/TemporaryReservation.php` (new)
+  - `app/Enums/Allocation/ReservationContextType.php` (new) - checkout, negotiation, manual_hold
+  - `app/Enums/Allocation/ReservationStatus.php` (new) - active, expired, cancelled, converted
+  - `app/Jobs/Allocation/ExpireReservationsJob.php` (new) - scheduled job to expire reservations
+  - `app/Models/Allocation/Allocation.php` (added temporaryReservations() and activeReservations() relationships)
+  - `routes/console.php` (added scheduled job registration)
+- **Learnings for future iterations:**
+  - TemporaryReservation does NOT consume allocation - it only "blocks" quantity temporarily
+  - ReservationStatus has `isActive()`, `isTerminal()`, `allowedTransitions()`, `canTransitionTo()` helpers like AllocationStatus
+  - Model includes helper methods: `expire()`, `cancel()`, `convert()` for state transitions
+  - Scopes `active()` and `needsExpiration()` are available for querying
+  - Jobs go in `app/Jobs/{Module}/` directory structure
+  - Laravel 11+ scheduling is done in `routes/console.php` using `Schedule::job()->everyMinute()`
 ---
