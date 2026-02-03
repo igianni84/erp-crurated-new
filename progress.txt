@@ -389,3 +389,18 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - For reading AuditLog values with PHPStan, assign to intermediate variable with PHPDoc annotation: `/** @var array<string, mixed>|null $raw */ $raw = $log->old_values;`
   - Recent status history: query AuditLog with `where('event', 'status_change')` and `orderByDesc('created_at')->limit(5)`
 ---
+
+## 2026-02-03 - US-021
+- Implemented Product Detail - Tab Audit with complete audit history timeline
+- Files changed:
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added Audit tab with timeline, filters, detailed change display)
+- **Learnings for future iterations:**
+  - For timeline UI, use relative positioning with absolute left line and dots for visual connection
+  - Use `->live()` and `->dehydrated(false)` on filter fields to enable reactive filtering without persisting values
+  - Use `Forms\Get $get` parameter in Placeholder content closure to access filter values reactively
+  - For null-safe Carbon operations: explicitly check `$createdAt !== null` before calling `diffForHumans()` or `format()`
+  - For mixed type values: use `is_object()` and `is_scalar()` checks before casting to string to satisfy PHPStan
+  - Format field names using a mapping array for common fields, fallback to `ucwords(str_replace('_', ' ', $field))`
+  - Color-coded event badges: success (created), info (updated), warning (status_change), danger (deleted)
+  - Use `<x-dynamic-component component="$icon">` for rendering heroicons from variables
+---
