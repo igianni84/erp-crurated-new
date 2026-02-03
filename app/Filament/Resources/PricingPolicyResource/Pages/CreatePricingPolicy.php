@@ -46,15 +46,31 @@ class CreatePricingPolicy extends CreateRecord
     {
         return new HtmlString(
             \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
-                <x-filament::button
-                    type="submit"
-                    size="sm"
-                >
-                    Create as Draft
-                </x-filament::button>
+                <div class="flex items-center gap-3">
+                    <x-filament::button
+                        type="submit"
+                        size="sm"
+                        wire:click="$set('activateAfterCreate', false)"
+                    >
+                        Create as Draft
+                    </x-filament::button>
+                    <x-filament::button
+                        type="submit"
+                        size="sm"
+                        color="success"
+                        wire:click="$set('activateAfterCreate', true)"
+                    >
+                        Create and Activate
+                    </x-filament::button>
+                </div>
             BLADE)
         );
     }
+
+    /**
+     * Track whether to activate the policy after creation.
+     */
+    public bool $activateAfterCreate = false;
 
     /**
      * Get the wizard steps.
@@ -69,6 +85,7 @@ class CreatePricingPolicy extends CreateRecord
             $this->getLogicStep(),
             $this->getScopeAndTargetStep(),
             $this->getExecutionStep(),
+            $this->getReviewStep(),
         ];
     }
 
@@ -1747,6 +1764,352 @@ class CreatePricingPolicy extends CreateRecord
     }
 
     /**
+     * Step 6: Review & Create
+     * Final summary and confirmation before creating the Pricing Policy.
+     */
+    protected function getReviewStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Review')
+            ->description('Review and create your policy')
+            ->icon('heroicon-o-check-circle')
+            ->schema([
+                // Summary Header
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_header')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="p-4 rounded-lg border bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+                                    <div class="flex items-start gap-3">
+                                        <svg class="w-8 h-8 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="text-xl font-semibold text-green-900">Review Your Pricing Policy</p>
+                                            <p class="text-green-800 mt-1">Please review all the details below before creating the policy. Once created, the policy will be in <strong>Draft</strong> status and can be activated when ready.</p>
+                                        </div>
+                                    </div>
+                                </div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+
+                // Policy Identity Section
+                Forms\Components\Section::make('Policy Identity')
+                    ->description('Basic information about the policy')
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_name')
+                            ->label('Name')
+                            ->content(fn (Get $get): string => $get('name') ?? 'Not specified'),
+
+                        Forms\Components\Placeholder::make('review_type')
+                            ->label('Policy Type')
+                            ->content(function (Get $get): HtmlString {
+                                $type = $get('policy_type');
+                                if ($type === null) {
+                                    return new HtmlString('<span class="text-gray-500">Not specified</span>');
+                                }
+                                $policyType = PricingPolicyType::from($type);
+                                $color = $policyType->color();
+
+                                return new HtmlString(
+                                    "<span class=\"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{$color}-100 text-{$color}-800\">
+                                        {$policyType->label()}
+                                    </span>"
+                                );
+                            }),
+                    ])
+                    ->columns(2),
+
+                // Formula Preview Section
+                Forms\Components\Section::make('Pricing Formula')
+                    ->description('How prices will be calculated')
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_formula')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                return self::generateFormulaPreview($get);
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Input Configuration Summary
+                Forms\Components\Section::make('Input Configuration')
+                    ->description('Data sources and inputs')
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_inputs')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $policyTypeValue = $get('policy_type');
+                                if ($policyTypeValue === null) {
+                                    return new HtmlString('<p class="text-gray-500">No policy type selected.</p>');
+                                }
+
+                                $policyType = PricingPolicyType::from($policyTypeValue);
+                                $items = [];
+
+                                switch ($policyType) {
+                                    case PricingPolicyType::CostPlusMargin:
+                                        $costSource = $get('cost_source') ?? 'product_catalog';
+                                        $sourceLabel = match ($costSource) {
+                                            'bottle_sku_cost' => 'Bottle SKU Cost (landed cost)',
+                                            'manual' => 'Manual Entry (per SKU)',
+                                            default => 'Product Catalog (Sellable SKU cost)',
+                                        };
+                                        $items[] = ['label' => 'Cost Source', 'value' => $sourceLabel];
+                                        break;
+
+                                    case PricingPolicyType::ReferencePriceBook:
+                                        $pbId = $get('source_price_book_id');
+                                        if ($pbId) {
+                                            $pb = \App\Models\Commercial\PriceBook::find($pbId);
+                                            $items[] = ['label' => 'Reference Price Book', 'value' => $pb ? $pb->name : 'Unknown'];
+                                        }
+                                        break;
+
+                                    case PricingPolicyType::IndexBased:
+                                        $indexType = $get('index_type') ?? 'emp';
+                                        if ($indexType === 'emp') {
+                                            $items[] = ['label' => 'Index Type', 'value' => 'Estimated Market Price (EMP)'];
+                                            $items[] = ['label' => 'EMP Market', 'value' => $get('emp_market') ?? 'Default'];
+                                            $confidence = $get('emp_confidence_threshold') ?? 'any';
+                                            $confidenceLabel = match ($confidence) {
+                                                'high' => 'High only',
+                                                'medium' => 'Medium or better',
+                                                'low' => 'Low or better',
+                                                default => 'Any confidence',
+                                            };
+                                            $items[] = ['label' => 'Confidence Threshold', 'value' => $confidenceLabel];
+                                        } else {
+                                            $items[] = ['label' => 'Index Type', 'value' => 'Currency Exchange Rate (FX)'];
+                                            $items[] = ['label' => 'Source Currency', 'value' => $get('source_currency') ?? 'EUR'];
+                                            $items[] = ['label' => 'Target Currency', 'value' => $get('target_currency') ?? 'USD'];
+                                            $buffer = $get('fx_rate_buffer') ?? 0;
+                                            if ((float) $buffer > 0) {
+                                                $items[] = ['label' => 'Rate Buffer', 'value' => "{$buffer}%"];
+                                            }
+                                        }
+                                        break;
+
+                                    case PricingPolicyType::FixedAdjustment:
+                                        $adjType = $get('adjustment_type') ?? 'percentage';
+                                        $adjValue = (float) ($get('adjustment_value') ?? 0);
+                                        $adjLabel = $adjType === 'fixed_amount'
+                                            ? ($adjValue >= 0 ? "+\u20AC{$adjValue}" : "-\u20AC".abs($adjValue))
+                                            : ($adjValue >= 0 ? "+{$adjValue}%" : "{$adjValue}%");
+                                        $items[] = ['label' => 'Adjustment', 'value' => $adjLabel];
+                                        break;
+
+                                    case PricingPolicyType::Rounding:
+                                        $rule = $get('rounding_rule') ?? '.99';
+                                        $ruleLabel = match ($rule) {
+                                            '.99' => 'End in .99',
+                                            '.95' => 'End in .95',
+                                            '.90' => 'End in .90',
+                                            '.00' => 'Whole numbers',
+                                            'nearest_5' => 'Nearest \u20AC5',
+                                            'nearest_10' => 'Nearest \u20AC10',
+                                            default => $rule,
+                                        };
+                                        $items[] = ['label' => 'Rounding Pattern', 'value' => $ruleLabel];
+                                        $direction = $get('rounding_direction') ?? 'nearest';
+                                        $dirLabel = match ($direction) {
+                                            'up' => 'Always round up',
+                                            'down' => 'Always round down',
+                                            default => 'Round to nearest',
+                                        };
+                                        $items[] = ['label' => 'Direction', 'value' => $dirLabel];
+                                        break;
+                                }
+
+                                if (empty($items)) {
+                                    return new HtmlString('<p class="text-gray-500">No specific inputs configured.</p>');
+                                }
+
+                                $html = '<div class="grid grid-cols-2 gap-4">';
+                                foreach ($items as $item) {
+                                    $html .= "<div><p class=\"text-sm font-medium text-gray-500\">{$item['label']}</p><p class=\"text-sm\">{$item['value']}</p></div>";
+                                }
+                                $html .= '</div>';
+
+                                return new HtmlString($html);
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Target & Scope Section
+                Forms\Components\Section::make('Target & Scope')
+                    ->description('Where prices will be generated')
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_target')
+                            ->label('Target Price Book')
+                            ->content(function (Get $get): HtmlString {
+                                $pbId = $get('target_price_book_id');
+                                if (! $pbId) {
+                                    return new HtmlString('<span class="text-gray-500">Not specified</span>');
+                                }
+
+                                $pb = \App\Models\Commercial\PriceBook::withCount('entries')->find($pbId);
+                                if (! $pb) {
+                                    return new HtmlString('<span class="text-red-500">Price Book not found</span>');
+                                }
+
+                                $statusColor = match ($pb->status) {
+                                    \App\Enums\Commercial\PriceBookStatus::Active => 'green',
+                                    \App\Enums\Commercial\PriceBookStatus::Draft => 'yellow',
+                                    default => 'gray',
+                                };
+
+                                return new HtmlString(
+                                    "<div>
+                                        <p class=\"font-medium\">{$pb->name}</p>
+                                        <p class=\"text-sm text-gray-600\">{$pb->market} \u2022 {$pb->currency} \u2022
+                                            <span class=\"px-1.5 py-0.5 rounded text-xs bg-{$statusColor}-100 text-{$statusColor}-800\">{$pb->status->label()}</span>
+                                        </p>
+                                    </div>"
+                                );
+                            }),
+
+                        Forms\Components\Placeholder::make('review_scope')
+                            ->label('Scope')
+                            ->content(function (Get $get): HtmlString {
+                                $scopeType = $get('scope_type') ?? 'all';
+                                $scopeLabel = match ($scopeType) {
+                                    'category' => 'Category: '.($get('scope_category') ?? 'Not specified'),
+                                    'product' => 'Product: '.($get('scope_product') ?? 'Not specified'),
+                                    'sku' => 'Specific SKUs',
+                                    default => 'All commercially available SKUs',
+                                };
+
+                                // Calculate SKU count
+                                $query = \App\Models\Pim\SellableSku::query()->where('lifecycle_status', 'active');
+                                if ($scopeType === 'product') {
+                                    $product = $get('scope_product');
+                                    if ($product) {
+                                        $query->whereHas('wineVariant.wineMaster', fn ($q) => $q->where('name', 'like', "%{$product}%"));
+                                    }
+                                } elseif ($scopeType === 'sku') {
+                                    $skuIds = $get('scope_skus');
+                                    if (! empty($skuIds)) {
+                                        $query->whereIn('id', $skuIds);
+                                    }
+                                }
+                                $count = $query->count();
+
+                                // Check for market/channel restrictions
+                                $restrictions = [];
+                                $markets = $get('scope_markets');
+                                if (! empty($markets)) {
+                                    $restrictions[] = count($markets).' market(s)';
+                                }
+                                $channels = $get('scope_channels');
+                                if (! empty($channels)) {
+                                    $restrictions[] = count($channels).' channel(s)';
+                                }
+                                $restrictionText = ! empty($restrictions) ? ' ('.implode(', ', $restrictions).')' : '';
+
+                                return new HtmlString(
+                                    "<div>
+                                        <p class=\"font-medium\">{$scopeLabel}</p>
+                                        <p class=\"text-sm text-gray-600\">{$count} SKUs affected{$restrictionText}</p>
+                                    </div>"
+                                );
+                            }),
+                    ])
+                    ->columns(2),
+
+                // Execution Configuration Section
+                Forms\Components\Section::make('Execution')
+                    ->description('When and how the policy will execute')
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_execution')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $cadenceValue = $get('execution_cadence');
+                                if ($cadenceValue === null) {
+                                    return new HtmlString('<p class="text-gray-500">Not specified</p>');
+                                }
+
+                                $cadence = ExecutionCadence::from($cadenceValue);
+                                $color = $cadence->color();
+
+                                $details = '';
+                                if ($cadence === ExecutionCadence::Scheduled) {
+                                    $frequency = $get('schedule_frequency') ?? 'daily';
+                                    $time = $get('schedule_time') ?? '06:00';
+                                    $dayOfWeek = $get('schedule_day_of_week') ?? 'monday';
+                                    $dayOfMonth = $get('schedule_day_of_month') ?? '1';
+
+                                    $schedule = match ($frequency) {
+                                        'daily' => "Every day at {$time}",
+                                        'weekly' => 'Every '.ucfirst($dayOfWeek)." at {$time}",
+                                        'monthly' => "On day {$dayOfMonth} of each month at {$time}",
+                                        default => "At {$time}",
+                                    };
+                                    $details = "<p class=\"text-sm text-gray-600 mt-1\">{$schedule}</p>";
+                                } elseif ($cadence === ExecutionCadence::EventTriggered) {
+                                    $triggers = $get('event_triggers') ?? [];
+                                    if (! empty($triggers)) {
+                                        $triggerLabels = array_map(fn ($t) => match ($t) {
+                                            'cost_change' => 'Cost Change',
+                                            'emp_update' => 'EMP Update',
+                                            'fx_change' => 'FX Rate Change',
+                                            default => $t,
+                                        }, $triggers);
+                                        $details = '<p class="text-sm text-gray-600 mt-1">Triggers: '.implode(', ', $triggerLabels).'</p>';
+                                    }
+                                } else {
+                                    $details = '<p class="text-sm text-gray-600 mt-1">Execute on-demand from the Policy Detail page</p>';
+                                }
+
+                                return new HtmlString(
+                                    "<div>
+                                        <span class=\"inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-{$color}-100 text-{$color}-800\">
+                                            {$cadence->label()}
+                                        </span>
+                                        {$details}
+                                    </div>"
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Status and Next Steps
+                Forms\Components\Section::make('Status & Next Steps')
+                    ->schema([
+                        Forms\Components\Placeholder::make('review_status_info')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="space-y-4">
+                                    <div class="p-4 rounded-lg border bg-amber-50 border-amber-200">
+                                        <div class="flex items-start gap-3">
+                                            <svg class="w-6 h-6 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                            </svg>
+                                            <div>
+                                                <p class="font-semibold text-amber-900">Policy will be created as Draft</p>
+                                                <p class="text-amber-800 mt-1">Draft policies are not active and will not generate prices until you explicitly activate them.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="p-4 rounded-lg border bg-gray-50 border-gray-200">
+                                        <p class="font-medium text-gray-900 mb-2">Next Steps After Creation:</p>
+                                        <ol class="list-decimal list-inside text-sm text-gray-700 space-y-1">
+                                            <li>Review the policy in the Detail view</li>
+                                            <li>Run a <strong>Dry Run</strong> to preview generated prices</li>
+                                            <li><strong>Activate</strong> the policy when ready</li>
+                                            <li>Execute the policy to generate prices</li>
+                                            <li>Review and approve the target Price Book</li>
+                                        </ol>
+                                    </div>
+                                </div>'
+                            ))
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
      * Preview rounding for a given value and rule.
      */
     protected static function previewRounding(float $value, string $rule, string $direction): float
@@ -2011,10 +2374,30 @@ class CreatePricingPolicy extends CreateRecord
             session()->forget('pricing_policy_scope_data');
         }
 
-        Notification::make()
-            ->success()
-            ->title('Pricing Policy created')
-            ->body("The pricing policy \"{$pricingPolicy->name}\" has been created as Draft. Configure execution settings, then activate when ready.")
-            ->send();
+        // Handle "Create and Activate" option
+        if ($this->activateAfterCreate) {
+            $pricingPolicy->status = PricingPolicyStatus::Active;
+            $pricingPolicy->save();
+
+            // Log the activation in audit log
+            $pricingPolicy->auditLogs()->create([
+                'event' => 'status_change',
+                'old_values' => ['status' => PricingPolicyStatus::Draft->value],
+                'new_values' => ['status' => PricingPolicyStatus::Active->value],
+                'created_by' => auth()->id(),
+            ]);
+
+            Notification::make()
+                ->success()
+                ->title('Pricing Policy created and activated')
+                ->body("The pricing policy \"{$pricingPolicy->name}\" has been created and activated. You can now execute it to generate prices.")
+                ->send();
+        } else {
+            Notification::make()
+                ->success()
+                ->title('Pricing Policy created')
+                ->body("The pricing policy \"{$pricingPolicy->name}\" has been created as Draft. Activate it when ready to start generating prices.")
+                ->send();
+        }
     }
 }
