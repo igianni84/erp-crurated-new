@@ -7,6 +7,7 @@ use App\Enums\Commercial\PriceSource;
 use App\Filament\Resources\PriceBookResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\PriceBook;
+use App\Services\Commercial\PriceBookService;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -480,9 +481,9 @@ class ViewPriceBook extends ViewRecord
                                     ->default($this->auditDateUntil),
                             ])
                             ->action(function (array $data): void {
-                                $this->auditEventFilter = $data['event_type'] ?? null;
-                                $this->auditDateFrom = $data['date_from'] ?? null;
-                                $this->auditDateUntil = $data['date_until'] ?? null;
+                                $this->auditEventFilter = isset($data['event_type']) && is_string($data['event_type']) ? $data['event_type'] : null;
+                                $this->auditDateFrom = isset($data['date_from']) && is_string($data['date_from']) ? $data['date_from'] : null;
+                                $this->auditDateUntil = isset($data['date_until']) && is_string($data['date_until']) ? $data['date_until'] : null;
                             }),
                         \Filament\Infolists\Components\Actions\Action::make('clear_filters')
                             ->label('Clear Filters')
@@ -652,56 +653,39 @@ class ViewPriceBook extends ViewRecord
                     return implode("\n", $messages);
                 })
                 ->action(function (PriceBook $record): void {
-                    // Validate approver role
-                    if (! auth()->user()?->canApprovePriceBooks()) {
+                    $user = auth()->user();
+                    if ($user === null) {
                         Notification::make()
                             ->danger()
                             ->title('Activation failed')
-                            ->body('You do not have permission to approve price books. Requires Manager role or higher.')
+                            ->body('User not authenticated.')
                             ->send();
 
                         return;
                     }
 
-                    // Validate at least one entry exists
-                    if (! $record->hasEntries()) {
+                    try {
+                        $service = app(PriceBookService::class);
+                        $overlappingCount = $record->findOverlappingActivePriceBooks()->count();
+                        $service->activate($record, $user);
+
+                        $message = "The price book \"{$record->name}\" is now active.";
+                        if ($overlappingCount > 0) {
+                            $message .= " {$overlappingCount} overlapping price book(s) have been expired.";
+                        }
+
+                        Notification::make()
+                            ->success()
+                            ->title('Price Book activated')
+                            ->body($message)
+                            ->send();
+                    } catch (\InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Activation failed')
-                            ->body('Cannot activate a price book with no price entries.')
+                            ->body($e->getMessage())
                             ->send();
-
-                        return;
                     }
-
-                    // Find and expire overlapping active price books using model method
-                    $overlappingBooks = $record->findOverlappingActivePriceBooks();
-                    $expiredCount = 0;
-
-                    foreach ($overlappingBooks as $overlapping) {
-                        $overlapping->update([
-                            'status' => PriceBookStatus::Expired,
-                        ]);
-                        $expiredCount++;
-                    }
-
-                    // Activate the current price book with approval info
-                    $record->update([
-                        'status' => PriceBookStatus::Active,
-                        'approved_at' => now(),
-                        'approved_by' => auth()->id(),
-                    ]);
-
-                    $message = "The price book \"{$record->name}\" is now active.";
-                    if ($expiredCount > 0) {
-                        $message .= " {$expiredCount} overlapping price book(s) have been expired.";
-                    }
-
-                    Notification::make()
-                        ->success()
-                        ->title('Price Book activated')
-                        ->body($message)
-                        ->send();
                 }),
 
             Actions\Action::make('activate_disabled')
@@ -721,15 +705,22 @@ class ViewPriceBook extends ViewRecord
                 ->modalHeading('Archive Price Book')
                 ->modalDescription('This will archive the price book. It will no longer be used for pricing but will be preserved for historical reference.')
                 ->action(function (PriceBook $record): void {
-                    $record->update([
-                        'status' => PriceBookStatus::Archived,
-                    ]);
+                    try {
+                        $service = app(PriceBookService::class);
+                        $service->archive($record);
 
-                    Notification::make()
-                        ->success()
-                        ->title('Price Book archived')
-                        ->body("The price book \"{$record->name}\" has been archived.")
-                        ->send();
+                        Notification::make()
+                            ->success()
+                            ->title('Price Book archived')
+                            ->body("The price book \"{$record->name}\" has been archived.")
+                            ->send();
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Archive failed')
+                            ->body($e->getMessage())
+                            ->send();
+                    }
                 }),
         ];
     }
@@ -739,7 +730,9 @@ class ViewPriceBook extends ViewRecord
      */
     protected static function formatAuditChanges(AuditLog $log): string
     {
+        /** @var array<string, mixed> $oldValues */
         $oldValues = $log->old_values ?? [];
+        /** @var array<string, mixed> $newValues */
         $newValues = $log->new_values ?? [];
 
         if ($log->event === AuditLog::EVENT_CREATED) {
@@ -760,7 +753,7 @@ class ViewPriceBook extends ViewRecord
             $newValue = $newValues[$field] ?? null;
 
             if ($oldValue !== $newValue) {
-                $fieldLabel = ucfirst(str_replace('_', ' ', $field));
+                $fieldLabel = ucfirst(str_replace('_', ' ', (string) $field));
                 $oldDisplay = self::formatValue($oldValue);
                 $newDisplay = self::formatValue($newValue);
                 $changes[] = "<strong>{$fieldLabel}</strong>: {$oldDisplay} → {$newDisplay}";
@@ -789,11 +782,15 @@ class ViewPriceBook extends ViewRecord
             return $value ? 'Yes' : 'No';
         }
 
-        $stringValue = (string) $value;
-        if (strlen($stringValue) > 50) {
-            return htmlspecialchars(substr($stringValue, 0, 47)).'...';
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            $stringValue = (string) $value;
+            if (strlen($stringValue) > 50) {
+                return htmlspecialchars(substr($stringValue, 0, 47)).'...';
+            }
+
+            return htmlspecialchars($stringValue);
         }
 
-        return htmlspecialchars($stringValue);
+        return '<em class="text-gray-400">[complex value]</em>';
     }
 }
