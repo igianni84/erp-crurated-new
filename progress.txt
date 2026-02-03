@@ -302,3 +302,25 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Immutability can be enforced via updating boot event with isDirty() check
   - Voucher only has created_by (no updated_by) since most fields are immutable or controlled by services
 ---
+
+## 2026-02-03 - US-016
+- What was implemented: VoucherLifecycleState enum for voucher lifecycle management
+- Files changed:
+  - `app/Enums/Allocation/VoucherLifecycleState.php` (new)
+  - `app/Models/Allocation/Voucher.php` (updated to use enum)
+- **Features implemented:**
+  - Enum with 4 states: Issued, Locked, Redeemed, Cancelled
+  - Terminal states: Redeemed, Cancelled (isTerminal() returns true)
+  - Valid transitions: issued→locked, issued→cancelled, locked→redeemed, locked→issued (unlock)
+  - Filament-compatible helpers: label(), color(), icon()
+  - Transition helpers: allowedTransitions(), canTransitionTo()
+  - State behavior helpers: isTerminal(), isActive(), allowsTrading(), allowsFlagModification()
+  - description() method for UI state explanation
+  - Voucher model updated: removed string constants, added enum cast, updated all helper methods to use enum
+  - Added model methods: canTransitionTo(), getAllowedTransitions() for transition logic at model level
+- **Learnings for future iterations:**
+  - When converting string constants to enums, update: imports, casts, all comparison checks, and helper methods
+  - Enum methods can delegate logic (e.g., model.isTerminal() → model.lifecycle_state.isTerminal())
+  - Add allowsTrading() to VoucherLifecycleState since trading is only allowed in Issued state
+  - description() method useful for UI tooltips and explanatory text
+---

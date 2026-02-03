@@ -263,8 +263,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented VoucherLifecycleState enum with 4 states (issued, locked, redeemed, cancelled). Terminal states are redeemed and cancelled. Valid transitions: issued→locked, issued→cancelled, locked→redeemed, locked→issued. Updated Voucher model to use the enum via cast instead of string constants. Added helper methods for transitions: canTransitionTo(), allowedTransitions(), allowsTrading(), allowsFlagModification(), description()."
     },
     {
       "id": "US-017",
