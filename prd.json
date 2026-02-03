@@ -366,8 +366,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 22,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented VoucherResource with navigation group 'Vouchers'. Table includes all columns: id, customer (with link), bottle_sku, sellable_sku, allocation_id (with link), lifecycle_state (badge with color/icon from enum), flags (combined badge showing tradable/giftable/suspended). Filters: lifecycle_state (multi-select, default excludes Redeemed/Cancelled), allocation, customer, suspended (ternary), trashed. Search: voucher_id, customer name/email, wine name/producer, allocation_id. No Create action - canCreate() returns false and ListVouchers has empty getHeaderActions(). Browser verification deferred to future story."
     },
     {
       "id": "US-023",

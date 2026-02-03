@@ -449,3 +449,23 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Audit logs are created on BOTH the Voucher and VoucherTransfer models for complete audit trail
   - ExpireTransfersJob follows same pattern as ExpireReservationsJob, scheduled every minute
 ---
+
+## 2026-02-03 - US-022
+- What was implemented: VoucherResource in Filament for voucher list as entry point for customer entitlements
+- Files changed:
+  - `app/Filament/Resources/Allocation/VoucherResource.php` (new)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ListVouchers.php` (new)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (new - placeholder for US-023)
+- **Features implemented:**
+  - Navigation group 'Vouchers' with ticket icon, navigation sort 1
+  - All required columns: id (copyable), customer (with link to customer view), bottle_sku (computed), sellable_sku, allocation_id (with link to allocation view), lifecycle_state (badge), flags (combined badge), created_at
+  - Filters: lifecycle_state (multi-select, default excludes Redeemed/Cancelled), allocation (select with search), customer (select with search), suspended (ternary filter), trashed
+  - Search: voucher_id, customer name/email, wine name/producer via custom query callbacks
+  - NO Create action - canCreate() returns false and ListVouchers has empty getHeaderActions()
+  - Eager loading via modifyQueryUsing for customer, wineVariant.wineMaster, format, sellableSku, allocation
+- **Learnings for future iterations:**
+  - Use `canCreate(): bool` returning false to disable create functionality in Filament resource
+  - TernaryFilter is good for boolean fields with "all/true/false" options
+  - Combined flags badge uses state() callback with manual formatting and separator
+  - Customer link uses route() helper to link to customer resource view page
+---
