@@ -1,383 +1,669 @@
 {
-  "project": "ERP4 - Module 0 PIM",
-  "branchName": "ralph/pim",
-  "description": "Product Information Management (PIM) - Sistema autoritativo per l'identità e la struttura dei prodotti nell'ERP Crurated",
+  "project": "ERP4 - Module A Allocations & Vouchers",
+  "branchName": "ralph/module-a-allocations",
+  "description": "Module A - Sistema autoritativo per la gestione della supply vendibile (Allocations) e delle obbligazioni verso i clienti (Vouchers/Entitlements) nell'ERP Crurated",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Setup modello Wine Master",
-      "description": "Come Product Manager, voglio definire l'identità base di un vino (indipendente da vintage) per avere una struttura gerarchica pulita.",
+      "title": "Setup modello Allocation",
+      "description": "Come Admin, voglio definire il modello base per le allocazioni di supply vendibile a livello Bottle SKU.",
       "acceptanceCriteria": [
-        "Tabella `wine_masters` con campi: name, producer, appellation, classification, country, region, description",
-        "Campi opzionali: liv_ex_code, regulatory_attributes (JSON)",
-        "Filament Resource con form di creazione/modifica",
-        "Ricerca per nome, producer, appellation",
+        "Tabella `allocations` con campi: id, uuid, bottle_sku_id (FK), source_type (enum), supply_form (enum), total_quantity, sold_quantity, remaining_quantity, expected_availability_start, expected_availability_end, serialization_required (boolean, default true), status (enum)",
+        "Soft deletes abilitati",
+        "remaining_quantity calcolato come total_quantity - sold_quantity",
+        "Relazione: Allocation belongsTo BottleSku (WineVariant + Format)",
+        "Vincolo: total_quantity >= sold_quantity sempre",
         "Typecheck e lint passano"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Implemented using wine_variant_id + format_id as bottle SKU reference (no separate BottleSku model exists). Enums also created as they were required for the model."
     },
     {
       "id": "US-002",
-      "title": "Setup modello Wine Variant (Vintage)",
-      "description": "Come Product Manager, voglio associare un vintage specifico a un Wine Master per gestire le annate.",
+      "title": "Setup enums per Allocation",
+      "description": "Come Developer, voglio enums ben definiti per i tipi e stati delle allocazioni.",
       "acceptanceCriteria": [
-        "Tabella `wine_variants` con FK a wine_masters",
-        "Campi: vintage_year, alcohol_percentage, drinking_window_start, drinking_window_end",
-        "Campi JSON: critic_scores, production_notes",
-        "Relazione: WineMaster hasMany WineVariant",
-        "Filament Resource con filtro per Wine Master",
-        "Vincolo: vintage_year unico per wine_master_id",
+        "Enum `AllocationSourceType`: producer_allocation, owned_stock, passive_consignment, third_party_custody",
+        "Enum `AllocationSupplyForm`: bottled, liquid",
+        "Enum `AllocationStatus`: draft, active, exhausted, closed",
+        "Enums in `app/Enums/Allocation/`",
         "Typecheck e lint passano"
       ],
       "priority": 2,
       "passes": true,
-      "notes": ""
+      "notes": "Enums were already created as part of US-001. All three enums exist in app/Enums/Allocation/ with proper values, labels, colors, and icons for Filament integration. AllocationStatus also includes transition logic helpers."
     },
     {
       "id": "US-003",
-      "title": "Setup modello Format",
-      "description": "Come Admin, voglio definire i formati bottiglia standard per riutilizzarli su tutti i prodotti.",
+      "title": "Setup modello AllocationConstraint",
+      "description": "Come Admin, voglio definire i vincoli commerciali autoritativi di un'allocation.",
       "acceptanceCriteria": [
-        "Tabella `formats` con campi: name, volume_ml, is_standard, allowed_for_liquid_conversion",
-        "Formati predefiniti: 375ml, 750ml, 1500ml, 3000ml, 6000ml",
-        "Filament Resource con creazione/modifica",
-        "Soft delete per mantenere integrità referenziale",
+        "Tabella `allocation_constraints` con: id, allocation_id (FK unique), allowed_channels (JSON array), allowed_geographies (JSON array), allowed_customer_types (JSON array), composition_constraint_group (string nullable), fungibility_exception (boolean default false)",
+        "Relazione: Allocation hasOne AllocationConstraint",
+        "AllocationConstraint creato automaticamente con Allocation",
+        "Vincoli sono editabili solo se Allocation è in Draft",
         "Typecheck e lint passano"
       ],
       "priority": 3,
       "passes": true,
-      "notes": ""
+      "notes": "Implemented AllocationConstraint model with migration, automatic creation on Allocation save, and validation to prevent editing when not in Draft status."
     },
     {
       "id": "US-004",
-      "title": "Setup modello Case Configuration",
-      "description": "Come Product Manager, voglio definire le configurazioni case (OWC, OC, loose) per gestire correttamente il packaging.",
+      "title": "Setup modello LiquidAllocationConstraint",
+      "description": "Come Admin, voglio vincoli aggiuntivi per le liquid allocations.",
       "acceptanceCriteria": [
-        "Tabella `case_configurations` con campi: name, format_id (FK), bottles_per_case, case_type (enum: owc, oc, none)",
-        "Campi boolean: is_original_from_producer, is_breakable",
-        "Configurazioni predefinite: 6x750ml OWC, 6x750ml OC, 12x750ml OWC, 1x1500ml OWC, loose",
-        "Filament Resource con filtri per format e case_type",
+        "Tabella `liquid_allocation_constraints` con: id, allocation_id (FK unique), allowed_bottling_formats (JSON array), allowed_case_configurations (JSON array), bottling_confirmation_deadline (date nullable)",
+        "Relazione: Allocation hasOne LiquidAllocationConstraint (solo se supply_form = liquid)",
+        "Validazione: allocation.supply_form deve essere 'liquid'",
         "Typecheck e lint passano"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Setup modello Sellable SKU",
-      "description": "Come Product Manager, voglio creare SKU vendibili combinando Wine Variant + Format + Case Configuration.",
+      "title": "Setup modello TemporaryReservation",
+      "description": "Come Developer, voglio un sistema di reservation temporanee per prevenire overselling durante checkout o negoziazioni.",
       "acceptanceCriteria": [
-        "Tabella `sellable_skus` con FK: wine_variant_id, format_id, case_configuration_id",
-        "Campi: sku_code (unique, auto-generated), barcode (optional)",
-        "Enum lifecycle_status: draft, active, retired",
-        "SKU code format: {WINE_CODE}-{VINTAGE}-{FORMAT}-{CASE} (es: SASS-2018-750-6OWC)",
-        "Filament Resource nested dentro Wine Variant detail",
-        "Vincolo: combinazione wine_variant + format + case_configuration unica",
+        "Tabella `temporary_reservations` con: id, uuid, allocation_id (FK), quantity, context_type (enum), context_reference (string nullable), status (enum), expires_at, created_by (FK users nullable)",
+        "Enum `ReservationContextType`: checkout, negotiation, manual_hold",
+        "Enum `ReservationStatus`: active, expired, cancelled, converted",
+        "Job schedulato per espirare reservations oltre expires_at",
+        "Reservation non consuma allocation, solo 'blocca' temporaneamente",
         "Typecheck e lint passano"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Setup modello Liquid Product",
-      "description": "Come Product Manager, voglio definire Liquid Products per vendite pre-bottling.",
+      "title": "AllocationService per gestione allocation",
+      "description": "Come Developer, voglio un service per centralizzare la logica di allocation.",
       "acceptanceCriteria": [
-        "Tabella `liquid_products` con FK a wine_variant_id",
-        "Campi JSON: allowed_equivalent_units, allowed_final_formats, allowed_case_configurations, bottling_constraints",
-        "Campo boolean: serialization_required (default true)",
-        "Enum lifecycle_status: draft, in_review, approved, published, archived",
-        "Liquid Products non hanno Sellable SKUs diretti",
-        "Filament Resource separato da Bottle Products",
+        "Service class `AllocationService` in `app/Services/Allocation/`",
+        "Metodo `activate(Allocation)`: transizione draft → active",
+        "Metodo `close(Allocation)`: transizione active/exhausted → closed",
+        "Metodo `consumeAllocation(Allocation, quantity)`: decrementa remaining, incrementa sold",
+        "Metodo `checkAvailability(Allocation, quantity)`: verifica disponibilità (remaining - active_reservations >= quantity)",
+        "Metodo `getRemainingAvailable(Allocation)`: remaining - sum(active_reservations.quantity)",
+        "Validazioni con eccezioni esplicite",
         "Typecheck e lint passano"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Implementare lifecycle states per Wine Variant",
-      "description": "Come Reviewer, voglio che i Wine Variant seguano un workflow di approvazione prima di essere pubblicati.",
+      "title": "Allocation List in Filament",
+      "description": "Come Operator, voglio una lista allocations come entry point operativo del modulo.",
       "acceptanceCriteria": [
-        "Enum ProductLifecycleStatus: draft, in_review, approved, published, archived",
-        "Campo lifecycle_status su wine_variants",
-        "Transizioni valide: draft→in_review, in_review→approved/rejected(draft), approved→published, published→archived",
-        "Bottoni azione in Filament basati su stato corrente e ruolo utente",
-        "Modifica di campi sensibili su Published ritorna automatico a In Review",
-        "Typecheck e lint passano"
+        "AllocationResource in Filament con navigation group 'Allocations'",
+        "Lista con colonne: allocation_id, bottle_sku (wine+vintage+format), supply_form, source_type, status, total_qty, sold_qty, remaining_qty, availability_window, constraint_summary, updated_at",
+        "Filtri: status, source_type, supply_form, bottle_sku",
+        "Ricerca per: wine name, producer, bottle SKU, allocation ID",
+        "Closed allocations nascosti di default (filtro)",
+        "Indicatore visivo per allocations quasi esaurite (remaining < 10%)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Implementare completeness percentage",
-      "description": "Come Product Manager, voglio vedere la percentuale di completamento di un prodotto per sapere cosa manca.",
+      "title": "Create Allocation wizard - Step 1 (Bottle SKU)",
+      "description": "Come Operator, voglio selezionare il Bottle SKU come primo step della creazione allocation.",
       "acceptanceCriteria": [
-        "Metodo getCompletenessPercentage() su WineVariant",
-        "Definizione campi required vs optional con pesi",
-        "Colonna completeness nella lista prodotti",
-        "Badge colorato: <50% rosso, 50-80% giallo, >80% verde",
-        "Typecheck e lint passano"
+        "Wizard step 1: selezione Wine + Vintage + Format (Bottle SKU)",
+        "Autocomplete search per wine name",
+        "Mostra solo formati esistenti per la wine variant selezionata",
+        "Messaggio chiaro: 'Allocation always happens at Bottle SKU level'",
+        "No concetti di sellable SKU o packaging a questo stadio",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Implementare blocking issues e warnings",
-      "description": "Come Product Manager, voglio vedere chiaramente quali problemi bloccano la pubblicazione.",
+      "title": "Create Allocation wizard - Step 2 (Source & Capacity)",
+      "description": "Come Operator, voglio definire source type, supply form e quantità.",
       "acceptanceCriteria": [
-        "Metodo getBlockingIssues() che ritorna array di problemi",
-        "Metodo getWarnings() per problemi non bloccanti",
-        "Tab Overview mostra issues raggruppati",
-        "Click su issue naviga al tab/campo corrispondente",
-        "Blocco pubblicazione se esistono blocking issues",
-        "Typecheck e lint passano"
+        "Step 2 fields: source_type, supply_form, total_quantity, expected_availability_start, expected_availability_end, serialization_required",
+        "Inline guidance che spiega implicazioni di bottled vs liquid",
+        "Inline guidance per serialization requirement",
+        "Validazione: total_quantity > 0",
+        "Validazione: expected_availability_end >= expected_availability_start (se entrambi presenti)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Implementare audit log",
-      "description": "Come Compliance Officer, voglio un log immutabile di tutte le modifiche ai prodotti.",
+      "title": "Create Allocation wizard - Step 3 (Commercial Constraints)",
+      "description": "Come Operator, voglio definire i vincoli commerciali autoritativi dell'allocation.",
       "acceptanceCriteria": [
-        "Tabella `audit_logs` con: auditable_type, auditable_id, event, old_values, new_values, user_id, created_at",
-        "Trait Auditable per modelli PIM",
-        "Log automatico su create, update, delete, status change",
-        "Tab Audit in Product Detail con timeline",
-        "Filtri per tipo evento e date range",
-        "Typecheck e lint passano"
+        "Step 3 fields: allowed_channels (multi-select), allowed_geographies (multi-select), allowed_customer_types (multi-select)",
+        "Opzioni channels: b2c, b2b, private_sales, wholesale, club",
+        "Opzioni customer_types: retail, trade, private_client, club_member, internal",
+        "Messaggio prominente: 'Constraints are AUTHORITATIVE. Module S must enforce them.'",
+        "Default: tutti i canali/geografie/customer types se non specificato",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Product List view",
-      "description": "Come Operator, voglio una lista prodotti completa con filtri per gestire il catalogo.",
+      "title": "Create Allocation wizard - Step 4 (Advanced/Liquid Constraints)",
+      "description": "Come Operator, voglio definire vincoli avanzati e liquid-specific quando applicabile.",
       "acceptanceCriteria": [
-        "Lista con colonne: thumbnail, name+vintage, category, lifecycle_status, completeness%, data_source, updated_at",
-        "Filtri: status, category (bottle/liquid), completeness range, source (liv-ex/manual)",
-        "Ricerca: nome, internal code, LWIN",
-        "Bulk actions: submit for review (solo su draft)",
-        "No azioni sensibili (publish, archive) dalla lista",
+        "Step 4 collapsed by default, espanso solo se supply_form = liquid",
+        "Fields avanzati: composition_constraint_group, fungibility_exception",
+        "Fields liquid-only (visibili solo se supply_form = liquid): allowed_bottling_formats, allowed_case_configurations, bottling_confirmation_deadline",
+        "Spiegazione inline per composition constraints (vertical cases)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-012",
-      "title": "Create Product flow - scelta categoria",
-      "description": "Come Product Manager, voglio scegliere se creare un Bottle Product o Liquid Product all'inizio.",
+      "title": "Create Allocation wizard - Step 5 (Review & Create)",
+      "description": "Come Operator, voglio vedere un riepilogo prima di creare l'allocation.",
       "acceptanceCriteria": [
-        "Wizard step 1: selezione categoria (Bottle/Liquid)",
-        "Scelta irreversibile dopo creazione",
-        "UI chiara con descrizione di ogni categoria",
-        "Redirect a flow specifico dopo selezione",
+        "Step 5: read-only summary di tutti i dati inseriti",
+        "Mostra warnings informativi (se presenti)",
+        "Allocation creata in status 'draft' by default",
+        "Messaggio: 'Draft allocations cannot be consumed and do not issue vouchers'",
+        "CTA: 'Create as Draft' (primary), 'Create and Activate' (secondary, role-based)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-013",
-      "title": "Create Bottle Product - import Liv-ex",
-      "description": "Come Product Manager, voglio importare dati da Liv-ex per creare prodotti velocemente con dati accurati.",
+      "title": "Allocation Detail con 6 tabs",
+      "description": "Come Operator, voglio vedere tutti i dettagli di un'allocation organizzati in tabs.",
       "acceptanceCriteria": [
-        "Step 2a: selezione metodo (Liv-ex / Manual)",
-        "Ricerca Liv-ex per LWIN o nome vino",
-        "Mostra risultati matching con preview dati",
-        "Conferma import con indicazione campi che saranno locked",
-        "Creazione Wine Master se non esiste",
-        "Creazione Wine Variant in stato Draft",
-        "Import attributi e media da Liv-ex",
+        "Tab Overview: read-only control panel con status, quantities, availability window, lineage rule",
+        "Tab Constraints: vincoli commerciali, editabili solo se Draft",
+        "Tab Capacity & Consumption: breakdown consumo per sellable SKU, channel, time",
+        "Tab Reservations: lista temporary reservations con status",
+        "Tab Vouchers: lista read-only vouchers emessi da questa allocation",
+        "Tab Audit: timeline eventi immutabile",
+        "Azioni contestuali role-based: Activate (Draft→Active), Close (Active/Exhausted→Closed)",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-014",
-      "title": "Create Bottle Product - manual",
-      "description": "Come Product Manager, voglio creare un prodotto manualmente quando non disponibile su Liv-ex.",
+      "title": "Allocation status transitions",
+      "description": "Come Admin, voglio che le transizioni di stato seguano regole precise.",
       "acceptanceCriteria": [
-        "Step 2b: form manuale con campi minimi (wine name, vintage, producer)",
-        "Creazione o selezione Wine Master esistente",
-        "Creazione Wine Variant in stato Draft",
-        "Redirect a Product Detail per completamento",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Transizioni valide: draft→active, active→exhausted (automatico quando remaining=0), active→closed, exhausted→closed",
+        "Transizione draft→active: constraints diventano read-only",
+        "Transizione invalida genera errore user-friendly",
+        "Status exhausted settato automaticamente quando remaining_quantity = 0",
+        "Closed allocation non può essere riaperta (creare nuova allocation)",
+        "Ogni transizione logga user_id, timestamp",
+        "Typecheck e lint passano"
       ],
       "priority": 14,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-015",
-      "title": "Product Detail - Tab Overview",
-      "description": "Come Product Manager, voglio vedere lo stato complessivo di un prodotto a colpo d'occhio.",
+      "title": "Setup modello Voucher",
+      "description": "Come Admin, voglio il modello Voucher come entitlement atomico cliente.",
       "acceptanceCriteria": [
-        "Read-only control panel",
-        "Mostra: identity, lifecycle status, completeness %, blocking issues, warnings, Liv-ex status",
-        "Azioni contestuali: Validate, Submit for Review, Approve/Reject, Publish",
-        "Azioni visibili solo se permesse da ruolo e stato",
-        "Click su issue naviga al tab corretto",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Tabella `vouchers` con: id, uuid, customer_id (FK), allocation_id (FK), bottle_sku_id (FK), sellable_sku_id (FK nullable), quantity (always 1), lifecycle_state (enum), tradable (boolean default true), giftable (boolean default true), suspended (boolean default false), sale_reference (string), created_at",
+        "Soft deletes abilitati",
+        "Relazione: Voucher belongsTo Customer, Allocation, BottleSku, SellableSku",
+        "Invariante: quantity = 1 sempre (1 voucher = 1 bottiglia o bottle-equivalent)",
+        "allocation_id è immutabile dopo creazione (lineage non negoziabile)",
+        "Typecheck e lint passano"
       ],
       "priority": 15,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-016",
-      "title": "Product Detail - Tab Core Info",
-      "description": "Come Product Manager, voglio modificare le informazioni base del prodotto.",
+      "title": "Setup enum VoucherLifecycleState",
+      "description": "Come Developer, voglio un enum per gli stati del ciclo di vita del voucher.",
       "acceptanceCriteria": [
-        "Campi: wine name, vintage, producer, appellation, internal references, descriptions",
-        "Campi Liv-ex: marcati visivamente, locked by default",
-        "Override Liv-ex: solo Manager/Admin con conferma",
-        "Modifica campo sensibile su Published → status diventa In Review",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Enum `VoucherLifecycleState`: issued, locked, redeemed, cancelled",
+        "Stati terminali: redeemed, cancelled (no ulteriori transizioni)",
+        "Transizioni valide: issued→locked, issued→cancelled, locked→redeemed, locked→issued (unlock)",
+        "Enum in `app/Enums/Allocation/`",
+        "Typecheck e lint passano"
       ],
       "priority": 16,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-017",
-      "title": "Product Detail - Tab Attributes",
-      "description": "Come Product Manager, voglio gestire gli attributi strutturati del prodotto.",
+      "title": "Setup modello CaseEntitlement",
+      "description": "Come Admin, voglio raggruppare vouchers quando un cliente compra un fixed case.",
       "acceptanceCriteria": [
-        "Attributi caricati dinamicamente da attribute set",
-        "Raggruppamento in sezioni logiche (Wine Info, Compliance, etc.)",
-        "Indicatore required/optional per attributo",
-        "Mostra: valore corrente, source (Liv-ex/Manual), editability",
-        "Completeness aggiornata in real-time",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Tabella `case_entitlements` con: id, uuid, customer_id (FK), sellable_sku_id (FK), status (enum: intact, broken), created_at, broken_at (nullable), broken_reason (string nullable)",
+        "Relazione: CaseEntitlement hasMany Voucher (tramite pivot o FK su voucher)",
+        "Campo case_entitlement_id (FK nullable) su vouchers",
+        "Status passa a 'broken' irreversibilmente se un voucher viene trasferito, tradato o redento singolarmente",
+        "Typecheck e lint passano"
       ],
       "priority": 17,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-018",
-      "title": "Product Detail - Tab Media",
-      "description": "Come Content Editor, voglio gestire immagini e documenti del prodotto.",
+      "title": "Setup modello VoucherTransfer",
+      "description": "Come Admin, voglio tracciare i trasferimenti di voucher tra clienti.",
       "acceptanceCriteria": [
-        "Sezione Liv-ex media (read-only)",
-        "Sezione manual uploads (editable)",
-        "Upload multiple images e documents",
-        "Drag & drop reorder per manual images",
-        "Set primary image (required per publish)",
-        "Refresh Liv-ex assets button",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Tabella `voucher_transfers` con: id, voucher_id (FK), from_customer_id (FK), to_customer_id (FK), status (enum), initiated_at, expires_at, accepted_at (nullable), cancelled_at (nullable)",
+        "Enum `VoucherTransferStatus`: pending, accepted, cancelled, expired",
+        "Relazione: Voucher hasMany VoucherTransfer",
+        "Transfer non crea nuovo voucher, cambia solo holder",
+        "Transfer non consuma allocation",
+        "Typecheck e lint passano"
       ],
       "priority": 18,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-019",
-      "title": "Product Detail - Tab Sellable SKUs",
-      "description": "Come Product Manager, voglio definire come questo vino può essere venduto.",
+      "title": "VoucherService per gestione vouchers",
+      "description": "Come Developer, voglio un service per centralizzare la logica dei voucher.",
       "acceptanceCriteria": [
-        "Lista SKU con: code, format, case configuration, integrity flags, lifecycle status",
-        "Create SKU: select format → select case configuration",
-        "Generate intrinsic SKUs from producer data",
-        "Retire obsolete SKUs",
-        "SKU lifecycle indipendente da product lifecycle",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Service class `VoucherService` in `app/Services/Allocation/`",
+        "Metodo `issueVouchers(Allocation, Customer, SellableSku, saleReference, quantity)`: crea vouchers e consuma allocation",
+        "Metodo `lockForFulfillment(Voucher)`: issued → locked",
+        "Metodo `unlock(Voucher)`: locked → issued",
+        "Metodo `redeem(Voucher)`: locked → redeemed",
+        "Metodo `cancel(Voucher)`: issued → cancelled",
+        "Metodo `suspend(Voucher)`: setta suspended = true",
+        "Metodo `reactivate(Voucher)`: setta suspended = false",
+        "Validazioni con eccezioni esplicite per transizioni invalide",
+        "Typecheck e lint passano"
       ],
       "priority": 19,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-020",
-      "title": "Product Detail - Tab Lifecycle",
-      "description": "Come Reviewer, voglio gestire le transizioni di stato del prodotto.",
+      "title": "CaseEntitlementService per gestione case",
+      "description": "Come Developer, voglio un service per gestire la logica dei case entitlements.",
       "acceptanceCriteria": [
-        "Mostra: stato corrente, publish readiness checklist, blocking vs warnings",
-        "Solo transizioni valide visibili basate su ruolo",
-        "Transizioni: Draft→In Review, In Review→Approved/Rejected, Approved→Published, Published→Archived",
-        "Conferma con commento obbligatorio per Reject",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Service class `CaseEntitlementService` in `app/Services/Allocation/`",
+        "Metodo `createFromVouchers(array vouchers, Customer, SellableSku)`: crea CaseEntitlement e associa vouchers",
+        "Metodo `breakEntitlement(CaseEntitlement, reason)`: status → broken, irreversibile",
+        "Metodo `isIntact(CaseEntitlement)`: verifica che tutti i vouchers siano con stesso holder e non redenti",
+        "Trigger automatico di break quando un voucher del case viene trasferito/tradato/redento",
+        "Typecheck e lint passano"
       ],
       "priority": 20,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-021",
-      "title": "Product Detail - Tab Audit",
-      "description": "Come Compliance Officer, voglio vedere la storia completa delle modifiche.",
+      "title": "VoucherTransferService per gifting",
+      "description": "Come Developer, voglio un service per gestire i trasferimenti voucher.",
       "acceptanceCriteria": [
-        "Timeline read-only con tutti gli eventi",
-        "Eventi: status changes, attribute edits, media updates, SKU changes, Liv-ex imports",
-        "Mostra: timestamp, user, tipo evento, old→new values",
-        "Filtri per tipo evento e date range",
-        "Typecheck e lint passano",
-        "Verify in browser using dev-browser skill"
+        "Service class `VoucherTransferService` in `app/Services/Allocation/`",
+        "Metodo `initiateTransfer(Voucher, toCustomer, expiresAt)`: crea pending transfer",
+        "Metodo `acceptTransfer(VoucherTransfer)`: aggiorna voucher.customer_id, status → accepted",
+        "Metodo `cancelTransfer(VoucherTransfer)`: status → cancelled",
+        "Metodo `expireTransfers()`: job per expirare pending transfers",
+        "Validazioni: voucher non locked, non suspended, non già in pending transfer",
+        "Se voucher in CaseEntitlement, break entitlement on accept",
+        "Typecheck e lint passano"
       ],
       "priority": 21,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-022",
-      "title": "Data Quality dashboard",
-      "description": "Come Operations Manager, voglio monitorare la salute del catalogo prodotti.",
+      "title": "Voucher List in Filament",
+      "description": "Come Operator, voglio una lista vouchers come entry point per gli entitlements cliente.",
       "acceptanceCriteria": [
-        "Vista cross-product con metriche aggregate",
-        "Widgets: prodotti per status, completeness distribution, blocking issues count",
-        "Lista prodotti bloccati con link diretto al problema",
-        "Export lista issues per bulk fixing",
+        "VoucherResource in Filament con navigation group 'Vouchers'",
+        "Lista con colonne: voucher_id, customer, bottle_sku, sellable_sku, allocation_id, lifecycle_state, flags (badges: tradable, giftable, suspended), created_at",
+        "Filtri: lifecycle_state, allocation_id, customer, suspended",
+        "Ricerca per: voucher_id, customer name, wine name, allocation_id",
+        "Redeemed e cancelled nascosti di default",
+        "**NO azione Create** - vouchers creati solo da sale confirmation",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 22,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-023",
-      "title": "Supporto Composite Sellable SKUs",
-      "description": "Come Product Manager, voglio creare SKU bundle composti da multiple Bottle SKUs.",
+      "title": "Voucher Detail view",
+      "description": "Come Operator, voglio vedere tutti i dettagli di un voucher.",
       "acceptanceCriteria": [
-        "Tabella `composite_sku_items` con: composite_sku_id, sellable_sku_id, quantity",
-        "Campo `is_composite` boolean su sellable_skus",
-        "Composite SKU = indivisibile commercialmente",
-        "Validazione: tutti gli SKU componenti devono essere active",
-        "UI per definire composizione bundle",
+        "Header: voucher_id, customer (current holder), lifecycle_state con banner prominente",
+        "Section 1 - What was sold: sellable_sku, bottle_sku, quantity (=1), case_entitlement (if any) con status",
+        "Section 2 - Allocation lineage: allocation_id (link), source_type, constraints snapshot, serialization requirement. Messaggio: 'Lineage can never be modified'",
+        "Section 3 - Lifecycle state: stato corrente, diagramma transizioni (read-only)",
+        "Section 4 - Behavioral flags: tradable, giftable, suspended con toggle (role-based)",
+        "Section 5 - Transfer context: pending transfers, external trading reference",
+        "Section 6 - Event history: audit trail immutabile",
         "Typecheck e lint passano",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
-      "passes": true,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Voucher behavioral flags management",
+      "description": "Come Operator, voglio gestire i flags comportamentali dei voucher.",
+      "acceptanceCriteria": [
+        "Toggle tradable, giftable solo se voucher è issued (non locked/redeemed/cancelled)",
+        "Toggle suspended solo se voucher non è terminale",
+        "Suspended override altri flags (blocca tutte le operazioni)",
+        "Ogni toggle richiede conferma e genera audit event",
+        "Flags non modificabili se voucher è suspended (tranne per unsuspend)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Voucher transfer UI",
+      "description": "Come Operator, voglio gestire i trasferimenti voucher dall'admin panel.",
+      "acceptanceCriteria": [
+        "Azione 'Initiate Transfer' visibile solo se voucher è issued, non suspended, non in pending transfer",
+        "Form: select recipient customer, expiration date",
+        "Pending transfer visibile in voucher detail con actions: Cancel Transfer",
+        "Accept Transfer non disponibile da admin (fatto dal recipient nel customer portal)",
+        "Messaggio chiaro: 'Transfers do not create new vouchers or consume allocation'",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Customer Vouchers tab",
+      "description": "Come Operator, voglio vedere i vouchers di un cliente dal Customer Detail.",
+      "acceptanceCriteria": [
+        "Tab Vouchers in CustomerResource detail view",
+        "Lista vouchers del customer con: voucher_id, bottle_sku, lifecycle_state, flags",
+        "Filtri per lifecycle_state",
+        "Link a voucher detail",
+        "Summary: total vouchers, issued, locked, redeemed",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Allocation Vouchers tab (read-only)",
+      "description": "Come Operator, voglio vedere i vouchers emessi da un'allocation.",
+      "acceptanceCriteria": [
+        "Tab Vouchers in AllocationResource già implementato (US-013)",
+        "Lista read-only: voucher_id, customer, lifecycle_state, created_at",
+        "Nessuna azione di modifica da questo tab",
+        "Link a voucher detail",
+        "Summary: total issued, locked, redeemed, cancelled",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "CaseEntitlement management",
+      "description": "Come Operator, voglio vedere e gestire i case entitlements.",
+      "acceptanceCriteria": [
+        "CaseEntitlementResource in Filament (lightweight, read-focused)",
+        "Lista: entitlement_id, customer, sellable_sku, status (intact/broken), vouchers_count, created_at",
+        "Filtri: status, customer",
+        "Detail view: vouchers nel case, status, broken_at, broken_reason",
+        "NO azioni manuali per break (avviene automaticamente)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "CaseEntitlement breakability rules",
+      "description": "Come Developer, voglio che il case si rompa automaticamente secondo le regole.",
+      "acceptanceCriteria": [
+        "Case diventa broken quando: un voucher viene trasferito, un voucher viene tradato, un voucher viene redento singolarmente",
+        "Break è irreversibile",
+        "broken_reason registra la causa (transfer, trade, partial_redemption)",
+        "Vouchers rimanenti restano validi ma si comportano come loose bottles",
+        "Event logged per audit",
+        "Typecheck e lint passano"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Customer Case Entitlements view",
+      "description": "Come Operator, voglio vedere i case entitlements di un cliente.",
+      "acceptanceCriteria": [
+        "Sezione Case Entitlements in Customer Detail (o sotto-sezione del tab Vouchers)",
+        "Lista: entitlement_id, sellable_sku, status, vouchers count",
+        "Indicatore visivo per INTACT vs BROKEN",
+        "Link a CaseEntitlement detail",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Transfer List globale",
+      "description": "Come Operator, voglio vedere tutti i trasferimenti voucher pendenti.",
+      "acceptanceCriteria": [
+        "VoucherTransferResource in Filament",
+        "Lista: transfer_id, voucher_id, from_customer, to_customer, status, initiated_at, expires_at",
+        "Filtri: status, date range",
+        "Azioni role-based: Cancel Transfer (su pending)",
+        "Link a voucher detail",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "External trading suspension",
+      "description": "Come Developer, voglio gestire la sospensione voucher durante trading esterno.",
+      "acceptanceCriteria": [
+        "Campo external_trading_reference (string nullable) su vouchers",
+        "Quando suspended=true e external_trading_reference presente, mostra 'Suspended for external trading'",
+        "API/callback per: suspend_for_trading(voucher, reference), complete_trading(voucher, new_customer)",
+        "complete_trading aggiorna customer_id e unsuspend, preserva lineage",
+        "Voucher sospeso non può essere redento, trasferito, o modificato",
+        "Typecheck e lint passano"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Trading completion callback",
+      "description": "Come Developer, voglio un endpoint per ricevere completamento trading esterno.",
+      "acceptanceCriteria": [
+        "API endpoint POST /api/vouchers/{voucher}/trading-complete",
+        "Payload: new_customer_id, trading_reference",
+        "Validazione: voucher suspended, trading_reference match",
+        "Azione: customer_id = new_customer_id, suspended = false, external_trading_reference = null",
+        "Event logged con old/new customer",
+        "Typecheck e lint passano"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Allocation lineage enforcement",
+      "description": "Come Developer, voglio che la lineage dell'allocation sia enforced in tutto il sistema.",
+      "acceptanceCriteria": [
+        "allocation_id su Voucher è immutabile (no update permesso)",
+        "Fulfillment (Module C) deve validare che bottiglia fisica appartenga alla stessa allocation lineage",
+        "Tentativo di fulfill con bottiglia da altra allocation genera errore",
+        "UI mostra warning prominente: 'Not fulfillable outside lineage'",
+        "Test che verifica immutabilità allocation_id",
+        "Typecheck e lint passano"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Concurrent transfer and lock handling",
+      "description": "Come Developer, voglio gestire correttamente conflitti tra transfer e fulfillment lock.",
+      "acceptanceCriteria": [
+        "Se voucher diventa locked mentre transfer è pending, transfer acceptance viene bloccato",
+        "UI mostra: 'Locked during transfer - acceptance blocked'",
+        "Transfer può essere cancelled",
+        "Timestamps espliciti per ordinamento eventi",
+        "Test per scenario race condition",
+        "Typecheck e lint passano"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Duplicate voucher prevention (idempotency)",
+      "description": "Come Developer, voglio prevenire creazione duplicata di vouchers per stesso sale.",
+      "acceptanceCriteria": [
+        "Campo sale_reference su vouchers è unique per allocation+customer combination",
+        "Validazione in VoucherService.issueVouchers che verifica duplicati",
+        "Se duplicato, return vouchers esistenti invece di crearne nuovi",
+        "Log warning per attempted duplicate",
+        "Typecheck e lint passano"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Voucher without allocation (quarantine)",
+      "description": "Come Developer, voglio gestire vouchers anomali senza allocation.",
+      "acceptanceCriteria": [
+        "Constraint: allocation_id non può essere null (database level)",
+        "Se data import crea voucher senza allocation, validation failure",
+        "Processo di quarantine per vouchers problematici (fuori scope normale)",
+        "UI flag per vouchers 'anomali' che richiedono intervento manuale",
+        "Typecheck e lint passano"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Audit log per Allocations",
+      "description": "Come Compliance Officer, voglio un log immutabile per tutte le modifiche alle allocations.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a: Allocation, AllocationConstraint, LiquidAllocationConstraint, TemporaryReservation",
+        "Eventi loggati: creation, status_change, constraint_edit (draft only), quantity_change, close",
+        "Tab Audit in Allocation Detail con timeline",
+        "Filtri per tipo evento e date range",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Audit log per Vouchers",
+      "description": "Come Compliance Officer, voglio un log immutabile per tutte le modifiche ai vouchers.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a: Voucher, CaseEntitlement, VoucherTransfer",
+        "Eventi loggati: issuance, lifecycle_change, flag_change, transfer_initiated, transfer_accepted, suspension, reactivation",
+        "Section Event History in Voucher Detail con timeline",
+        "Filtri per tipo evento e date range",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Allocation & Voucher dashboard",
+      "description": "Come Operations Manager, voglio una dashboard per monitorare la salute del sistema A&V.",
+      "acceptanceCriteria": [
+        "Dashboard page in Filament",
+        "Widgets allocations: total active, near exhaustion, closed this month",
+        "Widgets vouchers: total issued, pending redemption, redeemed this month",
+        "Widget reservations: active count, expired today",
+        "Widget transfers: pending count, failed transfers",
+        "Link rapidi a problemi (allocations quasi esaurite, transfers scaduti)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 40,
+      "passes": false,
       "notes": ""
     }
   ]

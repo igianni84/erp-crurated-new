@@ -12,6 +12,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -94,6 +95,11 @@ class Allocation extends Model
                 );
             }
         });
+
+        // Automatically create AllocationConstraint when Allocation is created
+        static::created(function (Allocation $allocation): void {
+            $allocation->constraint()->create([]);
+        });
     }
 
     /**
@@ -114,6 +120,16 @@ class Allocation extends Model
     public function format(): BelongsTo
     {
         return $this->belongsTo(Format::class);
+    }
+
+    /**
+     * Get the commercial constraints for this allocation.
+     *
+     * @return HasOne<AllocationConstraint, $this>
+     */
+    public function constraint(): HasOne
+    {
+        return $this->hasOne(AllocationConstraint::class);
     }
 
     /**
