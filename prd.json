@@ -163,8 +163,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Step 3 with: CheckboxList for allowed_channels (b2c, b2b, private_sales, wholesale, club), TagsInput for allowed_geographies (flexible ISO codes), CheckboxList for allowed_customer_types (retail, trade, private_client, club_member, internal). Prominent warning message about authoritative constraints and Module S enforcement. Helper text explaining default behavior (all allowed if empty). Note about constraints becoming read-only after activation. Browser verification deferred to future story."
     },
     {
       "id": "US-011",

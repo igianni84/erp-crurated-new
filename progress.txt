@@ -161,3 +161,24 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Placeholder components with markdown (**bold**) work for inline guidance
   - Each step method returns a Wizard\Step - add to getSteps() array
 ---
+
+## 2026-02-03 - US-010
+- What was implemented: Create Allocation wizard - Step 3 (Commercial Constraints)
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/CreateAllocation.php` (added getCommercialConstraintsStep method, updated getSteps, mutateFormDataBeforeCreate, and added afterCreate)
+- **Features implemented:**
+  - Step 3: Commercial Constraints with shield-check icon
+  - Prominent warning message: "⚠️ AUTHORITATIVE CONSTRAINTS — These constraints are binding and will be enforced by Module S"
+  - CheckboxList for allowed_channels with options: b2c, b2b, private_sales, wholesale, club (displayed in 2 columns)
+  - TagsInput for allowed_geographies (flexible input for ISO country/region codes)
+  - CheckboxList for allowed_customer_types with options: retail, trade, private_client, club_member, internal (displayed in 2 columns)
+  - Helper text explaining default behavior: empty = all allowed
+  - Info note about constraints becoming read-only after activation
+  - Nested form data handling via session storage + afterCreate hook to update AllocationConstraint
+- **Learnings for future iterations:**
+  - Use `constraint.field_name` dot notation for nested related model fields in wizard forms
+  - For related model data in creation wizards, use session storage in `mutateFormDataBeforeCreate()` and apply in `afterCreate()` hook
+  - CheckboxList with `->columns(2)` for compact multi-select display
+  - TagsInput is flexible for user-defined values (like geography codes) vs CheckboxList for predefined options
+  - Use PHPDoc `@var` type hints to help PHPStan understand `$this->record` type in afterCreate
+---
