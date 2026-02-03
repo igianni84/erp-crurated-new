@@ -12,6 +12,8 @@ Started: Tue Feb  3 16:33:41 CET 2026
 - Navigation group for PIM is 'PIM', sort order starts at 1
 - For enum match arms, use PHPDoc `@var 'val1'|'val2'|'val3'` annotation to satisfy PHPStan
 - For nested resources, create RelationManager in `Resource/RelationManagers/` and register in `getRelations()`
+- For enum-cast properties used in traits, add `@property EnumClass $property_name` PHPDoc on the model class
+- Use `HasProductLifecycle` trait and `ProductLifecycleStatus` enum for PIM models with approval workflow
 
 ---
 
@@ -127,4 +129,22 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Lifecycle status enum can have more states than SKU (draft, in_review, approved, published, archived)
   - Use 'heroicon-o-beaker' icon for liquid/pre-bottling related resources
   - Navigation sort for LiquidProduct = 6 (after SellableSku=5)
+---
+
+## 2026-02-03 17:19 CET - US-007
+- Implemented lifecycle states for Wine Variant with approval workflow
+- Files changed:
+  - `app/Enums/ProductLifecycleStatus.php` (new)
+  - `app/Traits/HasProductLifecycle.php` (new)
+  - `database/migrations/2026_02_03_171920_add_lifecycle_status_to_wine_variants_table.php` (new)
+  - `app/Models/Pim/WineVariant.php` (modified - added HasProductLifecycle trait, lifecycle_status field)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added status column, filter, lifecycle actions)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added lifecycle actions in header)
+- **Learnings for future iterations:**
+  - Use `ProductLifecycleStatus` enum for PIM products with review workflow (draft, in_review, approved, published, archived)
+  - Use `HasProductLifecycle` trait for models needing approval workflow
+  - For enum cast properties that need PHPStan to understand, add `@property EnumClass $property_name` PHPDoc annotation on the model
+  - Sensitive fields that auto-trigger review status change are defined in model `SENSITIVE_FIELDS` constant
+  - Lifecycle action buttons in Filament: use `ActionGroup` with `->visible()` based on `canTransitionTo()` method
+  - Filament Notifications: use `Notification::make()->title('Message')->success()->send()` for action feedback
 ---
