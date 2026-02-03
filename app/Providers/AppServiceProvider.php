@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\Allocation\Allocation;
+use App\Policies\AllocationPolicy;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +22,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Register policies for models in subdirectories
+        Gate::policy(Allocation::class, AllocationPolicy::class);
     }
 }
