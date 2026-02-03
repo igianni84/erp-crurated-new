@@ -57,6 +57,11 @@ class WineVariantResource extends Resource
                             ->schema([
                                 self::getMediaSchema(),
                             ]),
+                        Forms\Components\Tabs\Tab::make('Sellable SKUs')
+                            ->icon('heroicon-o-cube')
+                            ->schema([
+                                self::getSellableSkusSchema(),
+                            ]),
                     ])
                     ->columnSpanFull()
                     ->persistTabInQueryString(),
@@ -933,6 +938,214 @@ class WineVariantResource extends Resource
                 ])
                 ->collapsible()
                 ->collapsed(),
+        ]);
+    }
+
+    /**
+     * Get the Sellable SKUs tab schema.
+     */
+    protected static function getSellableSkusSchema(): Forms\Components\Component
+    {
+        return Forms\Components\Group::make([
+            // SKU Summary Section
+            Forms\Components\Section::make('SKU Overview')
+                ->description('Summary of sellable SKUs for this product')
+                ->icon('heroicon-o-cube')
+                ->schema([
+                    Forms\Components\Placeholder::make('sku_summary')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product first to manage SKUs.</div>';
+                            }
+
+                            $totalSkus = $record->sellableSkus()->count();
+                            $activeSkus = $record->sellableSkus()->where('lifecycle_status', 'active')->count();
+                            $draftSkus = $record->sellableSkus()->where('lifecycle_status', 'draft')->count();
+                            $retiredSkus = $record->sellableSkus()->where('lifecycle_status', 'retired')->count();
+                            $intrinsicSkus = $record->sellableSkus()->where('is_intrinsic', true)->count();
+                            $verifiedSkus = $record->sellableSkus()->where('is_verified', true)->count();
+
+                            $html = '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">';
+
+                            // Total SKUs
+                            $html .= '<div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">';
+                            $html .= '<p class="text-2xl font-bold text-gray-900 dark:text-gray-100">'.$totalSkus.'</p>';
+                            $html .= '<p class="text-xs text-gray-600 dark:text-gray-400">Total SKUs</p>';
+                            $html .= '</div>';
+
+                            // Active SKUs
+                            $html .= '<div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg text-center">';
+                            $html .= '<p class="text-2xl font-bold text-green-600 dark:text-green-400">'.$activeSkus.'</p>';
+                            $html .= '<p class="text-xs text-green-800 dark:text-green-200">Active</p>';
+                            $html .= '</div>';
+
+                            // Draft SKUs
+                            $html .= '<div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">';
+                            $html .= '<p class="text-2xl font-bold text-gray-600 dark:text-gray-400">'.$draftSkus.'</p>';
+                            $html .= '<p class="text-xs text-gray-600 dark:text-gray-400">Draft</p>';
+                            $html .= '</div>';
+
+                            // Retired SKUs
+                            $html .= '<div class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg text-center">';
+                            $html .= '<p class="text-2xl font-bold text-red-600 dark:text-red-400">'.$retiredSkus.'</p>';
+                            $html .= '<p class="text-xs text-red-800 dark:text-red-200">Retired</p>';
+                            $html .= '</div>';
+
+                            // Intrinsic SKUs
+                            $html .= '<div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-center">';
+                            $html .= '<p class="text-2xl font-bold text-blue-600 dark:text-blue-400">'.$intrinsicSkus.'</p>';
+                            $html .= '<p class="text-xs text-blue-800 dark:text-blue-200">Intrinsic</p>';
+                            $html .= '</div>';
+
+                            // Verified SKUs
+                            $html .= '<div class="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg text-center">';
+                            $html .= '<p class="text-2xl font-bold text-purple-600 dark:text-purple-400">'.$verifiedSkus.'</p>';
+                            $html .= '<p class="text-xs text-purple-800 dark:text-purple-200">Verified</p>';
+                            $html .= '</div>';
+
+                            $html .= '</div>';
+
+                            // Status message
+                            if ($totalSkus === 0) {
+                                $html .= '<div class="mt-4 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">';
+                                $html .= '<div class="flex items-center gap-2">';
+                                $html .= '<svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+                                $html .= '<span class="font-medium text-yellow-800 dark:text-yellow-200">At least one SKU is required for publication</span>';
+                                $html .= '</div>';
+                                $html .= '<p class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">Use the SKU management panel below to create SKUs.</p>';
+                                $html .= '</div>';
+                            } elseif ($activeSkus === 0) {
+                                $html .= '<div class="mt-4 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">';
+                                $html .= '<div class="flex items-center gap-2">';
+                                $html .= '<svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+                                $html .= '<span class="font-medium text-yellow-800 dark:text-yellow-200">No active SKUs</span>';
+                                $html .= '</div>';
+                                $html .= '<p class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">Activate draft SKUs to make them available for sale.</p>';
+                                $html .= '</div>';
+                            } else {
+                                $html .= '<div class="mt-4 p-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">';
+                                $html .= '<div class="flex items-center gap-2">';
+                                $html .= '<svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
+                                $html .= '<span class="font-medium text-green-800 dark:text-green-200">SKUs are properly configured</span>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ]),
+
+            // SKU List Section
+            Forms\Components\Section::make('SKU List')
+                ->description('Current sellable SKUs for this product. Use the relation manager below for full management.')
+                ->icon('heroicon-o-list-bullet')
+                ->schema([
+                    Forms\Components\Placeholder::make('sku_list')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product first to see SKUs.</div>';
+                            }
+
+                            $skus = $record->sellableSkus()->with(['format', 'caseConfiguration'])->get();
+
+                            if ($skus->isEmpty()) {
+                                return '<div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                                    <svg class="mx-auto w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    <p class="mt-2">No SKUs defined yet</p>
+                                    <p class="text-sm">Scroll down to the SKU management section to create SKUs.</p>
+                                </div>';
+                            }
+
+                            $html = '<div class="overflow-x-auto">';
+                            $html .= '<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">';
+                            $html .= '<thead class="bg-gray-50 dark:bg-gray-800">';
+                            $html .= '<tr>';
+                            $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SKU Code</th>';
+                            $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Format</th>';
+                            $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Case</th>';
+                            $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Flags</th>';
+                            $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>';
+                            $html .= '</tr>';
+                            $html .= '</thead>';
+                            $html .= '<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">';
+
+                            foreach ($skus as $sku) {
+                                $format = $sku->format;
+                                $caseConfig = $sku->caseConfiguration;
+
+                                /** @var 'owc'|'oc'|'none' $caseTypeValue */
+                                $caseTypeValue = $caseConfig->case_type;
+                                $caseTypeLabel = match ($caseTypeValue) {
+                                    'owc' => 'OWC',
+                                    'oc' => 'OC',
+                                    'none' => 'Loose',
+                                };
+
+                                $statusColor = $sku->getStatusColor();
+                                $statusBgClass = match ($statusColor) {
+                                    'success' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                                    'danger' => 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+                                    default => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+                                };
+
+                                // Build flags
+                                $flags = [];
+                                if ($sku->is_intrinsic) {
+                                    $flags[] = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">Intrinsic</span>';
+                                }
+                                if ($sku->is_producer_original) {
+                                    $flags[] = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">Original</span>';
+                                }
+                                if ($sku->is_verified) {
+                                    $flags[] = '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">✓ Verified</span>';
+                                }
+                                $flagsHtml = count($flags) > 0 ? implode(' ', $flags) : '<span class="text-gray-400">—</span>';
+
+                                $html .= '<tr>';
+                                $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">'.htmlspecialchars($sku->sku_code).'</td>';
+                                $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">'.htmlspecialchars($format->name).' ('.$format->volume_ml.'ml)</td>';
+                                $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">'.$caseConfig->bottles_per_case.'x '.$caseTypeLabel.'</td>';
+                                $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm">'.$flagsHtml.'</td>';
+                                $html .= '<td class="px-4 py-2 whitespace-nowrap"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium '.$statusBgClass.'">'.$sku->getStatusLabel().'</span></td>';
+                                $html .= '</tr>';
+                            }
+
+                            $html .= '</tbody>';
+                            $html .= '</table>';
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ])
+                ->collapsible(),
+
+            // Info about RelationManager
+            Forms\Components\Section::make('Full SKU Management')
+                ->description('Scroll down to the "Sellable SKUs" relation manager for full SKU management including create, edit, delete, activate, retire, and generate intrinsic SKUs.')
+                ->icon('heroicon-o-arrow-down')
+                ->schema([
+                    Forms\Components\Placeholder::make('relation_manager_hint')
+                        ->label('')
+                        ->content('<div class="text-gray-600 dark:text-gray-400">
+                            <p>The full SKU management panel is available below this form. Features include:</p>
+                            <ul class="list-disc list-inside mt-2 space-y-1">
+                                <li><strong>Create SKU</strong> - Add new SKU with format and case configuration</li>
+                                <li><strong>Generate Intrinsic SKUs</strong> - Auto-create standard producer configurations</li>
+                                <li><strong>Lifecycle Actions</strong> - Activate, retire, or reactivate SKUs</li>
+                                <li><strong>Verify SKUs</strong> - Mark configurations as verified</li>
+                                <li><strong>Bulk Actions</strong> - Manage multiple SKUs at once</li>
+                            </ul>
+                        </div>')
+                        ->dehydrated(false),
+                ])
+                ->collapsed()
+                ->collapsible(),
         ]);
     }
 
