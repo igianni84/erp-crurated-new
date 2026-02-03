@@ -66,6 +66,7 @@ class CreatePricingPolicy extends CreateRecord
         return [
             $this->getTypeStep(),
             $this->getInputsStep(),
+            $this->getLogicStep(),
         ];
     }
 
@@ -610,6 +611,499 @@ class CreatePricingPolicy extends CreateRecord
     }
 
     /**
+     * Step 3: Logic Definition
+     * Defines the calculation logic based on policy type.
+     */
+    protected function getLogicStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Logic')
+            ->description('Define the calculation logic')
+            ->icon('heroicon-o-calculator')
+            ->schema([
+                // Info section
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('logic_info')
+                            ->label('')
+                            ->content(function (Get $get): string {
+                                $type = $get('policy_type');
+                                if ($type === null) {
+                                    return 'Please select a policy type in Step 1.';
+                                }
+
+                                $policyType = PricingPolicyType::from($type);
+
+                                return match ($policyType) {
+                                    PricingPolicyType::CostPlusMargin => 'Define the margin to add to product cost. You can set a fixed percentage or configure tiered margins for different categories.',
+                                    PricingPolicyType::ReferencePriceBook => 'Define how to adjust prices from the reference Price Book. You can apply a percentage adjustment or tiered adjustments.',
+                                    PricingPolicyType::IndexBased => 'Define how to calculate prices from the external index. Configure multipliers and adjustments.',
+                                    PricingPolicyType::FixedAdjustment => 'The adjustment was already configured in Step 2. Here you can add optional rounding rules.',
+                                    PricingPolicyType::Rounding => 'The rounding rule was already configured in Step 2. No additional logic is needed.',
+                                };
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Cost + Margin Logic
+                Forms\Components\Section::make('Margin Configuration')
+                    ->description('Define how margin is calculated')
+                    ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::CostPlusMargin->value)
+                    ->schema([
+                        Forms\Components\Radio::make('margin_type')
+                            ->label('Margin Type')
+                            ->options([
+                                'percentage' => 'Percentage Margin',
+                                'fixed_amount' => 'Fixed Amount Markup',
+                            ])
+                            ->descriptions([
+                                'percentage' => 'Add a percentage of the cost (e.g., cost × 1.30 for 30% margin)',
+                                'fixed_amount' => 'Add a fixed amount to the cost (e.g., cost + €10)',
+                            ])
+                            ->default('percentage')
+                            ->required()
+                            ->live()
+                            ->columnSpanFull(),
+
+                        Forms\Components\TextInput::make('margin_percentage')
+                            ->label('Margin Percentage')
+                            ->numeric()
+                            ->required()
+                            ->default(25)
+                            ->minValue(0)
+                            ->maxValue(500)
+                            ->suffix('%')
+                            ->visible(fn (Get $get): bool => ($get('margin_type') ?? 'percentage') === 'percentage')
+                            ->helperText('The percentage to add to cost (e.g., 30 means selling at cost + 30%)')
+                            ->live(),
+
+                        Forms\Components\TextInput::make('markup_fixed_amount')
+                            ->label('Fixed Markup Amount')
+                            ->numeric()
+                            ->required()
+                            ->default(10)
+                            ->minValue(0)
+                            ->suffix('€')
+                            ->visible(fn (Get $get): bool => ($get('margin_type') ?? 'percentage') === 'fixed_amount')
+                            ->helperText('Fixed amount to add to each product cost')
+                            ->live(),
+
+                        // Tiered margins toggle
+                        Forms\Components\Toggle::make('use_tiered_margins')
+                            ->label('Use Tiered Margins')
+                            ->helperText('Apply different margins based on product category or price range')
+                            ->default(false)
+                            ->live()
+                            ->columnSpanFull(),
+
+                        // Tiered margins configuration
+                        Forms\Components\Repeater::make('tiered_margins')
+                            ->label('Tier Configuration')
+                            ->visible(fn (Get $get): bool => $get('use_tiered_margins') === true)
+                            ->schema([
+                                Forms\Components\Select::make('tier_type')
+                                    ->label('Tier Based On')
+                                    ->options([
+                                        'category' => 'Product Category',
+                                        'price_range' => 'Price Range',
+                                    ])
+                                    ->default('category')
+                                    ->required()
+                                    ->live(),
+
+                                Forms\Components\TextInput::make('tier_category')
+                                    ->label('Category Name')
+                                    ->visible(fn (Get $get): bool => ($get('tier_type') ?? 'category') === 'category')
+                                    ->placeholder('e.g., Premium Wines'),
+
+                                Forms\Components\TextInput::make('tier_min_price')
+                                    ->label('Min Price')
+                                    ->numeric()
+                                    ->prefix('€')
+                                    ->visible(fn (Get $get): bool => ($get('tier_type') ?? 'category') === 'price_range'),
+
+                                Forms\Components\TextInput::make('tier_max_price')
+                                    ->label('Max Price')
+                                    ->numeric()
+                                    ->prefix('€')
+                                    ->visible(fn (Get $get): bool => ($get('tier_type') ?? 'category') === 'price_range'),
+
+                                Forms\Components\TextInput::make('tier_margin')
+                                    ->label('Margin %')
+                                    ->numeric()
+                                    ->required()
+                                    ->suffix('%')
+                                    ->default(25),
+                            ])
+                            ->columns(3)
+                            ->defaultItems(1)
+                            ->addActionLabel('Add Tier')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
+                // Reference Price Book Logic
+                Forms\Components\Section::make('Adjustment Configuration')
+                    ->description('Define how to adjust reference prices')
+                    ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::ReferencePriceBook->value)
+                    ->schema([
+                        Forms\Components\Radio::make('ref_adjustment_type')
+                            ->label('Adjustment Type')
+                            ->options([
+                                'percentage' => 'Percentage Adjustment',
+                                'fixed_amount' => 'Fixed Amount Adjustment',
+                            ])
+                            ->descriptions([
+                                'percentage' => 'Adjust by a percentage (e.g., -15% for wholesale)',
+                                'fixed_amount' => 'Adjust by a fixed amount (e.g., -€5 per unit)',
+                            ])
+                            ->default('percentage')
+                            ->required()
+                            ->live()
+                            ->columnSpanFull(),
+
+                        Forms\Components\TextInput::make('ref_adjustment_value')
+                            ->label(fn (Get $get): string => ($get('ref_adjustment_type') ?? 'percentage') === 'fixed_amount'
+                                ? 'Adjustment Amount'
+                                : 'Adjustment Percentage')
+                            ->numeric()
+                            ->required()
+                            ->default(0)
+                            ->suffix(fn (Get $get): string => ($get('ref_adjustment_type') ?? 'percentage') === 'fixed_amount' ? '€' : '%')
+                            ->helperText('Use negative values for discounts, positive for markups')
+                            ->live(),
+
+                        // Tiered adjustments toggle
+                        Forms\Components\Toggle::make('use_tiered_adjustments')
+                            ->label('Use Tiered Adjustments')
+                            ->helperText('Apply different adjustments based on product category')
+                            ->default(false)
+                            ->live()
+                            ->columnSpanFull(),
+
+                        Forms\Components\Repeater::make('tiered_adjustments')
+                            ->label('Tier Configuration')
+                            ->visible(fn (Get $get): bool => $get('use_tiered_adjustments') === true)
+                            ->schema([
+                                Forms\Components\TextInput::make('tier_category')
+                                    ->label('Category Name')
+                                    ->placeholder('e.g., Premium Wines'),
+
+                                Forms\Components\TextInput::make('tier_adjustment')
+                                    ->label('Adjustment %')
+                                    ->numeric()
+                                    ->required()
+                                    ->suffix('%')
+                                    ->default(0)
+                                    ->helperText('Negative for discount'),
+                            ])
+                            ->columns(2)
+                            ->defaultItems(1)
+                            ->addActionLabel('Add Tier')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
+
+                // Index-Based Logic
+                Forms\Components\Section::make('Index Multiplier')
+                    ->description('Define how to calculate prices from the index')
+                    ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::IndexBased->value)
+                    ->schema([
+                        Forms\Components\TextInput::make('index_multiplier')
+                            ->label('Index Multiplier')
+                            ->numeric()
+                            ->required()
+                            ->default(1.0)
+                            ->minValue(0.1)
+                            ->maxValue(10)
+                            ->step(0.01)
+                            ->helperText('Multiply the index value by this factor (e.g., 1.1 for 10% above market)')
+                            ->live(),
+
+                        Forms\Components\TextInput::make('index_fixed_adjustment')
+                            ->label('Fixed Adjustment')
+                            ->numeric()
+                            ->default(0)
+                            ->prefix('€')
+                            ->helperText('Add/subtract a fixed amount after multiplier (optional)')
+                            ->live(),
+
+                        Forms\Components\Placeholder::make('index_example')
+                            ->label('Calculation Example')
+                            ->content(function (Get $get): HtmlString {
+                                $multiplier = (float) ($get('index_multiplier') ?? 1.0);
+                                $adjustment = (float) ($get('index_fixed_adjustment') ?? 0);
+                                $indexType = $get('index_type') ?? 'emp';
+
+                                $exampleIndex = $indexType === 'emp' ? 100 : 85; // Example EMP or converted price
+                                $result = ($exampleIndex * $multiplier) + $adjustment;
+
+                                $formula = "Index Value × {$multiplier}";
+                                if ($adjustment !== 0.0) {
+                                    $formula .= $adjustment >= 0 ? " + €{$adjustment}" : ' - €'.abs($adjustment);
+                                }
+
+                                return new HtmlString(
+                                    "<div class=\"bg-blue-50 p-3 rounded-lg border border-blue-200\">
+                                        <p class=\"font-medium text-blue-800\">Formula: {$formula}</p>
+                                        <p class=\"text-blue-700 mt-1\">Example: €{$exampleIndex} × {$multiplier}".($adjustment !== 0.0 ? ($adjustment >= 0 ? " + €{$adjustment}" : ' - €'.abs($adjustment)) : '').' = €'.number_format($result, 2).'</p>
+                                    </div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
+                // Fixed Adjustment - just show what was configured in Step 2
+                Forms\Components\Section::make('Adjustment Summary')
+                    ->description('Review the adjustment configured in Step 2')
+                    ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::FixedAdjustment->value)
+                    ->schema([
+                        Forms\Components\Placeholder::make('adjustment_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $type = $get('adjustment_type') ?? 'percentage';
+                                $value = (float) ($get('adjustment_value') ?? 0);
+
+                                $direction = $value >= 0 ? 'increase' : 'decrease';
+                                $absValue = abs($value);
+
+                                if ($type === 'fixed_amount') {
+                                    $description = $value >= 0 ? "+€{$absValue}" : "-€{$absValue}";
+                                } else {
+                                    $description = $value >= 0 ? "+{$absValue}%" : "-{$absValue}%";
+                                }
+
+                                $colorClass = $value >= 0 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800';
+
+                                return new HtmlString(
+                                    "<div class=\"p-4 rounded-lg border {$colorClass}\">
+                                        <p class=\"text-lg font-semibold\">{$description}</p>
+                                        <p class=\"mt-1\">This adjustment will {$direction} all prices by ".($type === 'fixed_amount' ? '€'.$absValue : $absValue.'%').'.</p>
+                                    </div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Rounding - just show what was configured in Step 2
+                Forms\Components\Section::make('Rounding Summary')
+                    ->description('Review the rounding rule configured in Step 2')
+                    ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::Rounding->value)
+                    ->schema([
+                        Forms\Components\Placeholder::make('rounding_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $rule = $get('rounding_rule') ?? '.99';
+                                $direction = $get('rounding_direction') ?? 'nearest';
+
+                                $ruleLabel = match ($rule) {
+                                    '.99' => 'End in .99',
+                                    '.95' => 'End in .95',
+                                    '.90' => 'End in .90',
+                                    '.00' => 'Whole numbers',
+                                    'nearest_5' => 'Nearest €5',
+                                    'nearest_10' => 'Nearest €10',
+                                    default => $rule,
+                                };
+
+                                $directionLabel = match ($direction) {
+                                    'up' => 'always round up',
+                                    'down' => 'always round down',
+                                    default => 'round to nearest',
+                                };
+
+                                return new HtmlString(
+                                    "<div class=\"p-4 rounded-lg border bg-gray-50 border-gray-200\">
+                                        <p class=\"text-lg font-semibold\">{$ruleLabel}</p>
+                                        <p class=\"mt-1 text-gray-600\">Direction: {$directionLabel}</p>
+                                    </div>"
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Optional Rounding for non-rounding policies
+                Forms\Components\Section::make('Final Rounding (Optional)')
+                    ->description('Apply rounding to the calculated price')
+                    ->visible(fn (Get $get): bool => ! in_array($get('policy_type'), [
+                        PricingPolicyType::Rounding->value,
+                        PricingPolicyType::FixedAdjustment->value,
+                    ], true))
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Toggle::make('apply_rounding')
+                            ->label('Apply Rounding')
+                            ->helperText('Round the final calculated price')
+                            ->default(false)
+                            ->live()
+                            ->columnSpanFull(),
+
+                        Forms\Components\Select::make('final_rounding_rule')
+                            ->label('Rounding Pattern')
+                            ->options([
+                                '.99' => 'End in .99',
+                                '.95' => 'End in .95',
+                                '.90' => 'End in .90',
+                                '.00' => 'Whole numbers',
+                                'nearest_5' => 'Nearest €5',
+                                'nearest_10' => 'Nearest €10',
+                            ])
+                            ->default('.99')
+                            ->visible(fn (Get $get): bool => $get('apply_rounding') === true),
+
+                        Forms\Components\Select::make('final_rounding_direction')
+                            ->label('Direction')
+                            ->options([
+                                'nearest' => 'Nearest',
+                                'up' => 'Always up',
+                                'down' => 'Always down',
+                            ])
+                            ->default('nearest')
+                            ->visible(fn (Get $get): bool => $get('apply_rounding') === true),
+                    ])
+                    ->columns(2),
+
+                // Formula Preview
+                Forms\Components\Section::make('Formula Preview')
+                    ->description('Plain-language summary of your pricing logic')
+                    ->schema([
+                        Forms\Components\Placeholder::make('formula_preview')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                return self::generateFormulaPreview($get);
+                            })
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Generate a plain-language formula preview based on form values.
+     */
+    protected static function generateFormulaPreview(Get $get): HtmlString
+    {
+        $policyTypeValue = $get('policy_type');
+        if ($policyTypeValue === null) {
+            return new HtmlString('<p class="text-gray-500">Please complete previous steps to see the formula preview.</p>');
+        }
+
+        $policyType = PricingPolicyType::from($policyTypeValue);
+        $formula = '';
+        $example = '';
+        $exampleInput = 100;
+
+        switch ($policyType) {
+            case PricingPolicyType::CostPlusMargin:
+                $marginType = $get('margin_type') ?? 'percentage';
+                $useTiered = $get('use_tiered_margins') ?? false;
+
+                if ($useTiered) {
+                    $formula = 'Cost + Tiered Margin (varies by category/range)';
+                    $example = 'Example varies by tier configuration';
+                } elseif ($marginType === 'percentage') {
+                    $margin = (float) ($get('margin_percentage') ?? 25);
+                    $formula = "Cost + {$margin}% margin";
+                    $result = $exampleInput * (1 + $margin / 100);
+                    $example = "€{$exampleInput} × 1.".str_pad((string) (int) $margin, 2, '0', STR_PAD_LEFT).' = €'.number_format($result, 2);
+                } else {
+                    $amount = (float) ($get('markup_fixed_amount') ?? 10);
+                    $formula = "Cost + €{$amount} markup";
+                    $result = $exampleInput + $amount;
+                    $example = "€{$exampleInput} + €{$amount} = €".number_format($result, 2);
+                }
+                break;
+
+            case PricingPolicyType::ReferencePriceBook:
+                $adjType = $get('ref_adjustment_type') ?? 'percentage';
+                $useTiered = $get('use_tiered_adjustments') ?? false;
+
+                if ($useTiered) {
+                    $formula = 'Reference Price + Tiered Adjustment (varies by category)';
+                    $example = 'Example varies by tier configuration';
+                } elseif ($adjType === 'percentage') {
+                    $adj = (float) ($get('ref_adjustment_value') ?? 0);
+                    $sign = $adj >= 0 ? '+' : '';
+                    $formula = "Reference Price {$sign}{$adj}%";
+                    $result = $exampleInput * (1 + $adj / 100);
+                    $example = "€{$exampleInput} × ".(1 + $adj / 100).' = €'.number_format($result, 2);
+                } else {
+                    $adj = (float) ($get('ref_adjustment_value') ?? 0);
+                    $sign = $adj >= 0 ? '+' : '';
+                    $formula = "Reference Price {$sign}€".abs($adj);
+                    $result = $exampleInput + $adj;
+                    $example = "€{$exampleInput} {$sign}€".abs($adj).' = €'.number_format($result, 2);
+                }
+                break;
+
+            case PricingPolicyType::IndexBased:
+                $multiplier = (float) ($get('index_multiplier') ?? 1.0);
+                $adjustment = (float) ($get('index_fixed_adjustment') ?? 0);
+                $indexType = $get('index_type') ?? 'emp';
+                $indexLabel = $indexType === 'emp' ? 'EMP' : 'Converted Price';
+
+                $formula = "{$indexLabel} × {$multiplier}";
+                if ($adjustment !== 0.0) {
+                    $formula .= $adjustment >= 0 ? " + €{$adjustment}" : ' - €'.abs($adjustment);
+                }
+                $result = ($exampleInput * $multiplier) + $adjustment;
+                $example = "€{$exampleInput} × {$multiplier}".($adjustment !== 0.0 ? ($adjustment >= 0 ? " + €{$adjustment}" : ' - €'.abs($adjustment)) : '').' = €'.number_format($result, 2);
+                break;
+
+            case PricingPolicyType::FixedAdjustment:
+                $adjType = $get('adjustment_type') ?? 'percentage';
+                $adj = (float) ($get('adjustment_value') ?? 0);
+
+                if ($adjType === 'percentage') {
+                    $sign = $adj >= 0 ? '+' : '';
+                    $formula = "Current Price {$sign}{$adj}%";
+                    $result = $exampleInput * (1 + $adj / 100);
+                } else {
+                    $sign = $adj >= 0 ? '+' : '';
+                    $formula = "Current Price {$sign}€".abs($adj);
+                    $result = $exampleInput + $adj;
+                }
+                $example = "€{$exampleInput} → €".number_format($result, 2);
+                break;
+
+            case PricingPolicyType::Rounding:
+                $rule = $get('rounding_rule') ?? '.99';
+                $direction = $get('rounding_direction') ?? 'nearest';
+
+                $ruleLabel = match ($rule) {
+                    '.99' => '.99',
+                    '.95' => '.95',
+                    '.90' => '.90',
+                    '.00' => 'whole',
+                    'nearest_5' => 'nearest €5',
+                    'nearest_10' => 'nearest €10',
+                    default => $rule,
+                };
+                $formula = "Round to {$ruleLabel}";
+
+                $exampleInput = 64.37;
+                $rounded = self::previewRounding($exampleInput, $rule, $direction);
+                $example = '€'.number_format($exampleInput, 2).' → €'.number_format($rounded, 2);
+                break;
+        }
+
+        // Add rounding if enabled (for non-rounding policies)
+        if ($policyType !== PricingPolicyType::Rounding && $policyType !== PricingPolicyType::FixedAdjustment) {
+            $applyRounding = $get('apply_rounding') ?? false;
+            if ($applyRounding) {
+                $roundingRule = $get('final_rounding_rule') ?? '.99';
+                $formula .= ", rounded to {$roundingRule}";
+            }
+        }
+
+        return new HtmlString(
+            '<div class="p-4 rounded-lg border bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+                <p class="text-lg font-semibold text-indigo-900">'.$formula.'</p>
+                <p class="mt-2 text-indigo-700">Example: '.$example.'</p>
+            </div>'
+        );
+    }
+
+    /**
      * Preview rounding for a given value and rule.
      */
     protected static function previewRounding(float $value, string $rule, string $direction): float
@@ -678,19 +1172,52 @@ class CreatePricingPolicy extends CreateRecord
             PricingPolicyType::Rounding => PricingPolicyInputSource::PriceBook->value,
         };
 
-        // Build logic_definition from Step 2 inputs
+        // Build logic_definition from Step 2 and Step 3 inputs
         $logicDefinition = [];
 
         switch ($policyType) {
             case PricingPolicyType::CostPlusMargin:
+                // Step 2: Input source
                 $logicDefinition['cost_source'] = $data['cost_source'] ?? 'product_catalog';
+
+                // Step 3: Margin logic
+                $marginType = $data['margin_type'] ?? 'percentage';
+                $logicDefinition['margin_type'] = $marginType;
+
+                if ($marginType === 'percentage') {
+                    $logicDefinition['margin_percentage'] = (float) ($data['margin_percentage'] ?? 25);
+                } else {
+                    $logicDefinition['markup_value'] = (float) ($data['markup_fixed_amount'] ?? 10);
+                }
+
+                // Tiered margins
+                if (! empty($data['use_tiered_margins']) && ! empty($data['tiered_margins'])) {
+                    $logicDefinition['tiered_logic'] = $data['tiered_margins'];
+                }
                 break;
 
             case PricingPolicyType::ReferencePriceBook:
+                // Step 2: Source price book
                 $logicDefinition['source_price_book_id'] = $data['source_price_book_id'] ?? null;
+
+                // Step 3: Adjustment logic
+                $adjType = $data['ref_adjustment_type'] ?? 'percentage';
+                $logicDefinition['adjustment_type'] = $adjType;
+                $logicDefinition['adjustment_value'] = (float) ($data['ref_adjustment_value'] ?? 0);
+
+                // For compatibility with getLogicDescription()
+                if ($adjType === 'percentage') {
+                    $logicDefinition['markup_value'] = (float) ($data['ref_adjustment_value'] ?? 0);
+                }
+
+                // Tiered adjustments
+                if (! empty($data['use_tiered_adjustments']) && ! empty($data['tiered_adjustments'])) {
+                    $logicDefinition['tiered_logic'] = $data['tiered_adjustments'];
+                }
                 break;
 
             case PricingPolicyType::IndexBased:
+                // Step 2: Index configuration
                 $logicDefinition['index_type'] = $data['index_type'] ?? 'emp';
                 if (($data['index_type'] ?? 'emp') === 'emp') {
                     $logicDefinition['emp_market'] = $data['emp_market'] ?? 'default';
@@ -700,23 +1227,46 @@ class CreatePricingPolicy extends CreateRecord
                     $logicDefinition['target_currency'] = $data['target_currency'] ?? 'USD';
                     $logicDefinition['fx_rate_buffer'] = (float) ($data['fx_rate_buffer'] ?? 0);
                 }
+
+                // Step 3: Multiplier and adjustment
+                $logicDefinition['index_multiplier'] = (float) ($data['index_multiplier'] ?? 1.0);
+                $logicDefinition['index_fixed_adjustment'] = (float) ($data['index_fixed_adjustment'] ?? 0);
                 break;
 
             case PricingPolicyType::FixedAdjustment:
+                // Step 2: Adjustment configuration
                 $logicDefinition['adjustment_type'] = $data['adjustment_type'] ?? 'percentage';
                 $logicDefinition['adjustment_value'] = (float) ($data['adjustment_value'] ?? 0);
+
+                // For compatibility with getLogicDescription()
+                if (($data['adjustment_type'] ?? 'percentage') === 'percentage') {
+                    $logicDefinition['markup_value'] = (float) ($data['adjustment_value'] ?? 0);
+                }
                 break;
 
             case PricingPolicyType::Rounding:
+                // Step 2: Rounding configuration
                 $logicDefinition['rounding_rule'] = $data['rounding_rule'] ?? '.99';
                 $logicDefinition['rounding_direction'] = $data['rounding_direction'] ?? 'nearest';
                 break;
+        }
+
+        // Add optional final rounding for non-rounding policies
+        if ($policyType !== PricingPolicyType::Rounding && $policyType !== PricingPolicyType::FixedAdjustment) {
+            if (! empty($data['apply_rounding'])) {
+                $logicDefinition['apply_rounding'] = true;
+                $logicDefinition['final_rounding_rule'] = $data['final_rounding_rule'] ?? '.99';
+                $logicDefinition['final_rounding_direction'] = $data['final_rounding_direction'] ?? 'nearest';
+                // Also set rounding_rule for compatibility with getLogicDescription()
+                $logicDefinition['rounding_rule'] = $data['final_rounding_rule'] ?? '.99';
+            }
         }
 
         $data['logic_definition'] = $logicDefinition;
 
         // Clean up temporary form fields that aren't in the model
         unset(
+            // Step 2 fields
             $data['cost_source'],
             $data['source_price_book_id'],
             $data['index_type'],
@@ -728,7 +1278,22 @@ class CreatePricingPolicy extends CreateRecord
             $data['adjustment_type'],
             $data['adjustment_value'],
             $data['rounding_rule'],
-            $data['rounding_direction']
+            $data['rounding_direction'],
+            // Step 3 fields
+            $data['margin_type'],
+            $data['margin_percentage'],
+            $data['markup_fixed_amount'],
+            $data['use_tiered_margins'],
+            $data['tiered_margins'],
+            $data['ref_adjustment_type'],
+            $data['ref_adjustment_value'],
+            $data['use_tiered_adjustments'],
+            $data['tiered_adjustments'],
+            $data['index_multiplier'],
+            $data['index_fixed_adjustment'],
+            $data['apply_rounding'],
+            $data['final_rounding_rule'],
+            $data['final_rounding_direction']
         );
 
         return $data;
