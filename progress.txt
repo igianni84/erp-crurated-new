@@ -7,6 +7,8 @@ Started: Tue Feb  3 16:33:41 CET 2026
 - PIM Filament resources go in `app/Filament/Resources/Pim/` namespace
 - Use `HasUuid` trait with `$table->uuid('id')->primary()` instead of `$table->id()`
 - Use `Auditable` trait with `created_by` and `updated_by` foreign keys
+- Use `AuditLoggable` trait for automatic audit logging to `audit_logs` table (tracks create, update, delete, status_change)
+- For optional model constants in traits, use `defined()` + `constant()` with PHPDoc to satisfy PHPStan
 - Use `SoftDeletes` trait with `$table->softDeletes()` for referential integrity
 - JSON fields use `'field_name' => 'array'` cast and `KeyValue` form component
 - Navigation group for PIM is 'PIM', sort order starts at 1
@@ -178,4 +180,27 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Disable actions with `->disabled()` based on model state (e.g., hasBlockingIssues)
   - PHPStan error "nullsafe.neverNull" can be fixed by using explicit null check instead of `?->` with `??`
   - Register ViewRecord page in Resource's `getPages()` method with route `/{record}`
+---
+
+## 2026-02-03 17:55 CET - US-010
+- Implemented audit log system with AuditLoggable trait for automatic logging
+- Files changed:
+  - `database/migrations/2026_02_03_163105_create_audit_logs_table.php` (new)
+  - `app/Models/AuditLog.php` (new - immutable audit log model with polymorphic relation)
+  - `app/Traits/AuditLoggable.php` (new - trait for automatic audit logging on model events)
+  - `app/Models/Pim/WineVariant.php` (modified - added AuditLoggable trait, AUDIT_TRACK_STATUS_FIELD)
+  - `app/Models/Pim/WineMaster.php` (modified - added AuditLoggable trait)
+  - `app/Models/Pim/Format.php` (modified - added AuditLoggable trait)
+  - `app/Models/Pim/CaseConfiguration.php` (modified - added AuditLoggable trait)
+  - `app/Models/Pim/SellableSku.php` (modified - added AuditLoggable trait, AUDIT_TRACK_STATUS_FIELD)
+  - `app/Models/Pim/LiquidProduct.php` (modified - added AuditLoggable trait, AUDIT_TRACK_STATUS_FIELD)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ViewWineVariant.php` (modified - added Audit History section)
+- **Learnings for future iterations:**
+  - For immutable audit tables, use `const UPDATED_AT = null` to disable updated_at tracking
+  - Use polymorphic `morphMany`/`morphTo` for generic audit logging across multiple models
+  - For optional constants in traits (e.g., AUDIT_EXCLUDE_FIELDS), use `defined($constantName)` check + `constant($constantName)` function to avoid PHPStan errors
+  - AuditLog events: 'created', 'updated', 'deleted', 'status_change'
+  - Define AUDIT_TRACK_STATUS_FIELD constant on models that have lifecycle_status to log status changes separately
+  - RepeatableEntry works well for displaying audit log timeline in Infolist
+  - Use htmlspecialchars() when displaying user-entered values in HTML to prevent XSS
 ---
