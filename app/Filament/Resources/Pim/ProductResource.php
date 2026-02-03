@@ -264,6 +264,9 @@ class ProductResource extends Resource
     {
         return [
             'index' => Pages\ListProducts::route('/'),
+            'choose-category' => Pages\ChooseProductCategory::route('/create'),
+            'create-bottle' => Pages\CreateBottleProduct::route('/create/bottle'),
+            'import-livex' => Pages\ImportLivex::route('/create/bottle/livex'),
         ];
     }
 }
