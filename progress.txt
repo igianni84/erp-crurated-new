@@ -402,3 +402,26 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - All lifecycle transitions and flag changes are logged to AuditLog with old/new values
   - validateNotSuspended() helper centralizes suspension check for multiple methods
 ---
+
+## 2026-02-03 - US-020
+- What was implemented: CaseEntitlementService for centralizing case entitlement business logic
+- Files changed:
+  - `app/Services/Allocation/CaseEntitlementService.php` (new)
+- **Methods implemented:**
+  - `createFromVouchers(array|Collection vouchers, Customer, SellableSku)`: Creates CaseEntitlement and associates vouchers with comprehensive validation (same customer, not already in case, not terminal)
+  - `breakEntitlement(CaseEntitlement, reason)`: Irreversible status transition to Broken, sets broken_at timestamp and broken_reason, logs audit event
+  - `isIntact(CaseEntitlement)`: Verifies case status is intact AND all vouchers pass checkIntegrity (same holder, none redeemed)
+  - `breakIfVoucherInCase(Voucher, reason)`: Helper for automatic case break when voucher operations occur
+  - `getIntactCaseCountForCustomer(Customer)`: Utility for counting intact cases
+  - `getCaseEntitlementsForCustomer(Customer)`: Utility for listing all case entitlements
+- **Constants defined:**
+  - REASON_TRANSFER: 'transfer' - for voucher transfers
+  - REASON_TRADE: 'trade' - for external trading
+  - REASON_PARTIAL_REDEMPTION: 'partial_redemption' - for redeeming individual vouchers from case
+- **Learnings for future iterations:**
+  - CaseEntitlementService should be called by VoucherService/VoucherTransferService via breakIfVoucherInCase() when operations would break case integrity
+  - The actual automatic trigger integration (US-029) will connect VoucherService lifecycle transitions and VoucherTransferService acceptance to breakIfVoucherInCase()
+  - Use Collection or array for voucher input, service handles both types
+  - Break is completely irreversible - there's no restore/unbreak operation
+  - Voucher model's id IS the UUID (due to HasUuid trait), no separate uuid column exists
+---
