@@ -6,6 +6,7 @@ use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class WineMaster extends Model
@@ -42,5 +43,15 @@ class WineMaster extends Model
         return [
             'regulatory_attributes' => 'array',
         ];
+    }
+
+    /**
+     * Get the wine variants for this wine master.
+     *
+     * @return HasMany<WineVariant, $this>
+     */
+    public function wineVariants(): HasMany
+    {
+        return $this->hasMany(WineVariant::class);
     }
 }
