@@ -248,8 +248,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Voucher model with: vouchers table (id, uuid, customer_id, allocation_id, wine_variant_id, format_id, sellable_sku_id nullable, quantity default 1, lifecycle_state, tradable, giftable, suspended, sale_reference, created_by). Soft deletes enabled. BelongsTo relationships to Customer, Allocation, WineVariant, Format, SellableSku. Quantity=1 enforced via saving event. allocation_id immutability enforced via updating event. Created placeholder Customer model and migration for Module K integration. Used wine_variant_id + format_id as bottle SKU reference (consistent with Allocation pattern)."
     },
     {
       "id": "US-016",

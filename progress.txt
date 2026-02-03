@@ -276,3 +276,29 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Constraint editing protection is already handled by model boot events (AllocationConstraint and LiquidAllocationConstraint)
   - For comprehensive error messages, use allowedTransitions() to show valid options
 ---
+
+## 2026-02-03 - US-015
+- What was implemented: Voucher model as atomic customer entitlement for Module A
+- Files changed:
+  - `database/migrations/2026_02_03_290000_create_customers_table.php` (new) - placeholder for Module K
+  - `database/migrations/2026_02_03_300000_create_vouchers_table.php` (new)
+  - `app/Models/Customer/Customer.php` (new) - placeholder for Module K
+  - `app/Models/Allocation/Voucher.php` (new)
+  - `app/Models/Allocation/Allocation.php` (added vouchers() relationship)
+- **Features implemented:**
+  - Voucher model with all required fields: customer_id, allocation_id, wine_variant_id, format_id, sellable_sku_id (nullable), quantity (always 1), lifecycle_state, tradable, giftable, suspended, sale_reference, created_by
+  - BelongsTo relationships: Customer, Allocation, WineVariant, Format, SellableSku
+  - HasMany vouchers() relationship added to Allocation model
+  - Quantity=1 invariant enforced in both creating and saving boot events
+  - allocation_id immutability enforced in updating boot event (lineage protection)
+  - Lifecycle state helper methods: isIssued(), isLocked(), isRedeemed(), isCancelled(), isTerminal()
+  - Behavioral flag helpers: canBeTradedOrTransferred(), canBeGifted()
+  - UI display helpers: getBottleSkuLabel(), getLifecycleStateLabel(), getLifecycleStateColor(), getLifecycleStateIcon()
+  - AuditLog morphMany relationship for future audit trail
+- **Learnings for future iterations:**
+  - Voucher uses wine_variant_id + format_id as bottle SKU reference (no BottleSku model) - consistent with Allocation
+  - Customer model created as placeholder in `app/Models/Customer/` - will be enhanced by Module K
+  - Voucher lifecycle states are constants (enum will be added in US-016)
+  - Immutability can be enforced via updating boot event with isDirty() check
+  - Voucher only has created_by (no updated_by) since most fields are immutable or controlled by services
+---
