@@ -21,6 +21,8 @@
 - PHPUnit 11.5.3 configured with SQLite in-memory for tests (phpunit.xml)
 - Unit tests: extend PHPUnit\Framework\TestCase; Feature tests: extend Tests\TestCase
 - UserFactory available at database/factories/UserFactory.php
+- Filament auth tests: Use `Livewire::test(Login::class)->fillForm([...])->call('authenticate')` pattern
+- User model implements FilamentUser interface with canAccessPanel() method
 
 ---
 
@@ -210,5 +212,29 @@
   - AWS_DEFAULT_REGION=eu-west-1 is appropriate for European users (Crurated)
   - BCRYPT_ROUNDS defaults to 12, can increase to 14 for production security
   - SESSION_ENCRYPT=true recommended for production with sensitive data
+---
+
+## 2026-02-03 - US-009
+- What was implemented:
+  - Added 'role' field to User model (string, mass assignable)
+  - Created migration to add role column to users table (default: 'viewer')
+  - Implemented FilamentUser interface with canAccessPanel method on User model
+  - Updated UserFactory to include role field with default 'viewer'
+  - Created comprehensive AuthenticationTest with 8 test cases
+  - Verified login, logout, and remember me functionality via tests
+- Files changed:
+  - app/Models/User.php (added role field, implemented FilamentUser interface)
+  - database/factories/UserFactory.php (added role field)
+  - database/migrations/2026_02_03_150413_add_role_to_users_table.php (new)
+  - tests/Feature/Filament/AuthenticationTest.php (new - 8 tests)
+  - prd.json (marked US-009 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Filament uses Livewire for forms - use `Livewire::test(Login::class)->fillForm()` for auth tests
+  - FilamentUser interface requires `canAccessPanel(Panel $panel): bool` method
+  - Filament's login page includes remember me functionality out of the box
+  - User model must be in the auth config provider (already configured by Laravel)
+  - Test logout with POST to /admin/logout, not GET
+  - Filament stores auth tests under tests/Feature/Filament/ by convention
 ---
 
