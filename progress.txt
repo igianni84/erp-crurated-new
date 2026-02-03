@@ -65,3 +65,24 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Format volume display: use `formatStateUsing(fn (int $state): string => number_format($state) . ' ml')`
   - Navigation sort for Format = 3 (after WineMaster=1, WineVariant=2)
 ---
+
+## 2026-02-03 17:10 CET - US-004
+- Implemented Case Configuration model with FK to Format
+- Files changed:
+  - `database/migrations/2026_02_03_170639_create_case_configurations_table.php` (new)
+  - `app/Models/Pim/CaseConfiguration.php` (new)
+  - `app/Models/Pim/Format.php` (modified - added hasMany relationship to CaseConfiguration)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource.php` (new)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource/Pages/ListCaseConfigurations.php` (new)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource/Pages/CreateCaseConfiguration.php` (new)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource/Pages/EditCaseConfiguration.php` (new)
+  - `database/seeders/CaseConfigurationSeeder.php` (new)
+  - `database/seeders/DatabaseSeeder.php` (modified - added CaseConfigurationSeeder)
+- **Learnings for future iterations:**
+  - Use enum migration with `$table->enum('case_type', ['owc', 'oc', 'none'])` for limited options
+  - For enum badge display, use `formatStateUsing()` and `color()` with match expressions - add default case for PHPStan
+  - Use `SelectFilter` for enum and FK fields in table filters
+  - When accessing related model properties via BelongsTo, use PHPDoc `@var` annotation for PHPStan
+  - Navigation sort for CaseConfiguration = 4 (after Format=3)
+  - Seeders can call other seeders with `$this->call(OtherSeeder::class)` to ensure dependencies exist
+---
