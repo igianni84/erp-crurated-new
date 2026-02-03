@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -116,6 +117,16 @@ class PricingPolicy extends Model
     public function generatedEntries(): HasMany
     {
         return $this->hasMany(PriceBookEntry::class, 'policy_id');
+    }
+
+    /**
+     * Get the scope definition for this policy.
+     *
+     * @return HasOne<PricingPolicyScope, $this>
+     */
+    public function scope(): HasOne
+    {
+        return $this->hasOne(PricingPolicyScope::class);
     }
 
     /**
