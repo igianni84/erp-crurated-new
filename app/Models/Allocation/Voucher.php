@@ -55,6 +55,7 @@ class Voucher extends Model
         'wine_variant_id',
         'format_id',
         'sellable_sku_id',
+        'case_entitlement_id',
         'quantity',
         'lifecycle_state',
         'tradable',
@@ -164,6 +165,16 @@ class Voucher extends Model
     public function sellableSku(): BelongsTo
     {
         return $this->belongsTo(SellableSku::class);
+    }
+
+    /**
+     * Get the case entitlement this voucher belongs to (if part of a case).
+     *
+     * @return BelongsTo<CaseEntitlement, $this>
+     */
+    public function caseEntitlement(): BelongsTo
+    {
+        return $this->belongsTo(CaseEntitlement::class);
     }
 
     /**
@@ -328,5 +339,27 @@ class Voucher extends Model
             'giftable' => $this->giftable,
             'suspended' => $this->suspended,
         ];
+    }
+
+    /**
+     * Check if the voucher is part of a case entitlement.
+     */
+    public function isPartOfCase(): bool
+    {
+        return $this->case_entitlement_id !== null;
+    }
+
+    /**
+     * Check if the voucher is part of an intact case.
+     */
+    public function isPartOfIntactCase(): bool
+    {
+        if (! $this->isPartOfCase()) {
+            return false;
+        }
+
+        $caseEntitlement = $this->caseEntitlement;
+
+        return $caseEntitlement !== null && $caseEntitlement->isIntact();
     }
 }
