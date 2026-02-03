@@ -6,9 +6,11 @@ use App\Enums\ProductLifecycleStatus;
 use App\Enums\UserRole;
 use App\Filament\Resources\Pim\WineVariantResource\Pages;
 use App\Filament\Resources\Pim\WineVariantResource\RelationManagers;
+use App\Models\Pim\ProductMedia;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use App\Models\User;
+use App\Services\LivExService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
@@ -49,6 +51,11 @@ class WineVariantResource extends Resource
                             ->icon('heroicon-o-tag')
                             ->schema([
                                 self::getAttributesSchema(),
+                            ]),
+                        Forms\Components\Tabs\Tab::make('Media')
+                            ->icon('heroicon-o-photo')
+                            ->schema([
+                                self::getMediaSchema(),
                             ]),
                     ])
                     ->columnSpanFull()
@@ -545,6 +552,388 @@ class WineVariantResource extends Resource
         }
 
         return $field;
+    }
+
+    /**
+     * Get the Media tab schema.
+     */
+    protected static function getMediaSchema(): Forms\Components\Component
+    {
+        return Forms\Components\Group::make([
+            // Liv-ex Media Section (Read-only)
+            Forms\Components\Section::make('Liv-ex Media')
+                ->description('Images and documents from Liv-ex (read-only)')
+                ->icon('heroicon-o-cloud-arrow-down')
+                ->schema([
+                    Forms\Components\Placeholder::make('livex_media_info')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null || ! $record->isFromLivEx()) {
+                                return '<div class="text-gray-500 dark:text-gray-400">This product was not imported from Liv-ex.</div>';
+                            }
+
+                            $livExMedia = $record->livExMedia()->get();
+                            if ($livExMedia->isEmpty()) {
+                                return '<div class="text-gray-500 dark:text-gray-400">No media from Liv-ex.</div>';
+                            }
+
+                            $html = '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">';
+                            foreach ($livExMedia as $media) {
+                                $url = $media->getUrl();
+                                if ($media->isImage()) {
+                                    $html .= '<div class="relative group">';
+                                    $html .= '<img src="'.htmlspecialchars((string) $url).'" alt="'.htmlspecialchars((string) $media->alt_text).'" class="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />';
+                                    $html .= '<div class="absolute top-2 right-2">';
+                                    $html .= '<span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">';
+                                    $html .= '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>';
+                                    $html .= 'Liv-ex';
+                                    $html .= '</span>';
+                                    $html .= '</div>';
+                                    if ($media->is_primary) {
+                                        $html .= '<div class="absolute bottom-2 left-2">';
+                                        $html .= '<span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">';
+                                        $html .= 'Primary';
+                                        $html .= '</span>';
+                                        $html .= '</div>';
+                                    }
+                                    $html .= '</div>';
+                                } else {
+                                    $html .= '<div class="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">';
+                                    $html .= '<svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>';
+                                    $html .= '<div class="flex-1 min-w-0">';
+                                    $html .= '<p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">'.htmlspecialchars((string) $media->original_filename).'</p>';
+                                    $html .= '<p class="text-xs text-gray-500 dark:text-gray-400">'.$media->getFormattedFileSize().'</p>';
+                                    $html .= '</div>';
+                                    $html .= '</div>';
+                                }
+                            }
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+
+                    Forms\Components\Actions::make([
+                        Forms\Components\Actions\Action::make('refresh_livex_media')
+                            ->label('Refresh Liv-ex Assets')
+                            ->icon('heroicon-o-arrow-path')
+                            ->color('info')
+                            ->action(function (?WineVariant $record): void {
+                                if ($record === null || $record->lwin_code === null) {
+                                    Notification::make()
+                                        ->title('Cannot Refresh')
+                                        ->body('No LWIN code associated with this product.')
+                                        ->warning()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                // Refresh Liv-ex media
+                                $livExService = new LivExService;
+                                $wineData = $livExService->getByLwin($record->lwin_code);
+
+                                if ($wineData === null) {
+                                    Notification::make()
+                                        ->title('No Data Found')
+                                        ->body('Could not find wine data in Liv-ex for LWIN: '.$record->lwin_code)
+                                        ->warning()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                // Update Liv-ex image if available
+                                $imageUrl = $wineData['image_url'] ?? null;
+                                if ($imageUrl !== null) {
+                                    // Check if we already have this image
+                                    $existingMedia = $record->livExMedia()
+                                        ->where('external_url', $imageUrl)
+                                        ->first();
+
+                                    if ($existingMedia === null) {
+                                        ProductMedia::create([
+                                            'wine_variant_id' => $record->id,
+                                            'type' => 'image',
+                                            'source' => 'liv_ex',
+                                            'external_url' => $imageUrl,
+                                            'original_filename' => 'liv-ex-image.jpg',
+                                            'is_primary' => ! $record->hasPrimaryImage(),
+                                            'is_locked' => true,
+                                            'sort_order' => 0,
+                                        ]);
+
+                                        // Update thumbnail
+                                        $record->thumbnail_url = $imageUrl;
+                                        $record->saveQuietly();
+                                    }
+                                }
+
+                                Notification::make()
+                                    ->title('Liv-ex Assets Refreshed')
+                                    ->success()
+                                    ->send();
+                            })
+                            ->visible(fn (?WineVariant $record): bool => $record !== null && $record->isFromLivEx()),
+                    ]),
+                ])
+                ->visible(fn (?WineVariant $record): bool => $record !== null && $record->isFromLivEx())
+                ->collapsible(),
+
+            // No Liv-ex placeholder
+            Forms\Components\Section::make('Liv-ex Media')
+                ->description('This product was not imported from Liv-ex')
+                ->icon('heroicon-o-cloud-arrow-down')
+                ->schema([
+                    Forms\Components\Placeholder::make('no_livex_info')
+                        ->label('')
+                        ->content('<div class="text-gray-500 dark:text-gray-400">This product was created manually and has no Liv-ex media.</div>')
+                        ->dehydrated(false),
+                ])
+                ->visible(fn (?WineVariant $record): bool => $record === null || ! $record->isFromLivEx())
+                ->collapsed()
+                ->collapsible(),
+
+            // Manual Uploads Section
+            Forms\Components\Section::make('Manual Uploads')
+                ->description('Upload your own images and documents')
+                ->icon('heroicon-o-cloud-arrow-up')
+                ->schema([
+                    // Primary Image Indicator
+                    Forms\Components\Placeholder::make('primary_image_status')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                    <p class="text-sm text-gray-600 dark:text-gray-400">Save the product first to manage media.</p>
+                                </div>';
+                            }
+
+                            $hasPrimary = $record->hasPrimaryImage();
+                            if ($hasPrimary) {
+                                return '<div class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                        <span class="text-sm font-medium text-green-800 dark:text-green-200">Primary image is set</span>
+                                    </div>
+                                </div>';
+                            }
+
+                            return '<div class="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                                <div class="flex items-center gap-2">
+                                    <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                                    <span class="text-sm font-medium text-yellow-800 dark:text-yellow-200">No primary image set - required for publication</span>
+                                </div>
+                            </div>';
+                        })
+                        ->dehydrated(false),
+
+                    // Image Upload
+                    Forms\Components\FileUpload::make('media_images')
+                        ->label('Upload Images')
+                        ->disk('public')
+                        ->directory('pim/product-media/images')
+                        ->image()
+                        ->multiple()
+                        ->reorderable()
+                        ->appendFiles()
+                        ->maxSize(10240) // 10MB
+                        ->maxFiles(20)
+                        ->imagePreviewHeight('150')
+                        ->panelLayout('grid')
+                        ->helperText('Max 20 images, 10MB each. Drag to reorder.')
+                        ->visible(fn (string $operation): bool => $operation === 'edit')
+                        ->dehydrated(false),
+
+                    // Document Upload
+                    Forms\Components\FileUpload::make('media_documents')
+                        ->label('Upload Documents')
+                        ->disk('public')
+                        ->directory('pim/product-media/documents')
+                        ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+                        ->multiple()
+                        ->appendFiles()
+                        ->maxSize(20480) // 20MB
+                        ->maxFiles(10)
+                        ->helperText('PDF, DOC, DOCX. Max 10 files, 20MB each.')
+                        ->visible(fn (string $operation): bool => $operation === 'edit')
+                        ->dehydrated(false),
+
+                    // Current Manual Images Display
+                    Forms\Components\Placeholder::make('current_manual_images')
+                        ->label('Current Images')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '';
+                            }
+
+                            $manualImages = $record->manualMedia()->images()->get();
+                            if ($manualImages->isEmpty()) {
+                                return '<div class="text-gray-500 dark:text-gray-400">No manual images uploaded yet.</div>';
+                            }
+
+                            $html = '<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="manual-images-grid">';
+                            foreach ($manualImages as $media) {
+                                $url = $media->getUrl();
+                                $isPrimary = $media->is_primary;
+                                $primaryClass = $isPrimary ? 'ring-2 ring-green-500' : '';
+
+                                $html .= '<div class="relative group '.$primaryClass.' rounded-lg" data-media-id="'.$media->id.'">';
+                                $html .= '<img src="'.htmlspecialchars((string) $url).'" alt="'.htmlspecialchars((string) $media->alt_text).'" class="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700" />';
+
+                                // Primary badge
+                                if ($isPrimary) {
+                                    $html .= '<div class="absolute top-2 left-2">';
+                                    $html .= '<span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">';
+                                    $html .= '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                                    $html .= 'Primary';
+                                    $html .= '</span>';
+                                    $html .= '</div>';
+                                }
+
+                                // Manual badge
+                                $html .= '<div class="absolute top-2 right-2">';
+                                $html .= '<span class="inline-flex items-center px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">';
+                                $html .= 'Manual';
+                                $html .= '</span>';
+                                $html .= '</div>';
+
+                                $html .= '</div>';
+                            }
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->visible(fn (?WineVariant $record): bool => $record !== null && $record->manualMedia()->images()->count() > 0)
+                        ->dehydrated(false),
+
+                    // Media Management Actions
+                    Forms\Components\Repeater::make('manual_media_management')
+                        ->label('Manage Images')
+                        ->schema([
+                            Forms\Components\Hidden::make('id'),
+                            Forms\Components\Grid::make(4)
+                                ->schema([
+                                    Forms\Components\Placeholder::make('preview')
+                                        ->label('')
+                                        ->content(fn (array $state): string => isset($state['url'])
+                                            ? '<img src="'.htmlspecialchars($state['url']).'" class="w-16 h-16 object-cover rounded" />'
+                                            : '')
+                                        ->columnSpan(1),
+                                    Forms\Components\TextInput::make('alt_text')
+                                        ->label('Alt Text')
+                                        ->placeholder('Image description')
+                                        ->columnSpan(2),
+                                    Forms\Components\Toggle::make('is_primary')
+                                        ->label('Primary')
+                                        ->columnSpan(1),
+                                ]),
+                        ])
+                        ->reorderable()
+                        ->reorderableWithButtons()
+                        ->addable(false)
+                        ->deletable(true)
+                        ->deleteAction(
+                            fn (Forms\Components\Actions\Action $action) => $action
+                                ->requiresConfirmation()
+                                ->modalHeading('Delete Image')
+                                ->modalDescription('Are you sure you want to delete this image? This cannot be undone.')
+                        )
+                        ->visible(fn (?WineVariant $record): bool => $record !== null && $record->manualMedia()->images()->count() > 0)
+                        ->helperText('Drag to reorder. Toggle to set primary image.')
+                        ->columnSpanFull(),
+
+                    // Current Manual Documents Display
+                    Forms\Components\Placeholder::make('current_manual_documents')
+                        ->label('Current Documents')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '';
+                            }
+
+                            $manualDocs = $record->manualMedia()->documents()->get();
+                            if ($manualDocs->isEmpty()) {
+                                return '<div class="text-gray-500 dark:text-gray-400">No documents uploaded yet.</div>';
+                            }
+
+                            $html = '<div class="space-y-2">';
+                            foreach ($manualDocs as $media) {
+                                $url = $media->getUrl();
+                                $html .= '<div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">';
+                                $html .= '<svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 24 24"><path d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>';
+                                $html .= '<div class="flex-1 min-w-0">';
+                                $html .= '<a href="'.htmlspecialchars((string) $url).'" target="_blank" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline truncate block">'.htmlspecialchars((string) $media->original_filename).'</a>';
+                                $html .= '<p class="text-xs text-gray-500 dark:text-gray-400">'.$media->getFormattedFileSize().'</p>';
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->visible(fn (?WineVariant $record): bool => $record !== null && $record->manualMedia()->documents()->count() > 0)
+                        ->dehydrated(false),
+                ])
+                ->collapsible(),
+
+            // Media Summary
+            Forms\Components\Section::make('Media Summary')
+                ->description('Overview of all media for this product')
+                ->icon('heroicon-o-chart-bar')
+                ->schema([
+                    Forms\Components\Placeholder::make('media_summary')
+                        ->label('')
+                        ->content(function (?WineVariant $record): string {
+                            if ($record === null) {
+                                return '<div class="text-gray-500 dark:text-gray-400">Save the product to see media summary.</div>';
+                            }
+
+                            $livExImages = $record->livExMedia()->images()->count();
+                            $livExDocs = $record->livExMedia()->documents()->count();
+                            $manualImages = $record->manualMedia()->images()->count();
+                            $manualDocs = $record->manualMedia()->documents()->count();
+                            $totalImages = $livExImages + $manualImages;
+                            $totalDocs = $livExDocs + $manualDocs;
+                            $hasPrimary = $record->hasPrimaryImage();
+
+                            $html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-4">';
+
+                            // Total Images
+                            $html .= '<div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">';
+                            $html .= '<p class="text-2xl font-bold text-blue-600 dark:text-blue-400">'.$totalImages.'</p>';
+                            $html .= '<p class="text-sm text-blue-800 dark:text-blue-200">Total Images</p>';
+                            $html .= '</div>';
+
+                            // Total Documents
+                            $html .= '<div class="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">';
+                            $html .= '<p class="text-2xl font-bold text-purple-600 dark:text-purple-400">'.$totalDocs.'</p>';
+                            $html .= '<p class="text-sm text-purple-800 dark:text-purple-200">Documents</p>';
+                            $html .= '</div>';
+
+                            // Liv-ex Assets
+                            $html .= '<div class="p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg">';
+                            $html .= '<p class="text-2xl font-bold text-cyan-600 dark:text-cyan-400">'.($livExImages + $livExDocs).'</p>';
+                            $html .= '<p class="text-sm text-cyan-800 dark:text-cyan-200">From Liv-ex</p>';
+                            $html .= '</div>';
+
+                            // Primary Image Status
+                            $primaryColor = $hasPrimary ? 'green' : 'yellow';
+                            $primaryIcon = $hasPrimary ? '✓' : '!';
+                            $primaryText = $hasPrimary ? 'Set' : 'Not Set';
+                            $html .= '<div class="p-4 bg-'.$primaryColor.'-50 dark:bg-'.$primaryColor.'-900/20 rounded-lg">';
+                            $html .= '<p class="text-2xl font-bold text-'.$primaryColor.'-600 dark:text-'.$primaryColor.'-400">'.$primaryIcon.'</p>';
+                            $html .= '<p class="text-sm text-'.$primaryColor.'-800 dark:text-'.$primaryColor.'-200">Primary: '.$primaryText.'</p>';
+                            $html .= '</div>';
+
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ])
+                ->collapsible()
+                ->collapsed(),
+        ]);
     }
 
     /**

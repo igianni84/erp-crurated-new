@@ -7,10 +7,12 @@ use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource;
 use App\Models\Pim\AttributeSet;
 use App\Models\Pim\AttributeValue;
+use App\Models\Pim\ProductMedia;
 use App\Models\Pim\WineVariant;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\Storage;
 
 class EditWineVariant extends EditRecord
 {
@@ -36,7 +38,33 @@ class EditWineVariant extends EditRecord
         // Load dynamic attribute values
         $data['attributes'] = $this->loadAttributeValues();
 
+        // Load media management data
+        $data['manual_media_management'] = $this->loadMediaManagement();
+
         return $data;
+    }
+
+    /**
+     * Load media management data for the repeater.
+     *
+     * @return list<array{id: string, url: string|null, alt_text: string|null, is_primary: bool}>
+     */
+    protected function loadMediaManagement(): array
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+
+        $mediaItems = [];
+        foreach ($record->manualMedia()->images()->get() as $media) {
+            $mediaItems[] = [
+                'id' => $media->id,
+                'url' => $media->getUrl(),
+                'alt_text' => $media->alt_text,
+                'is_primary' => $media->is_primary,
+            ];
+        }
+
+        return $mediaItems;
     }
 
     /**
@@ -113,10 +141,115 @@ class EditWineVariant extends EditRecord
         }
     }
 
+    /**
+     * Save media uploads and updates.
+     */
+    protected function saveMedia(): void
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+
+        $formData = $this->form->getState();
+
+        // Handle new image uploads
+        $newImages = $formData['media_images'] ?? [];
+        if (is_array($newImages) && count($newImages) > 0) {
+            $maxOrder = $record->manualMedia()->max('sort_order') ?? -1;
+            foreach ($newImages as $imagePath) {
+                if (is_string($imagePath) && $imagePath !== '') {
+                    $maxOrder++;
+                    ProductMedia::create([
+                        'wine_variant_id' => $record->id,
+                        'type' => 'image',
+                        'source' => 'manual',
+                        'file_path' => $imagePath,
+                        'original_filename' => basename($imagePath),
+                        'mime_type' => Storage::disk('public')->mimeType($imagePath),
+                        'file_size' => Storage::disk('public')->size($imagePath),
+                        'is_primary' => ! $record->hasPrimaryImage(),
+                        'is_locked' => false,
+                        'sort_order' => $maxOrder,
+                    ]);
+                }
+            }
+        }
+
+        // Handle new document uploads
+        $newDocuments = $formData['media_documents'] ?? [];
+        if (is_array($newDocuments) && count($newDocuments) > 0) {
+            $maxOrder = $record->manualMedia()->documents()->max('sort_order') ?? -1;
+            foreach ($newDocuments as $docPath) {
+                if (is_string($docPath) && $docPath !== '') {
+                    $maxOrder++;
+                    ProductMedia::create([
+                        'wine_variant_id' => $record->id,
+                        'type' => 'document',
+                        'source' => 'manual',
+                        'file_path' => $docPath,
+                        'original_filename' => basename($docPath),
+                        'mime_type' => Storage::disk('public')->mimeType($docPath),
+                        'file_size' => Storage::disk('public')->size($docPath),
+                        'is_primary' => false,
+                        'is_locked' => false,
+                        'sort_order' => $maxOrder,
+                    ]);
+                }
+            }
+        }
+
+        // Handle media management updates (reordering, primary, alt text, deletions)
+        $managementData = $formData['manual_media_management'] ?? [];
+        if (is_array($managementData)) {
+            $existingIds = [];
+            $sortOrder = 0;
+
+            foreach ($managementData as $item) {
+                if (! is_array($item) || ! isset($item['id'])) {
+                    continue;
+                }
+
+                $mediaId = $item['id'];
+                $existingIds[] = $mediaId;
+
+                $media = ProductMedia::find($mediaId);
+                if ($media !== null && $media->wine_variant_id === $record->id) {
+                    $media->alt_text = $item['alt_text'] ?? null;
+                    $media->is_primary = (bool) ($item['is_primary'] ?? false);
+                    $media->sort_order = $sortOrder;
+                    $media->save();
+                    $sortOrder++;
+                }
+            }
+
+            // Delete media that was removed from the repeater
+            $originalIds = $record->manualMedia()->images()->pluck('id')->toArray();
+            $deletedIds = array_diff($originalIds, $existingIds);
+            foreach ($deletedIds as $deletedId) {
+                $media = ProductMedia::find($deletedId);
+                if ($media !== null && $media->wine_variant_id === $record->id && $media->source === DataSource::Manual) {
+                    $media->delete();
+                }
+            }
+        }
+
+        // Update thumbnail if primary image changed
+        $primaryImage = $record->getPrimaryImage();
+        if ($primaryImage !== null) {
+            $thumbnailUrl = $primaryImage->getUrl();
+            if ($thumbnailUrl !== $record->thumbnail_url) {
+                $record->thumbnail_url = $thumbnailUrl;
+                $record->saveQuietly();
+            }
+        }
+    }
+
     protected function afterSave(): void
     {
         // Save dynamic attribute values
         $this->saveAttributeValues();
+
+        // Save media uploads and management
+        $this->saveMedia();
 
         /** @var WineVariant $record */
         $record = $this->record;

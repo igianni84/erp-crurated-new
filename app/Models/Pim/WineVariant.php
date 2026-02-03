@@ -127,6 +127,59 @@ class WineVariant extends Model
     }
 
     /**
+     * Get the media for this wine variant.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(ProductMedia::class)->orderBy('sort_order');
+    }
+
+    /**
+     * Get Liv-ex media for this wine variant.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function livExMedia(): HasMany
+    {
+        return $this->hasMany(ProductMedia::class)
+            ->where('source', 'liv_ex')
+            ->orderBy('sort_order');
+    }
+
+    /**
+     * Get manually uploaded media for this wine variant.
+     *
+     * @return HasMany<ProductMedia, $this>
+     */
+    public function manualMedia(): HasMany
+    {
+        return $this->hasMany(ProductMedia::class)
+            ->where('source', 'manual')
+            ->orderBy('sort_order');
+    }
+
+    /**
+     * Get the primary image for this wine variant.
+     */
+    public function getPrimaryImage(): ?ProductMedia
+    {
+        return $this->media()
+            ->where('type', 'image')
+            ->where('is_primary', true)
+            ->first();
+    }
+
+    /**
+     * Check if this wine variant has a primary image.
+     */
+    public function hasPrimaryImage(): bool
+    {
+        return $this->getPrimaryImage() !== null;
+    }
+
+    /**
      * Get or create an attribute value for a specific attribute definition.
      */
     public function getOrCreateAttributeValue(AttributeDefinition $definition): AttributeValue
@@ -249,6 +302,7 @@ class WineVariant extends Model
             'critic_scores' => ! empty($this->critic_scores),
             'production_notes' => ! empty($this->production_notes),
             'has_sellable_skus' => $this->sellableSkus()->count() > 0,
+            'has_primary_image' => $this->hasPrimaryImage(),
             default => false,
         };
     }
@@ -310,6 +364,11 @@ class WineVariant extends Model
             'tab' => 'sellable_skus',
             'message' => 'At least one Sellable SKU is required for publication',
             'priority' => 3,
+        ],
+        'has_primary_image' => [
+            'tab' => 'media',
+            'message' => 'A primary image is required for publication',
+            'priority' => 4,
         ],
     ];
 
