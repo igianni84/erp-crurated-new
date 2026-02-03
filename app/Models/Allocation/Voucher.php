@@ -11,6 +11,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Auth;
@@ -195,6 +196,42 @@ class Voucher extends Model
     public function auditLogs(): MorphMany
     {
         return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+    }
+
+    /**
+     * Get all transfers for this voucher.
+     *
+     * @return HasMany<VoucherTransfer, $this>
+     */
+    public function voucherTransfers(): HasMany
+    {
+        return $this->hasMany(VoucherTransfer::class);
+    }
+
+    /**
+     * Get pending transfers for this voucher.
+     *
+     * @return HasMany<VoucherTransfer, $this>
+     */
+    public function pendingTransfers(): HasMany
+    {
+        return $this->hasMany(VoucherTransfer::class)->pending();
+    }
+
+    /**
+     * Check if the voucher has a pending transfer.
+     */
+    public function hasPendingTransfer(): bool
+    {
+        return $this->pendingTransfers()->exists();
+    }
+
+    /**
+     * Get the current pending transfer, if any.
+     */
+    public function getPendingTransfer(): ?VoucherTransfer
+    {
+        return $this->pendingTransfers()->first();
     }
 
     /**
