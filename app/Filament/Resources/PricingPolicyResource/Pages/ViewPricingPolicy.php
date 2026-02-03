@@ -13,6 +13,7 @@ use App\Filament\Resources\PricingPolicyResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\PricingPolicy;
 use App\Models\Commercial\PricingPolicyExecution;
+use App\Services\Commercial\PricingPolicyService;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -1090,14 +1091,97 @@ class ViewPricingPolicy extends ViewRecord
                 ->visible(fn (PricingPolicy $record): bool => $record->canDryRun())
                 ->requiresConfirmation()
                 ->modalHeading('Dry Run Preview')
-                ->modalDescription('This will simulate the policy execution without writing any prices. The preview will show what prices would be generated.')
+                ->modalDescription(function (PricingPolicy $record): string {
+                    $service = app(PricingPolicyService::class);
+                    $skuCount = $service->resolveScope($record)->count();
+                    $targetPriceBook = $record->targetPriceBook;
+                    $targetName = $targetPriceBook !== null ? $targetPriceBook->name : 'None';
+
+                    return "This will simulate the policy execution without writing any prices.\n\n"
+                        ."• Target Price Book: {$targetName}\n"
+                        ."• SKUs in scope: {$skuCount}\n\n"
+                        .'The preview will show what prices would be generated.';
+                })
                 ->action(function (PricingPolicy $record): void {
-                    // Placeholder for dry run action - will be implemented in US-031
-                    Notification::make()
-                        ->info()
-                        ->title('Dry Run (Placeholder)')
-                        ->body('Dry run functionality will be implemented in US-031. This preview would show calculated prices without writing them.')
-                        ->send();
+                    $service = app(PricingPolicyService::class);
+
+                    try {
+                        $result = $service->execute($record, isDryRun: true);
+
+                        if ($result->pricesGenerated === 0 && $result->skusProcessed === 0) {
+                            Notification::make()
+                                ->warning()
+                                ->title('No SKUs in Scope')
+                                ->body('No SKUs matched the policy scope. Check the scope configuration.')
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        }
+
+                        $priceChanges = $result->getPriceChanges();
+                        $changesPreview = '';
+                        $displayCount = min(5, count($priceChanges));
+
+                        for ($i = 0; $i < $displayCount; $i++) {
+                            $change = $priceChanges[$i];
+                            $currentPrice = $change['current_price'] ?? 'N/A';
+                            $changeIndicator = '';
+                            if ($change['change_percent'] !== null) {
+                                $sign = $change['change_percent'] >= 0 ? '+' : '';
+                                $changeIndicator = " ({$sign}{$change['change_percent']}%)";
+                            }
+                            $changesPreview .= "• {$change['sku_code']}: {$currentPrice} → {$change['new_price']}{$changeIndicator}\n";
+                        }
+
+                        if (count($priceChanges) > 5) {
+                            $remaining = count($priceChanges) - 5;
+                            $changesPreview .= "... and {$remaining} more\n";
+                        }
+
+                        $statusColor = $result->isSuccess() ? 'success' : ($result->isPartial() ? 'warning' : 'danger');
+
+                        Notification::make()
+                            ->color($statusColor)
+                            ->title('Dry Run Complete')
+                            ->body(
+                                "**Results:**\n"
+                                ."• SKUs processed: {$result->skusProcessed}\n"
+                                ."• Prices calculated: {$result->pricesGenerated}\n"
+                                ."• Errors: {$result->errorsCount}\n\n"
+                                ."**Price Preview:**\n{$changesPreview}\n"
+                                .'No prices were written to the Price Book.'
+                            )
+                            ->persistent()
+                            ->send();
+
+                        if ($result->hasErrors()) {
+                            $errorPreview = '';
+                            $errorDisplayCount = min(3, count($result->errors));
+                            for ($i = 0; $i < $errorDisplayCount; $i++) {
+                                $error = $result->errors[$i];
+                                $errorPreview .= "• {$error['sku_code']}: {$error['error']}\n";
+                            }
+                            if (count($result->errors) > 3) {
+                                $remaining = count($result->errors) - 3;
+                                $errorPreview .= "... and {$remaining} more errors\n";
+                            }
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Dry Run Errors')
+                                ->body("Some SKUs could not be processed:\n{$errorPreview}")
+                                ->persistent()
+                                ->send();
+                        }
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Dry Run Failed')
+                            ->body($e->getMessage())
+                            ->persistent()
+                            ->send();
+                    }
                 }),
 
             Actions\Action::make('execute')
@@ -1107,14 +1191,79 @@ class ViewPricingPolicy extends ViewRecord
                 ->visible(fn (PricingPolicy $record): bool => $record->canBeExecuted())
                 ->requiresConfirmation()
                 ->modalHeading('Execute Policy')
-                ->modalDescription('This will execute the policy and write generated prices to the target Price Book. Prices with source "policy_generated" will be updated or created.')
+                ->modalDescription(function (PricingPolicy $record): string {
+                    $service = app(PricingPolicyService::class);
+                    $skuCount = $service->resolveScope($record)->count();
+                    $targetPriceBook = $record->targetPriceBook;
+                    $targetName = $targetPriceBook !== null ? $targetPriceBook->name : 'None';
+
+                    return "⚠️ **This action will write prices to the Price Book.**\n\n"
+                        ."• Target Price Book: {$targetName}\n"
+                        ."• SKUs in scope: {$skuCount}\n\n"
+                        ."Prices with source 'policy_generated' will be updated or created.\n"
+                        .'Consider running a Dry Run first to preview changes.';
+                })
                 ->action(function (PricingPolicy $record): void {
-                    // Placeholder for execute action - will be implemented in US-031
-                    Notification::make()
-                        ->info()
-                        ->title('Execute (Placeholder)')
-                        ->body('Execute functionality will be implemented in US-031. This would run the policy and generate prices.')
-                        ->send();
+                    $service = app(PricingPolicyService::class);
+
+                    try {
+                        $result = $service->execute($record, isDryRun: false);
+
+                        if ($result->pricesGenerated === 0 && $result->skusProcessed === 0) {
+                            Notification::make()
+                                ->warning()
+                                ->title('No Prices Generated')
+                                ->body('No SKUs matched the policy scope. Check the scope configuration.')
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        }
+
+                        $statusColor = $result->isSuccess() ? 'success' : ($result->isPartial() ? 'warning' : 'danger');
+                        $statusTitle = $result->isSuccess() ? 'Execution Complete' : ($result->isPartial() ? 'Execution Completed with Warnings' : 'Execution Failed');
+
+                        Notification::make()
+                            ->color($statusColor)
+                            ->title($statusTitle)
+                            ->body(
+                                "**Results:**\n"
+                                ."• SKUs processed: {$result->skusProcessed}\n"
+                                ."• Prices written: {$result->pricesGenerated}\n"
+                                ."• Errors: {$result->errorsCount}\n\n"
+                                ."Target Price Book: {$record->targetPriceBook?->name}\n"
+                                .'Execution logged for audit purposes.'
+                            )
+                            ->persistent()
+                            ->send();
+
+                        if ($result->hasErrors()) {
+                            $errorPreview = '';
+                            $errorDisplayCount = min(3, count($result->errors));
+                            for ($i = 0; $i < $errorDisplayCount; $i++) {
+                                $error = $result->errors[$i];
+                                $errorPreview .= "• {$error['sku_code']}: {$error['error']}\n";
+                            }
+                            if (count($result->errors) > 3) {
+                                $remaining = count($result->errors) - 3;
+                                $errorPreview .= "... and {$remaining} more errors\n";
+                            }
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Execution Errors')
+                                ->body("Some SKUs could not be processed:\n{$errorPreview}")
+                                ->persistent()
+                                ->send();
+                        }
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Execution Failed')
+                            ->body($e->getMessage())
+                            ->persistent()
+                            ->send();
+                    }
                 }),
 
             Actions\Action::make('activate')
