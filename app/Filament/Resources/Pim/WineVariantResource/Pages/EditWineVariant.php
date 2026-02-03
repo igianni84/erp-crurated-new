@@ -2,8 +2,11 @@
 
 namespace App\Filament\Resources\Pim\WineVariantResource\Pages;
 
+use App\Enums\DataSource;
 use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource;
+use App\Models\Pim\AttributeSet;
+use App\Models\Pim\AttributeValue;
 use App\Models\Pim\WineVariant;
 use Filament\Actions;
 use Filament\Notifications\Notification;
@@ -30,11 +33,91 @@ class EditWineVariant extends EditRecord
             $this->originalSensitiveData[$field] = $record->getAttribute($field);
         }
 
+        // Load dynamic attribute values
+        $data['attributes'] = $this->loadAttributeValues();
+
         return $data;
+    }
+
+    /**
+     * Load attribute values for the current record.
+     *
+     * @return array<string, mixed>
+     */
+    protected function loadAttributeValues(): array
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+
+        $attributeSet = AttributeSet::getDefault();
+        if ($attributeSet === null) {
+            return [];
+        }
+
+        $values = [];
+
+        foreach ($attributeSet->attributeGroups as $group) {
+            foreach ($group->attributeDefinitions as $definition) {
+                $attrValue = $record->attributeValues()
+                    ->where('attribute_definition_id', $definition->id)
+                    ->first();
+
+                if ($attrValue !== null) {
+                    $values[$definition->code] = $attrValue->getTypedValue();
+                } else {
+                    $values[$definition->code] = null;
+                }
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * Save dynamic attribute values after the main record is saved.
+     */
+    protected function saveAttributeValues(): void
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+
+        $attributeSet = AttributeSet::getDefault();
+        if ($attributeSet === null) {
+            return;
+        }
+
+        $formData = $this->form->getState();
+        $attributeData = $formData['attributes'] ?? [];
+
+        foreach ($attributeSet->attributeGroups as $group) {
+            foreach ($group->attributeDefinitions as $definition) {
+                $value = $attributeData[$definition->code] ?? null;
+
+                // Find or create the attribute value record
+                $attrValue = AttributeValue::firstOrNew([
+                    'wine_variant_id' => $record->id,
+                    'attribute_definition_id' => $definition->id,
+                ]);
+
+                // Set the typed value
+                $attrValue->setTypedValue($value);
+
+                // Set source - keep existing source if already set, otherwise use record's data_source
+                if (! $attrValue->exists) {
+                    $attrValue->source = $record->data_source ?? DataSource::Manual;
+                    $attrValue->is_locked = false;
+                }
+
+                $attrValue->save();
+            }
+        }
     }
 
     protected function afterSave(): void
     {
+        // Save dynamic attribute values
+        $this->saveAttributeValues();
+
         /** @var WineVariant $record */
         $record = $this->record;
 

@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             FormatSeeder::class,
             CaseConfigurationSeeder::class,
+            AttributeSetSeeder::class,
         ]);
     }
 }

@@ -117,6 +117,83 @@ class WineVariant extends Model
     }
 
     /**
+     * Get the attribute values for this wine variant.
+     *
+     * @return HasMany<AttributeValue, $this>
+     */
+    public function attributeValues(): HasMany
+    {
+        return $this->hasMany(AttributeValue::class);
+    }
+
+    /**
+     * Get or create an attribute value for a specific attribute definition.
+     */
+    public function getOrCreateAttributeValue(AttributeDefinition $definition): AttributeValue
+    {
+        return $this->attributeValues()->firstOrCreate(
+            ['attribute_definition_id' => $definition->id],
+            [
+                'value' => null,
+                'source' => $this->data_source ?? \App\Enums\DataSource::Manual,
+                'is_locked' => false,
+            ]
+        );
+    }
+
+    /**
+     * Get the attribute value for a specific attribute code.
+     */
+    public function getAttributeValueByCode(string $code): ?AttributeValue
+    {
+        return $this->attributeValues()
+            ->whereHas('attributeDefinition', fn ($q) => $q->where('code', $code))
+            ->first();
+    }
+
+    /**
+     * Calculate completeness percentage including dynamic attributes.
+     */
+    public function getDynamicCompletenessPercentage(): int
+    {
+        $totalWeight = 0;
+        $completedWeight = 0;
+
+        // Calculate from static COMPLETENESS_FIELDS
+        foreach (self::COMPLETENESS_FIELDS as $config) {
+            $totalWeight += $config['weight'];
+        }
+
+        foreach (self::COMPLETENESS_FIELDS as $field => $config) {
+            if ($this->isFieldComplete($field)) {
+                $completedWeight += $config['weight'];
+            }
+        }
+
+        // Calculate from dynamic attributes
+        $attributeSet = AttributeSet::getDefault();
+        if ($attributeSet !== null) {
+            foreach ($attributeSet->attributeGroups as $group) {
+                foreach ($group->attributeDefinitions as $definition) {
+                    $totalWeight += $definition->completeness_weight;
+                    $value = $this->attributeValues()
+                        ->where('attribute_definition_id', $definition->id)
+                        ->first();
+                    if ($value !== null && $value->isFilled()) {
+                        $completedWeight += $definition->completeness_weight;
+                    }
+                }
+            }
+        }
+
+        if ($totalWeight === 0) {
+            return 100;
+        }
+
+        return (int) round(($completedWeight / $totalWeight) * 100);
+    }
+
+    /**
      * Field completeness configuration with weights.
      * Required fields have higher weights, optional fields have lower weights.
      *

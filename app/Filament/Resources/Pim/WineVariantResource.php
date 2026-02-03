@@ -250,73 +250,373 @@ class WineVariantResource extends Resource
      */
     protected static function getAttributesSchema(): Forms\Components\Component
     {
-        return Forms\Components\Group::make([
-            Forms\Components\Section::make('Vintage Information')
-                ->description('Technical details specific to this vintage')
-                ->icon('heroicon-o-beaker')
-                ->schema([
-                    Forms\Components\Grid::make(2)
-                        ->schema([
-                            Forms\Components\TextInput::make('alcohol_percentage')
-                                ->label('Alcohol %')
-                                ->numeric()
-                                ->minValue(0)
-                                ->maxValue(100)
-                                ->step(0.01)
-                                ->suffix('%'),
-                        ]),
-                ])
-                ->collapsible(),
+        $sections = [];
 
-            Forms\Components\Section::make('Drinking Window')
-                ->description('Recommended drinking period')
-                ->icon('heroicon-o-calendar')
-                ->schema([
-                    Forms\Components\Grid::make(2)
-                        ->schema([
-                            Forms\Components\TextInput::make('drinking_window_start')
-                                ->label('Start Year')
-                                ->numeric()
-                                ->minValue(1800)
-                                ->maxValue(2200),
-                            Forms\Components\TextInput::make('drinking_window_end')
-                                ->label('End Year')
-                                ->numeric()
-                                ->minValue(1800)
-                                ->maxValue(2200)
-                                ->gte('drinking_window_start'),
-                        ]),
-                ])
-                ->collapsible(),
+        // Static sections for core wine variant fields
+        $sections[] = Forms\Components\Section::make('Vintage Information')
+            ->description('Technical details specific to this vintage')
+            ->icon('heroicon-o-beaker')
+            ->schema([
+                Forms\Components\Grid::make(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('alcohol_percentage')
+                            ->label('Alcohol %')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->step(0.01)
+                            ->suffix('%')
+                            ->helperText('Optional · Manual'),
+                    ]),
+            ])
+            ->collapsible();
 
-            Forms\Components\Section::make('Critic Scores')
-                ->description('Professional ratings and scores')
-                ->icon('heroicon-o-star')
-                ->schema([
-                    Forms\Components\KeyValue::make('critic_scores')
-                        ->label('')
-                        ->keyLabel('Critic')
-                        ->valueLabel('Score')
-                        ->reorderable()
-                        ->columnSpanFull(),
-                ])
-                ->collapsible()
-                ->collapsed(),
+        $sections[] = Forms\Components\Section::make('Drinking Window')
+            ->description('Recommended drinking period')
+            ->icon('heroicon-o-calendar')
+            ->schema([
+                Forms\Components\Grid::make(2)
+                    ->schema([
+                        Forms\Components\TextInput::make('drinking_window_start')
+                            ->label('Start Year')
+                            ->numeric()
+                            ->minValue(1800)
+                            ->maxValue(2200)
+                            ->helperText('Optional · Manual'),
+                        Forms\Components\TextInput::make('drinking_window_end')
+                            ->label('End Year')
+                            ->numeric()
+                            ->minValue(1800)
+                            ->maxValue(2200)
+                            ->gte('drinking_window_start')
+                            ->helperText('Optional · Manual'),
+                    ]),
+            ])
+            ->collapsible();
 
-            Forms\Components\Section::make('Production Notes')
-                ->description('Winemaking and production details')
-                ->icon('heroicon-o-document-text')
-                ->schema([
-                    Forms\Components\KeyValue::make('production_notes')
-                        ->label('')
-                        ->keyLabel('Note Type')
-                        ->valueLabel('Value')
-                        ->reorderable()
-                        ->columnSpanFull(),
-                ])
-                ->collapsible()
-                ->collapsed(),
-        ]);
+        $sections[] = Forms\Components\Section::make('Critic Scores')
+            ->description('Professional ratings and scores')
+            ->icon('heroicon-o-star')
+            ->schema([
+                Forms\Components\KeyValue::make('critic_scores')
+                    ->label('')
+                    ->keyLabel('Critic')
+                    ->valueLabel('Score')
+                    ->reorderable()
+                    ->columnSpanFull()
+                    ->helperText('Optional · Manual'),
+            ])
+            ->collapsible()
+            ->collapsed();
+
+        $sections[] = Forms\Components\Section::make('Production Notes')
+            ->description('Winemaking and production details (legacy)')
+            ->icon('heroicon-o-document-text')
+            ->schema([
+                Forms\Components\KeyValue::make('production_notes')
+                    ->label('')
+                    ->keyLabel('Note Type')
+                    ->valueLabel('Value')
+                    ->reorderable()
+                    ->columnSpanFull()
+                    ->helperText('Optional · Manual'),
+            ])
+            ->collapsible()
+            ->collapsed();
+
+        // Dynamic sections from attribute set
+        $attributeSet = \App\Models\Pim\AttributeSet::getDefault();
+        if ($attributeSet !== null) {
+            foreach ($attributeSet->attributeGroups as $group) {
+                $fields = self::buildAttributeFieldsForGroup($group);
+                if (count($fields) > 0) {
+                    $section = Forms\Components\Section::make($group->name)
+                        ->description($group->description ?? '')
+                        ->icon($group->icon)
+                        ->schema($fields)
+                        ->collapsible($group->is_collapsible);
+
+                    if ($group->is_collapsed_by_default) {
+                        $section->collapsed();
+                    }
+
+                    $sections[] = $section;
+                }
+            }
+        }
+
+        // Completeness indicator at the bottom
+        $sections[] = Forms\Components\Section::make('Completeness')
+            ->description('Track attribute completion progress')
+            ->icon('heroicon-o-chart-pie')
+            ->schema([
+                Forms\Components\Placeholder::make('completeness_indicator')
+                    ->label('')
+                    ->content(function (?WineVariant $record): string {
+                        if ($record === null) {
+                            return '<div class="text-gray-500">Save the product to see completeness status.</div>';
+                        }
+                        $percentage = $record->getDynamicCompletenessPercentage();
+                        $color = $record->getCompletenessColor();
+                        $colorClass = match ($color) {
+                            'danger' => 'text-red-600 dark:text-red-400',
+                            'warning' => 'text-yellow-600 dark:text-yellow-400',
+                            'success' => 'text-green-600 dark:text-green-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                        $bgClass = match ($color) {
+                            'danger' => 'bg-red-500',
+                            'warning' => 'bg-yellow-500',
+                            'success' => 'bg-green-500',
+                            default => 'bg-gray-500',
+                        };
+
+                        return "<div class=\"space-y-2\">
+                            <div class=\"flex items-center justify-between\">
+                                <span class=\"text-sm font-medium {$colorClass}\">Attribute Completeness</span>
+                                <span class=\"text-sm font-bold {$colorClass}\">{$percentage}%</span>
+                            </div>
+                            <div class=\"w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5\">
+                                <div class=\"{$bgClass} h-2.5 rounded-full transition-all duration-300\" style=\"width: {$percentage}%\"></div>
+                            </div>
+                            <p class=\"text-xs text-gray-500 dark:text-gray-400\">
+                                Fill in more attributes to improve product completeness. Required fields have higher weight.
+                            </p>
+                        </div>";
+                    })
+                    ->dehydrated(false),
+            ])
+            ->collapsible()
+            ->collapsed();
+
+        return Forms\Components\Group::make($sections);
+    }
+
+    /**
+     * Build form fields for a specific attribute group.
+     *
+     * @return list<Forms\Components\Component>
+     */
+    protected static function buildAttributeFieldsForGroup(\App\Models\Pim\AttributeGroup $group): array
+    {
+        $fields = [];
+
+        foreach ($group->attributeDefinitions as $definition) {
+            $field = self::buildAttributeField($definition);
+            if ($field !== null) {
+                $fields[] = $field;
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * Build a single form field for an attribute definition.
+     */
+    protected static function buildAttributeField(\App\Models\Pim\AttributeDefinition $definition): ?Forms\Components\Component
+    {
+        $fieldName = "attributes.{$definition->code}";
+        $label = $definition->name;
+
+        // Build helper text with required/optional and source
+        $requiredLabel = $definition->is_required ? 'Required' : 'Optional';
+        $helperParts = [$requiredLabel];
+        if ($definition->unit !== null) {
+            $helperParts[] = "Unit: {$definition->unit}";
+        }
+        $baseHelperText = implode(' · ', $helperParts);
+
+        /** @var 'text'|'textarea'|'number'|'select'|'multiselect'|'boolean'|'date'|'json' $type */
+        $type = $definition->type;
+
+        return match ($type) {
+            'text' => Forms\Components\TextInput::make($fieldName)
+                ->label($label)
+                ->placeholder($definition->placeholder)
+                ->required($definition->is_required)
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+
+            'textarea' => Forms\Components\Textarea::make($fieldName)
+                ->label($label)
+                ->placeholder($definition->placeholder)
+                ->rows(3)
+                ->required($definition->is_required)
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+
+            'number' => self::buildNumberField($definition, $fieldName, $label, $baseHelperText),
+
+            'select' => Forms\Components\Select::make($fieldName)
+                ->label($label)
+                ->options(array_combine($definition->options ?? [], $definition->options ?? []))
+                ->required($definition->is_required)
+                ->searchable()
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+
+            'multiselect' => Forms\Components\Select::make($fieldName)
+                ->label($label)
+                ->options(array_combine($definition->options ?? [], $definition->options ?? []))
+                ->multiple()
+                ->required($definition->is_required)
+                ->searchable()
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+
+            'boolean' => Forms\Components\Toggle::make($fieldName)
+                ->label($label)
+                ->required($definition->is_required)
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+
+            'date' => Forms\Components\DatePicker::make($fieldName)
+                ->label($label)
+                ->required($definition->is_required)
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+
+            'json' => Forms\Components\KeyValue::make($fieldName)
+                ->label($label)
+                ->required($definition->is_required)
+                ->reorderable()
+                ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+                ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+                ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+                ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+                ->hintColor('info'),
+        };
+    }
+
+    /**
+     * Build a number field with validation rules.
+     */
+    protected static function buildNumberField(
+        \App\Models\Pim\AttributeDefinition $definition,
+        string $fieldName,
+        string $label,
+        string $baseHelperText
+    ): Forms\Components\TextInput {
+        $field = Forms\Components\TextInput::make($fieldName)
+            ->label($label)
+            ->numeric()
+            ->required($definition->is_required)
+            ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
+            ->disabled(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition))
+            ->hint(fn (?WineVariant $record) => self::getAttributeLockHint($record, $definition))
+            ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
+            ->hintColor('info');
+
+        /** @var array{min?: int|float, max?: int|float, step?: int|float}|null $rules */
+        $rules = $definition->validation_rules;
+        if (is_array($rules)) {
+            if (isset($rules['min'])) {
+                $field->minValue($rules['min']);
+            }
+            if (isset($rules['max'])) {
+                $field->maxValue($rules['max']);
+            }
+            if (isset($rules['step'])) {
+                $field->step($rules['step']);
+            }
+        }
+
+        if ($definition->unit !== null) {
+            $field->suffix($definition->unit);
+        }
+
+        return $field;
+    }
+
+    /**
+     * Get helper text for an attribute, including source info.
+     */
+    protected static function getAttributeHelperText(?WineVariant $record, \App\Models\Pim\AttributeDefinition $definition, string $baseText): string
+    {
+        if ($record === null) {
+            return $baseText.' · Manual';
+        }
+
+        $attrValue = $record->attributeValues()
+            ->where('attribute_definition_id', $definition->id)
+            ->first();
+
+        $source = 'Manual';
+        if ($attrValue !== null) {
+            $source = $attrValue->source === \App\Enums\DataSource::LivEx ? 'Liv-ex' : 'Manual';
+        }
+
+        $helpText = $definition->help_text;
+        $parts = [$baseText, "Source: {$source}"];
+        if ($helpText !== null && $helpText !== '') {
+            $parts[] = $helpText;
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Check if an attribute is locked (from Liv-ex).
+     */
+    protected static function isAttributeLocked(?WineVariant $record, \App\Models\Pim\AttributeDefinition $definition): bool
+    {
+        if ($record === null) {
+            return false;
+        }
+
+        // Managers and Admins can override
+        if (self::canOverrideLivEx()) {
+            return false;
+        }
+
+        $attrValue = $record->attributeValues()
+            ->where('attribute_definition_id', $definition->id)
+            ->first();
+
+        return $attrValue !== null && $attrValue->is_locked;
+    }
+
+    /**
+     * Get lock hint for an attribute.
+     */
+    protected static function getAttributeLockHint(?WineVariant $record, \App\Models\Pim\AttributeDefinition $definition): ?string
+    {
+        if ($record === null) {
+            return null;
+        }
+
+        $attrValue = $record->attributeValues()
+            ->where('attribute_definition_id', $definition->id)
+            ->first();
+
+        if ($attrValue === null || ! $attrValue->is_locked) {
+            return null;
+        }
+
+        if (self::canOverrideLivEx()) {
+            return 'Liv-ex data (you can override)';
+        }
+
+        return 'Locked from Liv-ex';
     }
 
     /**
