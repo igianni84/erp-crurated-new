@@ -2,6 +2,7 @@
 
 namespace App\Models\Pim;
 
+use App\Enums\DataSource;
 use App\Enums\ProductLifecycleStatus;
 use App\Traits\Auditable;
 use App\Traits\AuditLoggable;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property ProductLifecycleStatus $lifecycle_status
+ * @property DataSource $data_source
  */
 class WineVariant extends Model
 {
@@ -56,6 +58,10 @@ class WineVariant extends Model
         'critic_scores',
         'production_notes',
         'lifecycle_status',
+        'data_source',
+        'lwin_code',
+        'internal_code',
+        'thumbnail_url',
     ];
 
     /**
@@ -73,6 +79,7 @@ class WineVariant extends Model
             'critic_scores' => 'array',
             'production_notes' => 'array',
             'lifecycle_status' => ProductLifecycleStatus::class,
+            'data_source' => DataSource::class,
         ];
     }
 
