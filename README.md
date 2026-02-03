@@ -1,59 +1,185 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Crurated ERP
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Enterprise Resource Planning system built with Laravel 12 and Filament 5.
 
-## About Laravel
+## Requirements
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.2+
+- MySQL 8.0+
+- Composer 2.x
+- Node.js 18+ (for asset compilation)
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Setup
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+```bash
+# Install dependencies
+composer install
 
-## Learning Laravel
+# Copy environment file
+cp .env.example .env
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+# Generate application key
+php artisan key:generate
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+# Run migrations
+php artisan migrate
 
-## Laravel Sponsors
+# Start development server
+php artisan serve
+```
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## Code Quality
 
-### Premium Partners
+```bash
+# Run all quality checks
+composer quality
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+# Individual commands
+composer lint        # Fix code style
+composer lint:test   # Check code style (no fix)
+composer analyse     # Run PHPStan
+composer test        # Run tests
+```
 
-## Contributing
+## Project Structure
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```
+app/
+├── Enums/              # Application enumerations
+├── Filament/
+│   └── Resources/
+│       └── Pim/        # PIM module Filament resources
+├── Models/
+│   └── Pim/            # PIM module models
+├── Services/           # Business logic services
+└── Traits/             # Reusable model traits
+```
 
-## Code of Conduct
+## Reusable Traits
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### HasUuid
 
-## Security Vulnerabilities
+Provides UUID as primary key functionality for Eloquent models.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+**Usage:**
+
+```php
+use App\Traits\HasUuid;
+
+class MyModel extends Model
+{
+    use HasUuid;
+}
+```
+
+**Migration:**
+
+```php
+$table->uuid('id')->primary();
+// Remove: $table->id();
+```
+
+### Auditable
+
+Tracks who created and last updated the model.
+
+**Usage:**
+
+```php
+use App\Traits\Auditable;
+
+class MyModel extends Model
+{
+    use Auditable;
+}
+```
+
+**Migration:**
+
+```php
+$table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+$table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
+```
+
+**Methods:**
+
+- `$model->creator` - Returns the User who created the model
+- `$model->updater` - Returns the User who last updated the model
+
+### HasLifecycleStatus
+
+Provides lifecycle status management with standard states: draft, active, inactive, archived.
+
+**Usage:**
+
+```php
+use App\Traits\HasLifecycleStatus;
+use App\Enums\LifecycleStatus;
+
+class MyModel extends Model
+{
+    use HasLifecycleStatus;
+
+    protected $casts = [
+        'status' => LifecycleStatus::class,
+    ];
+}
+```
+
+**Migration:**
+
+```php
+$table->string('status')->default('draft');
+```
+
+**Query Scopes:**
+
+```php
+MyModel::active()->get();      // Only active records
+MyModel::draft()->get();       // Only draft records
+MyModel::inactive()->get();    // Only inactive records
+MyModel::archived()->get();    // Only archived records
+MyModel::notArchived()->get(); // Exclude archived records
+```
+
+**Status Checks:**
+
+```php
+$model->isActive();
+$model->isDraft();
+$model->isInactive();
+$model->isArchived();
+```
+
+**Status Transitions:**
+
+```php
+$model->activate();       // Set to active
+$model->deactivate();     // Set to inactive
+$model->archive();        // Set to archived
+$model->restoreToDraft(); // Set to draft
+```
+
+## Enums
+
+### LifecycleStatus
+
+Standard lifecycle states for models.
+
+```php
+use App\Enums\LifecycleStatus;
+
+LifecycleStatus::Draft;    // 'draft'
+LifecycleStatus::Active;   // 'active'
+LifecycleStatus::Inactive; // 'inactive'
+LifecycleStatus::Archived; // 'archived'
+
+// Helpers for Filament UI
+$status->label(); // Human-readable label
+$status->color(); // Filament color (gray, success, warning, danger)
+$status->icon();  // Heroicon name
+```
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Proprietary - Crurated
