@@ -9,6 +9,10 @@ Started: Tue Feb  3 21:41:29 CET 2026
 - Enums should include `label()`, `color()`, and `icon()` methods for Filament UI compatibility
 - Commercial entities go in `app/Enums/Commercial/` and `app/Models/Commercial/`
 - Migration naming: `YYYY_MM_DD_NNNNNN_action_table_name.php` where NNNNNN is sequence number
+- Filament resources: main class in `app/Filament/Resources/`, pages in `Pages/` subdirectory
+- Filament navigation groups are defined in `AdminPanelProvider.php`
+- Use `$navigationGroup = 'Commercial'` for all Commercial module resources
+- For table-based list pages (not CRUD resources), use Filament Page with HasTable interface and InteractsWithTable trait
 
 ---
 
@@ -53,4 +57,87 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - The established enum pattern continues to work well for all commercial status/type enums
   - PHPStan config has an unused ignored pattern for "trait.unused" - this is a config issue, not code issue
   - Enums provide consistent Filament UI elements through color() and icon() methods
+---
+
+## 2026-02-03 - US-003
+- What was implemented:
+  - EmpSource enum (livex, internal, composite) with label/color/icon methods
+  - EmpConfidenceLevel enum (high, medium, low) with label/color/icon methods
+  - EstimatedMarketPrice model with HasUuid trait and belongsTo SellableSku relationship
+  - estimated_market_prices migration with unique constraint on sellable_sku_id + market
+  - Freshness indicators (isFresh, isStale, getFreshnessIndicator) for data quality tracking
+- Files changed:
+  - app/Enums/Commercial/EmpSource.php (created)
+  - app/Enums/Commercial/EmpConfidenceLevel.php (created)
+  - app/Models/Commercial/EstimatedMarketPrice.php (created)
+  - database/migrations/2026_02_03_380001_create_estimated_market_prices_table.php (created)
+- **Learnings for future iterations:**
+  - EMP is a read-only entity in Module S (imported from external process), so no Auditable trait needed
+  - The unique constraint on sellable_sku_id + market ensures one EMP per SKU per market
+  - Freshness indicators help UI display data quality (fresh < 24h, recent 1-7 days, stale > 7 days)
+  - SellableSku uses uuid primary key, so foreign keys use foreignUuid() in migrations
+---
+
+## 2026-02-03 - US-004
+- What was implemented:
+  - ChannelResource Filament resource with full CRUD capabilities
+  - Commercial navigation group added to AdminPanelProvider
+  - List view with columns: name, channel_type (badge), default_currency, status (badge), allowed_models (badges), updated_at
+  - Filters for channel_type and status
+  - Search by name
+  - Create/View/Edit pages with form for all Channel fields
+  - Soft delete support with restore action
+- Files changed:
+  - app/Filament/Resources/ChannelResource.php (created)
+  - app/Filament/Resources/ChannelResource/Pages/ListChannels.php (created)
+  - app/Filament/Resources/ChannelResource/Pages/CreateChannel.php (created)
+  - app/Filament/Resources/ChannelResource/Pages/ViewChannel.php (created)
+  - app/Filament/Resources/ChannelResource/Pages/EditChannel.php (created)
+  - app/Providers/Filament/AdminPanelProvider.php (modified - added Commercial nav group)
+- **Learnings for future iterations:**
+  - Filament resources follow a consistent pattern: Resource class + Pages/ directory with List/Create/View/Edit pages
+  - Badge columns with enums use formatStateUsing, color, and icon callbacks
+  - JSON array fields (like allowed_commercial_models) can be displayed as comma-separated badges
+  - Navigation groups must be registered in AdminPanelProvider for proper sidebar organization
+  - Use getEloquentQuery() to include soft-deleted records in the list view
+---
+
+## 2026-02-03 - US-005
+- What was implemented:
+  - Channel Detail view with 4 tabs using Filament Infolist Tabs component
+  - Tab Overview: Channel ID, name, channel_type (badge), default_currency, status (badge), allowed commercial models display (voucher_based/sell_through status)
+  - Tab Price Books: Placeholder section explaining future Price Book integration (US-009+)
+  - Tab Offers: Placeholder section explaining future Offer integration (US-033+)
+  - Tab Audit: Full audit log timeline with filtering by event type and date range
+  - Audit log HTML rendering with color-coded event badges and change tracking
+- Files changed:
+  - app/Filament/Resources/ChannelResource/Pages/ViewChannel.php (modified - added tabbed infolist with 4 tabs)
+- **Learnings for future iterations:**
+  - Use Filament Infolist with Tabs::make() for tabbed detail views, with persistTabInQueryString() for URL state
+  - Tab methods (getOverviewTab, etc.) provide clean separation of concerns for complex views
+  - Placeholder tabs are acceptable when dependent features (PriceBook, Offer) don't exist yet
+  - Audit log display uses custom HTML generation with getStateUsing() and ->html() for rich formatting
+  - Filter state in ViewRecord pages uses public properties (auditEventFilter, etc.) with action callbacks
+---
+
+## 2026-02-03 - US-006
+- What was implemented:
+  - PricingIntelligence Filament Page under Commercial navigation group
+  - Table view with HasTable trait for advanced filtering and pagination
+  - Columns: Sellable SKU (wine + vintage + format + packaging), market, emp_value, confidence, active_price_book_price (placeholder), active_offer_price (placeholder), delta_vs_emp (placeholder), freshness_indicator
+  - Filters: market (multi-select), confidence_level (multi-select), stale_data toggle, missing_data toggle
+  - Search by SKU code and wine name with deep relationship queries
+  - Statistics cards showing total records, markets covered, stale data count, low confidence count
+  - Placeholder notices for future Price Book and Offer integrations
+  - Read-only view with no edit actions
+- Files changed:
+  - app/Filament/Pages/PricingIntelligence.php (created)
+  - resources/views/filament/pages/pricing-intelligence.blade.php (created)
+- **Learnings for future iterations:**
+  - Filament Pages can implement HasTable interface for table-based views
+  - Use InteractsWithTable trait with table() method for table configuration
+  - Deep relationship searches require whereHas() with nested callbacks
+  - Sortable columns with relationships need explicit join queries in sortable() callback
+  - Placeholder columns with dashes and tooltips are good for features not yet implemented
+  - Statistics can be exposed via public methods and accessed in Blade templates with $this->getStatistics()
 ---
