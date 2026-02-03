@@ -156,7 +156,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -172,7 +172,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
