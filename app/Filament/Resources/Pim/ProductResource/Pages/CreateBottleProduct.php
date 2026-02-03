@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\Pim\ProductResource\Pages;
 
 use App\Filament\Resources\Pim\ProductResource;
-use App\Filament\Resources\Pim\WineVariantResource;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\Page;
 
@@ -36,7 +35,7 @@ class CreateBottleProduct extends Page
             ->color('primary')
             ->size('xl')
             ->extraAttributes(['class' => 'w-full justify-center py-8'])
-            ->url(route('filament.admin.resources.pim.products.import-livex'));
+            ->url(ProductResource::getUrl('import-livex'));
     }
 
     public function getManualAction(): Action
@@ -47,6 +46,6 @@ class CreateBottleProduct extends Page
             ->color('gray')
             ->size('xl')
             ->extraAttributes(['class' => 'w-full justify-center py-8'])
-            ->url(WineVariantResource::getUrl('create'));
+            ->url(ProductResource::getUrl('create-manual'));
     }
 }

@@ -267,6 +267,7 @@ class ProductResource extends Resource
             'choose-category' => Pages\ChooseProductCategory::route('/create'),
             'create-bottle' => Pages\CreateBottleProduct::route('/create/bottle'),
             'import-livex' => Pages\ImportLivex::route('/create/bottle/livex'),
+            'create-manual' => Pages\CreateManualBottle::route('/create/bottle/manual'),
         ];
     }
 }

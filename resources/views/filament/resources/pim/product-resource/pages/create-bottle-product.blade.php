@@ -52,7 +52,7 @@
 
             {{-- Manual Creation Card --}}
             <div class="relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6 hover:border-gray-500 dark:hover:border-gray-500 transition-colors cursor-pointer group">
-                <a href="{{ \App\Filament\Resources\Pim\WineVariantResource::getUrl('create') }}" class="absolute inset-0 z-10"></a>
+                <a href="{{ \App\Filament\Resources\Pim\ProductResource::getUrl('create-manual') }}" class="absolute inset-0 z-10"></a>
                 <div class="flex flex-col items-center text-center">
                     <div class="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mb-4 group-hover:bg-gray-200 dark:group-hover:bg-gray-600 transition-colors">
                         <x-heroicon-o-pencil-square class="w-8 h-8 text-gray-600 dark:text-gray-400" />
