@@ -6,9 +6,12 @@ use App\Enums\Allocation\AllocationSourceType;
 use App\Enums\Allocation\AllocationStatus;
 use App\Enums\Allocation\AllocationSupplyForm;
 use App\Enums\Allocation\ReservationStatus;
+use App\Enums\Allocation\VoucherLifecycleState;
 use App\Filament\Resources\Allocation\AllocationResource;
+use App\Filament\Resources\Allocation\VoucherResource;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\TemporaryReservation;
+use App\Models\Allocation\Voucher;
 use App\Models\AuditLog;
 use App\Services\Allocation\AllocationService;
 use Filament\Actions;
@@ -551,24 +554,146 @@ class ViewAllocation extends ViewRecord
     {
         return Tab::make('Vouchers')
             ->icon('heroicon-o-ticket')
+            ->badge(fn (Allocation $record): ?string => $record->vouchers()->count() > 0
+                ? (string) $record->vouchers()->count()
+                : null)
+            ->badgeColor('success')
             ->schema([
-                Section::make('Issued Vouchers')
-                    ->description('Read-only list of vouchers issued from this allocation. Vouchers will be available once US-015 (Voucher model) is implemented.')
-                    ->icon('heroicon-o-ticket')
+                Section::make('Voucher Summary')
+                    ->description('Summary of voucher lifecycle states for this allocation')
                     ->schema([
-                        TextEntry::make('vouchers_note')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'Voucher tracking will be available after the Voucher model is implemented (US-015). Each voucher represents a customer\'s entitlement to one bottle from this allocation. Vouchers inherit the allocation\'s lineage and constraints.')
-                            ->html(),
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('total_issued')
+                                    ->label('Total Issued')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->vouchers()->count())
+                                    ->numeric()
+                                    ->suffix(' vouchers')
+                                    ->weight(FontWeight::Bold)
+                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->color('primary'),
+                                TextEntry::make('vouchers_issued_state')
+                                    ->label('Issued')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->vouchers()
+                                        ->where('lifecycle_state', VoucherLifecycleState::Issued)
+                                        ->count())
+                                    ->numeric()
+                                    ->suffix(' vouchers')
+                                    ->color('success')
+                                    ->icon('heroicon-o-ticket'),
+                                TextEntry::make('vouchers_locked')
+                                    ->label('Locked')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->vouchers()
+                                        ->where('lifecycle_state', VoucherLifecycleState::Locked)
+                                        ->count())
+                                    ->numeric()
+                                    ->suffix(' vouchers')
+                                    ->color('warning')
+                                    ->icon('heroicon-o-lock-closed'),
+                                TextEntry::make('vouchers_redeemed')
+                                    ->label('Redeemed')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->vouchers()
+                                        ->where('lifecycle_state', VoucherLifecycleState::Redeemed)
+                                        ->count())
+                                    ->numeric()
+                                    ->suffix(' vouchers')
+                                    ->color('info')
+                                    ->icon('heroicon-o-check-badge'),
+                            ]),
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('vouchers_cancelled')
+                                    ->label('Cancelled')
+                                    ->getStateUsing(fn (Allocation $record): int => $record->vouchers()
+                                        ->where('lifecycle_state', VoucherLifecycleState::Cancelled)
+                                        ->count())
+                                    ->numeric()
+                                    ->suffix(' vouchers')
+                                    ->color('danger')
+                                    ->icon('heroicon-o-x-circle'),
+                            ]),
                     ]),
-                Section::make('Voucher Statistics')
-                    ->description('Summary of voucher lifecycle states')
+                Section::make('Issued Vouchers')
+                    ->description('Read-only list of vouchers issued from this allocation')
+                    ->icon('heroicon-o-ticket')
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('view_all_vouchers')
+                            ->label('View All in Vouchers List')
+                            ->icon('heroicon-o-arrow-top-right-on-square')
+                            ->url(fn (Allocation $record): string => VoucherResource::getUrl('index', [
+                                'tableFilters' => [
+                                    'allocation' => [
+                                        'allocation_id' => $record->id,
+                                    ],
+                                ],
+                            ]))
+                            ->openUrlInNewTab()
+                            ->visible(fn (Allocation $record): bool => $record->vouchers()->count() > 0),
+                    ])
                     ->schema([
-                        TextEntry::make('vouchers_coming_soon')
+                        RepeatableEntry::make('vouchers')
                             ->label('')
-                            ->getStateUsing(fn (): string => 'Voucher statistics (total issued, locked, redeemed, cancelled) will appear here once the Voucher module is implemented.')
+                            ->schema([
+                                Grid::make(5)
+                                    ->schema([
+                                        TextEntry::make('id')
+                                            ->label('Voucher ID')
+                                            ->url(fn (Voucher $record): string => VoucherResource::getUrl('view', ['record' => $record]))
+                                            ->openUrlInNewTab()
+                                            ->color('primary')
+                                            ->copyable()
+                                            ->copyMessage('Voucher ID copied'),
+                                        TextEntry::make('customer.name')
+                                            ->label('Customer')
+                                            ->default('Unknown'),
+                                        TextEntry::make('lifecycle_state')
+                                            ->label('State')
+                                            ->badge()
+                                            ->formatStateUsing(fn (Voucher $record): string => $record->getLifecycleStateLabel())
+                                            ->color(fn (Voucher $record): string => $record->getLifecycleStateColor())
+                                            ->icon(fn (Voucher $record): string => $record->getLifecycleStateIcon()),
+                                        TextEntry::make('flags_display')
+                                            ->label('Flags')
+                                            ->getStateUsing(function (Voucher $record): string {
+                                                $flags = [];
+                                                if ($record->suspended) {
+                                                    $flags[] = 'Suspended';
+                                                }
+                                                if ($record->tradable) {
+                                                    $flags[] = 'Tradable';
+                                                }
+                                                if ($record->giftable) {
+                                                    $flags[] = 'Giftable';
+                                                }
+
+                                                return count($flags) > 0 ? implode(', ', $flags) : '—';
+                                            })
+                                            ->badge()
+                                            ->color(fn (Voucher $record): string => $record->suspended ? 'danger' : 'gray'),
+                                        TextEntry::make('created_at')
+                                            ->label('Created')
+                                            ->dateTime(),
+                                    ]),
+                            ])
+                            ->columns(1)
+                            ->visible(fn (Allocation $record): bool => $record->vouchers()->count() > 0),
+                        TextEntry::make('no_vouchers')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'No vouchers have been issued from this allocation yet. Vouchers are created when sales are confirmed via VoucherService.')
                             ->html()
-                            ->color('gray'),
+                            ->color('gray')
+                            ->visible(fn (Allocation $record): bool => $record->vouchers()->count() === 0),
+                    ]),
+                Section::make('Lineage Information')
+                    ->icon('heroicon-o-shield-check')
+                    ->iconColor('warning')
+                    ->collapsed()
+                    ->collapsible()
+                    ->schema([
+                        TextEntry::make('lineage_info')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'All vouchers issued from this allocation inherit its lineage and constraints. Voucher lineage (allocation_id) cannot be modified after issuance. Fulfillment must use physical supply from the same allocation lineage.')
+                            ->html(),
                     ]),
             ]);
     }
