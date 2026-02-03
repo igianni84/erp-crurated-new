@@ -347,3 +347,27 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - checkIntegrity() method can be used to verify case integrity before operations
   - Break reason values will be: 'transfer', 'trade', 'partial_redemption' (to be enforced by service)
 ---
+
+## 2026-02-03 - US-018
+- What was implemented: VoucherTransfer model for tracking transfers of vouchers between customers
+- Files changed:
+  - `database/migrations/2026_02_03_330000_create_voucher_transfers_table.php` (new)
+  - `app/Enums/Allocation/VoucherTransferStatus.php` (new) - pending, accepted, cancelled, expired
+  - `app/Models/Allocation/VoucherTransfer.php` (new)
+  - `app/Models/Allocation/Voucher.php` (added voucherTransfers relationships)
+- **Features implemented:**
+  - VoucherTransfer model with: voucher_id, from_customer_id, to_customer_id, status, initiated_at, expires_at, accepted_at, cancelled_at
+  - VoucherTransferStatus enum with 4 states and transition helpers (isPending, isAccepted, canBeCancelled, canBeAccepted, isTerminal)
+  - BelongsTo relationships: voucher(), fromCustomer(), toCustomer()
+  - Scopes: pending(), needsExpiration(), forVoucher(), fromCustomer(), toCustomer()
+  - Status helpers: isPending(), isAccepted(), isTerminal(), hasExpired(), canBeCancelled(), canBeAccepted()
+  - UI helpers: getStatusLabel(), getStatusColor(), getStatusIcon(), getStatusDescription()
+  - Voucher model: added voucherTransfers(), pendingTransfers(), hasPendingTransfer(), getPendingTransfer()
+- **Learnings for future iterations:**
+  - Transfer does NOT create a new voucher - it only changes voucher.customer_id on acceptance
+  - Transfer does NOT consume allocation - it's a customer-to-customer operation
+  - VoucherTransfer does NOT use soft deletes (transfers are immutable once created)
+  - Only one pending transfer per voucher at a time (enforced by unique index where status = 'pending')
+  - The actual transfer logic (accept, cancel, expire) will be implemented in VoucherTransferService (US-021)
+  - needsExpiration() scope can be used by a scheduled job to expire pending transfers
+---
