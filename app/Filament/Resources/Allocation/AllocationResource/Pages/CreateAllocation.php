@@ -50,7 +50,8 @@ class CreateAllocation extends CreateRecord
             $this->getBottleSkuStep(),
             $this->getSourceAndCapacityStep(),
             $this->getCommercialConstraintsStep(),
-            // Future steps will be added in US-011, US-012
+            $this->getAdvancedConstraintsStep(),
+            // Future steps will be added in US-012
         ];
     }
 
@@ -384,6 +385,87 @@ class CreateAllocation extends CreateRecord
     }
 
     /**
+     * Step 4: Advanced/Liquid Constraints
+     * Defines advanced constraints and liquid-specific options
+     */
+    protected function getAdvancedConstraintsStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Advanced Constraints')
+            ->description('Optional advanced constraints (expanded for liquid allocations)')
+            ->icon('heroicon-o-adjustments-horizontal')
+            ->schema([
+                // Section that shows when liquid is selected - expanded by default
+                Forms\Components\Section::make('Liquid Allocation Constraints')
+                    ->description('Additional constraints specific to liquid (not yet bottled) supply')
+                    ->icon('heroicon-o-beaker')
+                    ->schema([
+                        Forms\Components\Placeholder::make('liquid_constraints_info')
+                            ->label('')
+                            ->content('**Liquid allocations** require additional constraints to define bottling options and deadlines. Customers purchasing from liquid allocations may need to confirm bottling preferences before a deadline.')
+                            ->columnSpanFull(),
+
+                        Forms\Components\TagsInput::make('liquid_constraint.allowed_bottling_formats')
+                            ->label('Allowed Bottling Formats')
+                            ->placeholder('Add format codes (e.g., 750ml, 1500ml, 375ml)...')
+                            ->helperText('Specify which bottle formats customers can choose for bottling. Leave empty to allow all formats.'),
+
+                        Forms\Components\TagsInput::make('liquid_constraint.allowed_case_configurations')
+                            ->label('Allowed Case Configurations')
+                            ->placeholder('Add case configs (e.g., 6-pack, 12-pack, OWC-6)...')
+                            ->helperText('Specify case packaging options available to customers. Leave empty to allow all configurations.'),
+
+                        Forms\Components\DatePicker::make('liquid_constraint.bottling_confirmation_deadline')
+                            ->label('Bottling Confirmation Deadline')
+                            ->native(false)
+                            ->displayFormat('Y-m-d')
+                            ->helperText('Deadline by which customers must confirm their bottling preferences. Leave empty for no deadline.'),
+                    ])
+                    ->collapsible()
+                    ->collapsed(fn (Get $get): bool => $get('supply_form') !== AllocationSupplyForm::Liquid->value)
+                    ->hidden(fn (Get $get): bool => $get('supply_form') !== AllocationSupplyForm::Liquid->value),
+
+                // Advanced constraints section - always available but collapsed by default
+                Forms\Components\Section::make('Advanced Commercial Constraints')
+                    ->description('Optional advanced constraints for special scenarios')
+                    ->icon('heroicon-o-cog-6-tooth')
+                    ->schema([
+                        Forms\Components\TextInput::make('constraint.composition_constraint_group')
+                            ->label('Composition Constraint Group')
+                            ->placeholder('e.g., vertical-case-2020, premium-selection')
+                            ->helperText('Optional identifier for grouping allocations that can be composed into vertical cases or themed selections. Allocations with the same group can be combined.'),
+
+                        Forms\Components\Placeholder::make('composition_guidance')
+                            ->label('')
+                            ->content('**Composition Constraint Groups** are used for vertical cases and themed collections. For example, if you have separate allocations for different vintages of the same wine, you can assign them the same composition group (e.g., "château-margaux-vertical") to indicate they can be combined into a vertical case offering.')
+                            ->columnSpanFull(),
+
+                        Forms\Components\Toggle::make('constraint.fungibility_exception')
+                            ->label('Fungibility Exception')
+                            ->default(false)
+                            ->helperText('Enable if bottles from this allocation are NOT interchangeable with identical bottles from other allocations'),
+
+                        Forms\Components\Placeholder::make('fungibility_guidance')
+                            ->label('')
+                            ->content('**Fungibility Exception:** By default, bottles of the same SKU are considered fungible (interchangeable). Enable this exception for special allocations where the specific provenance matters, such as ex-cellar releases or bottles with specific storage history.')
+                            ->hidden(fn (Get $get): bool => ! $get('constraint.fungibility_exception'))
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(fn (Get $get): bool => $get('supply_form') !== AllocationSupplyForm::Liquid->value),
+
+                // Info message for non-liquid allocations
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('advanced_info')
+                            ->label('')
+                            ->content('**Tip:** For bottled allocations, advanced constraints are typically not needed. You can skip this step unless you need composition groups or fungibility exceptions.')
+                            ->columnSpanFull(),
+                    ])
+                    ->hidden(fn (Get $get): bool => $get('supply_form') === AllocationSupplyForm::Liquid->value),
+            ]);
+    }
+
+    /**
      * Format a WineMaster record for display in select options.
      */
     protected static function formatWineMasterOption(WineMaster $wineMaster): string
@@ -443,6 +525,12 @@ class CreateAllocation extends CreateRecord
             unset($data['constraint']);
         }
 
+        // Extract liquid constraint data for later use
+        if (isset($data['liquid_constraint'])) {
+            session(['allocation_liquid_constraint_data' => $data['liquid_constraint']]);
+            unset($data['liquid_constraint']);
+        }
+
         return $data;
     }
 
@@ -451,18 +539,20 @@ class CreateAllocation extends CreateRecord
      */
     protected function afterCreate(): void
     {
+        /** @var \App\Models\Allocation\Allocation $allocation */
+        $allocation = $this->record;
+
+        // Handle AllocationConstraint data (from Step 3 and Step 4)
         $constraintData = session('allocation_constraint_data');
         session()->forget('allocation_constraint_data');
 
         if ($constraintData !== null) {
-            /** @var \App\Models\Allocation\Allocation $allocation */
-            $allocation = $this->record;
             $constraint = $allocation->constraint;
 
             if ($constraint !== null) {
-                // Only update if there's actual data (empty arrays mean "allow all")
                 $updateData = [];
 
+                // Step 3 fields
                 if (! empty($constraintData['allowed_channels'])) {
                     $updateData['allowed_channels'] = $constraintData['allowed_channels'];
                 }
@@ -475,9 +565,50 @@ class CreateAllocation extends CreateRecord
                     $updateData['allowed_customer_types'] = $constraintData['allowed_customer_types'];
                 }
 
+                // Step 4 fields (advanced constraints)
+                if (! empty($constraintData['composition_constraint_group'])) {
+                    $updateData['composition_constraint_group'] = $constraintData['composition_constraint_group'];
+                }
+
+                if (isset($constraintData['fungibility_exception']) && $constraintData['fungibility_exception']) {
+                    $updateData['fungibility_exception'] = true;
+                }
+
                 if (! empty($updateData)) {
                     $constraint->update($updateData);
                 }
+            }
+        }
+
+        // Handle LiquidAllocationConstraint data (from Step 4 - only for liquid allocations)
+        $liquidConstraintData = session('allocation_liquid_constraint_data');
+        session()->forget('allocation_liquid_constraint_data');
+
+        if ($liquidConstraintData !== null && $allocation->isLiquid()) {
+            $hasLiquidData = ! empty($liquidConstraintData['allowed_bottling_formats'])
+                || ! empty($liquidConstraintData['allowed_case_configurations'])
+                || ! empty($liquidConstraintData['bottling_confirmation_deadline']);
+
+            if ($hasLiquidData) {
+                $liquidUpdateData = [];
+
+                if (! empty($liquidConstraintData['allowed_bottling_formats'])) {
+                    $liquidUpdateData['allowed_bottling_formats'] = $liquidConstraintData['allowed_bottling_formats'];
+                }
+
+                if (! empty($liquidConstraintData['allowed_case_configurations'])) {
+                    $liquidUpdateData['allowed_case_configurations'] = $liquidConstraintData['allowed_case_configurations'];
+                }
+
+                if (! empty($liquidConstraintData['bottling_confirmation_deadline'])) {
+                    $liquidUpdateData['bottling_confirmation_deadline'] = $liquidConstraintData['bottling_confirmation_deadline'];
+                }
+
+                // Create or update the liquid constraint
+                $allocation->liquidConstraint()->create(array_merge(
+                    ['allocation_id' => $allocation->id],
+                    $liquidUpdateData
+                ));
             }
         }
     }
