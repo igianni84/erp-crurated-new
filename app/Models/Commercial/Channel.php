@@ -8,6 +8,7 @@ use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -74,6 +75,16 @@ class Channel extends Model
     public function auditLogs(): MorphMany
     {
         return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+    }
+
+    /**
+     * Get the offers for this channel.
+     *
+     * @return HasMany<Offer, $this>
+     */
+    public function offers(): HasMany
+    {
+        return $this->hasMany(Offer::class);
     }
 
     /**

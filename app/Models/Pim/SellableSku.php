@@ -177,6 +177,16 @@ class SellableSku extends Model
     }
 
     /**
+     * Get the offers for this SKU.
+     *
+     * @return HasMany<\App\Models\Commercial\Offer, $this>
+     */
+    public function offers(): HasMany
+    {
+        return $this->hasMany(\App\Models\Commercial\Offer::class);
+    }
+
+    /**
      * Check if the SKU is in draft status.
      */
     public function isDraft(): bool

@@ -133,6 +133,16 @@ class PriceBook extends Model
     }
 
     /**
+     * Get the offers that use this price book.
+     *
+     * @return HasMany<Offer, $this>
+     */
+    public function offers(): HasMany
+    {
+        return $this->hasMany(Offer::class);
+    }
+
+    /**
      * Check if the price book is in draft status.
      */
     public function isDraft(): bool
