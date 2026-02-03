@@ -168,9 +168,8 @@ class PricingIntelligence extends Page implements HasTable
                 Tables\Actions\Action::make('view_detail')
                     ->label('View Detail')
                     ->icon('heroicon-o-eye')
-                    ->url(fn (EstimatedMarketPrice $record): string => route('filament.admin.pages.pricing-intelligence-detail', ['record' => $record->id]))
-                    ->openUrlInNewTab(false)
-                    ->visible(false),
+                    ->url(fn (EstimatedMarketPrice $record): string => PricingIntelligenceDetail::getUrl(['record' => $record->sellable_sku_id]))
+                    ->openUrlInNewTab(false),
             ])
             ->emptyStateHeading('No EMP Data Found')
             ->emptyStateDescription('Estimated Market Prices are imported from external sources. No data has been imported yet.')
