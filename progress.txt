@@ -28,3 +28,21 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Use `TrashedFilter` for soft-deleted models in table filters
   - Table columns: searchable on name/producer/appellation per requirements
 ---
+
+## 2026-02-03 17:00 CET - US-002
+- Implemented Wine Variant model with FK to Wine Master and all required fields
+- Files changed:
+  - `database/migrations/2026_02_03_160009_create_wine_variants_table.php` (new)
+  - `app/Models/Pim/WineVariant.php` (new)
+  - `app/Models/Pim/WineMaster.php` (modified - added hasMany relationship)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ListWineVariants.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/CreateWineVariant.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (new)
+- **Learnings for future iterations:**
+  - Use `foreignUuid()` for foreign keys to UUID primary keys (not `foreignId`)
+  - For unique constraint across two columns, use `$table->unique(['col1', 'col2'])`
+  - Select component with relationship: use `getOptionLabelFromRecordUsing()` for custom labels
+  - Navigation sort increments for each resource (WineMaster=1, WineVariant=2)
+  - BelongsTo relationship method name should be camelCase singular (e.g., `wineMaster`)
+---
