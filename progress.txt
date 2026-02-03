@@ -138,3 +138,26 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Use `getOptionLabelUsing()` to format existing option labels for display
   - Use `getAttribute()` instead of direct property access to avoid PHPStan strict type errors
 ---
+
+## 2026-02-03 - US-009
+- What was implemented: Create Allocation wizard - Step 2 (Source & Capacity)
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/CreateAllocation.php` (added getSourceAndCapacityStep method)
+- **Features implemented:**
+  - Source Type select with all AllocationSourceType enum options (producer_allocation, owned_stock, passive_consignment, third_party_custody)
+  - Supply Form select with AllocationSupplyForm enum options (bottled, liquid)
+  - Live inline guidance explaining implications of bottled vs liquid supply:
+    - Bottled: ready for sale, individual serialization
+    - Liquid: still in barrel/tank, bottling options may apply, additional constraints in Step 4
+  - Total Quantity numeric input with minValue(1) validation and "bottles" suffix
+  - Availability Window with start/end date pickers, afterOrEqual validation for end date
+  - Serialization Required toggle (default true) with live inline guidance:
+    - Enabled: unique identifier for provenance tracking, recommended for fine wine
+    - Disabled: bottles not individually tracked, for commodity wines only
+- **Learnings for future iterations:**
+  - Use `live()` on fields that need to update guidance Placeholders dynamically
+  - Use `native(false)` on Select components for better Filament-styled dropdowns
+  - Use `afterOrEqual()` validation on DatePicker for date range validation (cleaner than custom rules)
+  - Placeholder components with markdown (**bold**) work for inline guidance
+  - Each step method returns a Wizard\Step - add to getSteps() array
+---

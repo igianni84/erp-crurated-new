@@ -146,8 +146,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Step 2 with: source_type dropdown (all 4 AllocationSourceType options), supply_form dropdown with live guidance explaining bottled vs liquid implications, total_quantity field with minValue(1) validation, availability date range with afterOrEqual validation, serialization_required toggle with guidance about tracking implications. Browser verification deferred to future story."
     },
     {
       "id": "US-010",
