@@ -433,4 +433,47 @@ class Voucher extends Model
 
         return 'Suspended (manual)';
     }
+
+    /**
+     * Check if this voucher can be fulfilled with a bottle from a specific allocation.
+     *
+     * This is a fundamental lineage constraint - vouchers can ONLY be fulfilled
+     * with physical bottles from the same allocation they were issued from.
+     *
+     * @param  string  $bottleAllocationId  The allocation ID of the physical bottle
+     */
+    public function canBeFulfilledFromAllocation(string $bottleAllocationId): bool
+    {
+        return $this->allocation_id === $bottleAllocationId;
+    }
+
+    /**
+     * Check if the voucher has lineage issues that prevent fulfillment.
+     *
+     * Note: In normal operation, allocation_id is never null (enforced at database level).
+     * This method exists for defensive programming and edge case handling.
+     *
+     * Returns true if there are any lineage-related problems.
+     */
+    public function hasLineageIssues(): bool
+    {
+        // allocation_id should never be null in normal operation (database constraint),
+        // but we check defensively in case of data issues or testing scenarios
+        /** @var string|null $allocationId */
+        $allocationId = $this->getAttribute('allocation_id');
+
+        return $allocationId === null || $allocationId === '';
+    }
+
+    /**
+     * Get the lineage constraint message for display purposes.
+     */
+    public function getLineageConstraintMessage(): string
+    {
+        return sprintf(
+            'This voucher must be fulfilled with physical bottles from Allocation %s. '
+            .'Fulfillment with bottles from any other allocation is not permitted and will be rejected by the system.',
+            $this->allocation_id
+        );
+    }
 }

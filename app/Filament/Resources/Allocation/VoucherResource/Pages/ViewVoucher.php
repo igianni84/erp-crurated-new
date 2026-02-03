@@ -635,6 +635,23 @@ class ViewVoucher extends ViewRecord
             ->iconColor('warning')
             ->collapsible()
             ->schema([
+                // CRITICAL LINEAGE WARNING - Most prominent element
+                Section::make('')
+                    ->schema([
+                        TextEntry::make('lineage_critical_warning')
+                            ->label('')
+                            ->getStateUsing(fn (): string => '⛔ NOT FULFILLABLE OUTSIDE LINEAGE')
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->weight(FontWeight::Bold)
+                            ->color('danger'),
+                        TextEntry::make('lineage_constraint_message')
+                            ->label('')
+                            ->getStateUsing(fn (Voucher $record): string => $record->getLineageConstraintMessage())
+                            ->color('danger'),
+                    ])
+                    ->extraAttributes([
+                        'class' => 'bg-danger-50 dark:bg-danger-950 border-2 border-danger-500 rounded-lg p-4',
+                    ]),
                 Grid::make(4)
                     ->schema([
                         TextEntry::make('allocation_id')
@@ -712,12 +729,28 @@ class ViewVoucher extends ViewRecord
                                     ->color('info'),
                             ]),
                     ]),
-                TextEntry::make('lineage_warning')
-                    ->label('')
-                    ->getStateUsing(fn (): string => 'Lineage can never be modified. This voucher can only be fulfilled with supply from the same allocation lineage. Fulfillment with bottles from a different allocation is not permitted.')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->iconColor('warning')
-                    ->color('warning'),
+                Section::make('Lineage Enforcement')
+                    ->description('Understanding lineage constraints')
+                    ->collapsed()
+                    ->collapsible()
+                    ->icon('heroicon-o-lock-closed')
+                    ->schema([
+                        TextEntry::make('lineage_explanation')
+                            ->label('')
+                            ->getStateUsing(fn (): string => '**Allocation lineage is immutable and strictly enforced:**
+
+• **allocation_id cannot be changed** - The allocation_id field is locked at voucher creation time and cannot be modified by any user or system process.
+
+• **Fulfillment validation** - Module C (Fulfillment) must validate that physical bottles belong to the same allocation before assigning them to this voucher.
+
+• **Provenance guarantee** - This ensures complete traceability from allocation to voucher to physical bottle.
+
+• **Constraint inheritance** - Commercial constraints from the allocation are enforced throughout the voucher lifecycle.
+
+Attempting to fulfill this voucher with bottles from a different allocation will result in a system error.')
+                            ->markdown()
+                            ->html(),
+                    ]),
             ]);
     }
 

@@ -497,6 +497,87 @@ class VoucherService
     }
 
     /**
+     * Validate that a physical bottle can fulfill a voucher based on allocation lineage.
+     *
+     * This is a CRITICAL validation for Module C (Fulfillment). A voucher can ONLY be
+     * fulfilled with physical bottles that originate from the same allocation lineage.
+     * This ensures provenance tracking and constraint enforcement.
+     *
+     * Module C must call this method before assigning a physical bottle to a voucher.
+     *
+     * @param  Voucher  $voucher  The voucher to be fulfilled
+     * @param  Allocation  $bottleAllocation  The allocation from which the physical bottle originates
+     *
+     * @throws \InvalidArgumentException If lineage does not match
+     */
+    public function validateFulfillmentLineage(Voucher $voucher, Allocation $bottleAllocation): void
+    {
+        if ($voucher->allocation_id !== $bottleAllocation->id) {
+            throw new \InvalidArgumentException(
+                'Cannot fulfill voucher with bottle from different allocation lineage. '
+                ."Voucher allocation: {$voucher->allocation_id}, "
+                ."Bottle allocation: {$bottleAllocation->id}. "
+                .'Vouchers can only be fulfilled with physical bottles from the same allocation they were issued from. '
+                .'This is a fundamental lineage constraint that cannot be overridden.'
+            );
+        }
+    }
+
+    /**
+     * Check if a voucher can be fulfilled with a bottle from a specific allocation.
+     *
+     * Non-throwing version of validateFulfillmentLineage for checking purposes.
+     *
+     * @param  Voucher  $voucher  The voucher to be fulfilled
+     * @param  Allocation  $bottleAllocation  The allocation from which the physical bottle originates
+     */
+    public function canFulfillWithBottleFromAllocation(Voucher $voucher, Allocation $bottleAllocation): bool
+    {
+        return $voucher->allocation_id === $bottleAllocation->id;
+    }
+
+    /**
+     * Check if a voucher is fulfillable (correct state and not violated constraints).
+     *
+     * Used by Module C to determine if a voucher can be fulfilled.
+     *
+     * @return array{fulfillable: bool, reason: string|null}
+     */
+    public function checkFulfillmentEligibility(Voucher $voucher): array
+    {
+        // Voucher must be locked for fulfillment
+        if (! $voucher->isLocked()) {
+            return [
+                'fulfillable' => false,
+                'reason' => "Voucher must be locked for fulfillment. Current state: {$voucher->lifecycle_state->label()}.",
+            ];
+        }
+
+        // Voucher cannot be suspended
+        if ($voucher->suspended) {
+            return [
+                'fulfillable' => false,
+                'reason' => 'Voucher is suspended. '.($voucher->isSuspendedForTrading()
+                    ? 'Currently suspended for external trading.'
+                    : 'Manual suspension - contact administrator.'),
+            ];
+        }
+
+        // Voucher must have a valid allocation (defensive check - should never happen due to DB constraint)
+        if ($voucher->hasLineageIssues()) {
+            return [
+                'fulfillable' => false,
+                'reason' => 'Voucher has no allocation lineage. This is an anomalous state that requires investigation.',
+            ];
+        }
+
+        return [
+            'fulfillable' => true,
+            'reason' => null,
+        ];
+    }
+
+    /**
      * Validate that the voucher is not suspended.
      *
      * @throws \InvalidArgumentException If voucher is suspended
