@@ -3,12 +3,16 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\UserRole;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
+/**
+ * @property UserRole|null $role
+ */
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
@@ -46,6 +50,7 @@ class User extends Authenticatable implements FilamentUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => UserRole::class,
         ];
     }
 
@@ -55,7 +60,46 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         // All authenticated users can access the admin panel
-        // Role-based restrictions will be implemented in US-010
         return true;
+    }
+
+    /**
+     * Check if the user is a super admin.
+     */
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === UserRole::SuperAdmin;
+    }
+
+    /**
+     * Check if the user is an admin (super_admin or admin).
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Admin) ?? false;
+    }
+
+    /**
+     * Check if the user can manage users.
+     */
+    public function canManageUsers(): bool
+    {
+        return $this->role?->canManageUsers() ?? false;
+    }
+
+    /**
+     * Check if the user can edit content.
+     */
+    public function canEdit(): bool
+    {
+        return $this->role?->canEdit() ?? false;
+    }
+
+    /**
+     * Check if the user is read-only (viewer).
+     */
+    public function isViewer(): bool
+    {
+        return $this->role?->isReadOnly() ?? true;
     }
 }

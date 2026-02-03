@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Filament;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Filament\Pages\Auth\Login;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,7 +32,6 @@ class AuthenticationTest extends TestCase
         $user = User::factory()->create([
             'email' => 'test@example.com',
             'password' => bcrypt('password'),
-            'role' => 'viewer',
         ]);
 
         Livewire::test(Login::class)
@@ -83,17 +83,15 @@ class AuthenticationTest extends TestCase
 
     public function test_user_model_has_role_attribute(): void
     {
-        $user = User::factory()->create([
-            'role' => 'super_admin',
-        ]);
+        $user = User::factory()->superAdmin()->create();
 
-        $this->assertEquals('super_admin', $user->role);
+        $this->assertEquals(UserRole::SuperAdmin, $user->role);
     }
 
     public function test_user_default_role_is_viewer(): void
     {
         $user = User::factory()->create();
 
-        $this->assertEquals('viewer', $user->role);
+        $this->assertEquals(UserRole::Viewer, $user->role);
     }
 }
