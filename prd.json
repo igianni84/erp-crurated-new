@@ -16,8 +16,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Laravel 12.49.0 initialized with MySQL configuration"
     },
     {
       "id": "US-002",
@@ -31,8 +31,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "MySQL 9.6.0 installed and configured. Database created with utf8mb4_unicode_ci collation. All migrations run successfully."
     },
     {
       "id": "US-003",

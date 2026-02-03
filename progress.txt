@@ -1,8 +1,53 @@
 ## Codebase Patterns
 
-(Patterns will be added as they are discovered during implementation)
+- Use `./vendor/bin/pint --test` to check code style without making changes
+- Laravel Pint is pre-configured in Laravel 12 as the default linter
+- Use `php artisan test` to run all tests
+- .env is configured for MySQL but falls back works with SQLite for testing
+- MySQL 9.6.0 runs via `brew services start mysql`, CLI at `/opt/homebrew/bin/mysql`
+- Use `php artisan db:show` to check database connection status
+- Database `crurated_erp` uses utf8mb4_unicode_ci collation
 
 ---
 
 # Progress Log
+
+## 2026-02-03 - US-001
+- What was implemented:
+  - Initialized Laravel 12.49.0 project using `laravel new`
+  - Configured .env and .env.example for MySQL (crurated_erp database)
+  - Updated composer.json project name to crurated/erp
+  - Initialized git repository on ralph/infrastructure branch
+  - Added additional entries to .gitignore (SQLite, .last-branch, temp files)
+- Files changed:
+  - .env, .env.example (MySQL configuration)
+  - .gitignore (added SQLite, temp files)
+  - composer.json (project name)
+  - All Laravel 12 scaffold files
+- **Learnings for future iterations:**
+  - Laravel 12 comes with Pint pre-installed for linting
+  - Default database is SQLite, need to explicitly configure MySQL
+  - `php artisan serve` starts on port 8000 by default
+  - Laravel 12 has built-in test infrastructure (PHPUnit + example tests)
+---
+
+## 2026-02-03 - US-002
+- What was implemented:
+  - Installed MySQL 9.6.0 via Homebrew (`brew install mysql`)
+  - Started MySQL service (`brew services start mysql`)
+  - Created `crurated_erp` database with utf8mb4_unicode_ci collation
+  - Verified Laravel .env configuration connects correctly
+  - Ran `php artisan migrate` successfully (users, cache, jobs tables)
+  - Verified all tables and columns use snake_case naming convention
+- Files changed:
+  - No code files changed - this was database infrastructure setup
+  - prd.json (marked US-002 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - MySQL CLI on macOS is at `/opt/homebrew/bin/mysql`
+  - Use `brew services start mysql` to start the MySQL daemon
+  - Use `php artisan db:show` to verify database connection and see stats
+  - Laravel 12 default migrations create: users, cache, cache_locks, jobs, job_batches, failed_jobs, password_reset_tokens, sessions, migrations tables
+  - All Laravel migrations follow snake_case convention by default
+---
 
