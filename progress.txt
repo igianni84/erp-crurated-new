@@ -813,3 +813,237 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - Channel model's channel_type is an enum that maps to allocation constraint channel type strings
   - Collapsible sections (->collapsed()) work well for detailed constraint previews
 ---
+
+## 2026-02-03 - US-039
+- What was implemented:
+  - Step 3 (Pricing) for Offer wizard with Price Book selection and benefit configuration
+  - Price Book selection: searchable select filtering only active Price Books within validity period
+  - Price Book preview: shows market, currency, channel, status, entries count, validity dates
+  - Warning displayed when selected Price Book has no entry for the selected SKU
+  - Base Price preview: shows base price from Price Book entry with source badge (manual/policy_generated)
+  - EMP comparison: shows EMP value, confidence level, and delta vs base price (color-coded for >15%, >10% thresholds)
+  - Benefit configuration: radio selection for None, Percentage Discount, Fixed Discount, Fixed Price
+  - Dynamic value input field for benefit types that require values with appropriate prefixes/suffixes
+  - Final Price preview: shows base price, discount amount, final price, and savings percentage with color-coded display
+  - OfferBenefit record creation in afterCreate() with proper benefit_type and benefit_value storage
+  - Session-based data passing for benefit data between form and model creation
+- Files changed:
+  - app/Filament/Resources/OfferResource/Pages/CreateOffer.php (modified - implemented Step 3)
+- **Learnings for future iterations:**
+  - PriceBook.entries() relationship provides access to price entries for a specific Price Book
+  - PriceBookEntry links Sellable SKUs to prices within a Price Book via price_book_id + sellable_sku_id
+  - BenefitType enum has requiresValue() method to check if a value input is needed
+  - Final price calculation: PercentageDiscount uses max(0, basePrice - (basePrice * percentage / 100))
+  - EMP comparison delta calculation: ((basePrice - empValue) / empValue) * 100
+  - Live field updates (->live()) enable real-time preview of pricing calculations
+  - When checking $emp and $empValue, check $emp !== null first to satisfy PHPStan (nullsafe.alwaysTrue rule)
+---
+
+## 2026-02-03 - US-040
+- What was implemented:
+  - Step 4 (Validity & Visibility) for Offer wizard with offer metadata, validity period, and visibility settings
+  - Offer Identity section: name input, offer_type radio with descriptions (Standard, Promotion, Bundle)
+  - Promotion type hint: contextual tip when promotion type is selected without discount or vice versa
+  - Visibility section: radio selection with descriptions (Public, Restricted), dynamic info panels explaining each choice
+  - Validity Period section: valid_from and valid_to datetime pickers with seconds disabled
+  - Custom validation rule ensuring valid_to > valid_from when present
+  - Validity summary placeholder: shows duration, scheduled start, expiring soon warnings (< 7 days)
+  - Campaign & Grouping section (collapsible): campaign_tag input for promotional campaign grouping
+  - Configuration Summary section: shows all Step 4 values in a preview grid with type/visibility badges
+  - Helper method formatDuration() for human-readable date interval formatting
+- Files changed:
+  - app/Filament/Resources/OfferResource/Pages/CreateOffer.php (modified - implemented Step 4)
+- **Learnings for future iterations:**
+  - OfferType enum has Standard, Promotion, Bundle values with color() and label() methods
+  - OfferVisibility enum has Public, Restricted values with color() and label() methods
+  - Use Radio component with descriptions() for rich option descriptions
+  - Custom validation rules in ->rules([]) array using closures with Get dependency injection
+  - Carbon::parse() accepts mixed types from Filament form - use PHPDoc annotations for type hints
+  - DateTimePicker with seconds(false) provides cleaner time selection UI
+  - Collapsible sections (->collapsible()) work well for optional/advanced settings like campaign tags
+  - Duration formatting using DateInterval properties (y, m, d, h) provides natural language output
+---
+
+## 2026-02-04 - US-041
+- What was implemented:
+  - Step 5 (Review & Create) for Offer wizard with complete summary before creation
+  - Summary Header with gradient background and success icon indicating readiness
+  - Conflict Warning section: detects overlapping offers (same SKU, channel, overlapping validity) and displays warning with conflicting offer details
+  - Product Summary section (collapsible): displays wine name, vintage, format, packaging, SKU code
+  - Channel & Eligibility Summary section (collapsible): channel info (name, type, currency, status), eligibility restrictions (allowed markets, customer types)
+  - Pricing Summary section (collapsible): Price Book details, base price, benefit applied, savings, final price with color-coded display
+  - Validity & Visibility Summary section: offer name, type badge, visibility badge with icon, valid from/to dates, duration, campaign tag
+  - Status & Next Steps section: explains Draft status, lists next steps after creation, explains "Create and Activate" option
+  - Helper methods: hasConflictingOffers(), getConflictingOffersQuery(), buildConflictWarningHtml(), buildProductSummaryHtml(), buildChannelEligibilitySummaryHtml(), buildPricingSummaryHtml(), buildValiditySummaryHtml()
+  - Conflict detection uses date overlap logic for validity periods (handles both bounded and indefinite offers)
+- Files changed:
+  - app/Filament/Resources/OfferResource/Pages/CreateOffer.php (modified - implemented Step 5 with full review and conflict detection)
+- **Learnings for future iterations:**
+  - Conflict detection for offers requires checking: same SKU + same channel + overlapping validity periods
+  - Date overlap logic needs to handle: null valid_to (indefinite offers), bounded periods, and their combinations
+  - PHPStan flow analysis tracks variable assignments inside conditionals - when `$finalPrice = $basePrice` and later `$finalPrice = match(...)` inside `if ($basePrice !== null)`, PHPStan knows both are linked
+  - Review step sections should be collapsible to reduce visual clutter while keeping all info accessible
+  - Color-coded badges (success/warning/info) help users quickly identify offer type and visibility settings
+  - The "Create and Activate" dual-submit pattern uses wire:click="$set('property', value)" to track user choice
+---
+
+## 2026-02-04 - US-042
+- What was implemented:
+  - Offer Detail view with 7 tabs using Filament Infolist Tabs component
+  - Tab Overview: offer info (name, type, visibility, status, campaign_tag), linked entities (channel, price book), validity period with expiring indicator, pricing summary (base_price, benefit, final_price, savings)
+  - Tab Eligibility: eligibility overview summary, market restrictions, customer type restrictions, membership tier restrictions, allocation constraints with warning about precedence
+  - Tab Benefit: benefit type/value/discount_rule configuration, benefit type description with color-coded panels, step-by-step price calculation breakdown showing base price → benefit → final price
+  - Tab Products: sellable SKU info (sku_code, status, source, composite), wine information (name, vintage, format, packaging), integrity flags display, allocation lineage explanation, EMP reference table with market/value/confidence/freshness
+  - Tab Priority & Conflicts: conflict detection with other offers (same SKU + channel + overlapping validity), conflict table with status/dates, resolution rules explanation, offer priority status display
+  - Tab Simulation: price testing intro, current offer summary (SKU, channel, final price, status), eligibility test with current rules display, what-if analysis table showing different discount scenarios
+  - Tab Audit: audit history with filter by event type/date, timestamps section, audit information about immutability
+  - Header actions: Edit (visible for draft), Activate (with Price Book validation), Pause, Resume, Cancel
+  - Activate action validates Price Book is active and warns about missing base price or conflicting offers
+  - Conflict detection query uses date overlap logic handling null valid_to for indefinite offers
+- Files changed:
+  - app/Filament/Resources/OfferResource/Pages/ViewOffer.php (modified - added 7 tabs with complete implementation)
+- **Learnings for future iterations:**
+  - Offer Detail follows the same pattern as PriceBook and PricingPolicy Detail views with tabbed infolist
+  - For pricing summary, calculate final price using OfferBenefit.calculateFinalPrice(basePrice)
+  - Conflict detection for offers requires checking: same sellable_sku_id + same channel_id + overlapping validity periods
+  - PHPStan requires explicit null checks instead of nullsafe + coalesce pattern (e.g., use `$priceBook !== null ? $priceBook->currency : 'EUR'` instead of `$record->priceBook?->currency ?? 'EUR'`)
+  - Tab badges with badgeColor can show conflict counts (e.g., `->badge(fn (): ?int => $count > 0 ? $count : null)`)
+  - Header actions for status transitions include audit logging using `$record->auditLogs()->create()`
+  - Activate action should validate that the referenced Price Book is active before allowing activation
+---
+
+## 2026-02-04 - US-043
+- What was implemented:
+  - Added validateEligibilityAgainstAllocation() method to Offer model for validating offer eligibility against allocation constraints
+  - Validates markets against allocation constraint geographies
+  - Validates customer types against allocation constraint customer types
+  - Validates channel type against allocation constraint allowed channels
+  - Added canActivateWithValidations() method for comprehensive activation validation (draft status, Price Book active, base price, eligibility)
+  - Updated ViewOffer activate action to use canActivateWithValidations() for proper validation before activation
+  - Created ExpireOffersJob in app/Jobs/Commercial/ for automatic offer expiration
+  - Job finds active offers with valid_to < now() and transitions them to expired status
+  - Creates audit logs for each automatic expiration with null user_id (system-initiated)
+- Files changed:
+  - app/Models/Commercial/Offer.php (modified - added eligibility validation methods)
+  - app/Filament/Resources/OfferResource/Pages/ViewOffer.php (modified - updated activate action)
+  - app/Jobs/Commercial/ExpireOffersJob.php (created)
+- **Learnings for future iterations:**
+  - AllocationConstraint has isGeographyAllowed(), isCustomerTypeAllowed(), isChannelAllowed() methods for validation
+  - Offer eligibility stores allocation_constraint_id as a reference to the authoritative constraint
+  - When eligibility has no allocation_constraint_id linked, validation is skipped (graceful degradation)
+  - ExpireOffersJob should be scheduled to run periodically (e.g., every minute or every 5 minutes)
+  - System-initiated audit logs use user_id = null to distinguish from user actions
+  - canActivateWithValidations() returns both a boolean 'valid' flag and an 'errors' array for detailed feedback
+---
+
+## 2026-02-04 - US-044
+- What was implemented:
+  - BulkCreateOffers Filament Page for creating multiple offers at once
+  - 5-step wizard: SKU Selection, Channel & Eligibility, Pricing, Validity & Visibility, Review & Create
+  - Multi-select SKU picker with active allocation filtering
+  - Channel selection with allocation constraint validation (shows which SKUs are valid for selected channel)
+  - Price Book selection with price coverage preview (shows which SKUs have entries)
+  - Shared benefit configuration (None, Percentage Discount, Fixed Discount, Fixed Price)
+  - Shared validity period and visibility settings
+  - Offer name prefix that generates unique names: "[Prefix] [Wine Name] [Vintage]"
+  - Review step with full summary of offers to be created and excluded SKUs
+  - Progress indicator during creation with loading overlay
+  - Bulk action in Offer List header: "Bulk Create Offers" button
+- Files changed:
+  - app/Filament/Resources/OfferResource.php (modified - added bulk-create route)
+  - app/Filament/Resources/OfferResource/Pages/ListOffers.php (modified - added header action)
+  - app/Filament/Resources/OfferResource/Pages/BulkCreateOffers.php (created)
+  - resources/views/filament/resources/offer-resource/pages/bulk-create-offers.blade.php (created)
+- **Learnings for future iterations:**
+  - For Filament Pages with forms, use `InteractsWithForms` trait and `HasForms` interface
+  - Define forms using `getForms()` method that returns an array of form definitions
+  - Use `@property Form $form` PHPDoc annotation to satisfy PHPStan for magic form property
+  - SKU allocation validation for channel uses AllocationConstraint::getEffectiveChannels() and compares with channel_type enum value
+  - Each SKU generates 1 independent Offer with shared configuration (channel, price book, eligibility, benefit, validity)
+  - Bulk creation wraps all inserts in a DB::transaction() for atomic operations
+  - Progress indicator uses Livewire's wire:loading directive on the submit button
+---
+
+## 2026-02-04 - US-045
+- What was implemented:
+  - OfferService class in `app/Services/Commercial/` centralizing all Offer business logic
+  - `activate(Offer)` method: draft → active with full validation using canActivateWithValidations() (checks Price Book active, base price exists, eligibility valid)
+  - `pause(Offer)` method: active → paused with audit logging
+  - `resume(Offer)` method: paused → active with Price Book validation
+  - `cancel(Offer)` method: any → cancelled (terminal state)
+  - `expire(Offer)` method: active → expired (used by ExpireOffersJob)
+  - `getActiveForContext(SellableSku, Channel, CustomerContext)` method: finds applicable active Offer with optional customer eligibility filtering
+  - `getActiveOffersForContext(SellableSku, Channel)` method: finds all active offers for context
+  - `resolvePrice(Offer)` method: calculates final price (base + benefit) returning PriceResolution value object
+  - `resolvePriceValue(Offer)` method: convenience method returning decimal string
+  - `validateEligibility(Offer, CustomerContext)` method: boolean eligibility check
+  - `validateEligibilityDetailed(Offer, CustomerContext)` method: detailed eligibility validation with failure reasons
+  - Helper methods: canActivate, canPause, canResume, canCancel
+  - CustomerContext value object for customer data (market, customerType, membershipTier, customerId)
+  - PriceResolution value object with formatted price methods and summary
+  - EligibilityValidation value object with check results and failure reasons
+  - ExpireOffersJob (created in US-043) handles auto-expire functionality
+- Files changed:
+  - app/Services/Commercial/OfferService.php (created)
+- **Learnings for future iterations:**
+  - Services should include helper value objects (CustomerContext, PriceResolution, EligibilityValidation) for structured return types
+  - Use canActivateWithValidations() on model for comprehensive activation validation - returns { valid: bool, errors: array }
+  - Price resolution uses OfferBenefit.calculateFinalPrice() for benefit calculations
+  - Eligibility validation uses OfferEligibility.isContextEligible() for combined checks
+  - Resume action should re-validate that Price Book is still active before resuming
+  - Value objects with readonly properties provide immutable, typed return data
+  - fromArray() static factory methods enable easy construction from form/request data
+---
+
+## 2026-02-04 - US-046
+- What was implemented:
+  - DiscountRuleType enum (percentage, fixed_amount, tiered, volume_based) with label/color/icon/description/example/supportsTiers/requiresValue/valueUnit methods
+  - DiscountRuleStatus enum (active, inactive) with label/color/icon/description methods
+  - DiscountRule model with HasUuid trait and logic_definition JSON field for flexible rule configuration
+  - discount_rules migration with FK constraint to offer_benefits table
+  - Rule type helpers: isPercentage, isFixedAmount, isTiered, isVolumeBased
+  - Status helpers: isActive, isInactive, canBeDeactivated, canBeEdited, canBeDeleted
+  - Logic definition accessors: getValue, getTiers, getThresholds
+  - Discount calculation methods: calculateDiscount, calculateFinalPrice (with type-specific implementations)
+  - Usage tracking: isReferencedByAnyOffer, hasActiveOffersUsing, getOffersUsingCount, getActiveOffersUsingCount
+  - UI helpers: getSummary, getDetailedDescription with plain-language explanations
+  - Query scopes: active(), ofType()
+  - Updated OfferBenefit.discountRule() relationship to use actual DiscountRule class (replaced placeholder)
+- Files changed:
+  - app/Enums/Commercial/DiscountRuleType.php (created)
+  - app/Enums/Commercial/DiscountRuleStatus.php (created)
+  - app/Models/Commercial/DiscountRule.php (created)
+  - database/migrations/2026_02_04_380010_create_discount_rules_table.php (created)
+  - app/Models/Commercial/OfferBenefit.php (modified - updated discountRule relationship)
+- **Learnings for future iterations:**
+  - DiscountRules are definitions that are referenced by OfferBenefit entities, not applied directly
+  - logic_definition JSON field structure varies by rule_type: percentage/fixed_amount use "value", tiered uses "tiers", volume_based uses "thresholds"
+  - Rule editability and deletability depend on whether active Offers are using the rule (hasActiveOffersUsing())
+  - PHPStan type annotations for array shapes (e.g., array{min_qty: int, value: float}) enable strict type checking
+  - When PHPStan knows array offsets exist from type annotations, don't use null coalescing (??) operators
+  - offerBenefits() hasMany relationship enables usage tracking via whereHas queries
+---
+
+## 2026-02-04 - US-047
+- What was implemented:
+  - DiscountRuleResource Filament resource with navigation group 'Commercial' and sort order 6
+  - List view with columns: name (searchable, sortable), rule_type (badge), summary (plain-language via getSummary()), status (badge), offers_using_count (sorted by count)
+  - Filters: rule_type (select), status (select)
+  - Search by name
+  - Bulk actions: Activate Selected, Deactivate Selected (with active Offers check), Delete (with referential integrity check)
+  - View action for all records, Edit action only for editable rules
+  - Delete prevention for rules referenced by any Offer
+  - Standard CRUD pages: ListDiscountRules, CreateDiscountRule, ViewDiscountRule, EditDiscountRule
+- Files changed:
+  - app/Filament/Resources/DiscountRuleResource.php (created)
+  - app/Filament/Resources/DiscountRuleResource/Pages/ListDiscountRules.php (created)
+  - app/Filament/Resources/DiscountRuleResource/Pages/CreateDiscountRule.php (created)
+  - app/Filament/Resources/DiscountRuleResource/Pages/ViewDiscountRule.php (created)
+  - app/Filament/Resources/DiscountRuleResource/Pages/EditDiscountRule.php (created)
+- **Learnings for future iterations:**
+  - DiscountRule model has getSummary() method for plain-language rule description
+  - Use sortable() with query callback for computed columns like offers_using_count (uses withCount)
+  - For bulk delete actions, use before() hook to check referential integrity and cancel if needed
+  - PHPStan doesn't like Collection::contains() with typed closures on generic collections - use foreach loop instead
+  - canBeEdited(), canBeDeleted(), isReferencedByAnyOffer() model helpers control UI action visibility
+---
