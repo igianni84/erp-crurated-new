@@ -385,8 +385,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Voucher Detail view with all 6 sections: Header (voucher ID, customer, lifecycle state with banner), Section 1 - What Was Sold (sellable SKU, bottle SKU, quantity=1, case entitlement if any with status), Section 2 - Allocation Lineage (allocation ID link, source type, supply form, serialization, constraints snapshot with 'Lineage can never be modified' warning), Section 3 - Lifecycle State (current state badge, description, allowed transitions, terminal status, visual transition diagram), Section 4 - Behavioral Flags (tradable, giftable, suspended toggles with helper text and info message), Section 5 - Transfer Context (pending transfers list, transfer history collapsed), Section 6 - Event History (audit logs with formatted changes). Browser verification deferred to future story."
     },
     {
       "id": "US-024",

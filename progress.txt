@@ -469,3 +469,25 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Combined flags badge uses state() callback with manual formatting and separator
   - Customer link uses route() helper to link to customer resource view page
 ---
+
+## 2026-02-03 - US-023
+- What was implemented: Voucher Detail view with 6 sections for comprehensive voucher information display
+- Files changed:
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (complete implementation)
+- **Features implemented:**
+  - Header section with prominent lifecycle state banner (voucher ID, current holder with link, lifecycle state badge with color-coded left border)
+  - Section 1 - What Was Sold: sellable SKU, bottle SKU, quantity (always 1), sale reference, case entitlement subsection with status (shows case broken info if applicable)
+  - Section 2 - Allocation Lineage: allocation ID (with link), source type, supply form, serialization required, constraints snapshot (collapsible), prominent "Lineage can never be modified" warning
+  - Section 3 - Lifecycle State: current state badge with description, allowed transitions, terminal state indicator, visual transition diagram (collapsible HTML diagram showing state flows)
+  - Section 4 - Behavioral Flags: tradable, giftable, suspended flags with Yes/No badges and helper text, info message about flag modification rules based on voucher state
+  - Section 5 - Transfer Context: pending transfers list with recipient, status, dates; transfer history (collapsed) with from/to/status/dates; info message about transfers not consuming allocation
+  - Section 6 - Event History: RepeatableEntry of audit logs with event badge, user, timestamp, formatted changes; audit information (collapsed)
+  - Custom title and subheading showing voucher ID and bottle SKU with lifecycle state
+- **Learnings for future iterations:**
+  - Filament Infolist Sections do NOT support `badge()` method (unlike Tabs) - use TextEntry inside the section for badge display
+  - Use `extraAttributes` on Section to add custom CSS classes (e.g., border-left color based on state)
+  - For complex displays like audit logs, use `getStateUsing()` with formatted HTML and `->html()` modifier
+  - SellableSku uses `sku_code` field, not `name` - check model properties before referencing
+  - Use `getSubheading()` on ViewRecord for secondary title information
+  - Visual state diagrams can be embedded as HTML using TextEntry with `->html()` modifier
+---
