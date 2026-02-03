@@ -62,6 +62,8 @@ class WineVariant extends Model
         'lwin_code',
         'internal_code',
         'thumbnail_url',
+        'description',
+        'locked_fields',
     ];
 
     /**
@@ -80,6 +82,7 @@ class WineVariant extends Model
             'production_notes' => 'array',
             'lifecycle_status' => ProductLifecycleStatus::class,
             'data_source' => DataSource::class,
+            'locked_fields' => 'array',
         ];
     }
 
@@ -332,5 +335,67 @@ class WineVariant extends Model
     public function canPublish(): bool
     {
         return ! $this->hasBlockingIssues();
+    }
+
+    /**
+     * Check if a specific field is locked (imported from Liv-ex and not overridable).
+     */
+    public function isFieldLocked(string $field): bool
+    {
+        if ($this->data_source !== DataSource::LivEx) {
+            return false;
+        }
+
+        $lockedFields = $this->locked_fields ?? [];
+
+        return in_array($field, $lockedFields, true);
+    }
+
+    /**
+     * Get the list of locked fields.
+     *
+     * @return list<string>
+     */
+    public function getLockedFields(): array
+    {
+        if ($this->data_source !== DataSource::LivEx) {
+            return [];
+        }
+
+        return $this->locked_fields ?? [];
+    }
+
+    /**
+     * Check if the product was imported from Liv-ex.
+     */
+    public function isFromLivEx(): bool
+    {
+        return $this->data_source === DataSource::LivEx;
+    }
+
+    /**
+     * Set locked fields from Liv-ex import.
+     *
+     * @param  list<string>  $fields
+     */
+    public function setLockedFields(array $fields): void
+    {
+        $this->setAttribute('locked_fields', $fields);
+    }
+
+    /**
+     * Unlock a specific field (admin/manager override).
+     */
+    public function unlockField(string $field): void
+    {
+        /** @var list<string> $lockedFields */
+        $lockedFields = $this->getAttribute('locked_fields') ?? [];
+        $filtered = [];
+        foreach ($lockedFields as $f) {
+            if ($f !== $field) {
+                $filtered[] = $f;
+            }
+        }
+        $this->setAttribute('locked_fields', $filtered);
     }
 }

@@ -162,17 +162,19 @@ class ImportLivex extends Page
             return;
         }
 
-        // Create Wine Variant
+        // Create Wine Variant with locked fields from Liv-ex
         $wineVariant = WineVariant::create([
             'wine_master_id' => $wineMaster->id,
             'vintage_year' => $wine['vintage'],
             'alcohol_percentage' => $wine['alcohol'],
             'drinking_window_start' => $wine['drinking_window_start'],
             'drinking_window_end' => $wine['drinking_window_end'],
+            'description' => $wine['description'],
             'lifecycle_status' => ProductLifecycleStatus::Draft,
             'data_source' => DataSource::LivEx,
             'lwin_code' => $wine['lwin'],
             'thumbnail_url' => $wine['image_url'],
+            'locked_fields' => LivExService::LOCKED_FIELDS,
         ]);
 
         Notification::make()

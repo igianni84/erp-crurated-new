@@ -3,16 +3,20 @@
 namespace App\Filament\Resources\Pim;
 
 use App\Enums\ProductLifecycleStatus;
+use App\Enums\UserRole;
 use App\Filament\Resources\Pim\WineVariantResource\Pages;
 use App\Filament\Resources\Pim\WineVariantResource\RelationManagers;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
+use App\Models\User;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 
 class WineVariantResource extends Resource
 {
@@ -34,64 +38,388 @@ class WineVariantResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Wine Master')
-                    ->schema([
-                        Forms\Components\Select::make('wine_master_id')
-                            ->label('Wine Master')
-                            ->relationship('wineMaster', 'name')
-                            ->getOptionLabelFromRecordUsing(fn (WineMaster $record): string => "{$record->name} ({$record->producer})")
-                            ->searchable(['name', 'producer'])
-                            ->preload()
-                            ->required(),
-                    ]),
-                Forms\Components\Section::make('Vintage Information')
-                    ->schema([
-                        Forms\Components\TextInput::make('vintage_year')
-                            ->label('Vintage Year')
-                            ->required()
-                            ->numeric()
-                            ->minValue(1800)
-                            ->maxValue(date('Y') + 1),
-                        Forms\Components\TextInput::make('alcohol_percentage')
-                            ->label('Alcohol %')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->step(0.01)
-                            ->suffix('%'),
+                Forms\Components\Tabs::make('Product Details')
+                    ->tabs([
+                        Forms\Components\Tabs\Tab::make('Core Info')
+                            ->icon('heroicon-o-information-circle')
+                            ->schema([
+                                self::getCoreInfoSchema(),
+                            ]),
+                        Forms\Components\Tabs\Tab::make('Attributes')
+                            ->icon('heroicon-o-tag')
+                            ->schema([
+                                self::getAttributesSchema(),
+                            ]),
                     ])
-                    ->columns(2),
-                Forms\Components\Section::make('Drinking Window')
-                    ->schema([
-                        Forms\Components\TextInput::make('drinking_window_start')
-                            ->label('Start Year')
-                            ->numeric()
-                            ->minValue(1800)
-                            ->maxValue(2200),
-                        Forms\Components\TextInput::make('drinking_window_end')
-                            ->label('End Year')
-                            ->numeric()
-                            ->minValue(1800)
-                            ->maxValue(2200)
-                            ->gte('drinking_window_start'),
-                    ])
-                    ->columns(2),
-                Forms\Components\Section::make('Additional Information')
-                    ->schema([
-                        Forms\Components\KeyValue::make('critic_scores')
-                            ->label('Critic Scores')
-                            ->keyLabel('Critic')
-                            ->valueLabel('Score')
-                            ->reorderable()
-                            ->columnSpanFull(),
-                        Forms\Components\KeyValue::make('production_notes')
-                            ->label('Production Notes')
-                            ->keyLabel('Note Type')
-                            ->valueLabel('Value')
-                            ->reorderable()
-                            ->columnSpanFull(),
-                    ]),
+                    ->columnSpanFull()
+                    ->persistTabInQueryString(),
             ]);
+    }
+
+    /**
+     * Get the Core Info tab schema.
+     */
+    protected static function getCoreInfoSchema(): Forms\Components\Component
+    {
+        return Forms\Components\Group::make([
+            // Liv-ex Status Banner
+            Forms\Components\Placeholder::make('livex_status_banner')
+                ->label('')
+                ->content(function (?WineVariant $record): string {
+                    if ($record === null || ! $record->isFromLivEx()) {
+                        return '';
+                    }
+                    $lockedCount = count($record->getLockedFields());
+
+                    return "<div class=\"p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800\">
+                        <div class=\"flex items-center gap-2\">
+                            <x-heroicon-o-cloud-arrow-down class=\"w-5 h-5 text-blue-600 dark:text-blue-400\" />
+                            <span class=\"font-medium text-blue-800 dark:text-blue-200\">Imported from Liv-ex</span>
+                        </div>
+                        <p class=\"mt-1 text-sm text-blue-700 dark:text-blue-300\">
+                            {$lockedCount} fields are locked from Liv-ex data. Manager or Admin can override locked fields.
+                        </p>
+                    </div>";
+                })
+                ->visible(fn (?WineVariant $record): bool => $record !== null && $record->isFromLivEx())
+                ->dehydrated(false),
+
+            // Identity Section
+            Forms\Components\Section::make('Wine Identity')
+                ->description('Core identity information for this wine')
+                ->icon('heroicon-o-identification')
+                ->schema([
+                    Forms\Components\Select::make('wine_master_id')
+                        ->label('Wine Master')
+                        ->relationship('wineMaster', 'name')
+                        ->getOptionLabelFromRecordUsing(fn (WineMaster $record): string => "{$record->name} ({$record->producer})")
+                        ->searchable(['name', 'producer'])
+                        ->preload()
+                        ->required()
+                        ->disabled(fn (?WineVariant $record): bool => self::isFieldLocked($record, 'wine_master_id'))
+                        ->hint(fn (?WineVariant $record): ?string => self::getFieldHint($record, 'wine_master_id'))
+                        ->hintIcon(fn (?WineVariant $record): ?string => self::isFieldLocked($record, 'wine_master_id') ? 'heroicon-o-lock-closed' : null)
+                        ->hintColor('info'),
+
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\Placeholder::make('wine_name_display')
+                                ->label('Wine Name')
+                                ->content(function (?WineVariant $record): string {
+                                    $wineMaster = $record?->wineMaster;
+
+                                    return $wineMaster !== null ? $wineMaster->name : '—';
+                                })
+                                ->visible(fn (string $operation): bool => $operation === 'edit'),
+
+                            Forms\Components\Placeholder::make('producer_display')
+                                ->label('Producer')
+                                ->content(function (?WineVariant $record): string {
+                                    $wineMaster = $record?->wineMaster;
+
+                                    return $wineMaster !== null ? $wineMaster->producer : '—';
+                                })
+                                ->visible(fn (string $operation): bool => $operation === 'edit'),
+
+                            Forms\Components\Placeholder::make('appellation_display')
+                                ->label('Appellation')
+                                ->content(function (?WineVariant $record): string {
+                                    $wineMaster = $record?->wineMaster;
+
+                                    return $wineMaster !== null ? ($wineMaster->appellation ?? '—') : '—';
+                                })
+                                ->visible(fn (string $operation): bool => $operation === 'edit'),
+
+                            Forms\Components\Placeholder::make('region_display')
+                                ->label('Region / Country')
+                                ->content(function (?WineVariant $record): string {
+                                    if ($record?->wineMaster === null) {
+                                        return '—';
+                                    }
+                                    $region = $record->wineMaster->region ?? '';
+                                    $country = $record->wineMaster->country ?? '';
+
+                                    return trim("{$region}, {$country}", ', ') ?: '—';
+                                })
+                                ->visible(fn (string $operation): bool => $operation === 'edit'),
+                        ]),
+
+                    Forms\Components\TextInput::make('vintage_year')
+                        ->label('Vintage Year')
+                        ->required()
+                        ->numeric()
+                        ->minValue(1800)
+                        ->maxValue(date('Y') + 1)
+                        ->disabled(fn (?WineVariant $record): bool => self::isFieldLocked($record, 'vintage_year'))
+                        ->hint(fn (?WineVariant $record): ?string => self::getFieldHint($record, 'vintage_year'))
+                        ->hintIcon(fn (?WineVariant $record): ?string => self::isFieldLocked($record, 'vintage_year') ? 'heroicon-o-lock-closed' : null)
+                        ->hintColor('info'),
+                ])
+                ->columns(1),
+
+            // Internal References Section
+            Forms\Components\Section::make('Internal References')
+                ->description('Internal codes and identifiers')
+                ->icon('heroicon-o-document-text')
+                ->schema([
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('lwin_code')
+                                ->label('LWIN Code')
+                                ->disabled(fn (?WineVariant $record): bool => self::isFieldLocked($record, 'lwin_code'))
+                                ->hint(fn (?WineVariant $record): ?string => self::getFieldHint($record, 'lwin_code'))
+                                ->hintIcon(fn (?WineVariant $record): ?string => self::isFieldLocked($record, 'lwin_code') ? 'heroicon-o-lock-closed' : null)
+                                ->hintColor('info')
+                                ->placeholder('e.g., LWIN1100001'),
+
+                            Forms\Components\TextInput::make('internal_code')
+                                ->label('Internal Code')
+                                ->placeholder('e.g., CRU-001'),
+                        ]),
+                ])
+                ->collapsible(),
+
+            // Descriptions Section
+            Forms\Components\Section::make('Descriptions')
+                ->description('Marketing and tasting descriptions')
+                ->icon('heroicon-o-pencil-square')
+                ->schema([
+                    Forms\Components\Textarea::make('description')
+                        ->label('Wine Description')
+                        ->rows(4)
+                        ->placeholder('Enter a description for this vintage...')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Placeholder::make('wine_master_description')
+                        ->label('Master Description (from Wine Master)')
+                        ->content(function (?WineVariant $record): string {
+                            $wineMaster = $record?->wineMaster;
+
+                            return $wineMaster !== null && $wineMaster->description !== null
+                                ? $wineMaster->description
+                                : 'No master description available.';
+                        })
+                        ->visible(function (?WineVariant $record): bool {
+                            $wineMaster = $record?->wineMaster;
+
+                            return $wineMaster !== null && $wineMaster->description !== null;
+                        }),
+                ])
+                ->collapsible(),
+
+            // Override Locked Fields Section (Manager/Admin only)
+            Forms\Components\Section::make('Override Locked Fields')
+                ->description('As a Manager or Admin, you can override Liv-ex locked fields. This action is audited.')
+                ->icon('heroicon-o-lock-open')
+                ->schema([
+                    Forms\Components\Placeholder::make('override_warning')
+                        ->label('')
+                        ->content('<div class="p-3 rounded bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 text-warning-800 dark:text-warning-200">
+                            <strong>Warning:</strong> Overriding Liv-ex data may cause data inconsistencies. Use with caution.
+                        </div>')
+                        ->dehydrated(false),
+
+                    Forms\Components\CheckboxList::make('fields_to_unlock')
+                        ->label('Select fields to unlock for editing')
+                        ->options(fn (?WineVariant $record): array => self::getUnlockableFieldsOptions($record))
+                        ->descriptions(fn (?WineVariant $record): array => self::getUnlockableFieldsDescriptions($record))
+                        ->visible(fn (?WineVariant $record): bool => $record !== null && count($record->getLockedFields()) > 0)
+                        ->dehydrated(false)
+                        ->afterStateUpdated(function (?WineVariant $record, $state): void {
+                            if ($record !== null && is_array($state)) {
+                                foreach ($state as $field) {
+                                    $record->unlockField($field);
+                                }
+                                $record->save();
+                                Notification::make()
+                                    ->title('Fields Unlocked')
+                                    ->body('The selected fields have been unlocked for editing.')
+                                    ->success()
+                                    ->send();
+                            }
+                        }),
+                ])
+                ->visible(fn (?WineVariant $record): bool => $record !== null && $record->isFromLivEx() && self::canOverrideLivEx() && count($record->getLockedFields()) > 0)
+                ->collapsed()
+                ->collapsible(),
+        ]);
+    }
+
+    /**
+     * Get the Attributes tab schema.
+     */
+    protected static function getAttributesSchema(): Forms\Components\Component
+    {
+        return Forms\Components\Group::make([
+            Forms\Components\Section::make('Vintage Information')
+                ->description('Technical details specific to this vintage')
+                ->icon('heroicon-o-beaker')
+                ->schema([
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('alcohol_percentage')
+                                ->label('Alcohol %')
+                                ->numeric()
+                                ->minValue(0)
+                                ->maxValue(100)
+                                ->step(0.01)
+                                ->suffix('%'),
+                        ]),
+                ])
+                ->collapsible(),
+
+            Forms\Components\Section::make('Drinking Window')
+                ->description('Recommended drinking period')
+                ->icon('heroicon-o-calendar')
+                ->schema([
+                    Forms\Components\Grid::make(2)
+                        ->schema([
+                            Forms\Components\TextInput::make('drinking_window_start')
+                                ->label('Start Year')
+                                ->numeric()
+                                ->minValue(1800)
+                                ->maxValue(2200),
+                            Forms\Components\TextInput::make('drinking_window_end')
+                                ->label('End Year')
+                                ->numeric()
+                                ->minValue(1800)
+                                ->maxValue(2200)
+                                ->gte('drinking_window_start'),
+                        ]),
+                ])
+                ->collapsible(),
+
+            Forms\Components\Section::make('Critic Scores')
+                ->description('Professional ratings and scores')
+                ->icon('heroicon-o-star')
+                ->schema([
+                    Forms\Components\KeyValue::make('critic_scores')
+                        ->label('')
+                        ->keyLabel('Critic')
+                        ->valueLabel('Score')
+                        ->reorderable()
+                        ->columnSpanFull(),
+                ])
+                ->collapsible()
+                ->collapsed(),
+
+            Forms\Components\Section::make('Production Notes')
+                ->description('Winemaking and production details')
+                ->icon('heroicon-o-document-text')
+                ->schema([
+                    Forms\Components\KeyValue::make('production_notes')
+                        ->label('')
+                        ->keyLabel('Note Type')
+                        ->valueLabel('Value')
+                        ->reorderable()
+                        ->columnSpanFull(),
+                ])
+                ->collapsible()
+                ->collapsed(),
+        ]);
+    }
+
+    /**
+     * Check if a field is locked for the given record.
+     */
+    protected static function isFieldLocked(?WineVariant $record, string $field): bool
+    {
+        if ($record === null) {
+            return false;
+        }
+
+        // If user can override Liv-ex fields, they can edit locked fields
+        if (self::canOverrideLivEx()) {
+            return false;
+        }
+
+        return $record->isFieldLocked($field);
+    }
+
+    /**
+     * Get the hint text for a locked field.
+     */
+    protected static function getFieldHint(?WineVariant $record, string $field): ?string
+    {
+        if ($record === null || ! $record->isFieldLocked($field)) {
+            return null;
+        }
+
+        if (self::canOverrideLivEx()) {
+            return 'Liv-ex data (you can override)';
+        }
+
+        return 'Locked from Liv-ex';
+    }
+
+    /**
+     * Check if the current user can override Liv-ex locked fields.
+     */
+    protected static function canOverrideLivEx(): bool
+    {
+        /** @var User|null $user */
+        $user = Auth::user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $role = $user->role;
+
+        return $role !== null && $role->hasAtLeast(UserRole::Manager);
+    }
+
+    /**
+     * Get unlockable fields as options for the checkbox list.
+     *
+     * @return array<string, string>
+     */
+    protected static function getUnlockableFieldsOptions(?WineVariant $record): array
+    {
+        if ($record === null) {
+            return [];
+        }
+
+        $lockedFields = $record->getLockedFields();
+        $options = [];
+
+        $fieldLabels = [
+            'name' => 'Wine Name',
+            'producer' => 'Producer',
+            'appellation' => 'Appellation',
+            'country' => 'Country',
+            'region' => 'Region',
+            'vintage_year' => 'Vintage Year',
+            'lwin_code' => 'LWIN Code',
+            'wine_master_id' => 'Wine Master',
+        ];
+
+        foreach ($lockedFields as $field) {
+            $options[$field] = $fieldLabels[$field] ?? ucfirst(str_replace('_', ' ', $field));
+        }
+
+        return $options;
+    }
+
+    /**
+     * Get descriptions for unlockable fields.
+     *
+     * @return array<string, string>
+     */
+    protected static function getUnlockableFieldsDescriptions(?WineVariant $record): array
+    {
+        if ($record === null) {
+            return [];
+        }
+
+        $lockedFields = $record->getLockedFields();
+        $descriptions = [];
+
+        foreach ($lockedFields as $field) {
+            $descriptions[$field] = 'Unlock this field to allow editing';
+        }
+
+        return $descriptions;
     }
 
     public static function table(Table $table): Table

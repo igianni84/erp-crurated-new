@@ -13,6 +13,60 @@ class EditWineVariant extends EditRecord
 {
     protected static string $resource = WineVariantResource::class;
 
+    /**
+     * Store original data for sensitive field comparison.
+     *
+     * @var array<string, mixed>
+     */
+    protected array $originalSensitiveData = [];
+
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        // Store original values of sensitive fields for comparison after save
+        /** @var WineVariant $record */
+        $record = $this->record;
+
+        foreach (WineVariant::SENSITIVE_FIELDS as $field) {
+            $this->originalSensitiveData[$field] = $record->getAttribute($field);
+        }
+
+        return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+
+        // Check if published product had sensitive fields modified
+        if ($record->lifecycle_status === ProductLifecycleStatus::Published) {
+            $sensitiveFieldChanged = false;
+
+            foreach (WineVariant::SENSITIVE_FIELDS as $field) {
+                $originalValue = $this->originalSensitiveData[$field] ?? null;
+                $newValue = $record->getAttribute($field);
+
+                if ($originalValue !== $newValue) {
+                    $sensitiveFieldChanged = true;
+                    break;
+                }
+            }
+
+            if ($sensitiveFieldChanged) {
+                // Auto-transition to In Review
+                $record->lifecycle_status = ProductLifecycleStatus::InReview;
+                $record->saveQuietly();
+
+                Notification::make()
+                    ->title('Status Changed to In Review')
+                    ->body('A sensitive field was modified on a published product. The status has been automatically changed to In Review.')
+                    ->warning()
+                    ->persistent()
+                    ->send();
+            }
+        }
+    }
+
     protected function getHeaderActions(): array
     {
         /** @var WineVariant $record */
