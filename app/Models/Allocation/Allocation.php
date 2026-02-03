@@ -166,6 +166,16 @@ class Allocation extends Model
     }
 
     /**
+     * Get the vouchers issued from this allocation.
+     *
+     * @return HasMany<Voucher, $this>
+     */
+    public function vouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class);
+    }
+
+    /**
      * Get the audit logs for this allocation.
      *
      * @return MorphMany<\App\Models\AuditLog, $this>
