@@ -519,3 +519,108 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - `app(VoucherService::class)` to resolve service from container inside action callbacks
   - `$this->refreshFormData([])` (with empty array or specific fields) refreshes the page data after action
 ---
+
+## 2026-02-03 - US-025
+- What was implemented: Voucher transfer UI for managing transfers from admin panel
+- Files changed:
+  - `app/Policies/VoucherPolicy.php` (added initiateTransfer and cancelTransfer permissions)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (added Initiate Transfer and Cancel Transfer header actions)
+- **Features implemented:**
+  - Initiate Transfer action with form: recipient customer search select (excludes current holder), expiration date picker (min 1 day, default 2 weeks)
+  - Form includes info message: "Transfers do not create new vouchers or consume allocation. They only change the voucher holder."
+  - Cancel Transfer action with confirmation dialog showing recipient name
+  - Both actions use VoucherTransferService methods (initiateTransfer, cancelTransfer) which include audit logging
+  - Visibility rules:
+    - Initiate Transfer: visible when voucher is issued, not suspended, not in pending transfer, and giftable
+    - Cancel Transfer: visible when voucher has a pending transfer
+  - Accept Transfer NOT available from admin (done by recipient in customer portal)
+  - Error handling with user-friendly notifications for validation failures
+- **Learnings for future iterations:**
+  - Use `form([...])` method on Action to add a form modal before execution
+  - Use `Select::make()->searchable()->getSearchResultsUsing()` for customer search with custom query
+  - Use `DatePicker::make()->minDate(now()->addDay())->default()` for date validation
+  - Use `Carbon::parse($data['expires_at'])->endOfDay()` to set expiration at end of day
+  - Placeholder component in form modal useful for displaying info messages
+  - Dynamic modal description can use closure: `->modalDescription(function () { ... })`
+---
+
+## 2026-02-03 - US-026
+- What was implemented: CustomerResource with Vouchers tab for viewing customer's voucher portfolio
+- Files changed:
+  - `app/Filament/Resources/Customer/CustomerResource.php` (new) - Main resource with list, create, edit, view pages
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/ListCustomers.php` (new)
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/CreateCustomer.php` (new)
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/EditCustomer.php` (new)
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php` (new) - Detail view with Vouchers tab
+- **Features implemented:**
+  - CustomerResource in navigation group 'Customers' with user-group icon
+  - Customer list with: id, name, email, status badge, vouchers count, created_at
+  - Status filter (default: Active) and trashed filter
+  - ViewCustomer page with 2 tabs:
+    - Overview: Customer ID, name, email, status badge, dates
+    - Vouchers: Summary stats (total, issued, locked, redeemed) + voucher list via RepeatableEntry
+  - Voucher list shows: voucher_id (link to detail), bottle_sku, lifecycle_state badge, flags badge, allocation link, created_at
+  - 'View All in Vouchers List' header action links to VoucherResource filtered by customer
+  - Tab badge shows total voucher count
+- **Learnings for future iterations:**
+  - CustomerResource created from scratch (no existing resource) - Customer was a placeholder model
+  - Use RepeatableEntry instead of HasTable interface in ViewRecord to avoid property conflicts
+  - Tab badges: use `->badge($count > 0 ? (string) $count : null)` to show count only when positive
+  - Use `VoucherResource::getUrl('index', ['tableFilters' => ...])` to link to filtered list
+  - Header actions on Section: use `->headerActions([Action::make(...)])` for inline section buttons
+---
+
+## 2026-02-03 - US-027
+- What was implemented: Allocation Vouchers tab (read-only) - replaced placeholder with full voucher list and summary
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/ViewAllocation.php` (updated getVouchersTab method)
+- **Features implemented:**
+  - Voucher Summary section with Grid(4) showing:
+    - Total Issued (bold, large, primary color)
+    - Issued count (success, ticket icon)
+    - Locked count (warning, lock icon)
+    - Redeemed count (info, check-badge icon)
+    - Cancelled count (danger, x-circle icon)
+  - Issued Vouchers section with RepeatableEntry showing:
+    - Voucher ID (link to detail, copyable, primary color)
+    - Customer name
+    - Lifecycle state badge with color and icon from enum
+    - Flags badge (Suspended, Tradable, Giftable)
+    - Created at timestamp
+  - 'View All in Vouchers List' header action linking to VoucherResource with allocation filter (visible when vouchers > 0)
+  - Tab badge showing total voucher count with success color
+  - Empty state message when no vouchers issued yet
+  - Lineage Information section (collapsible) explaining voucher lineage rules
+  - NO modification actions - tab is completely read-only
+- **Learnings for future iterations:**
+  - Use `VoucherResource::getUrl('index', ['tableFilters' => ['allocation' => ['allocation_id' => $record->id]]])` pattern for filtered list links
+  - RepeatableEntry inside Tab works well for displaying hasMany relationships (vouchers from allocation)
+  - Tab badge counts: check count > 0 before returning string, otherwise return null
+  - For lifecycle state badges in RepeatableEntry, use `formatStateUsing(fn (Voucher $record)...)` pattern
+---
+
+## 2026-02-03 - US-028
+- What was implemented: CaseEntitlementResource in Filament for viewing and managing case entitlements (read-focused)
+- Files changed:
+  - `app/Filament/Resources/Allocation/CaseEntitlementResource.php` (new)
+  - `app/Filament/Resources/Allocation/CaseEntitlementResource/Pages/ListCaseEntitlements.php` (new)
+  - `app/Filament/Resources/Allocation/CaseEntitlementResource/Pages/ViewCaseEntitlement.php` (new)
+- **Features implemented:**
+  - CaseEntitlementResource in navigation group 'Vouchers' with cube icon, navigation sort 2
+  - List view with columns: entitlement_id (copyable), customer (link to customer detail), sellable_sku, status badge (intact/broken with color and icon from enum), vouchers_count (using withCount), created_at, broken_at (toggleable)
+  - Filters: status (multi-select using CaseEntitlementStatus enum), customer (searchable select)
+  - No create action - canCreate() returns false
+  - Detail view with 5 sections:
+    - Header: entitlement ID, customer info, status badge (with color-coded left border), created date
+    - Case Details: sellable SKU, bottles count, integrity status badge, UUID
+    - Vouchers in Case: summary counts (total, issued, locked, redeemed, cancelled) + RepeatableEntry showing each voucher with link to detail, bottle SKU, current holder, lifecycle state badge, flags badge, created at. 'View All in Vouchers List' header action
+    - Break Information (shown only if broken): broken_at timestamp, broken_reason (formatted), irreversibility notice
+    - Event History: audit logs with event badge, user, timestamp, formatted changes
+  - No manual break actions - breaking happens automatically via CaseEntitlementService (US-029)
+- **Learnings for future iterations:**
+  - Use `->withCount('vouchers')` in modifyQueryUsing for efficient count columns
+  - CaseEntitlement uses CaseEntitlementStatus enum with isIntact()/isBroken() helpers
+  - checkIntegrity() method on model verifies all vouchers still belong to same customer and none redeemed
+  - ViewRecord pages can use `->hidden()` and `->collapsed()` based on record state for conditional section display
+  - For "View All" filtered links, may need to add custom filter to VoucherResource for case_entitlement_id
+---
