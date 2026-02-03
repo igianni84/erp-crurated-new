@@ -123,6 +123,23 @@ class WineVariantResource extends Resource
                     ->color(fn (ProductLifecycleStatus $state): string => $state->color())
                     ->icon(fn (ProductLifecycleStatus $state): string => $state->icon())
                     ->sortable(),
+                Tables\Columns\TextColumn::make('completeness')
+                    ->label('Completeness')
+                    ->badge()
+                    ->getStateUsing(fn (WineVariant $record): string => $record->getCompletenessPercentage().'%')
+                    ->color(fn (WineVariant $record): string => $record->getCompletenessColor())
+                    ->sortable(query: function ($query, string $direction): void {
+                        // Sort by completeness by ordering by filled fields
+                        // This is an approximation since we can't easily sort by computed value
+                        $query->orderByRaw('
+                            (CASE WHEN alcohol_percentage IS NOT NULL THEN 1 ELSE 0 END +
+                             CASE WHEN drinking_window_start IS NOT NULL THEN 1 ELSE 0 END +
+                             CASE WHEN drinking_window_end IS NOT NULL THEN 1 ELSE 0 END +
+                             CASE WHEN critic_scores IS NOT NULL AND critic_scores != "[]" AND critic_scores != "null" THEN 1 ELSE 0 END +
+                             CASE WHEN production_notes IS NOT NULL AND production_notes != "[]" AND production_notes != "null" THEN 1 ELSE 0 END)
+                            '.$direction
+                        );
+                    }),
                 Tables\Columns\TextColumn::make('drinking_window_start')
                     ->label('Drink From')
                     ->sortable()
