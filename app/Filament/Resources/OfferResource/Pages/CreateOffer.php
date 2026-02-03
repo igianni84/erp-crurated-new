@@ -1107,53 +1107,425 @@ class CreateOffer extends CreateRecord
     }
 
     /**
-     * Step 4: Validity & Visibility (placeholder for US-040)
+     * Step 4: Validity & Visibility
+     * Define the validity period, visibility, and metadata of the Offer.
      */
     protected function getValidityAndVisibilityStep(): Wizard\Step
     {
         return Wizard\Step::make('Validity & Visibility')
-            ->description('Define validity and visibility (Coming in US-040)')
+            ->description('Define validity period and visibility settings')
             ->icon('heroicon-o-eye')
             ->schema([
-                Forms\Components\Section::make('Offer Details')
-                    ->description('This step will be implemented in US-040')
+                // Offer Identity Section
+                Forms\Components\Section::make('Offer Identity')
+                    ->description('Give your offer a name and define its type')
                     ->schema([
                         Forms\Components\TextInput::make('name')
+                            ->label('Offer Name')
                             ->required()
                             ->maxLength(255)
-                            ->placeholder('e.g., Sassicaia 2018 - B2C IT Promo'),
-                        Forms\Components\Select::make('offer_type')
+                            ->live(onBlur: true)
+                            ->placeholder('e.g., Sassicaia 2018 - B2C IT Promo')
+                            ->helperText('A descriptive name to identify this offer')
+                            ->columnSpanFull(),
+
+                        Forms\Components\Radio::make('offer_type')
                             ->label('Offer Type')
-                            ->options(collect(OfferType::cases())->mapWithKeys(fn (OfferType $type) => [
-                                $type->value => $type->label(),
-                            ]))
                             ->required()
+                            ->live()
+                            ->options([
+                                OfferType::Standard->value => OfferType::Standard->label(),
+                                OfferType::Promotion->value => OfferType::Promotion->label(),
+                                OfferType::Bundle->value => OfferType::Bundle->label(),
+                            ])
+                            ->descriptions([
+                                OfferType::Standard->value => 'Regular offer using the Price Book base price or with minor adjustments',
+                                OfferType::Promotion->value => 'Promotional offer with discounts or special pricing (implies a discount benefit)',
+                                OfferType::Bundle->value => 'Bundle offer for composite SKUs containing multiple products',
+                            ])
                             ->default(OfferType::Standard->value)
-                            ->native(false),
-                        Forms\Components\Select::make('visibility')
-                            ->options(collect(OfferVisibility::cases())->mapWithKeys(fn (OfferVisibility $v) => [
-                                $v->value => $v->label(),
-                            ]))
+                            ->columns(3),
+
+                        // Promotion type hint when discount is applied
+                        Forms\Components\Placeholder::make('promotion_hint')
+                            ->label('')
+                            ->visible(function (Get $get): bool {
+                                $offerType = (string) $get('offer_type');
+                                $benefitType = (string) $get('benefit_type');
+
+                                $isPromotion = $offerType === OfferType::Promotion->value;
+                                $hasDiscount = in_array($benefitType, [
+                                    BenefitType::PercentageDiscount->value,
+                                    BenefitType::FixedDiscount->value,
+                                ], true);
+
+                                // Show hint if promotion type is selected but no discount is applied
+                                if ($isPromotion && ! $hasDiscount) {
+                                    return true;
+                                }
+
+                                // Show hint if discount is applied but type is not promotion
+                                if ($hasDiscount && ! $isPromotion) {
+                                    return true;
+                                }
+
+                                return false;
+                            })
+                            ->content(function (Get $get): HtmlString {
+                                $offerType = (string) $get('offer_type');
+                                $isPromotion = $offerType === OfferType::Promotion->value;
+
+                                if ($isPromotion) {
+                                    return new HtmlString(
+                                        '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-3 border border-info-200 dark:border-info-800">'
+                                        .'<p class="text-sm text-info-700 dark:text-info-300">'
+                                        .'<strong>Tip:</strong> Promotion offers typically include a discount. '
+                                        .'Consider adding a percentage or fixed discount in the Pricing step.'
+                                        .'</p>'
+                                        .'</div>'
+                                    );
+                                }
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-3 border border-info-200 dark:border-info-800">'
+                                    .'<p class="text-sm text-info-700 dark:text-info-300">'
+                                    .'<strong>Tip:</strong> You have a discount applied. '
+                                    .'Consider changing the offer type to "Promotion" for better categorization.'
+                                    .'</p>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Visibility Section
+                Forms\Components\Section::make('Visibility')
+                    ->description('Control who can see this offer')
+                    ->schema([
+                        Forms\Components\Radio::make('visibility')
+                            ->label('Visibility Level')
                             ->required()
+                            ->live()
+                            ->options([
+                                OfferVisibility::Public->value => OfferVisibility::Public->label(),
+                                OfferVisibility::Restricted->value => OfferVisibility::Restricted->label(),
+                            ])
+                            ->descriptions([
+                                OfferVisibility::Public->value => 'Visible to all eligible customers on the selected channel',
+                                OfferVisibility::Restricted->value => 'Only visible to specific customers or through direct links',
+                            ])
                             ->default(OfferVisibility::Public->value)
-                            ->native(false),
+                            ->columns(2),
+
+                        // Visibility explanation
+                        Forms\Components\Placeholder::make('visibility_info')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $visibility = $get('visibility');
+
+                                if ($visibility === OfferVisibility::Restricted->value) {
+                                    return new HtmlString(
+                                        '<div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-3 border border-warning-200 dark:border-warning-800">'
+                                        .'<div class="flex items-start gap-2">'
+                                        .'<svg class="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+                                        .'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>'
+                                        .'</svg>'
+                                        .'<div>'
+                                        .'<p class="text-sm font-medium text-warning-800 dark:text-warning-200">Restricted Visibility</p>'
+                                        .'<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">'
+                                        .'This offer will not appear in public catalogs or listings. Customers will need a direct link or invitation to access this offer.'
+                                        .'</p>'
+                                        .'</div>'
+                                        .'</div>'
+                                        .'</div>'
+                                    );
+                                }
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-success-50 dark:bg-success-950 p-3 border border-success-200 dark:border-success-800">'
+                                    .'<div class="flex items-start gap-2">'
+                                    .'<svg class="w-5 h-5 text-success-600 dark:text-success-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">'
+                                    .'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                                    .'</svg>'
+                                    .'<div>'
+                                    .'<p class="text-sm font-medium text-success-800 dark:text-success-200">Public Visibility</p>'
+                                    .'<p class="text-sm text-success-700 dark:text-success-300 mt-1">'
+                                    .'This offer will be visible in public catalogs and listings for all eligible customers on the selected channel.'
+                                    .'</p>'
+                                    .'</div>'
+                                    .'</div>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+
+                // Validity Period Section
+                Forms\Components\Section::make('Validity Period')
+                    ->description('Define when this offer is active')
+                    ->schema([
                         Forms\Components\DateTimePicker::make('valid_from')
                             ->label('Valid From')
                             ->required()
+                            ->live()
                             ->native(false)
-                            ->default(now()),
+                            ->seconds(false)
+                            ->default(now())
+                            ->helperText('The date and time when this offer becomes active')
+                            ->columnSpan(1),
+
                         Forms\Components\DateTimePicker::make('valid_to')
                             ->label('Valid To')
                             ->native(false)
+                            ->live()
+                            ->seconds(false)
                             ->helperText('Leave empty for indefinite validity')
-                            ->after('valid_from'),
+                            ->rules([
+                                fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                    if ($value === null) {
+                                        return;
+                                    }
+
+                                    $validFrom = $get('valid_from');
+                                    if ($validFrom === null) {
+                                        return;
+                                    }
+
+                                    /** @var \DateTimeInterface|string $validFrom */
+                                    $fromDate = \Carbon\Carbon::parse($validFrom);
+                                    /** @var \DateTimeInterface|string $value */
+                                    $toDate = \Carbon\Carbon::parse($value);
+
+                                    if ($toDate->lte($fromDate)) {
+                                        $fail('The Valid To date must be after the Valid From date.');
+                                    }
+                                },
+                            ])
+                            ->columnSpan(1),
+
+                        // Validity period summary
+                        Forms\Components\Placeholder::make('validity_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $validFrom = $get('valid_from');
+                                $validTo = $get('valid_to');
+
+                                if ($validFrom === null) {
+                                    return new HtmlString('');
+                                }
+
+                                /** @var \DateTimeInterface|string $validFrom */
+                                $fromDate = \Carbon\Carbon::parse($validFrom);
+                                $now = now();
+
+                                // Determine status
+                                $startsInFuture = $fromDate->gt($now);
+
+                                if ($validTo === null) {
+                                    // Indefinite validity
+                                    if ($startsInFuture) {
+                                        $daysUntilStart = (int) $now->diffInDays($fromDate);
+
+                                        return new HtmlString(
+                                            '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-3 border border-info-200 dark:border-info-800">'
+                                            .'<p class="text-sm text-info-700 dark:text-info-300">'
+                                            .'<strong>Scheduled Start:</strong> This offer will become active in '.$daysUntilStart.' day(s) on '.$fromDate->format('M j, Y \a\t g:i A').'. '
+                                            .'It will remain active indefinitely once started.'
+                                            .'</p>'
+                                            .'</div>'
+                                        );
+                                    }
+
+                                    return new HtmlString(
+                                        '<div class="rounded-lg bg-success-50 dark:bg-success-950 p-3 border border-success-200 dark:border-success-800">'
+                                        .'<p class="text-sm text-success-700 dark:text-success-300">'
+                                        .'<strong>Indefinite Validity:</strong> This offer will be active starting '.$fromDate->format('M j, Y \a\t g:i A').' with no expiration date.'
+                                        .'</p>'
+                                        .'</div>'
+                                    );
+                                }
+
+                                /** @var \DateTimeInterface|string $validTo */
+                                $toDate = \Carbon\Carbon::parse($validTo);
+
+                                // Validation check
+                                if ($toDate->lte($fromDate)) {
+                                    return new HtmlString(
+                                        '<div class="rounded-lg bg-danger-50 dark:bg-danger-950 p-3 border border-danger-200 dark:border-danger-800">'
+                                        .'<p class="text-sm text-danger-700 dark:text-danger-300">'
+                                        .'<strong>Invalid Period:</strong> The Valid To date must be after the Valid From date.'
+                                        .'</p>'
+                                        .'</div>'
+                                    );
+                                }
+
+                                $duration = $fromDate->diff($toDate);
+                                $durationStr = $this->formatDuration($duration);
+
+                                // Check if end date is soon (within 7 days)
+                                $daysUntilEnd = (int) $now->diffInDays($toDate, false);
+                                $urgencyClass = $daysUntilEnd <= 7 && $daysUntilEnd >= 0 ? 'warning' : 'primary';
+
+                                if ($startsInFuture) {
+                                    $daysUntilStart = (int) $now->diffInDays($fromDate);
+
+                                    return new HtmlString(
+                                        '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-3 border border-info-200 dark:border-info-800">'
+                                        .'<p class="text-sm text-info-700 dark:text-info-300">'
+                                        .'<strong>Scheduled Period:</strong> Starting in '.$daysUntilStart.' day(s) on '.$fromDate->format('M j, Y \a\t g:i A').', '
+                                        .'ending on '.$toDate->format('M j, Y \a\t g:i A').'. Duration: '.$durationStr.'.'
+                                        .'</p>'
+                                        .'</div>'
+                                    );
+                                }
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-'.$urgencyClass.'-50 dark:bg-'.$urgencyClass.'-950 p-3 border border-'.$urgencyClass.'-200 dark:border-'.$urgencyClass.'-800">'
+                                    .'<p class="text-sm text-'.$urgencyClass.'-700 dark:text-'.$urgencyClass.'-300">'
+                                    .'<strong>Active Period:</strong> From '.$fromDate->format('M j, Y \a\t g:i A').' to '.$toDate->format('M j, Y \a\t g:i A').'. '
+                                    .'Duration: '.$durationStr.'.'
+                                    .($daysUntilEnd <= 7 && $daysUntilEnd >= 0 ? ' <strong>Expiring in '.$daysUntilEnd.' day(s)!</strong>' : '')
+                                    .'</p>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
+                // Campaign Tag Section
+                Forms\Components\Section::make('Campaign & Grouping')
+                    ->description('Optional grouping for promotional campaigns')
+                    ->schema([
                         Forms\Components\TextInput::make('campaign_tag')
                             ->label('Campaign Tag')
                             ->maxLength(255)
-                            ->placeholder('e.g., summer-2026'),
+                            ->live(onBlur: true)
+                            ->placeholder('e.g., summer-2026, black-friday, vip-exclusive')
+                            ->helperText('Use campaign tags to group related offers together for reporting and management'),
+
+                        Forms\Components\Placeholder::make('campaign_info')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => ! empty($get('campaign_tag')))
+                            ->content(function (Get $get): HtmlString {
+                                $tag = (string) $get('campaign_tag');
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-gray-50 dark:bg-gray-900 p-3 border border-gray-200 dark:border-gray-700">'
+                                    .'<p class="text-sm text-gray-600 dark:text-gray-400">'
+                                    .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200 mr-2">'.$tag.'</span>'
+                                    .'This offer will be grouped with other offers using the same campaign tag.'
+                                    .'</p>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->collapsible(),
+
+                // Configuration Summary
+                Forms\Components\Section::make('Configuration Summary')
+                    ->schema([
+                        Forms\Components\Placeholder::make('step4_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $name = $get('name');
+                                $offerType = $get('offer_type');
+                                $visibility = $get('visibility');
+                                $validFrom = $get('valid_from');
+                                $validTo = $get('valid_to');
+                                $campaignTag = $get('campaign_tag');
+
+                                if (empty($name)) {
+                                    return new HtmlString(
+                                        '<div class="text-gray-500 dark:text-gray-400 text-sm">Complete the fields above to see a summary.</div>'
+                                    );
+                                }
+
+                                $nameStr = (string) $name;
+                                $offerTypeEnum = OfferType::tryFrom((string) $offerType);
+                                $visibilityEnum = OfferVisibility::tryFrom((string) $visibility);
+
+                                $typeColor = $offerTypeEnum !== null ? $offerTypeEnum->color() : 'gray';
+                                $typeLabel = $offerTypeEnum !== null ? $offerTypeEnum->label() : (string) $offerType;
+
+                                $visibilityColor = $visibilityEnum !== null ? $visibilityEnum->color() : 'gray';
+                                $visibilityLabel = $visibilityEnum !== null ? $visibilityEnum->label() : (string) $visibility;
+                                $visibilityIcon = $visibilityEnum === OfferVisibility::Public
+                                    ? '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                                    : '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>';
+
+                                /** @var \DateTimeInterface|string|null $validFrom */
+                                /** @var \DateTimeInterface|string|null $validTo */
+                                $validFromStr = $validFrom !== null ? \Carbon\Carbon::parse($validFrom)->format('M j, Y g:i A') : '-';
+                                $validToStr = $validTo !== null ? \Carbon\Carbon::parse($validTo)->format('M j, Y g:i A') : 'Indefinite';
+
+                                $campaignTagStr = (string) $campaignTag;
+                                $campaignTagHtml = ! empty($campaignTagStr)
+                                    ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200">'.$campaignTagStr.'</span>'
+                                    : '<span class="text-gray-500">None</span>';
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-gradient-to-r from-primary-50 to-success-50 dark:from-primary-950 dark:to-success-950 p-4 border border-primary-200 dark:border-primary-800">'
+                                    .'<div class="grid grid-cols-2 md:grid-cols-3 gap-4">'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Offer Name</p>'
+                                    .'<p class="text-sm font-semibold text-gray-900 dark:text-gray-100">'.$nameStr.'</p>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</p>'
+                                    .'<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-'.$typeColor.'-100 text-'.$typeColor.'-800 dark:bg-'.$typeColor.'-900 dark:text-'.$typeColor.'-200">'.$typeLabel.'</span>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Visibility</p>'
+                                    .'<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-'.$visibilityColor.'-100 text-'.$visibilityColor.'-800 dark:bg-'.$visibilityColor.'-900 dark:text-'.$visibilityColor.'-200">'.$visibilityIcon.' '.$visibilityLabel.'</span>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Valid From</p>'
+                                    .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$validFromStr.'</p>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Valid To</p>'
+                                    .'<p class="text-sm text-gray-700 dark:text-gray-300">'.$validToStr.'</p>'
+                                    .'</div>'
+                                    .'<div>'
+                                    .'<p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Campaign</p>'
+                                    .$campaignTagHtml
+                                    .'</div>'
+                                    .'</div>'
+                                    .'</div>'
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
             ]);
+    }
+
+    /**
+     * Format a DateInterval as a human-readable duration string.
+     */
+    protected function formatDuration(\DateInterval $interval): string
+    {
+        $parts = [];
+
+        if ($interval->y > 0) {
+            $parts[] = $interval->y.' year'.($interval->y > 1 ? 's' : '');
+        }
+        if ($interval->m > 0) {
+            $parts[] = $interval->m.' month'.($interval->m > 1 ? 's' : '');
+        }
+        if ($interval->d > 0) {
+            $parts[] = $interval->d.' day'.($interval->d > 1 ? 's' : '');
+        }
+        if ($interval->h > 0 && count($parts) < 2) {
+            $parts[] = $interval->h.' hour'.($interval->h > 1 ? 's' : '');
+        }
+
+        if (count($parts) === 0) {
+            return 'less than 1 hour';
+        }
+
+        return implode(', ', array_slice($parts, 0, 2));
     }
 
     /**
