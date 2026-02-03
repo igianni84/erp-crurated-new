@@ -257,3 +257,22 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - AuditLog polymorphic relationship uses `morphMany(\App\Models\AuditLog::class, 'auditable')`
   - Authorization on header actions: `->authorize('policyMethod', $record)`
 ---
+
+## 2026-02-03 - US-014
+- What was implemented: Allocation status transitions with audit logging and user-friendly validation
+- Files changed:
+  - `app/Services/Allocation/AllocationService.php` (enhanced with audit logging and transition methods)
+- **Features implemented:**
+  - `logStatusTransition()` - protected method to create AuditLog entries for status changes
+  - `transitionTo()` - generic transition method with comprehensive error messages
+  - `canTransitionTo()` - helper method to check if transition is valid
+  - All status transitions (activate, close, markAsExhausted, auto-exhausted) now log audit entries
+  - Audit entries include: event type (status_change), old_values (status, label), new_values (status, label), user_id, timestamp
+  - Enhanced error messages explain allowed transitions and provide guidance
+- **Learnings for future iterations:**
+  - Use AuditLog::EVENT_STATUS_CHANGE constant for status transition events
+  - Always capture $oldStatus BEFORE changing $allocation->status
+  - Auth::id() returns current user ID for audit logging
+  - Constraint editing protection is already handled by model boot events (AllocationConstraint and LiquidAllocationConstraint)
+  - For comprehensive error messages, use allowedTransitions() to show valid options
+---

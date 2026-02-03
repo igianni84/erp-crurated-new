@@ -232,8 +232,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Enhanced AllocationService with: logStatusTransition() method for audit logging (user_id, timestamp, old/new status), transitionTo() method with user-friendly errors showing allowed transitions, canTransitionTo() helper. All status changes now create AuditLog entries with EVENT_STATUS_CHANGE. Auto-exhausted on remaining=0 includes audit log. Constraints already protected by model boot events (AllocationConstraint and LiquidAllocationConstraint both prevent editing when not Draft)."
     },
     {
       "id": "US-015",
