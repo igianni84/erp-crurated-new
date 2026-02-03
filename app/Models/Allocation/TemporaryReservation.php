@@ -4,11 +4,12 @@ namespace App\Models\Allocation;
 
 use App\Enums\Allocation\ReservationContextType;
 use App\Enums\Allocation\ReservationStatus;
-use App\Models\User;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * TemporaryReservation Model
@@ -31,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class TemporaryReservation extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
 
@@ -99,13 +101,13 @@ class TemporaryReservation extends Model
     }
 
     /**
-     * Get the user who created this reservation.
+     * Get the audit logs for this reservation.
      *
-     * @return BelongsTo<User, $this>
+     * @return MorphMany<\App\Models\AuditLog, $this>
      */
-    public function creator(): BelongsTo
+    public function auditLogs(): MorphMany
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
     }
 
     /**

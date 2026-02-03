@@ -820,3 +820,59 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Return existing resources on duplicate rather than throwing errors - more idempotent behavior
   - Unique constraints with nullable columns (sale_reference is nullable) - NULL values are treated as distinct in unique constraints
 ---
+
+## 2026-02-03 - US-037
+- What was implemented: Voucher without allocation (quarantine) system for handling anomalous vouchers
+- Files changed:
+  - `database/migrations/2026_02_03_360000_add_requires_attention_to_vouchers_table.php` (new) - adds requires_attention boolean flag and attention_reason string
+  - `app/Models/Allocation/Voucher.php` (added requires_attention, attention_reason fields, default attribute, helper methods)
+  - `app/Services/Allocation/VoucherAnomalyService.php` (new) - quarantine/unquarantine operations and validation
+  - `app/Services/Allocation/VoucherService.php` (added validateForImport, createFromImport, validateNotQuarantined methods)
+  - `app/Models/AuditLog.php` (added EVENT_VOUCHER_QUARANTINED and EVENT_VOUCHER_UNQUARANTINED constants)
+  - `app/Filament/Resources/Allocation/VoucherResource.php` (added requires_attention column and filter)
+  - `app/Filament/Resources/Allocation/VoucherResource/Pages/ViewVoucher.php` (added quarantine warning section)
+  - `tests/Unit/Models/Allocation/VoucherQuarantineTest.php` (new) - 12 comprehensive tests
+- **Features implemented:**
+  - Database-level NOT NULL constraint on allocation_id (already existed from original vouchers migration)
+  - requires_attention flag and attention_reason field for explicit quarantine flagging
+  - VoucherAnomalyService with quarantine(), unquarantine(), validateVoucherData(), autoQuarantineIfNeeded() methods
+  - VoucherService.validateForImport() for pre-creation validation - rejects import if allocation_id missing
+  - VoucherService.createFromImport() with optional quarantine fallback for anomalous data
+  - Voucher model helpers: requiresAttention(), isQuarantined(), getAttentionReason(), getDetectedAnomalies(), canParticipateInNormalOperations()
+  - UI: IconColumn showing exclamation-triangle for anomalous vouchers, TernaryFilter for requires_attention
+  - ViewVoucher: prominent danger-styled quarantine warning section with reason, explanation, and detected anomalies list
+  - AuditLog events for quarantine/unquarantine with old/new values
+- **Learnings for future iterations:**
+  - Use $attributes property in model for default values that may not be set during create() call
+  - VoucherAnomalyService is separate from VoucherService to keep concerns clean (anomaly detection vs normal operations)
+  - Quarantine system is defense-in-depth: database constraint + application validation + UI warning
+  - Pre-existing navigation tests failing are unrelated to Module A work (Pim Dashboard tests)
+  - Quarantine can be used either for explicit flagging OR auto-detection via getDetectedAnomalies()
+---
+
+## 2026-02-03 - US-038
+- What was implemented: Audit log per Allocations with automatic event logging and filters
+- Files changed:
+  - `app/Traits/Auditable.php` (enhanced to auto-log created, updated, deleted events to AuditLog)
+  - `app/Models/Allocation/TemporaryReservation.php` (added Auditable trait and auditLogs() relationship)
+  - `app/Models/Allocation/AllocationConstraint.php` (added auditLogs() MorphMany relationship)
+  - `app/Models/Allocation/LiquidAllocationConstraint.php` (added auditLogs() MorphMany relationship)
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/ViewAllocation.php` (enhanced Audit tab with filters)
+- **Features implemented:**
+  - Enhanced Auditable trait with createAuditLogEntry() method for automatic event logging
+  - Trait logs EVENT_CREATED, EVENT_UPDATED, EVENT_DELETED to AuditLog table
+  - For updates, only logs changed fields (excluding updated_at, updated_by)
+  - Enums are cast to scalar values for JSON storage
+  - Applied trait to TemporaryReservation (was missing)
+  - Added auditLogs() morphMany relationship to AllocationConstraint and LiquidAllocationConstraint
+  - Allocation Detail Audit tab now has Filter and Clear Filters header actions
+  - Filter modal with: event type dropdown (Created, Updated, Deleted, Status Changed), date from picker, date until picker
+  - Audit logs displayed in styled timeline format with dark mode support
+  - Filter description shows active filters
+- **Learnings for future iterations:**
+  - Avoid method name collisions between traits - AuditLoggable already had logAuditEvent(), so renamed to createAuditLogEntry()
+  - Use private const for default values instead of static properties to avoid PHPStan property access errors
+  - Use instance property check `property_exists($model, 'auditExcludeFields')` for optional model customization
+  - Filament infolists don't support forms directly - use headerActions with modal forms for filtering
+  - For HTML rendering in infolists, use TextEntry with getStateUsing() and ->html() modifier
+---

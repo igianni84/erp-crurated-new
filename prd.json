@@ -613,8 +613,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 37,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented quarantine system: requires_attention flag + attention_reason field on vouchers table. VoucherAnomalyService for quarantine/unquarantine operations. VoucherService.validateForImport() and createFromImport() for data import validation. UI shows anomaly indicator column in list + prominent quarantine warning section in detail view. TernaryFilter for requires_attention. Database-level NOT NULL constraint on allocation_id (already existed in original migration). Comprehensive test suite (12 tests) verifying all quarantine functionality."
     },
     {
       "id": "US-038",
@@ -629,8 +629,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 38,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Enhanced Auditable trait to auto-log created, updated, deleted events to AuditLog table. Applied trait to Allocation, AllocationConstraint, LiquidAllocationConstraint, TemporaryReservation models and added auditLogs() morphMany relationships. Audit tab in Allocation Detail now includes filters for event type (created, updated, deleted, status_change) and date range with Filter and Clear Filters header actions. Audit logs are immutable (AuditLog model only has created_at, no updated_at)."
     },
     {
       "id": "US-039",

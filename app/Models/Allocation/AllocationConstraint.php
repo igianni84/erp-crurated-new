@@ -7,6 +7,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * AllocationConstraint Model
@@ -90,6 +91,16 @@ class AllocationConstraint extends Model
     public function allocation(): BelongsTo
     {
         return $this->belongsTo(Allocation::class);
+    }
+
+    /**
+     * Get the audit logs for this constraint.
+     *
+     * @return MorphMany<\App\Models\AuditLog, $this>
+     */
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
     }
 
     /**
