@@ -67,6 +67,7 @@ class CreatePricingPolicy extends CreateRecord
             $this->getTypeStep(),
             $this->getInputsStep(),
             $this->getLogicStep(),
+            $this->getScopeAndTargetStep(),
         ];
     }
 
@@ -1104,6 +1105,336 @@ class CreatePricingPolicy extends CreateRecord
     }
 
     /**
+     * Step 4: Scope & Target
+     * Defines the target Price Book and scope of the Pricing Policy.
+     */
+    protected function getScopeAndTargetStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Scope & Target')
+            ->description('Define target Price Book and SKU scope')
+            ->icon('heroicon-o-funnel')
+            ->schema([
+                // Info section
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('scope_info')
+                            ->label('')
+                            ->content('Pricing Policies generate prices into a target Price Book. Define which Price Book to target and which SKUs should be affected.')
+                            ->columnSpanFull(),
+                    ]),
+
+                // Target Price Book section
+                Forms\Components\Section::make('Target Price Book')
+                    ->description('Select the Price Book where prices will be generated')
+                    ->schema([
+                        Forms\Components\Select::make('target_price_book_id')
+                            ->label('Target Price Book')
+                            ->options(function (): array {
+                                return \App\Models\Commercial\PriceBook::query()
+                                    ->whereIn('status', [
+                                        \App\Enums\Commercial\PriceBookStatus::Draft,
+                                        \App\Enums\Commercial\PriceBookStatus::Active,
+                                    ])
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($pb): array => [
+                                        $pb->id => "{$pb->name} ({$pb->market} - {$pb->currency}) [{$pb->status->label()}]",
+                                    ])
+                                    ->toArray();
+                            })
+                            ->required()
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->helperText('Select the Price Book where generated prices will be written'),
+
+                        Forms\Components\Placeholder::make('target_price_book_preview')
+                            ->label('Target Price Book Details')
+                            ->content(function (Get $get): HtmlString {
+                                $id = $get('target_price_book_id');
+                                if (! $id) {
+                                    return new HtmlString('<p class="text-gray-500">Select a Price Book to see its details.</p>');
+                                }
+
+                                $pb = \App\Models\Commercial\PriceBook::withCount('entries')->with('channel')->find($id);
+                                if (! $pb) {
+                                    return new HtmlString('<p class="text-red-500">Price Book not found.</p>');
+                                }
+
+                                $statusColor = match ($pb->status) {
+                                    \App\Enums\Commercial\PriceBookStatus::Active => 'green',
+                                    \App\Enums\Commercial\PriceBookStatus::Draft => 'yellow',
+                                    default => 'gray',
+                                };
+
+                                $channel = $pb->channel;
+                                $channelName = $channel !== null ? $channel->name : 'All Channels';
+
+                                $warning = '';
+                                if ($pb->isActive()) {
+                                    $warning = '<div class="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+                                        <strong>Note:</strong> This Price Book is already active. Generated prices will be marked as policy_generated but will require re-approval if the Price Book needs to be modified.
+                                    </div>';
+                                }
+
+                                return new HtmlString(
+                                    "<div class=\"bg-gray-50 p-4 rounded-lg border\">
+                                        <div class=\"grid grid-cols-2 gap-4\">
+                                            <div>
+                                                <p class=\"text-sm font-medium\">Market</p>
+                                                <p class=\"text-sm text-gray-600\">{$pb->market}</p>
+                                            </div>
+                                            <div>
+                                                <p class=\"text-sm font-medium\">Currency</p>
+                                                <p class=\"text-sm text-gray-600\">{$pb->currency}</p>
+                                            </div>
+                                            <div>
+                                                <p class=\"text-sm font-medium\">Channel</p>
+                                                <p class=\"text-sm text-gray-600\">{$channelName}</p>
+                                            </div>
+                                            <div>
+                                                <p class=\"text-sm font-medium\">Status</p>
+                                                <p class=\"text-sm\"><span class=\"px-2 py-1 rounded text-xs bg-{$statusColor}-100 text-{$statusColor}-800\">{$pb->status->label()}</span></p>
+                                            </div>
+                                            <div>
+                                                <p class=\"text-sm font-medium\">Current Entries</p>
+                                                <p class=\"text-sm text-gray-600\">{$pb->entries_count} SKUs</p>
+                                            </div>
+                                        </div>
+                                        {$warning}
+                                    </div>"
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
+
+                // Scope Definition section
+                Forms\Components\Section::make('Scope Definition')
+                    ->description('Define which SKUs this policy will affect')
+                    ->schema([
+                        Forms\Components\Radio::make('scope_type')
+                            ->label('Scope Type')
+                            ->options([
+                                'all' => \App\Enums\Commercial\PolicyScopeType::All->label(),
+                                'category' => \App\Enums\Commercial\PolicyScopeType::Category->label(),
+                                'product' => \App\Enums\Commercial\PolicyScopeType::Product->label(),
+                                'sku' => \App\Enums\Commercial\PolicyScopeType::Sku->label(),
+                            ])
+                            ->descriptions([
+                                'all' => \App\Enums\Commercial\PolicyScopeType::All->description(),
+                                'category' => \App\Enums\Commercial\PolicyScopeType::Category->description(),
+                                'product' => \App\Enums\Commercial\PolicyScopeType::Product->description(),
+                                'sku' => \App\Enums\Commercial\PolicyScopeType::Sku->description(),
+                            ])
+                            ->default('all')
+                            ->required()
+                            ->live()
+                            ->columnSpanFull(),
+
+                        // Category selection
+                        Forms\Components\TextInput::make('scope_category')
+                            ->label('Category')
+                            ->placeholder('e.g., Premium Wines, Bordeaux, Champagne')
+                            ->helperText('Enter the category name to filter by')
+                            ->visible(fn (Get $get): bool => $get('scope_type') === 'category')
+                            ->required(fn (Get $get): bool => $get('scope_type') === 'category'),
+
+                        // Product selection
+                        Forms\Components\TextInput::make('scope_product')
+                            ->label('Product')
+                            ->placeholder('e.g., Château Margaux 2015')
+                            ->helperText('Enter the product name to filter by (all formats)')
+                            ->visible(fn (Get $get): bool => $get('scope_type') === 'product')
+                            ->required(fn (Get $get): bool => $get('scope_type') === 'product'),
+
+                        // SKU selection
+                        Forms\Components\Select::make('scope_skus')
+                            ->label('Specific SKUs')
+                            ->multiple()
+                            ->options(function (): array {
+                                return \App\Models\Pim\SellableSku::query()
+                                    ->where('lifecycle_status', 'active')
+                                    ->with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])
+                                    ->orderBy('sku_code')
+                                    ->limit(500)
+                                    ->get()
+                                    ->mapWithKeys(function ($sku): array {
+                                        $wineVariant = $sku->wineVariant;
+                                        $wineMaster = $wineVariant?->wineMaster;
+                                        $wine = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
+                                        $vintage = $wineVariant !== null ? (string) $wineVariant->vintage_year : '';
+                                        $format = $sku->format !== null ? (string) $sku->format->volume_ml : '';
+                                        $label = "{$sku->sku_code} - {$wine} {$vintage} ({$format}ml)";
+
+                                        return [$sku->id => $label];
+                                    })
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->helperText('Select specific SKUs to include in the scope')
+                            ->visible(fn (Get $get): bool => $get('scope_type') === 'sku')
+                            ->required(fn (Get $get): bool => $get('scope_type') === 'sku'),
+                    ])
+                    ->columns(1),
+
+                // Market/Channel Filters section
+                Forms\Components\Section::make('Market & Channel Filters')
+                    ->description('Optionally restrict the scope to specific markets or channels')
+                    ->collapsed()
+                    ->schema([
+                        Forms\Components\Select::make('scope_markets')
+                            ->label('Markets')
+                            ->multiple()
+                            ->options(function (): array {
+                                // Get unique markets from EMP records
+                                $markets = \App\Models\Commercial\EstimatedMarketPrice::query()
+                                    ->distinct()
+                                    ->pluck('market')
+                                    ->sort()
+                                    ->mapWithKeys(fn ($m): array => [$m => $m])
+                                    ->toArray();
+
+                                // Add common markets if EMP data is empty
+                                if (empty($markets)) {
+                                    $markets = [
+                                        'IT' => 'Italy',
+                                        'UK' => 'United Kingdom',
+                                        'US' => 'United States',
+                                        'FR' => 'France',
+                                        'DE' => 'Germany',
+                                        'HK' => 'Hong Kong',
+                                        'SG' => 'Singapore',
+                                    ];
+                                }
+
+                                return $markets;
+                            })
+                            ->searchable()
+                            ->helperText('Leave empty to apply to all markets'),
+
+                        Forms\Components\Select::make('scope_channels')
+                            ->label('Channels')
+                            ->multiple()
+                            ->options(function (): array {
+                                return \App\Models\Commercial\Channel::query()
+                                    ->where('status', \App\Enums\Commercial\ChannelStatus::Active)
+                                    ->orderBy('name')
+                                    ->pluck('name', 'id')
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->helperText('Leave empty to apply to all channels'),
+                    ])
+                    ->columns(2),
+
+                // Scope Preview section
+                Forms\Components\Section::make('Scope Preview')
+                    ->description('Preview of the SKUs that will be affected')
+                    ->schema([
+                        Forms\Components\Placeholder::make('scope_preview')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $scopeType = $get('scope_type') ?? 'all';
+
+                                // Calculate SKU count based on scope
+                                $query = \App\Models\Pim\SellableSku::query()
+                                    ->where('lifecycle_status', 'active');
+
+                                $scopeDescription = '';
+
+                                switch ($scopeType) {
+                                    case 'category':
+                                        $category = $get('scope_category');
+                                        if ($category) {
+                                            $scopeDescription = "Category: {$category}";
+                                            // For demo, we'll show all active SKUs - in production, this would filter by category
+                                        } else {
+                                            return new HtmlString('<p class="text-amber-600">Please enter a category name to see the preview.</p>');
+                                        }
+                                        break;
+
+                                    case 'product':
+                                        $product = $get('scope_product');
+                                        if ($product) {
+                                            $scopeDescription = "Product: {$product}";
+                                            // Filter by wine master name (approximate matching)
+                                            $query->whereHas('wineVariant.wineMaster', function ($q) use ($product): void {
+                                                $q->where('name', 'like', "%{$product}%");
+                                            });
+                                        } else {
+                                            return new HtmlString('<p class="text-amber-600">Please enter a product name to see the preview.</p>');
+                                        }
+                                        break;
+
+                                    case 'sku':
+                                        $skuIds = $get('scope_skus');
+                                        if (! empty($skuIds)) {
+                                            $scopeDescription = 'Specific SKUs selected';
+                                            $query->whereIn('id', $skuIds);
+                                        } else {
+                                            return new HtmlString('<p class="text-amber-600">Please select at least one SKU to see the preview.</p>');
+                                        }
+                                        break;
+
+                                    default:
+                                        $scopeDescription = 'All commercially available SKUs';
+                                }
+
+                                $totalCount = $query->count();
+
+                                // Build market/channel restriction text
+                                $restrictions = [];
+                                $markets = $get('scope_markets');
+                                if (! empty($markets)) {
+                                    $marketCount = count($markets);
+                                    $restrictions[] = "{$marketCount} market(s)";
+                                }
+                                $channels = $get('scope_channels');
+                                if (! empty($channels)) {
+                                    $channelCount = count($channels);
+                                    $restrictions[] = "{$channelCount} channel(s)";
+                                }
+
+                                $restrictionText = ! empty($restrictions)
+                                    ? '<p class="text-sm text-gray-600 mt-2">Additional filters: '.implode(', ', $restrictions).'</p>'
+                                    : '';
+
+                                // Warning for SKUs without allocation (placeholder - would need allocation data)
+                                $allocationWarning = '';
+                                if ($totalCount > 0) {
+                                    // In production, this would check actual allocation data
+                                    $allocationWarning = '<div class="mt-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                                        <strong>Note:</strong> Policies only apply to SKUs with active commercial allocations. SKUs without allocations will be skipped during execution.
+                                    </div>';
+                                }
+
+                                $colorClass = $totalCount > 0 ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200';
+                                $countColor = $totalCount > 0 ? 'text-green-800' : 'text-gray-600';
+
+                                return new HtmlString(
+                                    "<div class=\"p-4 rounded-lg border {$colorClass}\">
+                                        <div class=\"flex items-center justify-between\">
+                                            <div>
+                                                <p class=\"font-medium\">{$scopeDescription}</p>
+                                                {$restrictionText}
+                                            </div>
+                                            <div class=\"text-right\">
+                                                <p class=\"text-2xl font-bold {$countColor}\">{$totalCount}</p>
+                                                <p class=\"text-sm text-gray-500\">SKUs affected</p>
+                                            </div>
+                                        </div>
+                                        {$allocationWarning}
+                                    </div>"
+                                );
+                            })
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
      * Preview rounding for a given value and rule.
      */
     protected static function previewRounding(float $value, string $rule, string $direction): float
@@ -1264,6 +1595,24 @@ class CreatePricingPolicy extends CreateRecord
 
         $data['logic_definition'] = $logicDefinition;
 
+        // Store scope data in session for afterCreate hook
+        $scopeType = $data['scope_type'] ?? 'all';
+        $scopeReference = match ($scopeType) {
+            'category' => $data['scope_category'] ?? null,
+            'product' => $data['scope_product'] ?? null,
+            'sku' => is_array($data['scope_skus'] ?? null) ? implode(',', $data['scope_skus']) : null,
+            default => null,
+        };
+
+        session([
+            'pricing_policy_scope_data' => [
+                'scope_type' => $scopeType,
+                'scope_reference' => $scopeReference,
+                'markets' => $data['scope_markets'] ?? null,
+                'channels' => $data['scope_channels'] ?? null,
+            ],
+        ]);
+
         // Clean up temporary form fields that aren't in the model
         unset(
             // Step 2 fields
@@ -1293,7 +1642,14 @@ class CreatePricingPolicy extends CreateRecord
             $data['index_fixed_adjustment'],
             $data['apply_rounding'],
             $data['final_rounding_rule'],
-            $data['final_rounding_direction']
+            $data['final_rounding_direction'],
+            // Step 4 fields
+            $data['scope_type'],
+            $data['scope_category'],
+            $data['scope_product'],
+            $data['scope_skus'],
+            $data['scope_markets'],
+            $data['scope_channels']
         );
 
         return $data;
@@ -1307,10 +1663,25 @@ class CreatePricingPolicy extends CreateRecord
         /** @var \App\Models\Commercial\PricingPolicy $pricingPolicy */
         $pricingPolicy = $this->record;
 
+        // Create the PricingPolicyScope from session data
+        $scopeData = session('pricing_policy_scope_data');
+        if ($scopeData) {
+            \App\Models\Commercial\PricingPolicyScope::create([
+                'pricing_policy_id' => $pricingPolicy->id,
+                'scope_type' => $scopeData['scope_type'],
+                'scope_reference' => $scopeData['scope_reference'],
+                'markets' => ! empty($scopeData['markets']) ? $scopeData['markets'] : null,
+                'channels' => ! empty($scopeData['channels']) ? $scopeData['channels'] : null,
+            ]);
+
+            // Clean up session
+            session()->forget('pricing_policy_scope_data');
+        }
+
         Notification::make()
             ->success()
             ->title('Pricing Policy created')
-            ->body("The pricing policy \"{$pricingPolicy->name}\" has been created as Draft. Configure logic and scope, then activate when ready.")
+            ->body("The pricing policy \"{$pricingPolicy->name}\" has been created as Draft. Configure execution settings, then activate when ready.")
             ->send();
     }
 }
