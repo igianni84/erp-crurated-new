@@ -1310,19 +1310,15 @@ class ViewOffer extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Activate Offer')
                 ->modalDescription(function (Offer $record): string {
+                    $validation = $record->canActivateWithValidations();
                     $warnings = [];
 
-                    // Check if Price Book is active
-                    if ($record->priceBook && ! $record->priceBook->isActive()) {
-                        $warnings[] = '⚠️ The linked Price Book is not active';
+                    // Show validation errors as warnings in the modal
+                    foreach ($validation['errors'] as $error) {
+                        $warnings[] = "⚠️ {$error}";
                     }
 
-                    // Check if has base price
-                    if (! $record->hasBasePrice()) {
-                        $warnings[] = '⚠️ No base price found in the linked Price Book';
-                    }
-
-                    // Check for conflicts
+                    // Check for conflicts (not a blocking error, just a warning)
                     $conflicts = $this->getConflictingOffers()->where('status', OfferStatus::Active);
                     if ($conflicts->isNotEmpty()) {
                         $warnings[] = '⚠️ '.$conflicts->count().' active offer(s) exist for the same SKU/Channel';
@@ -1333,12 +1329,17 @@ class ViewOffer extends ViewRecord
                     return "This will activate the offer and make it available for purchase.{$warningText}";
                 })
                 ->action(function (Offer $record): void {
-                    // Validate Price Book is active
-                    if ($record->priceBook && ! $record->priceBook->isActive()) {
+                    // Run full validation
+                    $validation = $record->canActivateWithValidations();
+
+                    if (! $validation['valid']) {
+                        $errorMessages = implode("\n", $validation['errors']);
+
                         Notification::make()
                             ->danger()
                             ->title('Cannot activate offer')
-                            ->body('The linked Price Book must be active before activating this offer.')
+                            ->body("The following validation errors must be resolved:\n\n{$errorMessages}")
+                            ->persistent()
                             ->send();
 
                         return;

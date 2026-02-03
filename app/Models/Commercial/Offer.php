@@ -452,6 +452,118 @@ class Offer extends Model
     }
 
     // =========================================================================
+    // Eligibility Validation (for status transitions)
+    // =========================================================================
+
+    /**
+     * Validate that the offer's eligibility does not violate allocation constraints.
+     * Returns an array of validation errors (empty if valid).
+     *
+     * @return array<string, string>
+     */
+    public function validateEligibilityAgainstAllocation(): array
+    {
+        $errors = [];
+
+        $eligibility = $this->eligibility;
+        if ($eligibility === null) {
+            // No eligibility restrictions means no violation possible
+            return [];
+        }
+
+        // Get the allocation constraint referenced by eligibility
+        $constraintId = $eligibility->getAllocationConstraintId();
+        if ($constraintId === null) {
+            // No allocation constraint linked, cannot validate
+            return [];
+        }
+
+        $allocationConstraint = \App\Models\Allocation\AllocationConstraint::find($constraintId);
+        if ($allocationConstraint === null) {
+            $errors['allocation_constraint'] = 'Referenced allocation constraint not found';
+
+            return $errors;
+        }
+
+        // Validate market restrictions
+        if ($eligibility->hasMarketRestrictions()) {
+            $allowedMarkets = $eligibility->allowed_markets ?? [];
+            $constraintGeographies = $allocationConstraint->getEffectiveGeographies();
+
+            if (! empty($constraintGeographies)) {
+                foreach ($allowedMarkets as $market) {
+                    if (! $allocationConstraint->isGeographyAllowed($market)) {
+                        $errors['markets'] = "Market '{$market}' is not allowed by the allocation constraint";
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Validate customer type restrictions
+        if ($eligibility->hasCustomerTypeRestrictions()) {
+            $allowedCustomerTypes = $eligibility->allowed_customer_types ?? [];
+            $constraintCustomerTypes = $allocationConstraint->getEffectiveCustomerTypes();
+
+            foreach ($allowedCustomerTypes as $customerType) {
+                if (! $allocationConstraint->isCustomerTypeAllowed($customerType)) {
+                    $errors['customer_types'] = "Customer type '{$customerType}' is not allowed by the allocation constraint";
+                    break;
+                }
+            }
+        }
+
+        // Validate channel against allocation constraint
+        $channel = $this->channel;
+        if ($channel !== null) {
+            $channelType = $channel->channel_type->value;
+            if (! $allocationConstraint->isChannelAllowed($channelType)) {
+                $errors['channel'] = "Channel type '{$channelType}' is not allowed by the allocation constraint";
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Check if the offer can be activated with all validations.
+     * This includes eligibility validation and Price Book checks.
+     *
+     * @return array{valid: bool, errors: array<string, string>}
+     */
+    public function canActivateWithValidations(): array
+    {
+        $errors = [];
+
+        // Must be in draft status
+        if (! $this->isDraft()) {
+            $errors['status'] = 'Offer must be in Draft status to activate';
+        }
+
+        // Price Book must be active
+        $priceBook = $this->priceBook;
+        if ($priceBook === null) {
+            $errors['price_book'] = 'Offer must have a Price Book assigned';
+        } elseif (! $priceBook->isActive()) {
+            $errors['price_book'] = 'Price Book must be active before activating the offer';
+        }
+
+        // Should have a base price
+        if (! $this->hasBasePrice()) {
+            $errors['base_price'] = 'No price entry found in the linked Price Book for this SKU';
+        }
+
+        // Validate eligibility against allocation constraints
+        $eligibilityErrors = $this->validateEligibilityAgainstAllocation();
+        $errors = array_merge($errors, $eligibilityErrors);
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors,
+        ];
+    }
+
+    // =========================================================================
     // Scopes
     // =========================================================================
 
