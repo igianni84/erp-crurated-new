@@ -7,6 +7,8 @@ Started: Tue Feb  3 18:51:45 CET 2026
 - Allocation-related enums go in `app/Enums/Allocation/`
 - Use wine_variant_id + format_id as bottle SKU reference (no separate BottleSku model exists)
 - Jobs go in `app/Jobs/{Module}/` - schedule in `routes/console.php` using `Schedule::job()->everyMinute()`
+- Services go in `app/Services/{Module}/` - use DB::transaction() with lockForUpdate() for atomic quantity operations
+- Filament Resources go in `app/Filament/Resources/{Module}/` with Pages subdirectory - use enum methods for badge styling
 
 ---
 
@@ -66,4 +68,50 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Scopes `active()` and `needsExpiration()` are available for querying
   - Jobs go in `app/Jobs/{Module}/` directory structure
   - Laravel 11+ scheduling is done in `routes/console.php` using `Schedule::job()->everyMinute()`
+---
+
+## 2026-02-03 - US-006
+- What was implemented: AllocationService for centralizing allocation business logic
+- Files changed:
+  - `app/Services/Allocation/AllocationService.php` (new)
+- **Methods implemented:**
+  - `activate(Allocation)`: draft → active transition
+  - `close(Allocation)`: active/exhausted → closed transition
+  - `consumeAllocation(Allocation, quantity)`: decrements remaining, increments sold with DB transaction locking
+  - `checkAvailability(Allocation, quantity)`: checks if quantity is available (remaining - active_reservations >= quantity)
+  - `getRemainingAvailable(Allocation)`: returns remaining - sum(active_reservations.quantity)
+  - `canActivate(Allocation)`, `canClose(Allocation)`: helper methods for checking allowed transitions
+  - `markAsExhausted(Allocation)`: active → exhausted transition (auto-called when remaining reaches 0)
+- **Learnings for future iterations:**
+  - Services go in `app/Services/{Module}/` directory structure
+  - Use `DB::transaction()` with `lockForUpdate()` for atomic operations that modify quantities
+  - Always double-check availability after acquiring lock to prevent race conditions
+  - Status transitions should auto-trigger where appropriate (e.g., exhausted when remaining=0)
+  - Use explicit exception messages that explain what's wrong and how to fix it
+---
+
+## 2026-02-03 - US-007
+- What was implemented: AllocationResource for Filament admin panel with comprehensive list view
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource.php` (new)
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/ListAllocations.php` (new)
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/CreateAllocation.php` (new)
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/ViewAllocation.php` (new)
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/EditAllocation.php` (new)
+- **Features implemented:**
+  - Navigation group 'Allocations' with cube-transparent icon
+  - All required columns: id, bottle_sku, supply_form, source_type, status, total_qty, sold_qty, remaining_qty, availability_window, constraint_summary, updated_at
+  - Status, source_type, supply_form shown as badges with colors and icons from enums
+  - Near exhaustion indicator: remaining_qty shows danger color, bold text, and warning icon when < 10%
+  - Filters: status (multi-select, default excludes Closed), source_type (multi-select), supply_form, wine_variant/bottle_sku, near_exhaustion toggle, trashed
+  - Search: wine name, producer, allocation ID via searchable columns
+  - Eager loading of relationships (wineVariant.wineMaster, format, constraint) via modifyQueryUsing
+- **Learnings for future iterations:**
+  - Filament Resources go in `app/Filament/Resources/{Module}/` with Pages subdirectory
+  - Use `formatStateUsing()` with enum's `label()` method for badge text
+  - Use `color()` and `icon()` from enum for badge styling
+  - For computed columns, use `state()` callback to call model methods like `getBottleSkuLabel()`
+  - For searchable computed columns, use `searchable(query: ...)` with custom query builder
+  - Use `modifyQueryUsing()` on table for eager loading relationships
+  - Default filter values with `->default()` to pre-populate filter (e.g., exclude Closed status)
 ---
