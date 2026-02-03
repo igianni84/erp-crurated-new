@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Pim;
 
 use App\Filament\Resources\Pim\WineVariantResource\Pages;
+use App\Filament\Resources\Pim\WineVariantResource\RelationManagers;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use Filament\Forms;
@@ -155,7 +156,7 @@ class WineVariantResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RelationManagers\SellableSkusRelationManager::class,
         ];
     }
 
