@@ -371,3 +371,34 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - The actual transfer logic (accept, cancel, expire) will be implemented in VoucherTransferService (US-021)
   - needsExpiration() scope can be used by a scheduled job to expire pending transfers
 ---
+
+## 2026-02-03 - US-019
+- What was implemented: VoucherService for centralizing voucher business logic
+- Files changed:
+  - `app/Services/Allocation/VoucherService.php` (new)
+  - `app/Models/AuditLog.php` (added new event type constants)
+- **Methods implemented:**
+  - `issueVouchers(Allocation, Customer, SellableSku, saleReference, quantity)`: Creates vouchers and consumes allocation atomically using AllocationService
+  - `lockForFulfillment(Voucher)`: issued → locked transition with validation
+  - `unlock(Voucher)`: locked → issued transition with validation
+  - `redeem(Voucher)`: locked → redeemed transition (terminal state)
+  - `cancel(Voucher)`: issued → cancelled transition (terminal state)
+  - `suspend(Voucher, reason)`: Sets suspended=true with optional reason
+  - `reactivate(Voucher)`: Sets suspended=false (unsuspend)
+  - `setTradable(Voucher, bool)`: Updates tradable flag with validation
+  - `setGiftable(Voucher, bool)`: Updates giftable flag with validation
+  - `transitionTo(Voucher, VoucherLifecycleState)`: Generic transition method
+- **AuditLog event types added:**
+  - EVENT_LIFECYCLE_CHANGE: For voucher lifecycle state transitions
+  - EVENT_FLAG_CHANGE: For behavioral flag changes (tradable, giftable)
+  - EVENT_VOUCHER_ISSUED: For voucher issuance
+  - EVENT_VOUCHER_SUSPENDED: For voucher suspension
+  - EVENT_VOUCHER_REACTIVATED: For voucher reactivation
+- **Learnings for future iterations:**
+  - VoucherService injects AllocationService for allocation consumption during issuance
+  - Suspended vouchers block ALL operations (lifecycle transitions, flag modifications)
+  - Tradable/giftable flags can only be modified on issued vouchers (not locked)
+  - Cancel does NOT return quantity to allocation - it's a soft cancellation
+  - All lifecycle transitions and flag changes are logged to AuditLog with old/new values
+  - validateNotSuspended() helper centralizes suspension check for multiple methods
+---
