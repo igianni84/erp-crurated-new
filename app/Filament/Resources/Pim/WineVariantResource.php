@@ -67,6 +67,11 @@ class WineVariantResource extends Resource
                             ->schema([
                                 self::getLifecycleSchema(),
                             ]),
+                        Forms\Components\Tabs\Tab::make('Audit')
+                            ->icon('heroicon-o-clock')
+                            ->schema([
+                                self::getAuditSchema(),
+                            ]),
                     ])
                     ->columnSpanFull()
                     ->persistTabInQueryString(),
@@ -1670,6 +1675,371 @@ class WineVariantResource extends Resource
                 ->collapsed()
                 ->collapsible(),
         ]);
+    }
+
+    /**
+     * Get the Audit tab schema.
+     */
+    protected static function getAuditSchema(): Forms\Components\Component
+    {
+        return Forms\Components\Group::make([
+            // Audit Log Header
+            Forms\Components\Section::make('Audit History')
+                ->description('Complete timeline of all changes made to this product')
+                ->icon('heroicon-o-clock')
+                ->schema([
+                    // Filter Controls
+                    Forms\Components\Grid::make(3)
+                        ->schema([
+                            Forms\Components\Select::make('audit_event_filter')
+                                ->label('Event Type')
+                                ->options([
+                                    '' => 'All Events',
+                                    \App\Models\AuditLog::EVENT_CREATED => 'Created',
+                                    \App\Models\AuditLog::EVENT_UPDATED => 'Updated',
+                                    \App\Models\AuditLog::EVENT_DELETED => 'Deleted',
+                                    \App\Models\AuditLog::EVENT_STATUS_CHANGE => 'Status Changed',
+                                ])
+                                ->default('')
+                                ->live()
+                                ->dehydrated(false),
+                            Forms\Components\DatePicker::make('audit_date_from')
+                                ->label('From Date')
+                                ->live()
+                                ->dehydrated(false),
+                            Forms\Components\DatePicker::make('audit_date_to')
+                                ->label('To Date')
+                                ->live()
+                                ->dehydrated(false),
+                        ]),
+
+                    // Timeline Display
+                    Forms\Components\Placeholder::make('audit_timeline')
+                        ->label('')
+                        ->content(function (?WineVariant $record, Forms\Get $get): string {
+                            if ($record === null) {
+                                return '<div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                                    <svg class="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <p class="mt-4 text-lg">Save the product first to see audit history.</p>
+                                </div>';
+                            }
+
+                            // Build query with filters
+                            $query = \App\Models\AuditLog::where('auditable_type', WineVariant::class)
+                                ->where('auditable_id', $record->id)
+                                ->with('user')
+                                ->orderByDesc('created_at');
+
+                            // Apply event type filter
+                            /** @var string|null $eventFilter */
+                            $eventFilter = $get('audit_event_filter');
+                            if ($eventFilter !== null && $eventFilter !== '') {
+                                $query->where('event', $eventFilter);
+                            }
+
+                            // Apply date from filter
+                            /** @var string|null $dateFrom */
+                            $dateFrom = $get('audit_date_from');
+                            if ($dateFrom !== null && $dateFrom !== '') {
+                                $query->whereDate('created_at', '>=', $dateFrom);
+                            }
+
+                            // Apply date to filter
+                            /** @var string|null $dateTo */
+                            $dateTo = $get('audit_date_to');
+                            if ($dateTo !== null && $dateTo !== '') {
+                                $query->whereDate('created_at', '<=', $dateTo);
+                            }
+
+                            $auditLogs = $query->get();
+
+                            if ($auditLogs->isEmpty()) {
+                                return '<div class="text-center py-12 text-gray-500 dark:text-gray-400">
+                                    <svg class="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                    <p class="mt-4 text-lg">No audit events found matching your filters.</p>
+                                </div>';
+                            }
+
+                            // Build timeline HTML
+                            $html = '<div class="relative">';
+
+                            // Timeline line
+                            $html .= '<div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700"></div>';
+
+                            $html .= '<div class="space-y-6">';
+
+                            foreach ($auditLogs as $log) {
+                                /** @var \App\Models\AuditLog $log */
+                                $eventLabel = $log->getEventLabel();
+                                $eventIcon = $log->getEventIcon();
+                                $eventColor = $log->getEventColor();
+
+                                // Color classes for the event badge
+                                $colorClasses = match ($eventColor) {
+                                    'success' => ['bg-green-100 dark:bg-green-900/30', 'text-green-800 dark:text-green-200', 'border-green-500', 'bg-green-500'],
+                                    'info' => ['bg-blue-100 dark:bg-blue-900/30', 'text-blue-800 dark:text-blue-200', 'border-blue-500', 'bg-blue-500'],
+                                    'warning' => ['bg-yellow-100 dark:bg-yellow-900/30', 'text-yellow-800 dark:text-yellow-200', 'border-yellow-500', 'bg-yellow-500'],
+                                    'danger' => ['bg-red-100 dark:bg-red-900/30', 'text-red-800 dark:text-red-200', 'border-red-500', 'bg-red-500'],
+                                    default => ['bg-gray-100 dark:bg-gray-800', 'text-gray-800 dark:text-gray-200', 'border-gray-500', 'bg-gray-500'],
+                                };
+
+                                $user = $log->user;
+                                $userName = $user !== null ? htmlspecialchars($user->name) : 'System';
+                                $userEmail = $user !== null ? htmlspecialchars($user->email) : '';
+                                $createdAt = $log->created_at;
+                                $timeAgo = $createdAt !== null ? $createdAt->diffForHumans() : 'Unknown';
+                                $fullTime = $createdAt !== null ? $createdAt->format('M d, Y \\a\\t H:i:s') : 'Unknown';
+
+                                $html .= '<div class="relative flex items-start gap-4 pl-10">';
+
+                                // Timeline dot
+                                $html .= '<div class="absolute left-2 w-5 h-5 rounded-full '.$colorClasses[3].' border-4 border-white dark:border-gray-900 -translate-x-1/2"></div>';
+
+                                // Event card
+                                $html .= '<div class="flex-1 '.$colorClasses[0].' rounded-lg border '.$colorClasses[2].' p-4">';
+
+                                // Header row
+                                $html .= '<div class="flex items-center justify-between mb-3">';
+                                $html .= '<div class="flex items-center gap-3">';
+                                $html .= '<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium '.$colorClasses[0].' '.$colorClasses[1].' border '.$colorClasses[2].'">';
+                                $html .= '<x-dynamic-component component="'.$eventIcon.'" class="w-4 h-4" />';
+                                $html .= $eventLabel;
+                                $html .= '</span>';
+                                $html .= '</div>';
+                                $html .= '<span class="text-sm text-gray-500 dark:text-gray-400" title="'.$fullTime.'">'.$timeAgo.'</span>';
+                                $html .= '</div>';
+
+                                // User info
+                                $html .= '<div class="flex items-center gap-2 mb-3 text-sm text-gray-600 dark:text-gray-400">';
+                                $html .= '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>';
+                                $html .= '<span><strong>'.$userName.'</strong>';
+                                if ($userEmail !== '') {
+                                    $html .= ' <span class="text-gray-400">('.$userEmail.')</span>';
+                                }
+                                $html .= '</span>';
+                                $html .= '</div>';
+
+                                // Changes detail
+                                $html .= '<div class="text-sm">';
+                                $html .= self::formatAuditLogChanges($log);
+                                $html .= '</div>';
+
+                                $html .= '</div>';
+                                $html .= '</div>';
+                            }
+
+                            $html .= '</div>';
+                            $html .= '</div>';
+
+                            // Summary footer
+                            $html .= '<div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">';
+                            $html .= '<p class="text-sm text-gray-500 dark:text-gray-400 text-center">';
+                            $html .= 'Showing '.$auditLogs->count().' audit event(s)';
+                            $html .= '</p>';
+                            $html .= '</div>';
+
+                            return $html;
+                        })
+                        ->dehydrated(false),
+                ]),
+        ]);
+    }
+
+    /**
+     * Format audit log changes for detailed display in the Audit tab.
+     */
+    protected static function formatAuditLogChanges(\App\Models\AuditLog $log): string
+    {
+        /** @var array<string, mixed>|null $rawOldValues */
+        $rawOldValues = $log->old_values;
+        /** @var array<string, mixed> $oldValues */
+        $oldValues = $rawOldValues ?? [];
+
+        /** @var array<string, mixed>|null $rawNewValues */
+        $rawNewValues = $log->new_values;
+        /** @var array<string, mixed> $newValues */
+        $newValues = $rawNewValues ?? [];
+
+        if ($log->event === \App\Models\AuditLog::EVENT_CREATED) {
+            $fieldCount = count($newValues);
+            $html = '<div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">';
+            $html .= '<p class="text-gray-600 dark:text-gray-400 mb-2">Record created with '.$fieldCount.' field(s) set:</p>';
+
+            if ($fieldCount > 0 && $fieldCount <= 10) {
+                $html .= '<ul class="list-disc list-inside space-y-1 text-gray-700 dark:text-gray-300">';
+                foreach ($newValues as $field => $value) {
+                    $fieldLabel = self::formatFieldName($field);
+                    $valueDisplay = self::formatFieldValue($value);
+                    $html .= '<li><strong>'.$fieldLabel.'</strong>: '.$valueDisplay.'</li>';
+                }
+                $html .= '</ul>';
+            } elseif ($fieldCount > 10) {
+                $html .= '<p class="text-gray-500 dark:text-gray-400 italic">('.$fieldCount.' fields - expand to see all)</p>';
+            }
+
+            $html .= '</div>';
+
+            return $html;
+        }
+
+        if ($log->event === \App\Models\AuditLog::EVENT_DELETED) {
+            return '<div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
+                <p class="text-red-700 dark:text-red-300">Record was permanently deleted.</p>
+            </div>';
+        }
+
+        if ($log->event === \App\Models\AuditLog::EVENT_STATUS_CHANGE) {
+            $oldStatusValue = isset($oldValues['lifecycle_status']) && is_string($oldValues['lifecycle_status'])
+                ? $oldValues['lifecycle_status']
+                : null;
+            $newStatusValue = isset($newValues['lifecycle_status']) && is_string($newValues['lifecycle_status'])
+                ? $newValues['lifecycle_status']
+                : null;
+
+            $oldStatus = $oldStatusValue !== null ? ProductLifecycleStatus::tryFrom($oldStatusValue) : null;
+            $newStatus = $newStatusValue !== null ? ProductLifecycleStatus::tryFrom($newStatusValue) : null;
+
+            $oldLabel = $oldStatus !== null ? $oldStatus->label() : 'Unknown';
+            $newLabel = $newStatus !== null ? $newStatus->label() : 'Unknown';
+
+            $html = '<div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">';
+            $html .= '<p class="text-gray-700 dark:text-gray-300">';
+            $html .= 'Status changed from <strong class="text-gray-900 dark:text-white">'.$oldLabel.'</strong>';
+            $html .= ' to <strong class="text-gray-900 dark:text-white">'.$newLabel.'</strong>';
+            $html .= '</p>';
+
+            // Show rejection reason if present
+            $rejectionReason = isset($newValues['rejection_reason']) && is_string($newValues['rejection_reason'])
+                ? $newValues['rejection_reason']
+                : null;
+
+            if ($rejectionReason !== null && $rejectionReason !== '') {
+                $html .= '<div class="mt-2 p-2 bg-red-100 dark:bg-red-900/30 rounded">';
+                $html .= '<p class="text-red-700 dark:text-red-300 text-sm">';
+                $html .= '<strong>Rejection reason:</strong> '.htmlspecialchars($rejectionReason);
+                $html .= '</p>';
+                $html .= '</div>';
+            }
+
+            $html .= '</div>';
+
+            return $html;
+        }
+
+        // EVENT_UPDATED - show field changes
+        $changes = [];
+        $allFields = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+
+        foreach ($allFields as $field) {
+            $oldValue = $oldValues[$field] ?? null;
+            $newValue = $newValues[$field] ?? null;
+
+            if ($oldValue !== $newValue) {
+                $changes[] = [
+                    'field' => $field,
+                    'old' => $oldValue,
+                    'new' => $newValue,
+                ];
+            }
+        }
+
+        if (count($changes) === 0) {
+            return '<div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">
+                <p class="text-gray-500 dark:text-gray-400 italic">No field changes recorded.</p>
+            </div>';
+        }
+
+        $html = '<div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">';
+        $html .= '<p class="text-gray-600 dark:text-gray-400 mb-2">'.count($changes).' field(s) changed:</p>';
+        $html .= '<div class="space-y-2">';
+
+        foreach ($changes as $change) {
+            $fieldLabel = self::formatFieldName($change['field']);
+            $oldDisplay = self::formatFieldValue($change['old']);
+            $newDisplay = self::formatFieldValue($change['new']);
+
+            $html .= '<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 py-1 border-b border-gray-200 dark:border-gray-700 last:border-0">';
+            $html .= '<span class="font-medium text-gray-700 dark:text-gray-300 min-w-[120px]">'.$fieldLabel.':</span>';
+            $html .= '<span class="text-red-600 dark:text-red-400 line-through">'.$oldDisplay.'</span>';
+            $html .= '<span class="text-gray-400 mx-1">→</span>';
+            $html .= '<span class="text-green-600 dark:text-green-400">'.$newDisplay.'</span>';
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Format a field name for display.
+     */
+    protected static function formatFieldName(string $field): string
+    {
+        // Handle common field name transformations
+        $fieldMappings = [
+            'wine_master_id' => 'Wine Master',
+            'vintage_year' => 'Vintage Year',
+            'lifecycle_status' => 'Lifecycle Status',
+            'alcohol_percentage' => 'Alcohol %',
+            'drinking_window_start' => 'Drinking Window Start',
+            'drinking_window_end' => 'Drinking Window End',
+            'critic_scores' => 'Critic Scores',
+            'production_notes' => 'Production Notes',
+            'lwin_code' => 'LWIN Code',
+            'internal_code' => 'Internal Code',
+            'data_source' => 'Data Source',
+            'thumbnail_url' => 'Thumbnail URL',
+            'locked_fields' => 'Locked Fields',
+            'created_by' => 'Created By',
+            'updated_by' => 'Updated By',
+        ];
+
+        if (isset($fieldMappings[$field])) {
+            return $fieldMappings[$field];
+        }
+
+        // Default: convert snake_case to Title Case
+        return ucwords(str_replace('_', ' ', $field));
+    }
+
+    /**
+     * Format a field value for display.
+     */
+    protected static function formatFieldValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '<em class="text-gray-400">empty</em>';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '<span class="text-green-600">Yes</span>' : '<span class="text-red-600">No</span>';
+        }
+
+        if (is_array($value)) {
+            if (count($value) === 0) {
+                return '<em class="text-gray-400">empty array</em>';
+            }
+
+            return '<em class="text-gray-500">['.count($value).' item(s)]</em>';
+        }
+
+        if (is_object($value)) {
+            return '<em class="text-gray-500">[object]</em>';
+        }
+
+        if (! is_scalar($value)) {
+            return '<em class="text-gray-400">unknown type</em>';
+        }
+
+        $stringValue = (string) $value;
+
+        if (strlen($stringValue) > 100) {
+            return htmlspecialchars(substr($stringValue, 0, 97)).'...';
+        }
+
+        return htmlspecialchars($stringValue);
     }
 
     /**
