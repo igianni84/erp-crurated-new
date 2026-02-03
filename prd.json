@@ -196,8 +196,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Step 5 with: Read-only summary sections for Bottle SKU, Source & Capacity, Commercial Constraints, Advanced Constraints (shown if set), and Liquid Constraints (shown for liquid allocations). Draft warning message displayed prominently. Two submit actions: 'Create as Draft' (primary) and 'Create and Activate' (secondary, role-based via AllocationPolicy). AllocationService.activate() called on create-and-activate flow with proper error handling and notifications. Browser verification deferred to future story."
     },
     {
       "id": "US-013",

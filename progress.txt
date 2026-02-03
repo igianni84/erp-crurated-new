@@ -206,3 +206,30 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Session storage pattern works well for multiple related model data: store in `mutateFormDataBeforeCreate()`, apply in `afterCreate()`
   - Use `liquid_constraint.field_name` dot notation pattern consistent with `constraint.field_name` for nested model fields
 ---
+
+## 2026-02-03 - US-012
+- What was implemented: Create Allocation wizard - Step 5 (Review & Create)
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/CreateAllocation.php` (added getReviewStep method, getWizardSubmitActions, createAsDraft, createAndActivate, updated afterCreate)
+  - `app/Policies/AllocationPolicy.php` (new) - Authorization policy for Allocation model
+  - `app/Providers/AppServiceProvider.php` (updated to register AllocationPolicy)
+- **Features implemented:**
+  - Step 5: Review & Create with check-badge icon
+  - Read-only summary sections for: Bottle SKU, Source & Capacity, Commercial Constraints
+  - Advanced Constraints section (shown only if composition_constraint_group or fungibility_exception is set)
+  - Liquid Allocation Constraints section (shown only for liquid allocations)
+  - Draft warning message: "Draft allocations cannot be consumed and do not issue vouchers"
+  - Before You Create section with guidance on both creation options
+  - Two submit actions via custom getWizardSubmitActions() returning Blade component:
+    - "Create as Draft" (primary button) - creates allocation in Draft status
+    - "Create and Activate" (success button, role-based) - creates and immediately activates
+  - AllocationPolicy with `activate` permission for role-based button visibility using @can directive
+  - AfterCreate hook calls AllocationService::activate() when shouldActivateAfterCreate is true
+  - Filament Notification messages for both success paths and activation failure
+- **Learnings for future iterations:**
+  - Custom wizard submit buttons can be implemented by returning HtmlString from getWizardSubmitActions() with Blade::render()
+  - Use Livewire wire:click="methodName" to call page methods from custom buttons
+  - For role-based actions in wizards, use @can directive with policy
+  - Policies for models in subdirectories (App\Models\Allocation\Allocation) need explicit registration in AppServiceProvider using Gate::policy()
+  - Property $shouldActivateAfterCreate pattern works for tracking button-specific behavior across create() and afterCreate()
+---
