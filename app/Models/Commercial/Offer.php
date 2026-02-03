@@ -125,14 +125,12 @@ class Offer extends Model
 
     /**
      * Get the eligibility rules for this offer.
-     * Note: OfferEligibility model will be created in US-034
      *
-     * @return HasOne<\Illuminate\Database\Eloquent\Model, $this>
+     * @return HasOne<OfferEligibility, $this>
      */
     public function eligibility(): HasOne
     {
-        // @phpstan-ignore argument.type (OfferEligibility will be created in US-034)
-        return $this->hasOne('App\\Models\\Commercial\\OfferEligibility');
+        return $this->hasOne(OfferEligibility::class);
     }
 
     /**
