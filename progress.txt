@@ -110,3 +110,21 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Navigation sort for SellableSku = 5 (after CaseConfiguration=4)
   - Unique constraint across multiple columns: `$table->unique(['col1', 'col2', 'col3'], 'constraint_name')`
 ---
+
+## 2026-02-03 16:16 CET - US-006
+- Implemented Liquid Product model for pre-bottling wine sales
+- Files changed:
+  - `database/migrations/2026_02_03_161545_create_liquid_products_table.php` (new)
+  - `app/Models/Pim/LiquidProduct.php` (new)
+  - `app/Models/Pim/WineVariant.php` (modified - added hasOne relationship to LiquidProduct)
+  - `app/Filament/Resources/Pim/LiquidProductResource.php` (new)
+  - `app/Filament/Resources/Pim/LiquidProductResource/Pages/ListLiquidProducts.php` (new)
+  - `app/Filament/Resources/Pim/LiquidProductResource/Pages/CreateLiquidProduct.php` (new)
+  - `app/Filament/Resources/Pim/LiquidProductResource/Pages/EditLiquidProduct.php` (new)
+- **Learnings for future iterations:**
+  - Liquid Products use HasOne relationship (one per wine variant), not HasMany
+  - For 1:1 relationships, add unique constraint on the FK: `$table->unique('wine_variant_id')`
+  - Lifecycle status enum can have more states than SKU (draft, in_review, approved, published, archived)
+  - Use 'heroicon-o-beaker' icon for liquid/pre-bottling related resources
+  - Navigation sort for LiquidProduct = 6 (after SellableSku=5)
+---
