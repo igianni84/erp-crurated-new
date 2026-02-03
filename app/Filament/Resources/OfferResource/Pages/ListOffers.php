@@ -15,6 +15,11 @@ class ListOffers extends ListRecords
         return [
             Actions\CreateAction::make()
                 ->label('Create Offer'),
+            Actions\Action::make('bulk_create')
+                ->label('Bulk Create Offers')
+                ->icon('heroicon-o-squares-plus')
+                ->color('success')
+                ->url(fn (): string => OfferResource::getUrl('bulk-create')),
         ];
     }
 }
