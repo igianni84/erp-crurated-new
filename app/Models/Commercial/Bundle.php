@@ -86,14 +86,11 @@ class Bundle extends Model
     /**
      * Get the components of this bundle.
      *
-     * BundleComponent model will be created in US-050.
-     *
-     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
+     * @return HasMany<BundleComponent, $this>
      */
     public function components(): HasMany
     {
-        /** @phpstan-ignore argument.type */
-        return $this->hasMany('App\Models\Commercial\BundleComponent', 'bundle_id');
+        return $this->hasMany(BundleComponent::class, 'bundle_id');
     }
 
     // =========================================================================

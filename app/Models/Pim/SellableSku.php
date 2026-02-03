@@ -187,6 +187,16 @@ class SellableSku extends Model
     }
 
     /**
+     * Get the bundle components that reference this SKU.
+     *
+     * @return HasMany<\App\Models\Commercial\BundleComponent, $this>
+     */
+    public function bundleComponents(): HasMany
+    {
+        return $this->hasMany(\App\Models\Commercial\BundleComponent::class);
+    }
+
+    /**
      * Check if the SKU is in draft status.
      */
     public function isDraft(): bool
