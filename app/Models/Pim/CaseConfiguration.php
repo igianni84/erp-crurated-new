@@ -6,10 +6,10 @@ use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Format extends Model
+class CaseConfiguration extends Model
 {
     use Auditable;
     use HasFactory;
@@ -23,9 +23,11 @@ class Format extends Model
      */
     protected $fillable = [
         'name',
-        'volume_ml',
-        'is_standard',
-        'allowed_for_liquid_conversion',
+        'format_id',
+        'bottles_per_case',
+        'case_type',
+        'is_original_from_producer',
+        'is_breakable',
     ];
 
     /**
@@ -36,17 +38,17 @@ class Format extends Model
     protected function casts(): array
     {
         return [
-            'volume_ml' => 'integer',
-            'is_standard' => 'boolean',
-            'allowed_for_liquid_conversion' => 'boolean',
+            'bottles_per_case' => 'integer',
+            'is_original_from_producer' => 'boolean',
+            'is_breakable' => 'boolean',
         ];
     }
 
     /**
-     * Get the case configurations for this format.
+     * Get the format that this case configuration belongs to.
      */
-    public function caseConfigurations(): HasMany
+    public function format(): BelongsTo
     {
-        return $this->hasMany(CaseConfiguration::class);
+        return $this->belongsTo(Format::class);
     }
 }
