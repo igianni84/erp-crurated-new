@@ -179,8 +179,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Step 4 with: Liquid Allocation Constraints section (shown/expanded only for liquid supply_form) with allowed_bottling_formats (TagsInput), allowed_case_configurations (TagsInput), bottling_confirmation_deadline (DatePicker). Advanced Commercial Constraints section (always available, collapsed by default for bottled, expanded for liquid) with composition_constraint_group (TextInput) and fungibility_exception (Toggle). Inline guidance explaining composition groups for vertical cases and fungibility exceptions. LiquidAllocationConstraint created in afterCreate for liquid allocations. Browser verification deferred to future story."
     },
     {
       "id": "US-012",

@@ -182,3 +182,27 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - TagsInput is flexible for user-defined values (like geography codes) vs CheckboxList for predefined options
   - Use PHPDoc `@var` type hints to help PHPStan understand `$this->record` type in afterCreate
 ---
+
+## 2026-02-03 - US-011
+- What was implemented: Create Allocation wizard - Step 4 (Advanced/Liquid Constraints)
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/CreateAllocation.php` (added getAdvancedConstraintsStep method, updated getSteps, mutateFormDataBeforeCreate, and afterCreate)
+- **Features implemented:**
+  - Step 4: Advanced Constraints with adjustments-horizontal icon
+  - Liquid Allocation Constraints section (visible/expanded only when supply_form = liquid):
+    - allowed_bottling_formats (TagsInput) - customers can choose from specified formats
+    - allowed_case_configurations (TagsInput) - packaging options for customers
+    - bottling_confirmation_deadline (DatePicker) - deadline for bottling preferences
+    - Inline guidance explaining liquid allocation requirements
+  - Advanced Commercial Constraints section (always available, collapsed by default for bottled, expanded for liquid):
+    - composition_constraint_group (TextInput) - for vertical cases and themed selections
+    - fungibility_exception (Toggle) - for non-interchangeable bottles
+    - Inline guidance explaining composition groups and fungibility exceptions
+  - Tip message for bottled allocations that advanced constraints are optional
+  - LiquidAllocationConstraint created in afterCreate hook for liquid allocations with specified data
+- **Learnings for future iterations:**
+  - Use `->hidden()` combined with `->collapsed()` and `->collapsible()` to control section visibility and state based on other form fields
+  - For liquid-specific related models (LiquidAllocationConstraint), create them in afterCreate only when the allocation is liquid using `$allocation->isLiquid()` helper
+  - Session storage pattern works well for multiple related model data: store in `mutateFormDataBeforeCreate()`, apply in `afterCreate()`
+  - Use `liquid_constraint.field_name` dot notation pattern consistent with `constraint.field_name` for nested model fields
+---
