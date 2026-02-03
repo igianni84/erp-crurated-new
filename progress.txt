@@ -425,3 +425,27 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - Break is completely irreversible - there's no restore/unbreak operation
   - Voucher model's id IS the UUID (due to HasUuid trait), no separate uuid column exists
 ---
+
+## 2026-02-03 - US-021
+- What was implemented: VoucherTransferService for managing voucher transfers (gifting) between customers
+- Files changed:
+  - `app/Services/Allocation/VoucherTransferService.php` (new)
+  - `app/Jobs/Allocation/ExpireTransfersJob.php` (new)
+  - `app/Models/AuditLog.php` (added transfer event constants)
+  - `routes/console.php` (registered ExpireTransfersJob scheduled job)
+- **Methods implemented:**
+  - `initiateTransfer(Voucher, Customer, Carbon)`: Creates pending transfer with comprehensive validation (voucher must be issued, not suspended, not have pending transfer, must be giftable)
+  - `acceptTransfer(VoucherTransfer)`: Updates voucher.customer_id to recipient, breaks CaseEntitlement if voucher is part of one, validates voucher not locked/suspended/terminal
+  - `cancelTransfer(VoucherTransfer)`: Status → cancelled with audit logging
+  - `expireTransfer(VoucherTransfer)`: Expires a single transfer
+  - `expireTransfers()`: Batch method for scheduled job, returns count of expired transfers
+  - `getPendingTransfer(Voucher)`, `hasPendingTransfer(Voucher)`: Helper methods
+- **AuditLog events added:**
+  - EVENT_TRANSFER_INITIATED, EVENT_TRANSFER_ACCEPTED, EVENT_TRANSFER_CANCELLED, EVENT_TRANSFER_EXPIRED
+- **Learnings for future iterations:**
+  - VoucherTransferService injects CaseEntitlementService for automatic case breaking on transfer acceptance
+  - Transfer validation checks: issued state, not suspended, not locked, no pending transfer, giftable flag
+  - acceptTransfer uses DB::transaction() for atomic update of voucher.customer_id + transfer status
+  - Audit logs are created on BOTH the Voucher and VoucherTransfer models for complete audit trail
+  - ExpireTransfersJob follows same pattern as ExpireReservationsJob, scheduled every minute
+---
