@@ -3,6 +3,7 @@
 namespace App\Models\Pim;
 
 use App\Traits\Auditable;
+use App\Traits\AuditLoggable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Format extends Model
 {
     use Auditable;
+    use AuditLoggable;
     use HasFactory;
     use HasUuid;
     use SoftDeletes;

@@ -3,6 +3,7 @@
 namespace App\Models\Pim;
 
 use App\Traits\Auditable;
+use App\Traits\AuditLoggable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,9 +14,15 @@ use Illuminate\Support\Str;
 class SellableSku extends Model
 {
     use Auditable;
+    use AuditLoggable;
     use HasFactory;
     use HasUuid;
     use SoftDeletes;
+
+    /**
+     * Status field to track for audit status_change events.
+     */
+    public const AUDIT_TRACK_STATUS_FIELD = 'lifecycle_status';
 
     /**
      * The attributes that are mass assignable.

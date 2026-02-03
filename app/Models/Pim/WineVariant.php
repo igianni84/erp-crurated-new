@@ -4,6 +4,7 @@ namespace App\Models\Pim;
 
 use App\Enums\ProductLifecycleStatus;
 use App\Traits\Auditable;
+use App\Traits\AuditLoggable;
 use App\Traits\HasProductLifecycle;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,6 +20,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class WineVariant extends Model
 {
     use Auditable;
+    use AuditLoggable;
     use HasFactory;
     use HasProductLifecycle;
     use HasUuid;
@@ -34,6 +36,11 @@ class WineVariant extends Model
         'vintage_year',
         'alcohol_percentage',
     ];
+
+    /**
+     * Status field to track for audit status_change events.
+     */
+    public const AUDIT_TRACK_STATUS_FIELD = 'lifecycle_status';
 
     /**
      * The attributes that are mass assignable.

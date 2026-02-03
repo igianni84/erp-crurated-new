@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Pim\WineVariantResource\Pages;
 
 use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource;
+use App\Models\AuditLog;
 use App\Models\Pim\WineVariant;
 use Filament\Actions;
 use Filament\Infolists\Components\Grid;
@@ -134,6 +135,42 @@ class ViewWineVariant extends ViewRecord
                     ->icon('heroicon-o-check-circle')
                     ->iconColor('success')
                     ->visible(fn (WineVariant $record): bool => ! $record->hasBlockingIssues() && count($record->getWarnings()) === 0),
+                Section::make('Audit History')
+                    ->description('Timeline of all changes made to this product')
+                    ->icon('heroicon-o-clock')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        RepeatableEntry::make('auditLogs')
+                            ->label('')
+                            ->schema([
+                                Grid::make(4)
+                                    ->schema([
+                                        TextEntry::make('event')
+                                            ->label('')
+                                            ->badge()
+                                            ->formatStateUsing(fn (AuditLog $record): string => $record->getEventLabel())
+                                            ->color(fn (AuditLog $record): string => $record->getEventColor())
+                                            ->icon(fn (AuditLog $record): string => $record->getEventIcon())
+                                            ->columnSpan(1),
+                                        TextEntry::make('user.name')
+                                            ->label('')
+                                            ->default('System')
+                                            ->icon('heroicon-o-user')
+                                            ->columnSpan(1),
+                                        TextEntry::make('created_at')
+                                            ->label('')
+                                            ->dateTime()
+                                            ->icon('heroicon-o-calendar')
+                                            ->columnSpan(1),
+                                        TextEntry::make('changes')
+                                            ->label('')
+                                            ->getStateUsing(fn (AuditLog $record): string => self::formatAuditChanges($record))
+                                            ->html()
+                                            ->columnSpan(1),
+                                    ]),
+                            ]),
+                    ]),
             ]);
     }
 
@@ -262,5 +299,68 @@ class ViewWineVariant extends ViewRecord
             'lifecycle' => 'Lifecycle',
             default => ucfirst(str_replace('_', ' ', $tab)),
         };
+    }
+
+    /**
+     * Format audit log changes for display.
+     */
+    protected static function formatAuditChanges(AuditLog $log): string
+    {
+        $oldValues = $log->old_values ?? [];
+        $newValues = $log->new_values ?? [];
+
+        if ($log->event === AuditLog::EVENT_CREATED) {
+            $fieldCount = count($newValues);
+
+            return "<span class='text-sm text-gray-500'>{$fieldCount} field(s) set</span>";
+        }
+
+        if ($log->event === AuditLog::EVENT_DELETED) {
+            return "<span class='text-sm text-gray-500'>Record deleted</span>";
+        }
+
+        $changes = [];
+        $allFields = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+
+        foreach ($allFields as $field) {
+            $oldValue = $oldValues[$field] ?? null;
+            $newValue = $newValues[$field] ?? null;
+
+            if ($oldValue !== $newValue) {
+                $fieldLabel = ucfirst(str_replace('_', ' ', $field));
+                $oldDisplay = self::formatValue($oldValue);
+                $newDisplay = self::formatValue($newValue);
+                $changes[] = "<strong>{$fieldLabel}</strong>: {$oldDisplay} → {$newDisplay}";
+            }
+        }
+
+        return count($changes) > 0
+            ? '<span class="text-sm">'.implode('<br>', $changes).'</span>'
+            : '<span class="text-sm text-gray-500">No field changes</span>';
+    }
+
+    /**
+     * Format a value for display in audit logs.
+     */
+    protected static function formatValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '<em class="text-gray-400">empty</em>';
+        }
+
+        if (is_array($value)) {
+            return '<em class="text-gray-500">['.count($value).' items]</em>';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        $stringValue = (string) $value;
+        if (strlen($stringValue) > 50) {
+            return htmlspecialchars(substr($stringValue, 0, 47)).'...';
+        }
+
+        return htmlspecialchars($stringValue);
     }
 }
