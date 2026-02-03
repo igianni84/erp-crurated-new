@@ -9,9 +9,14 @@ use App\Filament\Resources\Allocation\VoucherResource;
 use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
 use App\Models\AuditLog;
+use App\Models\Customer\Customer;
 use App\Services\Allocation\VoucherService;
+use App\Services\Allocation\VoucherTransferService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -22,6 +27,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Carbon;
 
 class ViewVoucher extends ViewRecord
 {
@@ -51,6 +57,8 @@ class ViewVoucher extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->getInitiateTransferAction(),
+            $this->getCancelTransferAction(),
             $this->getToggleTradableAction(),
             $this->getToggleGiftableAction(),
             $this->getSuspendAction(),
@@ -281,6 +289,165 @@ class ViewVoucher extends ViewRecord
                 return true;
             })
             ->authorize('reactivate', $record);
+    }
+
+    /**
+     * Initiate transfer action.
+     */
+    protected function getInitiateTransferAction(): Action
+    {
+        /** @var Voucher $record */
+        $record = $this->record;
+
+        return Action::make('initiateTransfer')
+            ->label('Initiate Transfer')
+            ->icon('heroicon-o-arrow-right-circle')
+            ->color('primary')
+            ->form([
+                Placeholder::make('info')
+                    ->label('')
+                    ->content('Transfers do not create new vouchers or consume allocation. They only change the voucher holder. The recipient will need to accept the transfer in the customer portal.'),
+                Select::make('to_customer_id')
+                    ->label('Recipient Customer')
+                    ->placeholder('Search for a customer...')
+                    ->searchable()
+                    ->getSearchResultsUsing(function (string $search) use ($record): array {
+                        return Customer::query()
+                            ->where('id', '!=', $record->customer_id)
+                            ->where(function ($query) use ($search): void {
+                                $query->where('name', 'like', "%{$search}%")
+                                    ->orWhere('email', 'like', "%{$search}%");
+                            })
+                            ->limit(20)
+                            ->get()
+                            ->mapWithKeys(fn (Customer $customer): array => [
+                                $customer->id => "{$customer->name} ({$customer->email})",
+                            ])
+                            ->toArray();
+                    })
+                    ->getOptionLabelUsing(function ($value): ?string {
+                        $customer = Customer::find($value);
+
+                        return $customer ? "{$customer->name} ({$customer->email})" : null;
+                    })
+                    ->required()
+                    ->helperText('The customer who will receive this voucher'),
+                DatePicker::make('expires_at')
+                    ->label('Transfer Expires On')
+                    ->minDate(now()->addDay())
+                    ->default(now()->addWeeks(2))
+                    ->required()
+                    ->helperText('If the recipient does not accept by this date, the transfer will expire automatically'),
+            ])
+            ->modalHeading('Initiate Voucher Transfer')
+            ->modalDescription(
+                'You are about to initiate a transfer of this voucher to another customer. '
+                .'The recipient will need to accept the transfer before it is completed.'
+            )
+            ->modalSubmitActionLabel('Initiate Transfer')
+            ->action(function (array $data) use ($record): void {
+                try {
+                    /** @var VoucherTransferService $service */
+                    $service = app(VoucherTransferService::class);
+
+                    $toCustomer = Customer::findOrFail($data['to_customer_id']);
+                    $expiresAt = Carbon::parse($data['expires_at'])->endOfDay();
+
+                    $transfer = $service->initiateTransfer($record, $toCustomer, $expiresAt);
+
+                    Notification::make()
+                        ->title('Transfer initiated')
+                        ->body("Transfer to {$toCustomer->name} has been initiated. The recipient must accept the transfer before {$expiresAt->format('Y-m-d')}.")
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData([]);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot initiate transfer')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            })
+            // Only visible when: voucher is issued, not suspended, not in pending transfer, giftable
+            ->visible(function () use ($record): bool {
+                if (! $record->isIssued()) {
+                    return false;
+                }
+                if ($record->suspended) {
+                    return false;
+                }
+                if ($record->hasPendingTransfer()) {
+                    return false;
+                }
+                if (! $record->giftable) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->authorize('initiateTransfer', $record);
+    }
+
+    /**
+     * Cancel pending transfer action.
+     */
+    protected function getCancelTransferAction(): Action
+    {
+        /** @var Voucher $record */
+        $record = $this->record;
+
+        $pendingTransfer = $record->getPendingTransfer();
+
+        return Action::make('cancelTransfer')
+            ->label('Cancel Transfer')
+            ->icon('heroicon-o-x-circle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Cancel Pending Transfer')
+            ->modalDescription(function () use ($pendingTransfer): string {
+                if (! $pendingTransfer) {
+                    return 'Cancel the pending transfer for this voucher?';
+                }
+
+                $toCustomer = $pendingTransfer->toCustomer;
+                $recipientName = $toCustomer ? $toCustomer->name : 'Unknown';
+
+                return "Are you sure you want to cancel the pending transfer to {$recipientName}? "
+                    .'This action cannot be undone. The voucher will remain with the current holder.';
+            })
+            ->modalSubmitActionLabel('Cancel Transfer')
+            ->action(function () use ($record): void {
+                try {
+                    /** @var VoucherTransferService $service */
+                    $service = app(VoucherTransferService::class);
+
+                    $pendingTransfer = $record->getPendingTransfer();
+                    if (! $pendingTransfer) {
+                        throw new \InvalidArgumentException('No pending transfer found.');
+                    }
+
+                    $service->cancelTransfer($pendingTransfer);
+
+                    Notification::make()
+                        ->title('Transfer cancelled')
+                        ->body('The pending transfer has been cancelled. The voucher remains with the current holder.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData([]);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot cancel transfer')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            })
+            // Only visible when: voucher has a pending transfer
+            ->visible(fn (): bool => $record->hasPendingTransfer())
+            ->authorize('cancelTransfer', $record);
     }
 
     public function infolist(Infolist $infolist): Infolist

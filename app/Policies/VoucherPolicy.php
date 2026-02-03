@@ -109,4 +109,24 @@ class VoucherPolicy
     {
         return $this->manageFlags($user, $voucher);
     }
+
+    /**
+     * Determine if the user can initiate a transfer for the voucher.
+     *
+     * Transfers move voucher ownership between customers.
+     */
+    public function initiateTransfer(User $user, Voucher $voucher): bool
+    {
+        return true;
+    }
+
+    /**
+     * Determine if the user can cancel a transfer for the voucher.
+     *
+     * Only pending transfers can be cancelled.
+     */
+    public function cancelTransfer(User $user, Voucher $voucher): bool
+    {
+        return true;
+    }
 }
