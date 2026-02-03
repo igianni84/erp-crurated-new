@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Pim\WineVariantResource\RelationManagers;
 
 use App\Models\Pim\CaseConfiguration;
+use App\Models\Pim\CompositeSkuItem;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
 use App\Models\Pim\WineVariant;
@@ -21,8 +22,26 @@ class SellableSkusRelationManager extends RelationManager
 
     public function form(Form $form): Form
     {
+        /** @var WineVariant $wineVariant */
+        $wineVariant = $this->ownerRecord;
+
         return $form
             ->schema([
+                Forms\Components\Section::make('SKU Type')
+                    ->description('Choose whether this is a standard SKU or a composite bundle')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_composite')
+                            ->label('Composite SKU (Bundle)')
+                            ->helperText('A composite SKU is made up of multiple other SKUs sold as an indivisible bundle')
+                            ->live()
+                            ->afterStateUpdated(function (Forms\Set $set, bool $state): void {
+                                if ($state) {
+                                    // Clear format/case config when switching to composite
+                                    $set('format_id', null);
+                                    $set('case_configuration_id', null);
+                                }
+                            }),
+                    ]),
                 Forms\Components\Section::make('SKU Configuration')
                     ->description('Select the format and case configuration for this SKU')
                     ->schema([
@@ -30,7 +49,7 @@ class SellableSkusRelationManager extends RelationManager
                             ->label('Format')
                             ->relationship('format', 'name')
                             ->getOptionLabelFromRecordUsing(fn (Format $record): string => "{$record->name} ({$record->volume_ml} ml)")
-                            ->required()
+                            ->required(fn (Forms\Get $get): bool => ! $get('is_composite'))
                             ->searchable()
                             ->preload()
                             ->live(),
@@ -55,11 +74,52 @@ class SellableSkusRelationManager extends RelationManager
 
                                 return "{$record->name} ({$record->bottles_per_case}x {$caseType})";
                             })
-                            ->required()
+                            ->required(fn (Forms\Get $get): bool => ! $get('is_composite'))
                             ->searchable()
                             ->preload(),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->visible(fn (Forms\Get $get): bool => ! $get('is_composite')),
+                Forms\Components\Section::make('Bundle Composition')
+                    ->description('Select the SKUs that make up this bundle. All component SKUs must be active for the bundle to be activated.')
+                    ->schema([
+                        Forms\Components\Repeater::make('compositeItems')
+                            ->label('Component SKUs')
+                            ->relationship()
+                            ->schema([
+                                Forms\Components\Select::make('sellable_sku_id')
+                                    ->label('SKU')
+                                    ->options(function () use ($wineVariant): array {
+                                        // Get all non-composite SKUs from this wine variant
+                                        return SellableSku::where('wine_variant_id', $wineVariant->id)
+                                            ->where('is_composite', false)
+                                            ->get()
+                                            ->mapWithKeys(function (SellableSku $sku): array {
+                                                $statusBadge = $sku->isActive() ? '(Active)' : '('.$sku->getStatusLabel().')';
+
+                                                return [$sku->id => "{$sku->sku_code} {$statusBadge}"];
+                                            })
+                                            ->toArray();
+                                    })
+                                    ->required()
+                                    ->searchable()
+                                    ->columnSpan(2),
+                                Forms\Components\TextInput::make('quantity')
+                                    ->label('Qty')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(100)
+                                    ->default(1)
+                                    ->required()
+                                    ->columnSpan(1),
+                            ])
+                            ->columns(3)
+                            ->addActionLabel('Add Component SKU')
+                            ->reorderable(false)
+                            ->minItems(1)
+                            ->helperText('Warning: Only active component SKUs can be part of an active bundle.'),
+                    ])
+                    ->visible(fn (Forms\Get $get): bool => (bool) $get('is_composite')),
                 Forms\Components\Section::make('Identifiers')
                     ->schema([
                         Forms\Components\TextInput::make('sku_code')
@@ -134,22 +194,64 @@ class SellableSkusRelationManager extends RelationManager
                     ->searchable()
                     ->sortable()
                     ->copyable()
-                    ->weight('bold'),
+                    ->weight('bold')
+                    ->icon(fn (SellableSku $record): ?string => $record->isComposite() ? 'heroicon-o-cube-transparent' : null)
+                    ->iconPosition('before'),
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Type')
+                    ->badge()
+                    ->getStateUsing(fn (SellableSku $record): string => $record->isComposite() ? 'Bundle' : 'Standard')
+                    ->color(fn (SellableSku $record): string => $record->isComposite() ? 'warning' : 'gray'),
                 Tables\Columns\TextColumn::make('format.name')
                     ->label('Format')
                     ->sortable()
-                    ->description(function (SellableSku $record): string {
-                        /** @var Format $format */
+                    ->getStateUsing(function (SellableSku $record): string {
+                        if ($record->isComposite()) {
+                            return $record->getCompositeDescription() ?: 'No components';
+                        }
+                        /** @var Format|null $format */
                         $format = $record->format;
 
-                        return $format->volume_ml.' ml';
+                        return $format !== null ? $format->name : '—';
+                    })
+                    ->description(function (SellableSku $record): string {
+                        if ($record->isComposite()) {
+                            $total = $record->getCompositeTotalBottles();
+
+                            return $total > 0 ? "{$total} bottles total" : '';
+                        }
+                        /** @var Format|null $format */
+                        $format = $record->format;
+
+                        return $format !== null ? $format->volume_ml.' ml' : '';
                     }),
                 Tables\Columns\TextColumn::make('caseConfiguration.name')
                     ->label('Case')
                     ->sortable()
-                    ->description(function (SellableSku $record): string {
-                        /** @var CaseConfiguration $caseConfig */
+                    ->getStateUsing(function (SellableSku $record): string {
+                        if ($record->isComposite()) {
+                            $count = $record->compositeItems()->count();
+
+                            return "{$count} component(s)";
+                        }
+                        /** @var CaseConfiguration|null $caseConfig */
                         $caseConfig = $record->caseConfiguration;
+
+                        return $caseConfig !== null ? $caseConfig->name : '—';
+                    })
+                    ->description(function (SellableSku $record): string {
+                        if ($record->isComposite()) {
+                            if (! $record->hasAllActiveComponents()) {
+                                return 'Has inactive components';
+                            }
+
+                            return 'All components active';
+                        }
+                        /** @var CaseConfiguration|null $caseConfig */
+                        $caseConfig = $record->caseConfiguration;
+                        if ($caseConfig === null) {
+                            return '';
+                        }
                         /** @var 'owc'|'oc'|'none' $caseTypeValue */
                         $caseTypeValue = $caseConfig->case_type;
                         $caseType = match ($caseTypeValue) {
@@ -159,6 +261,13 @@ class SellableSkusRelationManager extends RelationManager
                         };
 
                         return "{$caseConfig->bottles_per_case}x {$caseType}";
+                    })
+                    ->color(function (SellableSku $record): ?string {
+                        if ($record->isComposite() && ! $record->hasAllActiveComponents()) {
+                            return 'danger';
+                        }
+
+                        return null;
                     }),
                 Tables\Columns\TextColumn::make('integrity_flags')
                     ->label('Integrity')
@@ -212,12 +321,60 @@ class SellableSkusRelationManager extends RelationManager
                     ->label('Intrinsic'),
                 Tables\Filters\TernaryFilter::make('is_verified')
                     ->label('Verified'),
+                Tables\Filters\TernaryFilter::make('is_composite')
+                    ->label('Composite/Bundle'),
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->headerActions([
                 Tables\Actions\CreateAction::make()
                     ->label('Create SKU')
                     ->icon('heroicon-o-plus'),
+                Tables\Actions\CreateAction::make('create_composite')
+                    ->label('Create Bundle')
+                    ->icon('heroicon-o-cube-transparent')
+                    ->color('warning')
+                    ->mutateFormDataUsing(function (array $data): array {
+                        $data['is_composite'] = true;
+                        // Composite SKUs don't need format/case config
+                        $data['format_id'] = null;
+                        $data['case_configuration_id'] = null;
+
+                        return $data;
+                    })
+                    ->using(function (array $data): SellableSku {
+                        /** @var WineVariant $wineVariant */
+                        $wineVariant = $this->ownerRecord;
+
+                        // Create the composite SKU
+                        $sku = new SellableSku;
+                        $sku->wine_variant_id = $wineVariant->id;
+                        $sku->is_composite = true;
+                        $sku->lifecycle_status = SellableSku::STATUS_DRAFT;
+                        $sku->source = $data['source'] ?? SellableSku::SOURCE_MANUAL;
+                        $sku->barcode = $data['barcode'] ?? null;
+                        $sku->notes = $data['notes'] ?? null;
+                        $sku->is_intrinsic = $data['is_intrinsic'] ?? false;
+                        $sku->is_producer_original = $data['is_producer_original'] ?? false;
+                        $sku->is_verified = $data['is_verified'] ?? false;
+                        // Generate SKU code for composite
+                        $sku->sku_code = $this->generateCompositeSkuCode($wineVariant);
+                        $sku->save();
+
+                        // Create composite items
+                        if (isset($data['compositeItems']) && is_array($data['compositeItems'])) {
+                            foreach ($data['compositeItems'] as $item) {
+                                if (! empty($item['sellable_sku_id'])) {
+                                    CompositeSkuItem::create([
+                                        'composite_sku_id' => $sku->id,
+                                        'sellable_sku_id' => $item['sellable_sku_id'],
+                                        'quantity' => $item['quantity'] ?? 1,
+                                    ]);
+                                }
+                            }
+                        }
+
+                        return $sku;
+                    }),
                 Tables\Actions\Action::make('generate_intrinsic')
                     ->label('Generate Intrinsic SKUs')
                     ->icon('heroicon-o-sparkles')
@@ -236,7 +393,29 @@ class SellableSkusRelationManager extends RelationManager
                         ->icon('heroicon-o-check')
                         ->color('success')
                         ->requiresConfirmation()
+                        ->modalHeading(fn (SellableSku $record): string => $record->isComposite() ? 'Activate Bundle' : 'Activate SKU')
+                        ->modalDescription(function (SellableSku $record): string {
+                            if ($record->isComposite()) {
+                                $errors = $record->validateCompositeForActivation();
+                                if (! empty($errors)) {
+                                    return 'Cannot activate: '.implode(' ', $errors);
+                                }
+
+                                return 'All component SKUs are active. This bundle can be activated.';
+                            }
+
+                            return 'Are you sure you want to activate this SKU?';
+                        })
                         ->visible(fn (SellableSku $record): bool => ! $record->isActive())
+                        ->disabled(function (SellableSku $record): bool {
+                            if ($record->isComposite()) {
+                                $errors = $record->validateCompositeForActivation();
+
+                                return ! empty($errors);
+                            }
+
+                            return false;
+                        })
                         ->action(fn (SellableSku $record) => $this->activateSku($record)),
                     Tables\Actions\Action::make('retire')
                         ->label('Retire')
@@ -284,16 +463,36 @@ class SellableSkusRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->action(function ($records): void {
                             $activated = 0;
+                            $skipped = 0;
+                            $errors = [];
                             foreach ($records as $record) {
+                                /** @var SellableSku $record */
                                 if (! $record->isActive()) {
-                                    $record->activate();
-                                    $activated++;
+                                    try {
+                                        $record->activate();
+                                        $activated++;
+                                    } catch (\RuntimeException $e) {
+                                        $skipped++;
+                                        $errors[] = "{$record->sku_code}: {$e->getMessage()}";
+                                    }
                                 }
                             }
-                            Notification::make()
-                                ->title("{$activated} SKU(s) Activated")
-                                ->success()
-                                ->send();
+
+                            if ($activated > 0) {
+                                Notification::make()
+                                    ->title("{$activated} SKU(s) Activated")
+                                    ->body($skipped > 0 ? "{$skipped} skipped due to validation errors" : null)
+                                    ->success()
+                                    ->send();
+                            }
+
+                            if (! empty($errors)) {
+                                Notification::make()
+                                    ->title('Some SKUs could not be activated')
+                                    ->body(implode("\n", array_slice($errors, 0, 3)))
+                                    ->warning()
+                                    ->send();
+                            }
                         }),
                     Tables\Actions\BulkAction::make('bulk_retire')
                         ->label('Retire Selected')
@@ -468,5 +667,29 @@ class SellableSkusRelationManager extends RelationManager
             ->body("SKU {$sku->sku_code} has been reactivated.")
             ->success()
             ->send();
+    }
+
+    /**
+     * Generate SKU code for a composite SKU.
+     */
+    protected function generateCompositeSkuCode(WineVariant $wineVariant): string
+    {
+        /** @var \App\Models\Pim\WineMaster $wineMaster */
+        $wineMaster = $wineVariant->wineMaster;
+
+        // Generate wine code from name (first 4 chars uppercase, alphanumeric only)
+        $wineCode = strtoupper(substr(preg_replace('/[^a-zA-Z0-9]/', '', $wineMaster->name) ?: 'WINE', 0, 4));
+
+        // Vintage year
+        $vintage = $wineVariant->vintage_year;
+
+        // Count existing composite SKUs for this wine variant to create unique suffix
+        $existingCount = SellableSku::where('wine_variant_id', $wineVariant->id)
+            ->where('is_composite', true)
+            ->count();
+
+        $suffix = $existingCount + 1;
+
+        return "{$wineCode}-{$vintage}-BUNDLE-{$suffix}";
     }
 }
