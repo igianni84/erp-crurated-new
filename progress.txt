@@ -148,3 +148,17 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Lifecycle action buttons in Filament: use `ActionGroup` with `->visible()` based on `canTransitionTo()` method
   - Filament Notifications: use `Notification::make()->title('Message')->success()->send()` for action feedback
 ---
+
+## 2026-02-03 17:35 CET - US-008
+- Implemented completeness percentage for Wine Variant
+- Files changed:
+  - `app/Models/Pim/WineVariant.php` (modified - added getCompletenessPercentage(), getCompletenessColor(), isFieldComplete(), getIncompleteRequiredFields() methods and COMPLETENESS_FIELDS constant)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added completeness column with colored badge)
+- **Learnings for future iterations:**
+  - Define completeness field weights in a model constant `COMPLETENESS_FIELDS` with `weight` and `required` keys
+  - Use `getAttribute()` method instead of direct property access to avoid PHPStan type errors for nullable fields
+  - Use `empty()` check for array-casted JSON fields rather than `is_array()` which PHPStan flags as always true
+  - For computed columns in Filament, use `getStateUsing()` with a closure
+  - Completeness badge colors: 'danger' for <50%, 'warning' for 50-80%, 'success' for >80%
+  - Custom sortable implementation for computed columns uses `sortable(query: fn())` with raw SQL approximation
+---
