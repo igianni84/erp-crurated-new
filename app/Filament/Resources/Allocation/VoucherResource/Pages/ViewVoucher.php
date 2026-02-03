@@ -9,12 +9,16 @@ use App\Filament\Resources\Allocation\VoucherResource;
 use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
 use App\Models\AuditLog;
+use App\Services\Allocation\VoucherService;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
@@ -37,6 +41,246 @@ class ViewVoucher extends ViewRecord
         $record = $this->record;
 
         return $record->getBottleSkuLabel().' - '.$record->lifecycle_state->label();
+    }
+
+    /**
+     * Get the header actions for the view page.
+     *
+     * @return array<Action|ActionGroup>
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            $this->getToggleTradableAction(),
+            $this->getToggleGiftableAction(),
+            $this->getSuspendAction(),
+            $this->getReactivateAction(),
+        ];
+    }
+
+    /**
+     * Toggle tradable flag action.
+     */
+    protected function getToggleTradableAction(): Action
+    {
+        /** @var Voucher $record */
+        $record = $this->record;
+
+        $currentValue = $record->tradable;
+        $newValue = ! $currentValue;
+        $actionLabel = $newValue ? 'Enable Trading' : 'Disable Trading';
+        $confirmMessage = $newValue
+            ? 'Are you sure you want to enable trading for this voucher? This will allow the voucher to be sold on secondary markets.'
+            : 'Are you sure you want to disable trading for this voucher? This will prevent the voucher from being sold on secondary markets.';
+
+        return Action::make('toggleTradable')
+            ->label($actionLabel)
+            ->icon($currentValue ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+            ->color($currentValue ? 'danger' : 'success')
+            ->requiresConfirmation()
+            ->modalHeading($actionLabel)
+            ->modalDescription($confirmMessage)
+            ->modalSubmitActionLabel('Confirm')
+            ->action(function () use ($record, $newValue): void {
+                try {
+                    /** @var VoucherService $service */
+                    $service = app(VoucherService::class);
+                    $service->setTradable($record, $newValue);
+
+                    Notification::make()
+                        ->title($newValue ? 'Trading enabled' : 'Trading disabled')
+                        ->body("Tradable flag has been set to '".($newValue ? 'Yes' : 'No')."'.")
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['tradable']);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot modify tradable flag')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            })
+            // Only visible when: voucher is issued, not suspended, user has permission
+            ->visible(function () use ($record): bool {
+                if ($record->suspended) {
+                    return false;
+                }
+                if (! $record->isIssued()) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->authorize('setTradable', $record);
+    }
+
+    /**
+     * Toggle giftable flag action.
+     */
+    protected function getToggleGiftableAction(): Action
+    {
+        /** @var Voucher $record */
+        $record = $this->record;
+
+        $currentValue = $record->giftable;
+        $newValue = ! $currentValue;
+        $actionLabel = $newValue ? 'Enable Gifting' : 'Disable Gifting';
+        $confirmMessage = $newValue
+            ? 'Are you sure you want to enable gifting for this voucher? This will allow the voucher to be transferred to another customer.'
+            : 'Are you sure you want to disable gifting for this voucher? This will prevent the voucher from being transferred to another customer.';
+
+        return Action::make('toggleGiftable')
+            ->label($actionLabel)
+            ->icon($currentValue ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+            ->color($currentValue ? 'danger' : 'success')
+            ->requiresConfirmation()
+            ->modalHeading($actionLabel)
+            ->modalDescription($confirmMessage)
+            ->modalSubmitActionLabel('Confirm')
+            ->action(function () use ($record, $newValue): void {
+                try {
+                    /** @var VoucherService $service */
+                    $service = app(VoucherService::class);
+                    $service->setGiftable($record, $newValue);
+
+                    Notification::make()
+                        ->title($newValue ? 'Gifting enabled' : 'Gifting disabled')
+                        ->body("Giftable flag has been set to '".($newValue ? 'Yes' : 'No')."'.")
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['giftable']);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot modify giftable flag')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            })
+            // Only visible when: voucher is issued, not suspended, user has permission
+            ->visible(function () use ($record): bool {
+                if ($record->suspended) {
+                    return false;
+                }
+                if (! $record->isIssued()) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->authorize('setGiftable', $record);
+    }
+
+    /**
+     * Suspend voucher action.
+     */
+    protected function getSuspendAction(): Action
+    {
+        /** @var Voucher $record */
+        $record = $this->record;
+
+        return Action::make('suspend')
+            ->label('Suspend Voucher')
+            ->icon('heroicon-o-pause-circle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Suspend Voucher')
+            ->modalDescription(
+                'Are you sure you want to suspend this voucher? '
+                .'Suspended vouchers cannot be traded, transferred, redeemed, or have their flags modified until reactivated. '
+                .'This action can be undone by reactivating the voucher.'
+            )
+            ->modalSubmitActionLabel('Suspend')
+            ->action(function () use ($record): void {
+                try {
+                    /** @var VoucherService $service */
+                    $service = app(VoucherService::class);
+                    $service->suspend($record);
+
+                    Notification::make()
+                        ->title('Voucher suspended')
+                        ->body('The voucher has been suspended. All operations are now blocked until it is reactivated.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['suspended']);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot suspend voucher')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            })
+            // Only visible when: voucher is not suspended, not terminal, user has permission
+            ->visible(function () use ($record): bool {
+                if ($record->suspended) {
+                    return false;
+                }
+                if ($record->isTerminal()) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->authorize('suspend', $record);
+    }
+
+    /**
+     * Reactivate (unsuspend) voucher action.
+     */
+    protected function getReactivateAction(): Action
+    {
+        /** @var Voucher $record */
+        $record = $this->record;
+
+        return Action::make('reactivate')
+            ->label('Reactivate Voucher')
+            ->icon('heroicon-o-play-circle')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('Reactivate Voucher')
+            ->modalDescription(
+                'Are you sure you want to reactivate this voucher? '
+                .'This will remove the suspension and allow normal operations (trading, gifting, redemption) to resume.'
+            )
+            ->modalSubmitActionLabel('Reactivate')
+            ->action(function () use ($record): void {
+                try {
+                    /** @var VoucherService $service */
+                    $service = app(VoucherService::class);
+                    $service->reactivate($record);
+
+                    Notification::make()
+                        ->title('Voucher reactivated')
+                        ->body('The voucher has been reactivated. Normal operations can now resume.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['suspended']);
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot reactivate voucher')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            })
+            // Only visible when: voucher is suspended, not terminal, user has permission
+            ->visible(function () use ($record): bool {
+                if (! $record->suspended) {
+                    return false;
+                }
+                if ($record->isTerminal()) {
+                    return false;
+                }
+
+                return true;
+            })
+            ->authorize('reactivate', $record);
     }
 
     public function infolist(Infolist $infolist): Infolist
