@@ -457,6 +457,9 @@ class ViewVoucher extends ViewRecord
                 // Header: Lifecycle state banner
                 $this->getHeaderSection(),
 
+                // Quarantine warning (if applicable)
+                $this->getQuarantineWarningSection(),
+
                 // Section 1: What was sold
                 $this->getWhatWasSoldSection(),
 
@@ -530,6 +533,55 @@ class ViewVoucher extends ViewRecord
                     VoucherLifecycleState::Cancelled => 'border-l-4 border-l-danger-500',
                 },
             ]);
+    }
+
+    /**
+     * Quarantine warning section (only displayed if voucher requires attention).
+     */
+    protected function getQuarantineWarningSection(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('quarantine_warning_banner')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'ANOMALOUS VOUCHER - REQUIRES MANUAL ATTENTION')
+                    ->size(TextEntry\TextEntrySize::Large)
+                    ->weight(FontWeight::Bold)
+                    ->color('danger')
+                    ->icon('heroicon-o-exclamation-triangle'),
+                TextEntry::make('quarantine_reason')
+                    ->label('Reason')
+                    ->getStateUsing(fn (Voucher $record): string => $record->getAttentionReason() ?? 'Unknown anomaly')
+                    ->weight(FontWeight::Medium)
+                    ->color('danger'),
+                TextEntry::make('quarantine_explanation')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'This voucher has been flagged as anomalous and is outside the normal scope of operations. '
+                        .'Manual intervention is required to resolve the issue before this voucher can participate in normal operations '
+                        .'(transfers, fulfillment, etc.). Contact your administrator or data team to investigate and resolve.')
+                    ->color('danger'),
+                Section::make('Detected Anomalies')
+                    ->description('All issues detected with this voucher')
+                    ->collapsed()
+                    ->collapsible()
+                    ->schema([
+                        TextEntry::make('anomalies_list')
+                            ->label('')
+                            ->getStateUsing(function (Voucher $record): string {
+                                $anomalies = $record->getDetectedAnomalies();
+                                if (empty($anomalies)) {
+                                    return 'No anomalies detected (voucher may have been manually flagged)';
+                                }
+
+                                return '• '.implode("\n• ", $anomalies);
+                            })
+                            ->html(false),
+                    ]),
+            ])
+            ->extraAttributes([
+                'class' => 'border-l-4 border-l-danger-500 bg-danger-50 dark:bg-danger-900/10',
+            ])
+            ->visible(fn (Voucher $record): bool => $record->isQuarantined());
     }
 
     /**

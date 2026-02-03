@@ -46,6 +46,10 @@ class AuditLog extends Model
 
     public const EVENT_DUPLICATE_VOUCHER_REQUEST = 'duplicate_voucher_request';
 
+    public const EVENT_VOUCHER_QUARANTINED = 'voucher_quarantined';
+
+    public const EVENT_VOUCHER_UNQUARANTINED = 'voucher_unquarantined';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -122,6 +126,8 @@ class AuditLog extends Model
             self::EVENT_TRADING_SUSPENDED => 'Suspended for Trading',
             self::EVENT_TRADING_COMPLETED => 'Trading Completed',
             self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'Duplicate Request Detected',
+            self::EVENT_VOUCHER_QUARANTINED => 'Voucher Quarantined',
+            self::EVENT_VOUCHER_UNQUARANTINED => 'Voucher Unquarantined',
             default => ucfirst((string) $this->event),
         };
     }
@@ -148,6 +154,8 @@ class AuditLog extends Model
             self::EVENT_TRADING_SUSPENDED => 'heroicon-o-currency-dollar',
             self::EVENT_TRADING_COMPLETED => 'heroicon-o-banknotes',
             self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'heroicon-o-document-duplicate',
+            self::EVENT_VOUCHER_QUARANTINED => 'heroicon-o-exclamation-triangle',
+            self::EVENT_VOUCHER_UNQUARANTINED => 'heroicon-o-check-badge',
             default => 'heroicon-o-document',
         };
     }
@@ -174,6 +182,8 @@ class AuditLog extends Model
             self::EVENT_TRADING_SUSPENDED => 'warning',
             self::EVENT_TRADING_COMPLETED => 'success',
             self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'warning',
+            self::EVENT_VOUCHER_QUARANTINED => 'danger',
+            self::EVENT_VOUCHER_UNQUARANTINED => 'success',
             default => 'gray',
         };
     }

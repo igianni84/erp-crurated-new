@@ -23,7 +23,8 @@ class VoucherService
 {
     public function __construct(
         protected AllocationService $allocationService,
-        protected CaseEntitlementService $caseEntitlementService
+        protected CaseEntitlementService $caseEntitlementService,
+        protected VoucherAnomalyService $voucherAnomalyService
     ) {}
 
     /**
@@ -671,6 +672,104 @@ class VoucherService
             'fulfillable' => true,
             'reason' => null,
         ];
+    }
+
+    /**
+     * Validate voucher data for import operations.
+     *
+     * This method should be called BEFORE attempting to create a voucher from external
+     * data (e.g., data import, migration). It validates that all required fields are
+     * present, especially the allocation_id which is immutable and required.
+     *
+     * If validation fails, the import should be rejected and the error logged.
+     *
+     * @param  array<string, mixed>  $data  The voucher data to validate
+     * @return array{valid: bool, errors: list<string>}
+     *
+     * @throws \InvalidArgumentException If allocation_id is missing (hard failure for imports)
+     */
+    public function validateForImport(array $data): array
+    {
+        return $this->voucherAnomalyService->validateVoucherData($data);
+    }
+
+    /**
+     * Attempt to create a voucher from import data with quarantine fallback.
+     *
+     * This is used for data import scenarios where we want to create vouchers
+     * from external data. If the voucher would be anomalous, it can optionally
+     * be quarantined instead of rejecting the import entirely.
+     *
+     * @param  array<string, mixed>  $data  The voucher data
+     * @param  bool  $quarantineOnAnomaly  If true, quarantine anomalous vouchers instead of rejecting
+     * @return array{success: bool, voucher: Voucher|null, errors: list<string>}
+     *
+     * @throws \InvalidArgumentException If validation fails and quarantine is not enabled
+     */
+    public function createFromImport(array $data, bool $quarantineOnAnomaly = false): array
+    {
+        // Validate the data first
+        $validation = $this->validateForImport($data);
+
+        if (! $validation['valid']) {
+            if ($quarantineOnAnomaly) {
+                // Log warning and continue with quarantine
+                Log::warning('Voucher import data has anomalies - will quarantine', [
+                    'errors' => $validation['errors'],
+                    'data' => array_diff_key($data, array_flip(['customer_id', 'created_by'])), // Exclude sensitive data
+                ]);
+            } else {
+                // Hard failure - allocation is absolutely required
+                $errorMessage = 'Voucher import validation failed: '.implode('; ', $validation['errors']);
+                Log::error($errorMessage, [
+                    'data' => array_diff_key($data, array_flip(['customer_id', 'created_by'])),
+                ]);
+
+                throw new \InvalidArgumentException($errorMessage);
+            }
+        }
+
+        // Create the voucher
+        $voucher = Voucher::create($data);
+
+        // Check if we need to quarantine (either due to validation issues or auto-detected anomalies)
+        if (! $validation['valid'] || ! empty($voucher->getDetectedAnomalies())) {
+            $reason = ! $validation['valid']
+                ? implode('; ', $validation['errors'])
+                : VoucherAnomalyService::REASON_DATA_IMPORT_FAILURE;
+
+            $this->voucherAnomalyService->quarantine($voucher, $reason);
+
+            return [
+                'success' => true,
+                'voucher' => $voucher,
+                'errors' => $validation['errors'],
+            ];
+        }
+
+        return [
+            'success' => true,
+            'voucher' => $voucher,
+            'errors' => [],
+        ];
+    }
+
+    /**
+     * Check if a voucher can participate in normal operations.
+     *
+     * Quarantined vouchers are blocked from most operations until issues are resolved.
+     *
+     * @throws \InvalidArgumentException If voucher is quarantined
+     */
+    public function validateNotQuarantined(Voucher $voucher, string $action): void
+    {
+        if ($voucher->isQuarantined()) {
+            $reason = $voucher->getAttentionReason() ?? 'Unknown anomaly';
+
+            throw new \InvalidArgumentException(
+                "Cannot {$action}: voucher is quarantined and requires manual attention. Reason: {$reason}"
+            );
+        }
     }
 
     /**

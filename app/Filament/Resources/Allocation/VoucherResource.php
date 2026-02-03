@@ -95,6 +95,17 @@ class VoucherResource extends Resource
                     ->icon(fn (VoucherLifecycleState $state): string => $state->icon())
                     ->sortable(),
 
+                Tables\Columns\IconColumn::make('requires_attention')
+                    ->label('Anomaly')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-exclamation-triangle')
+                    ->falseIcon('')
+                    ->trueColor('danger')
+                    ->tooltip(fn (Voucher $record): ?string => $record->requires_attention
+                        ? "Requires Attention: {$record->getAttentionReason()}"
+                        : null)
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('flags')
                     ->label('Flags')
                     ->state(function (Voucher $record): string {
@@ -175,6 +186,12 @@ class VoucherResource extends Resource
                     ->placeholder('All vouchers')
                     ->trueLabel('Suspended only')
                     ->falseLabel('Not suspended'),
+
+                Tables\Filters\TernaryFilter::make('requires_attention')
+                    ->label('Anomalous')
+                    ->placeholder('All vouchers')
+                    ->trueLabel('Requires attention only')
+                    ->falseLabel('Normal vouchers only'),
 
                 Tables\Filters\TrashedFilter::make(),
             ])

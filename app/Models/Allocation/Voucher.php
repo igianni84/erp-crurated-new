@@ -31,6 +31,8 @@ use Illuminate\Support\Facades\Auth;
  * @property bool $tradable
  * @property bool $giftable
  * @property bool $suspended
+ * @property bool $requires_attention
+ * @property string|null $attention_reason
  * @property string|null $external_trading_reference
  * @property int $quantity
  */
@@ -64,9 +66,20 @@ class Voucher extends Model
         'tradable',
         'giftable',
         'suspended',
+        'requires_attention',
+        'attention_reason',
         'external_trading_reference',
         'sale_reference',
         'created_by',
+    ];
+
+    /**
+     * The model's default values for attributes.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'requires_attention' => false,
     ];
 
     /**
@@ -82,6 +95,7 @@ class Voucher extends Model
             'tradable' => 'boolean',
             'giftable' => 'boolean',
             'suspended' => 'boolean',
+            'requires_attention' => 'boolean',
         ];
     }
 
@@ -520,5 +534,88 @@ class Voucher extends Model
         $createdAt = $lockLog->created_at;
 
         return $createdAt instanceof Carbon ? $createdAt : Carbon::parse($createdAt);
+    }
+
+    /**
+     * Check if this voucher requires manual attention (quarantine).
+     *
+     * Anomalous vouchers are outside the normal scope of operations and need
+     * manual intervention to resolve data integrity issues.
+     */
+    public function requiresAttention(): bool
+    {
+        return $this->requires_attention;
+    }
+
+    /**
+     * Check if the voucher is in a quarantine state (requires attention or has issues).
+     *
+     * A voucher is quarantined if it explicitly requires attention OR
+     * if it has data integrity issues like missing allocation lineage.
+     */
+    public function isQuarantined(): bool
+    {
+        return $this->requires_attention || $this->hasLineageIssues();
+    }
+
+    /**
+     * Get the reason why this voucher requires attention.
+     *
+     * Returns the stored attention reason, or auto-detects common issues.
+     */
+    public function getAttentionReason(): ?string
+    {
+        if ($this->attention_reason !== null) {
+            return $this->attention_reason;
+        }
+
+        if ($this->hasLineageIssues()) {
+            return 'Missing or invalid allocation lineage';
+        }
+
+        return null;
+    }
+
+    /**
+     * Get a comprehensive list of all detected anomalies for this voucher.
+     *
+     * @return list<string>
+     */
+    public function getDetectedAnomalies(): array
+    {
+        $anomalies = [];
+
+        // Check for explicit attention flag
+        if ($this->requires_attention && $this->attention_reason !== null) {
+            $anomalies[] = $this->attention_reason;
+        }
+
+        // Check for lineage issues
+        if ($this->hasLineageIssues()) {
+            $anomalies[] = 'Missing allocation lineage';
+        }
+
+        // Check for missing customer
+        if ($this->getAttribute('customer_id') === null) {
+            $anomalies[] = 'Missing customer';
+        }
+
+        // Check for missing bottle SKU reference
+        if ($this->getAttribute('wine_variant_id') === null || $this->getAttribute('format_id') === null) {
+            $anomalies[] = 'Missing or incomplete bottle SKU reference';
+        }
+
+        return $anomalies;
+    }
+
+    /**
+     * Check if this voucher can be used in normal operations.
+     *
+     * Quarantined vouchers cannot participate in normal operations
+     * (transfers, fulfillment, etc.) until anomalies are resolved.
+     */
+    public function canParticipateInNormalOperations(): bool
+    {
+        return ! $this->isQuarantined();
     }
 }
