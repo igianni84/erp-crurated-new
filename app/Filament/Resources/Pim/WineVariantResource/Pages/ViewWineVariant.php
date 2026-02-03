@@ -2,11 +2,14 @@
 
 namespace App\Filament\Resources\Pim\WineVariantResource\Pages;
 
+use App\Enums\DataSource;
 use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource;
 use App\Models\AuditLog;
 use App\Models\Pim\WineVariant;
 use Filament\Actions;
+use Filament\Infolists\Components\Actions\Action as InfolistAction;
+use Filament\Infolists\Components\Actions as InfolistActions;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -38,8 +41,10 @@ class ViewWineVariant extends ViewRecord
         return $infolist
             ->schema([
                 Section::make('Product Overview')
+                    ->description('Control panel showing product identity and status')
+                    ->icon('heroicon-o-information-circle')
                     ->schema([
-                        Grid::make(3)
+                        Grid::make(4)
                             ->schema([
                                 Group::make([
                                     TextEntry::make('wineMaster.name')
@@ -48,10 +53,13 @@ class ViewWineVariant extends ViewRecord
                                         ->label('Vintage'),
                                     TextEntry::make('wineMaster.producer')
                                         ->label('Producer'),
+                                    TextEntry::make('wineMaster.appellation')
+                                        ->label('Appellation')
+                                        ->default('—'),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('lifecycle_status')
-                                        ->label('Status')
+                                        ->label('Lifecycle Status')
                                         ->badge()
                                         ->formatStateUsing(fn (ProductLifecycleStatus $state): string => $state->label())
                                         ->color(fn (ProductLifecycleStatus $state): string => $state->color())
@@ -64,6 +72,53 @@ class ViewWineVariant extends ViewRecord
                                     TextEntry::make('sellable_skus_count')
                                         ->label('Sellable SKUs')
                                         ->getStateUsing(fn (WineVariant $record): string => (string) $record->sellableSkus()->count()),
+                                    TextEntry::make('publish_readiness')
+                                        ->label('Publish Readiness')
+                                        ->badge()
+                                        ->getStateUsing(fn (WineVariant $record): string => $record->canPublish() ? 'Ready' : 'Not Ready')
+                                        ->color(fn (WineVariant $record): string => $record->canPublish() ? 'success' : 'danger')
+                                        ->icon(fn (WineVariant $record): string => $record->canPublish() ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
+                                ])->columnSpan(1),
+                                Group::make([
+                                    TextEntry::make('data_source')
+                                        ->label('Data Source')
+                                        ->badge()
+                                        ->formatStateUsing(fn (?DataSource $state): string => $state !== null ? $state->label() : 'Manual')
+                                        ->color(fn (?DataSource $state): string => $state !== null ? $state->color() : 'gray')
+                                        ->icon(fn (?DataSource $state): string => $state !== null ? $state->icon() : 'heroicon-o-pencil-square'),
+                                    TextEntry::make('lwin_code')
+                                        ->label('LWIN Code')
+                                        ->default('—')
+                                        ->copyable()
+                                        ->visible(fn (WineVariant $record): bool => $record->lwin_code !== null),
+                                    TextEntry::make('livex_sync_status')
+                                        ->label('Liv-ex Status')
+                                        ->badge()
+                                        ->getStateUsing(function (WineVariant $record): string {
+                                            if ($record->data_source !== DataSource::LivEx) {
+                                                return 'N/A';
+                                            }
+
+                                            return $record->lwin_code !== null ? 'Synced' : 'Pending';
+                                        })
+                                        ->color(function (WineVariant $record): string {
+                                            if ($record->data_source !== DataSource::LivEx) {
+                                                return 'gray';
+                                            }
+
+                                            return $record->lwin_code !== null ? 'success' : 'warning';
+                                        })
+                                        ->icon(function (WineVariant $record): string {
+                                            if ($record->data_source !== DataSource::LivEx) {
+                                                return 'heroicon-o-minus-circle';
+                                            }
+
+                                            return $record->lwin_code !== null ? 'heroicon-o-check' : 'heroicon-o-clock';
+                                        }),
+                                    TextEntry::make('internal_code')
+                                        ->label('Internal Code')
+                                        ->default('—')
+                                        ->copyable(),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('updated_at')
@@ -72,6 +127,9 @@ class ViewWineVariant extends ViewRecord
                                     TextEntry::make('created_at')
                                         ->label('Created')
                                         ->dateTime(),
+                                    TextEntry::make('updatedBy.name')
+                                        ->label('Updated By')
+                                        ->default('System'),
                                 ])->columnSpan(1),
                             ]),
                     ]),
@@ -97,11 +155,12 @@ class ViewWineVariant extends ViewRecord
                                     ->badge()
                                     ->color('gray')
                                     ->formatStateUsing(fn (string $state): string => self::formatTabName($state))
-                                    ->suffix(' →')
-                                    ->columnSpan(1),
+                                    ->columnSpan(1)
+                                    ->suffix(' →'),
                             ])
                             ->columns(3),
                     ]),
+                $this->getBlockingIssuesActions(),
                 Section::make('Warnings')
                     ->description('Recommended improvements for better product data')
                     ->icon('heroicon-o-exclamation-circle')
@@ -125,11 +184,12 @@ class ViewWineVariant extends ViewRecord
                                     ->badge()
                                     ->color('gray')
                                     ->formatStateUsing(fn (string $state): string => self::formatTabName($state))
-                                    ->suffix(' →')
-                                    ->columnSpan(1),
+                                    ->columnSpan(1)
+                                    ->suffix(' →'),
                             ])
                             ->columns(3),
                     ]),
+                $this->getWarningsActions(),
                 Section::make('No Issues')
                     ->description('This product has no blocking issues and is ready for the next workflow step')
                     ->icon('heroicon-o-check-circle')
@@ -180,6 +240,41 @@ class ViewWineVariant extends ViewRecord
         $record = $this->record;
 
         return [
+            Actions\Action::make('validate')
+                ->label('Validate')
+                ->icon('heroicon-o-shield-check')
+                ->color('gray')
+                ->action(function () use ($record): void {
+                    $blockingIssues = $record->getBlockingIssues();
+                    $warnings = $record->getWarnings();
+                    $completeness = $record->getCompletenessPercentage();
+
+                    if (count($blockingIssues) === 0 && count($warnings) === 0) {
+                        Notification::make()
+                            ->title('Validation Passed')
+                            ->body('Product is 100% complete with no issues. Ready for submission.')
+                            ->success()
+                            ->duration(5000)
+                            ->send();
+                    } elseif (count($blockingIssues) === 0) {
+                        Notification::make()
+                            ->title('Validation Passed with Warnings')
+                            ->body("Product is {$completeness}% complete. ".count($warnings).' warning(s) found but no blocking issues.')
+                            ->warning()
+                            ->duration(5000)
+                            ->send();
+                    } else {
+                        Notification::make()
+                            ->title('Validation Failed')
+                            ->body(count($blockingIssues).' blocking issue(s) and '.count($warnings).' warning(s) found. Resolve blocking issues before publishing.')
+                            ->danger()
+                            ->duration(5000)
+                            ->send();
+                    }
+
+                    // Refresh the page to show updated infolist
+                    $this->redirect(WineVariantResource::getUrl('view', ['record' => $record]));
+                }),
             Actions\EditAction::make(),
             Actions\ActionGroup::make([
                 Actions\Action::make('submit_for_review')
@@ -297,8 +392,76 @@ class ViewWineVariant extends ViewRecord
             'sellable_skus' => 'Sellable SKUs',
             'media' => 'Media',
             'lifecycle' => 'Lifecycle',
+            'audit' => 'Audit',
             default => ucfirst(str_replace('_', ' ', $tab)),
         };
+    }
+
+    /**
+     * Get the edit URL with tab anchor for navigation.
+     */
+    protected static function getEditUrlForTab(WineVariant $record, string $tab): string
+    {
+        // Generate edit URL with tab anchor for direct navigation
+        $baseUrl = WineVariantResource::getUrl('edit', ['record' => $record]);
+
+        // Map tab names to form section anchors
+        $anchor = match ($tab) {
+            'core_info' => '#wine-master',
+            'attributes' => '#additional-information',
+            'sellable_skus' => '#sellable-skus',
+            'media' => '#media',
+            'lifecycle' => '#lifecycle',
+            default => '',
+        };
+
+        return $baseUrl.$anchor;
+    }
+
+    /**
+     * Get action buttons for navigating to fix blocking issues.
+     */
+    protected function getBlockingIssuesActions(): InfolistActions
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+        $issues = $record->getBlockingIssues();
+        $tabs = array_unique(array_column($issues, 'tab'));
+
+        $actions = [];
+        foreach ($tabs as $tab) {
+            $actions[] = InfolistAction::make("fix_{$tab}")
+                ->label('Fix in '.self::formatTabName($tab))
+                ->icon('heroicon-o-pencil-square')
+                ->color('danger')
+                ->url(self::getEditUrlForTab($record, $tab));
+        }
+
+        return InfolistActions::make($actions)
+            ->visible(fn (): bool => count($issues) > 0);
+    }
+
+    /**
+     * Get action buttons for navigating to fix warnings.
+     */
+    protected function getWarningsActions(): InfolistActions
+    {
+        /** @var WineVariant $record */
+        $record = $this->record;
+        $warnings = $record->getWarnings();
+        $tabs = array_unique(array_column($warnings, 'tab'));
+
+        $actions = [];
+        foreach ($tabs as $tab) {
+            $actions[] = InfolistAction::make("improve_{$tab}")
+                ->label('Improve in '.self::formatTabName($tab))
+                ->icon('heroicon-o-pencil-square')
+                ->color('warning')
+                ->url(self::getEditUrlForTab($record, $tab));
+        }
+
+        return InfolistActions::make($actions)
+            ->visible(fn (): bool => count($warnings) > 0);
     }
 
     /**
