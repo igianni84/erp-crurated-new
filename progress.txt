@@ -293,3 +293,23 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Validate action refreshes page with redirect to show updated infolist after validation runs
   - Action navigation to edit page: generate URL with anchor (`#section-id`) for direct navigation to form section
 ---
+
+## 2026-02-03 21:30 CET - US-016
+- Implemented Product Detail - Tab Core Info with editable fields and Liv-ex lock management
+- Files changed:
+  - `database/migrations/2026_02_03_210000_add_core_info_fields_to_wine_variants_table.php` (new - adds description and locked_fields columns)
+  - `app/Models/Pim/WineVariant.php` (modified - added description/locked_fields fields, isFieldLocked(), getLockedFields(), isFromLivEx(), setLockedFields(), unlockField() methods)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - reorganized form into Tabs with Core Info and Attributes tabs, added Liv-ex locked field handling, override capability)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added sensitive field change detection that auto-transitions Published to In Review)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ImportLivex.php` (modified - stores locked_fields on Liv-ex import)
+- **Learnings for future iterations:**
+  - Use `Forms\Components\Tabs` for organizing complex forms into logical tabs
+  - Use `->persistTabInQueryString()` to maintain tab state across page reloads
+  - For Liv-ex locked fields: store field names in `locked_fields` JSON array, check with model methods
+  - Use `->disabled()` on form fields to prevent editing, combined with `->hint()` and `->hintIcon()` for visual lock indicator
+  - Manager/Admin role check: `Auth::user()->role?->hasAtLeast(UserRole::Manager)`
+  - For sensitive field change detection in EditRecord: override `mutateFormDataBeforeFill()` to store original values, check in `afterSave()`
+  - Use `saveQuietly()` to save without triggering model events when auto-changing status
+  - PHPStan "nullsafe.neverNull" fix: extract nullable to variable, use explicit null check instead of `?->` with `??`
+  - For CheckboxList with dynamic options: use `->afterStateUpdated()` to handle selection changes
+---
