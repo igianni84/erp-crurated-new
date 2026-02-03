@@ -188,3 +188,27 @@
   - Use composer scripts: `test` to run tests, `quality` to run all checks
 ---
 
+## 2026-02-03 - US-008
+- What was implemented:
+  - Updated .env.example with comprehensive environment variables
+  - Added comments explaining recommended values for Development, Staging, and Production
+  - Configured logging: single for dev, daily for staging/prod, slack alerts for prod
+  - Configured cache: file for dev (no setup), database for staging, redis for prod
+  - Configured queue: sync for dev (immediate execution), database/redis for staging/prod
+  - Updated README with complete environment setup documentation
+  - Added queue worker commands and Supervisor recommendation
+- Files changed:
+  - .env.example (completely rewritten with comprehensive config and comments)
+  - README.md (added "Environment Configuration" section)
+  - prd.json (marked US-008 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Laravel 12 default cache is database, default queue is database
+  - Use CACHE_STORE=file for dev (no external dependencies needed)
+  - Use QUEUE_CONNECTION=sync for dev (easier debugging, jobs run immediately)
+  - LOG_STACK can be comma-separated for multiple channels: daily,slack
+  - AWS_DEFAULT_REGION=eu-west-1 is appropriate for European users (Crurated)
+  - BCRYPT_ROUNDS defaults to 12, can increase to 14 for production security
+  - SESSION_ENCRYPT=true recommended for production with sensitive data
+---
+
