@@ -12,6 +12,15 @@
 - Use `composer lint` to auto-fix code style, `composer lint:test` to check only
 - PHPStan/Larastan configured at level 5 via phpstan.neon
 - Pre-commit hook runs lint:test on staged PHP files
+- Traits: HasUuid (UUID PKs), Auditable (created_by/updated_by), HasLifecycleStatus (status management)
+- LifecycleStatus enum: Draft, Active, Inactive, Archived - with label(), color(), icon() helpers
+- Filament v3.3.47 is the current stable version (PRD mentions "Filament 5" but that doesn't exist)
+- Filament panel providers live in app/Providers/Filament/ and are registered in bootstrap/providers.php
+- Filament assets are published to public/css/filament/ and public/js/filament/
+- Use `php artisan filament:install --panels` to install Filament and create admin panel
+- PHPUnit 11.5.3 configured with SQLite in-memory for tests (phpunit.xml)
+- Unit tests: extend PHPUnit\Framework\TestCase; Feature tests: extend Tests\TestCase
+- UserFactory available at database/factories/UserFactory.php
 
 ---
 
@@ -102,5 +111,80 @@
   - Use .gitkeep files to track empty directories in git
   - Namespace convention: App\Models\Pim\, App\Enums\, App\Services\, App\Traits\
   - Filament resources go in app/Filament/Resources/ with subdirs for modules
+---
+
+## 2026-02-03 - US-005
+- What was implemented:
+  - Created HasUuid trait for UUID as primary key functionality
+  - Created Auditable trait for tracking created_by/updated_by
+  - Created HasLifecycleStatus trait for lifecycle status management
+  - Created LifecycleStatus enum with Filament UI helpers (label, color, icon)
+  - Updated README with comprehensive documentation for all traits
+  - Updated phpstan.neon to ignore trait.unused errors (traits are designed for future use)
+- Files changed:
+  - app/Traits/HasUuid.php (new)
+  - app/Traits/Auditable.php (new)
+  - app/Traits/HasLifecycleStatus.php (new)
+  - app/Enums/LifecycleStatus.php (new)
+  - README.md (replaced default Laravel README with project-specific docs)
+  - phpstan.neon (added ignoreErrors for trait.unused)
+  - prd.json (marked US-005 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - PHPStan reports trait.unused for traits not currently used - add ignoreErrors for this
+  - Traits need both boot{TraitName} and initialize{TraitName} methods for proper setup
+  - Eloquent model traits can use initializeXxx() to set properties like keyType, incrementing
+  - Use `$this->belongsTo(\App\Models\User::class, 'foreign_key')` for explicit FK in relations
+  - LifecycleStatus enum provides: Draft, Active, Inactive, Archived with UI helpers
+  - Traits with scopes need Builder<static> return types for PHPStan
+---
+
+## 2026-02-03 - US-006
+- What was implemented:
+  - Installed Filament v3.3.47 via composer (current stable version)
+  - Ran `php artisan filament:install --panels` to create admin panel
+  - AdminPanelProvider created in app/Providers/Filament/
+  - Configured custom theme with Crurated ERP branding
+  - Set Indigo as primary color with professional color scheme (Rose for danger, Slate for gray, etc.)
+  - Published all Filament assets (CSS and JS) to public/
+  - Verified /admin routes are registered and show login page
+- Files changed:
+  - composer.json (added filament/filament dependency)
+  - composer.lock (added 26 Filament-related packages)
+  - bootstrap/providers.php (registered AdminPanelProvider)
+  - app/Providers/Filament/AdminPanelProvider.php (new - panel configuration)
+  - public/css/filament/ (new - Filament CSS assets)
+  - public/js/filament/ (new - Filament JS assets)
+  - prd.json (marked US-006 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Filament v3.x is the current stable version (not v5 as PRD mentioned)
+  - Use `filament:install --panels` to set up the admin panel
+  - Panel provider is auto-registered in bootstrap/providers.php
+  - Colors are configured via Color enum: Color::Indigo, Color::Rose, etc.
+  - Use ->brandName() to set the application name in the admin panel
+  - Admin panel is accessible at /admin with login page at /admin/login
+  - Filament auto-discovers resources, pages, and widgets from app/Filament/
+---
+
+## 2026-02-03 - US-007
+- What was implemented:
+  - Verified PHPUnit 11.5.3 is pre-configured by Laravel 12 scaffold
+  - Verified SQLite in-memory database is configured in phpunit.xml (DB_CONNECTION=sqlite, DB_DATABASE=:memory:)
+  - Verified base TestCase in tests/TestCase.php extends BaseTestCase
+  - Verified UserFactory exists in database/factories/UserFactory.php
+  - Ran `php artisan test` - 2 tests pass (Unit\ExampleTest, Feature\ExampleTest)
+  - Ran `composer quality` - all checks pass (lint, analyse, test)
+- Files changed:
+  - prd.json (marked US-007 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Laravel 12 comes with complete PHPUnit infrastructure out of the box
+  - phpunit.xml includes all necessary test env vars: SQLite in-memory, array cache, sync queue, null broadcast
+  - TestCase at tests/TestCase.php is the base class for feature tests
+  - Unit tests can extend PHPUnit\Framework\TestCase directly for isolation
+  - Feature tests should extend Tests\TestCase to get Laravel app context
+  - UserFactory is ready to use with name, email, password, remember_token fields
+  - Use composer scripts: `test` to run tests, `quality` to run all checks
 ---
 
