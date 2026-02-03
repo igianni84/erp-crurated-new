@@ -73,6 +73,29 @@ class PricingPolicyService
     }
 
     /**
+     * Resume a PricingPolicy (paused → active).
+     *
+     * @throws \InvalidArgumentException If resuming is not allowed
+     */
+    public function resume(PricingPolicy $policy): PricingPolicy
+    {
+        if (! $policy->canBeResumed()) {
+            throw new \InvalidArgumentException(
+                "Cannot resume PricingPolicy: current status '{$policy->status->label()}' is not Paused. "
+                .'Only Paused policies can be resumed.'
+            );
+        }
+
+        $oldStatus = $policy->status;
+        $policy->status = PricingPolicyStatus::Active;
+        $policy->save();
+
+        $this->logStatusTransition($policy, $oldStatus, PricingPolicyStatus::Active);
+
+        return $policy;
+    }
+
+    /**
      * Archive a PricingPolicy (active/paused → archived).
      *
      * @throws \InvalidArgumentException If archiving is not allowed
