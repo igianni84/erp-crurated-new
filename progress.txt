@@ -46,3 +46,22 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Navigation sort increments for each resource (WineMaster=1, WineVariant=2)
   - BelongsTo relationship method name should be camelCase singular (e.g., `wineMaster`)
 ---
+
+## 2026-02-03 17:05 CET - US-003
+- Implemented Format model for bottle formats
+- Files changed:
+  - `database/migrations/2026_02_03_160313_create_formats_table.php` (new)
+  - `app/Models/Pim/Format.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource/Pages/ListFormats.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource/Pages/CreateFormat.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource/Pages/EditFormat.php` (new)
+  - `database/seeders/FormatSeeder.php` (new)
+  - `database/seeders/DatabaseSeeder.php` (modified - added FormatSeeder)
+- **Learnings for future iterations:**
+  - Use `TernaryFilter` for boolean fields in table filters (better UX than checkbox)
+  - Use `Toggle` component with `helperText` for boolean form fields
+  - Use `firstOrCreate` in seeders with unique field as first argument to avoid duplicates
+  - Format volume display: use `formatStateUsing(fn (int $state): string => number_format($state) . ' ml')`
+  - Navigation sort for Format = 3 (after WineMaster=1, WineVariant=2)
+---
