@@ -10,6 +10,8 @@ Started: Tue Feb  3 16:33:41 CET 2026
 - Use `SoftDeletes` trait with `$table->softDeletes()` for referential integrity
 - JSON fields use `'field_name' => 'array'` cast and `KeyValue` form component
 - Navigation group for PIM is 'PIM', sort order starts at 1
+- For enum match arms, use PHPDoc `@var 'val1'|'val2'|'val3'` annotation to satisfy PHPStan
+- For nested resources, create RelationManager in `Resource/RelationManagers/` and register in `getRelations()`
 
 ---
 
@@ -85,4 +87,26 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - When accessing related model properties via BelongsTo, use PHPDoc `@var` annotation for PHPStan
   - Navigation sort for CaseConfiguration = 4 (after Format=3)
   - Seeders can call other seeders with `$this->call(OtherSeeder::class)` to ensure dependencies exist
+---
+
+## 2026-02-03 17:15 CET - US-005
+- Implemented Sellable SKU model combining Wine Variant + Format + Case Configuration
+- Files changed:
+  - `database/migrations/2026_02_03_171046_create_sellable_skus_table.php` (new)
+  - `app/Models/Pim/SellableSku.php` (new)
+  - `app/Models/Pim/WineVariant.php` (modified - added hasMany relationship to SellableSku)
+  - `app/Filament/Resources/Pim/SellableSkuResource.php` (new)
+  - `app/Filament/Resources/Pim/SellableSkuResource/Pages/ListSellableSkus.php` (new)
+  - `app/Filament/Resources/Pim/SellableSkuResource/Pages/CreateSellableSku.php` (new)
+  - `app/Filament/Resources/Pim/SellableSkuResource/Pages/EditSellableSku.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/RelationManagers/SellableSkusRelationManager.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added RelationManager)
+- **Learnings for future iterations:**
+  - For nested resources, use RelationManager classes in `Resource/RelationManagers/` directory
+  - Register RelationManagers in the parent Resource's `getRelations()` method
+  - Auto-generate SKU codes in model `boot()` method with `static::creating()` callback
+  - For match arms on enum DB columns, use PHPDoc annotation `@var 'val1'|'val2'|'val3'` to avoid PHPStan "match.alwaysTrue" errors
+  - Filter cascaded selects using `->relationship()` with callback: `fn ($query, $get) => $query->when($get('parent_field'), fn ($q, $val) => $q->where('field', $val))`
+  - Navigation sort for SellableSku = 5 (after CaseConfiguration=4)
+  - Unique constraint across multiple columns: `$table->unique(['col1', 'col2', 'col3'], 'constraint_name')`
 ---
