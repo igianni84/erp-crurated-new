@@ -131,11 +131,16 @@ class VoucherTransferService
 
         $voucher = $transfer->voucher;
 
-        // Validate voucher is not locked
+        // Validate voucher is not locked (race condition: locked during pending transfer)
         if ($voucher->isLocked()) {
+            $lockedAt = $voucher->getLockedAtTimestamp();
+            $lockedAtStr = $lockedAt ? " (locked at {$lockedAt->toIso8601String()})" : '';
+
             throw new \InvalidArgumentException(
-                'Cannot accept transfer: voucher is locked for fulfillment. '
-                .'The transfer cannot be completed while the voucher is locked.'
+                "Locked during transfer - acceptance blocked{$lockedAtStr}. "
+                .'The voucher has been locked for fulfillment while this transfer was pending. '
+                .'The transfer cannot be accepted until the voucher is unlocked. '
+                .'You may cancel this transfer if fulfilment will proceed, or wait for the voucher to be released.'
             );
         }
 

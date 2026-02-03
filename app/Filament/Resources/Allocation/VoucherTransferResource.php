@@ -90,9 +90,31 @@ class VoucherTransferResource extends Resource
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->formatStateUsing(fn (VoucherTransferStatus $state): string => $state->label())
-                    ->color(fn (VoucherTransferStatus $state): string => $state->color())
-                    ->icon(fn (VoucherTransferStatus $state): string => $state->icon())
+                    ->formatStateUsing(function (VoucherTransferStatus $state, VoucherTransfer $record): string {
+                        $label = $state->label();
+                        if ($record->isAcceptanceBlockedByLock()) {
+                            $label .= ' (BLOCKED)';
+                        }
+
+                        return $label;
+                    })
+                    ->color(function (VoucherTransferStatus $state, VoucherTransfer $record): string {
+                        if ($record->isAcceptanceBlockedByLock()) {
+                            return 'danger';
+                        }
+
+                        return $state->color();
+                    })
+                    ->icon(function (VoucherTransferStatus $state, VoucherTransfer $record): string {
+                        if ($record->isAcceptanceBlockedByLock()) {
+                            return 'heroicon-o-lock-closed';
+                        }
+
+                        return $state->icon();
+                    })
+                    ->description(fn (VoucherTransfer $record): ?string => $record->isAcceptanceBlockedByLock()
+                        ? 'Locked during transfer'
+                        : null)
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('initiated_at')

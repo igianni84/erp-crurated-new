@@ -268,4 +268,96 @@ class VoucherTransfer extends Model
     {
         return $this->status->allowedTransitions();
     }
+
+    /**
+     * Check if transfer acceptance is blocked because the voucher is locked.
+     *
+     * This is a race condition scenario: the voucher was locked for fulfillment
+     * while the transfer was pending. The transfer cannot be accepted until
+     * the voucher is unlocked.
+     */
+    public function isAcceptanceBlockedByLock(): bool
+    {
+        if (! $this->isPending()) {
+            return false;
+        }
+
+        return $this->voucher?->isLocked() ?? false;
+    }
+
+    /**
+     * Check if the transfer can currently be accepted.
+     *
+     * This is a stricter check than canBeAccepted() as it also considers
+     * the voucher's current state (e.g., locked, suspended, terminal).
+     */
+    public function canCurrentlyBeAccepted(): bool
+    {
+        // Basic status check
+        if (! $this->canBeAccepted()) {
+            return false;
+        }
+
+        // Cannot accept if expired
+        if ($this->hasExpired()) {
+            return false;
+        }
+
+        $voucher = $this->voucher;
+        if (! $voucher) {
+            return false;
+        }
+
+        // Cannot accept if voucher is locked
+        if ($voucher->isLocked()) {
+            return false;
+        }
+
+        // Cannot accept if voucher is suspended
+        if ($voucher->suspended) {
+            return false;
+        }
+
+        // Cannot accept if voucher is in terminal state
+        if ($voucher->isTerminal()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the reason why transfer acceptance is blocked, if any.
+     *
+     * Returns null if the transfer can be accepted.
+     */
+    public function getAcceptanceBlockedReason(): ?string
+    {
+        if (! $this->isPending()) {
+            return "Transfer is in status '{$this->status->label()}' and cannot be accepted.";
+        }
+
+        if ($this->hasExpired()) {
+            return 'Transfer has expired and cannot be accepted.';
+        }
+
+        $voucher = $this->voucher;
+        if (! $voucher) {
+            return 'Voucher not found.';
+        }
+
+        if ($voucher->isLocked()) {
+            return 'Locked during transfer - acceptance blocked. The voucher has been locked for fulfillment while the transfer was pending.';
+        }
+
+        if ($voucher->suspended) {
+            return 'Voucher is suspended. Transfer acceptance is blocked until the voucher is reactivated.';
+        }
+
+        if ($voucher->isTerminal()) {
+            return "Voucher is in terminal state '{$voucher->lifecycle_state->label()}' and transfer cannot be accepted.";
+        }
+
+        return null;
+    }
 }

@@ -911,16 +911,52 @@ Attempting to fulfill this voucher with bottles from a different allocation will
             ->collapsible()
             ->schema([
                 Section::make('Pending Transfers')
-                    ->description(fn (Voucher $record): string => $record->hasPendingTransfer()
-                        ? 'There is an active pending transfer for this voucher'
-                        : 'No pending transfers')
-                    ->icon(fn (Voucher $record): string => $record->hasPendingTransfer()
-                        ? 'heroicon-o-clock'
-                        : 'heroicon-o-check-circle')
-                    ->iconColor(fn (Voucher $record): string => $record->hasPendingTransfer()
-                        ? 'warning'
-                        : 'success')
+                    ->description(function (Voucher $record): string {
+                        if (! $record->hasPendingTransfer()) {
+                            return 'No pending transfers';
+                        }
+
+                        if ($record->hasPendingTransferBlockedByLock()) {
+                            return 'BLOCKED: Transfer acceptance blocked while voucher is locked';
+                        }
+
+                        return 'There is an active pending transfer for this voucher';
+                    })
+                    ->icon(function (Voucher $record): string {
+                        if ($record->hasPendingTransferBlockedByLock()) {
+                            return 'heroicon-o-exclamation-triangle';
+                        }
+
+                        return $record->hasPendingTransfer()
+                            ? 'heroicon-o-clock'
+                            : 'heroicon-o-check-circle';
+                    })
+                    ->iconColor(function (Voucher $record): string {
+                        if ($record->hasPendingTransferBlockedByLock()) {
+                            return 'danger';
+                        }
+
+                        return $record->hasPendingTransfer() ? 'warning' : 'success';
+                    })
                     ->schema([
+                        // Warning banner for blocked transfer due to lock
+                        TextEntry::make('transfer_blocked_warning')
+                            ->label('')
+                            ->getStateUsing(fn (): string => '⚠️ LOCKED DURING TRANSFER - ACCEPTANCE BLOCKED')
+                            ->size(TextEntry\TextEntrySize::Large)
+                            ->weight(FontWeight::Bold)
+                            ->color('danger')
+                            ->visible(fn (Voucher $record): bool => $record->hasPendingTransferBlockedByLock()),
+                        TextEntry::make('transfer_blocked_explanation')
+                            ->label('')
+                            ->getStateUsing(fn (Voucher $record): string => 'This voucher was locked for fulfillment while a transfer was pending. '
+                                .'The transfer cannot be accepted until the voucher is unlocked. '
+                                .'The transfer can still be cancelled. '
+                                .(($lockedAt = $record->getLockedAtTimestamp())
+                                    ? "Locked at: {$lockedAt->format('Y-m-d H:i:s')}"
+                                    : ''))
+                            ->color('danger')
+                            ->visible(fn (Voucher $record): bool => $record->hasPendingTransferBlockedByLock()),
                         RepeatableEntry::make('pendingTransfers')
                             ->label('')
                             ->schema([
@@ -947,6 +983,13 @@ Attempting to fulfill this voucher with bottles from a different allocation will
                                                 ? 'danger'
                                                 : 'gray'),
                                     ]),
+                                // Show blocked status for this specific transfer
+                                TextEntry::make('acceptance_blocked_reason')
+                                    ->label('Acceptance Status')
+                                    ->getStateUsing(fn (VoucherTransfer $record): string => $record->getAcceptanceBlockedReason() ?? 'Can be accepted')
+                                    ->badge()
+                                    ->color(fn (VoucherTransfer $record): string => $record->isAcceptanceBlockedByLock() ? 'danger' : ($record->canCurrentlyBeAccepted() ? 'success' : 'warning'))
+                                    ->icon(fn (VoucherTransfer $record): string => $record->isAcceptanceBlockedByLock() ? 'heroicon-o-lock-closed' : ($record->canCurrentlyBeAccepted() ? 'heroicon-o-check-circle' : 'heroicon-o-exclamation-triangle')),
                             ])
                             ->columns(1),
                     ]),

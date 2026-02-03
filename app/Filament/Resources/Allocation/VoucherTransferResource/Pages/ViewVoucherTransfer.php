@@ -72,6 +72,31 @@ class ViewVoucherTransfer extends ViewRecord
                         ];
                     }),
 
+                // Acceptance Blocked Warning (shown when voucher is locked during pending transfer)
+                Infolists\Components\Section::make('')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('acceptance_blocked_title')
+                            ->label('')
+                            ->getStateUsing(fn (): string => '⚠️ LOCKED DURING TRANSFER - ACCEPTANCE BLOCKED')
+                            ->size(Infolists\Components\TextEntry\TextEntrySize::Large)
+                            ->weight(\Filament\Support\Enums\FontWeight::Bold)
+                            ->color('danger'),
+                        Infolists\Components\TextEntry::make('acceptance_blocked_message')
+                            ->label('')
+                            ->getStateUsing(fn (VoucherTransfer $record): string => $record->getAcceptanceBlockedReason() ?? '')
+                            ->color('danger'),
+                        Infolists\Components\TextEntry::make('acceptance_blocked_info')
+                            ->label('')
+                            ->getStateUsing(fn (VoucherTransfer $record): string => 'The voucher was locked for fulfillment at '
+                                .($record->voucher?->getLockedAtTimestamp()?->format('Y-m-d H:i:s') ?? 'an unknown time')
+                                .' while this transfer was pending. The transfer cannot be accepted until the voucher is unlocked, but it can still be cancelled.')
+                            ->color('gray'),
+                    ])
+                    ->extraAttributes([
+                        'class' => 'bg-danger-50 dark:bg-danger-950 border-2 border-danger-500 rounded-lg',
+                    ])
+                    ->visible(fn (VoucherTransfer $record): bool => $record->isAcceptanceBlockedByLock()),
+
                 // Voucher Information
                 Infolists\Components\Section::make('Voucher Information')
                     ->icon('heroicon-o-ticket')
@@ -93,7 +118,10 @@ class ViewVoucherTransfer extends ViewRecord
                                     ->label('Current Voucher State')
                                     ->badge()
                                     ->getStateUsing(fn (VoucherTransfer $record): string => $record->voucher?->lifecycle_state->label() ?? 'N/A')
-                                    ->color(fn (VoucherTransfer $record): string => $record->voucher?->lifecycle_state->color() ?? 'gray'),
+                                    ->color(fn (VoucherTransfer $record): string => $record->voucher?->lifecycle_state->color() ?? 'gray')
+                                    ->icon(fn (VoucherTransfer $record): ?string => $record->isAcceptanceBlockedByLock()
+                                        ? 'heroicon-o-lock-closed'
+                                        : null),
 
                                 Infolists\Components\TextEntry::make('voucher_allocation')
                                     ->label('Allocation')

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -475,5 +476,49 @@ class Voucher extends Model
             .'Fulfillment with bottles from any other allocation is not permitted and will be rejected by the system.',
             $this->allocation_id
         );
+    }
+
+    /**
+     * Check if this voucher has a pending transfer that is blocked because the voucher is locked.
+     *
+     * This is a concurrent operation scenario: the voucher was locked for fulfillment
+     * while a transfer was pending. The transfer cannot be accepted until the voucher is unlocked.
+     */
+    public function hasPendingTransferBlockedByLock(): bool
+    {
+        if (! $this->isLocked()) {
+            return false;
+        }
+
+        $pendingTransfer = $this->getPendingTransfer();
+
+        return $pendingTransfer !== null;
+    }
+
+    /**
+     * Get the timestamp when the voucher was locked (from audit log).
+     *
+     * This is useful for event ordering in race condition scenarios.
+     */
+    public function getLockedAtTimestamp(): ?Carbon
+    {
+        if (! $this->isLocked()) {
+            return null;
+        }
+
+        // Find the most recent lock event in audit logs
+        $lockLog = $this->auditLogs()
+            ->where('event', \App\Models\AuditLog::EVENT_LIFECYCLE_CHANGE)
+            ->whereJsonContains('new_values->lifecycle_state', VoucherLifecycleState::Locked->value)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if ($lockLog === null) {
+            return null;
+        }
+
+        $createdAt = $lockLog->created_at;
+
+        return $createdAt instanceof Carbon ? $createdAt : Carbon::parse($createdAt);
     }
 }

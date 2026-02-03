@@ -620,6 +620,8 @@ class VoucherService
 
     /**
      * Log a lifecycle state transition to the audit log.
+     *
+     * Includes explicit timestamp for event ordering in race condition scenarios.
      */
     protected function logLifecycleTransition(
         Voucher $voucher,
@@ -635,6 +637,7 @@ class VoucherService
             'new_values' => [
                 'lifecycle_state' => $newState->value,
                 'lifecycle_state_label' => $newState->label(),
+                'transitioned_at' => now()->toIso8601String(),
             ],
             'user_id' => Auth::id(),
         ]);
