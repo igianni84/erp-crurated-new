@@ -311,3 +311,29 @@
   - Filament resources in System navigation group automatically appear there
   - Test Filament resources with `Livewire::test(PageClass::class)` and methods like `assertCanSeeTableRecords`, `filterTable`, `searchTable`
 ---
+
+## 2026-02-03 - US-012
+- What was implemented:
+  - Configured navigation groups at panel level in AdminPanelProvider
+  - Added PIM navigation group with cube icon (heroicon-o-cube)
+  - Added System navigation group with cog icon (heroicon-o-cog-6-tooth)
+  - Created PimDashboard placeholder page in app/Filament/Pages/
+  - Created corresponding Blade view in resources/views/filament/pages/
+  - Enabled collapsible sidebar on desktop with ->sidebarCollapsibleOnDesktop()
+  - Added 7 navigation structure tests
+- Files changed:
+  - app/Providers/Filament/AdminPanelProvider.php (added navigation groups and collapsible sidebar)
+  - app/Filament/Pages/PimDashboard.php (new - placeholder PIM dashboard)
+  - resources/views/filament/pages/pim-dashboard.blade.php (new - PIM dashboard view)
+  - tests/Feature/Filament/NavigationTest.php (new - 7 tests)
+  - prd.json (marked US-012 as passing)
+  - progress.txt (this log)
+- **Learnings for future iterations:**
+  - Navigation groups can be defined at panel level with NavigationGroup::make()->label()->icon()
+  - Use ->sidebarCollapsibleOnDesktop() to enable collapsible sidebar on larger screens
+  - Filament's sidebar is automatically responsive/collapsible on mobile
+  - Custom Filament pages need a corresponding Blade view (static string $view property)
+  - Page views use <x-filament-panels::page> component wrapper
+  - Use PimDashboard::getNavigationGroup() in tests to verify navigation structure
+  - Navigation groups defined at panel level control display order
+---
