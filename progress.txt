@@ -357,3 +357,20 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - Delete orphaned files when media records are deleted using model boot() deleting event
   - PHPStan fix: use `$var = $arr['key'] ?? null; if ($var !== null)` instead of `isset() && !== null`
 ---
+
+## 2026-02-03 23:15 CET - US-019
+- Implemented Product Detail - Tab Sellable SKUs with full SKU management
+- Files changed:
+  - `database/migrations/2026_02_03_230000_add_integrity_fields_to_sellable_skus_table.php` (new - adds integrity flags and source tracking)
+  - `app/Models/Pim/SellableSku.php` (modified - added integrity flags, source, lifecycle methods)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added Sellable SKUs tab with overview and list)
+  - `app/Filament/Resources/Pim/WineVariantResource/RelationManagers/SellableSkusRelationManager.php` (modified - enhanced with full lifecycle management)
+- **Learnings for future iterations:**
+  - For enum-typed fields in match expressions, use PHPDoc `@var 'val1'|'val2'|'val3'` annotation with `?? 'default'` to satisfy PHPStan
+  - Use model constants for lifecycle status and source values for consistency (e.g., `STATUS_DRAFT`, `SOURCE_MANUAL`)
+  - RelationManager can access owner record via `$this->ownerRecord` for generating related items
+  - For intrinsic SKU generation, use standard producer configurations (6x750ml OWC, 12x750ml OWC, etc.)
+  - Use bulk actions for managing multiple records: `BulkAction::make('name')->action(function ($records) {...})`
+  - Empty state actions can duplicate header actions for better UX on empty relation managers
+  - For integrity flags display, use badge with `getStateUsing()` to compute display from multiple boolean fields
+---
