@@ -261,3 +261,20 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - For Tailwind dark mode, use `dark:` prefix classes alongside light mode classes
   - Blade templates can access Livewire computed properties via `$this->propertyName`
 ---
+
+## 2026-02-03 20:15 CET - US-014
+- Implemented manual bottle product creation flow
+- Files changed:
+  - `app/Filament/Resources/Pim/ProductResource/Pages/CreateManualBottle.php` (new - Filament page with form for manual wine creation)
+  - `resources/views/filament/resources/pim/product-resource/pages/create-manual-bottle.blade.php` (new - Blade view for manual creation page)
+  - `app/Filament/Resources/Pim/ProductResource.php` (modified - added 'create-manual' route)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/CreateBottleProduct.php` (modified - updated links to use ProductResource URLs)
+  - `resources/views/filament/resources/pim/product-resource/pages/create-bottle-product.blade.php` (modified - updated manual creation link)
+- **Learnings for future iterations:**
+  - For custom Filament pages extending Page, add `@property Form $form` PHPDoc annotation to satisfy PHPStan
+  - Use `->options()` with mapped WineMaster query instead of `->relationship()` when the page has no model
+  - Form statePath should be `'data'` to bind to `public array $data = []` property
+  - Section components with `->description()` provide better UX for form grouping
+  - When conditionally showing form fields, use `->visible(fn (Get $get): bool => ...)` and `->required(fn (Get $get): bool => ...)` together
+  - Check for existing Wine Variant by wine_master_id + vintage_year before creating to prevent duplicates
+---
