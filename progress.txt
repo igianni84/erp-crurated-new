@@ -223,3 +223,24 @@ Started: Tue Feb  3 16:33:41 CET 2026
   - View/Edit actions can redirect to another resource using `->url(fn ($record) => OtherResource::getUrl('view', ['record' => $record]))`
   - Navigation sort 0 places Products at the top of PIM navigation group
 ---
+
+## 2026-02-03 18:25 CET - US-012
+- Implemented Create Product wizard step 1: category selection (Bottle/Liquid)
+- Files changed:
+  - `app/Filament/Resources/Pim/ProductResource.php` (modified - added new page routes)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ListProducts.php` (modified - added Create Product action)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ChooseProductCategory.php` (new - category selection page)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/CreateBottleProduct.php` (new - bottle method selection page)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ImportLivex.php` (new - placeholder for Liv-ex import)
+  - `resources/views/filament/resources/pim/product-resource/pages/choose-product-category.blade.php` (new)
+  - `resources/views/filament/resources/pim/product-resource/pages/create-bottle-product.blade.php` (new)
+  - `resources/views/filament/resources/pim/product-resource/pages/import-livex.blade.php` (new)
+- **Learnings for future iterations:**
+  - For custom Filament pages with Blade views, use `protected static string $view` property pointing to view path
+  - Blade views for Filament pages go in `resources/views/filament/resources/{resource-slug}/pages/`
+  - Use `<x-filament-panels::page>` component wrapper for consistent Filament styling
+  - Card-based selection UI uses relative positioning with absolute link overlay for full-card click area
+  - Use Tailwind's dark mode classes (dark:) for theme support
+  - Heroicons are available via `<x-heroicon-o-{name}>` and `<x-heroicon-m-{name}>` Blade components
+  - Route names follow pattern: `filament.admin.resources.{slug}.{page-name}`
+---
