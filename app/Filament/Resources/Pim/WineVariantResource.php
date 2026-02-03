@@ -2,12 +2,14 @@
 
 namespace App\Filament\Resources\Pim;
 
+use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource\Pages;
 use App\Filament\Resources\Pim\WineVariantResource\RelationManagers;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -114,6 +116,13 @@ class WineVariantResource extends Resource
                     ->suffix('%')
                     ->sortable()
                     ->toggleable(),
+                Tables\Columns\TextColumn::make('lifecycle_status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn (ProductLifecycleStatus $state): string => $state->label())
+                    ->color(fn (ProductLifecycleStatus $state): string => $state->color())
+                    ->icon(fn (ProductLifecycleStatus $state): string => $state->icon())
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('drinking_window_start')
                     ->label('Drink From')
                     ->sortable()
@@ -137,9 +146,97 @@ class WineVariantResource extends Resource
                     ->relationship('wineMaster', 'name')
                     ->searchable()
                     ->preload(),
+                Tables\Filters\SelectFilter::make('lifecycle_status')
+                    ->label('Status')
+                    ->options(
+                        collect(ProductLifecycleStatus::cases())
+                            ->mapWithKeys(fn (ProductLifecycleStatus $status): array => [
+                                $status->value => $status->label(),
+                            ])
+                            ->toArray()
+                    ),
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('submit_for_review')
+                        ->label('Submit for Review')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Submit for Review')
+                        ->modalDescription('Are you sure you want to submit this wine variant for review?')
+                        ->visible(fn (WineVariant $record): bool => $record->canTransitionTo(ProductLifecycleStatus::InReview))
+                        ->action(function (WineVariant $record): void {
+                            $record->submitForReview();
+                            Notification::make()
+                                ->title('Submitted for Review')
+                                ->success()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('approve')
+                        ->label('Approve')
+                        ->icon('heroicon-o-check')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Approve Wine Variant')
+                        ->modalDescription('Are you sure you want to approve this wine variant?')
+                        ->visible(fn (WineVariant $record): bool => $record->canTransitionTo(ProductLifecycleStatus::Approved))
+                        ->action(function (WineVariant $record): void {
+                            $record->approve();
+                            Notification::make()
+                                ->title('Approved')
+                                ->success()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('reject')
+                        ->label('Reject')
+                        ->icon('heroicon-o-x-mark')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Reject Wine Variant')
+                        ->modalDescription('Are you sure you want to reject this wine variant and return it to draft?')
+                        ->visible(fn (WineVariant $record): bool => $record->canTransitionTo(ProductLifecycleStatus::Draft) && $record->isInReview())
+                        ->action(function (WineVariant $record): void {
+                            $record->reject();
+                            Notification::make()
+                                ->title('Rejected')
+                                ->warning()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('publish')
+                        ->label('Publish')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Publish Wine Variant')
+                        ->modalDescription('Are you sure you want to publish this wine variant? This will make it visible.')
+                        ->visible(fn (WineVariant $record): bool => $record->canTransitionTo(ProductLifecycleStatus::Published))
+                        ->action(function (WineVariant $record): void {
+                            $record->publish();
+                            Notification::make()
+                                ->title('Published')
+                                ->success()
+                                ->send();
+                        }),
+                    Tables\Actions\Action::make('archive')
+                        ->label('Archive')
+                        ->icon('heroicon-o-archive-box')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Archive Wine Variant')
+                        ->modalDescription('Are you sure you want to archive this wine variant? It will no longer be active.')
+                        ->visible(fn (WineVariant $record): bool => $record->canTransitionTo(ProductLifecycleStatus::Archived))
+                        ->action(function (WineVariant $record): void {
+                            $record->archive();
+                            Notification::make()
+                                ->title('Archived')
+                                ->success()
+                                ->send();
+                        }),
+                ])->label('Lifecycle')
+                    ->icon('heroicon-o-arrow-path')
+                    ->button(),
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
                 Tables\Actions\RestoreAction::make(),

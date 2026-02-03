@@ -2,7 +2,9 @@
 
 namespace App\Models\Pim;
 
+use App\Enums\ProductLifecycleStatus;
 use App\Traits\Auditable;
+use App\Traits\HasProductLifecycle;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,12 +13,27 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property ProductLifecycleStatus $lifecycle_status
+ */
 class WineVariant extends Model
 {
     use Auditable;
     use HasFactory;
+    use HasProductLifecycle;
     use HasUuid;
     use SoftDeletes;
+
+    /**
+     * Sensitive fields that trigger automatic status change to in_review when modified on published products.
+     *
+     * @var list<string>
+     */
+    public const SENSITIVE_FIELDS = [
+        'wine_master_id',
+        'vintage_year',
+        'alcohol_percentage',
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -31,6 +48,7 @@ class WineVariant extends Model
         'drinking_window_end',
         'critic_scores',
         'production_notes',
+        'lifecycle_status',
     ];
 
     /**
@@ -47,6 +65,7 @@ class WineVariant extends Model
             'drinking_window_end' => 'integer',
             'critic_scores' => 'array',
             'production_notes' => 'array',
+            'lifecycle_status' => ProductLifecycleStatus::class,
         ];
     }
 
