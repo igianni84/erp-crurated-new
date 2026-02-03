@@ -2,6 +2,7 @@
 
 namespace App\Models\Allocation;
 
+use App\Enums\Allocation\VoucherLifecycleState;
 use App\Models\Customer\Customer;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
@@ -24,7 +25,7 @@ use Illuminate\Support\Facades\Auth;
  * - quantity is always 1 (1 voucher = 1 bottle)
  * - allocation_id is immutable after creation (lineage cannot be changed)
  *
- * @property string $lifecycle_state
+ * @property VoucherLifecycleState $lifecycle_state
  * @property bool $tradable
  * @property bool $giftable
  * @property bool $suspended
@@ -42,17 +43,6 @@ class Voucher extends Model
      * @var string
      */
     protected $table = 'vouchers';
-
-    /**
-     * Lifecycle state constants (enum will be added in US-016).
-     */
-    public const STATE_ISSUED = 'issued';
-
-    public const STATE_LOCKED = 'locked';
-
-    public const STATE_REDEEMED = 'redeemed';
-
-    public const STATE_CANCELLED = 'cancelled';
 
     /**
      * The attributes that are mass assignable.
@@ -83,6 +73,7 @@ class Voucher extends Model
     {
         return [
             'quantity' => 'integer',
+            'lifecycle_state' => VoucherLifecycleState::class,
             'tradable' => 'boolean',
             'giftable' => 'boolean',
             'suspended' => 'boolean',
@@ -200,7 +191,7 @@ class Voucher extends Model
      */
     public function isIssued(): bool
     {
-        return $this->lifecycle_state === self::STATE_ISSUED;
+        return $this->lifecycle_state === VoucherLifecycleState::Issued;
     }
 
     /**
@@ -208,7 +199,7 @@ class Voucher extends Model
      */
     public function isLocked(): bool
     {
-        return $this->lifecycle_state === self::STATE_LOCKED;
+        return $this->lifecycle_state === VoucherLifecycleState::Locked;
     }
 
     /**
@@ -216,7 +207,7 @@ class Voucher extends Model
      */
     public function isRedeemed(): bool
     {
-        return $this->lifecycle_state === self::STATE_REDEEMED;
+        return $this->lifecycle_state === VoucherLifecycleState::Redeemed;
     }
 
     /**
@@ -224,7 +215,7 @@ class Voucher extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->lifecycle_state === self::STATE_CANCELLED;
+        return $this->lifecycle_state === VoucherLifecycleState::Cancelled;
     }
 
     /**
@@ -232,7 +223,7 @@ class Voucher extends Model
      */
     public function isTerminal(): bool
     {
-        return $this->isRedeemed() || $this->isCancelled();
+        return $this->lifecycle_state->isTerminal();
     }
 
     /**
@@ -240,7 +231,7 @@ class Voucher extends Model
      */
     public function isActive(): bool
     {
-        return ! $this->isTerminal();
+        return $this->lifecycle_state->isActive();
     }
 
     /**
@@ -248,7 +239,7 @@ class Voucher extends Model
      */
     public function canBeTradedOrTransferred(): bool
     {
-        return $this->isIssued()
+        return $this->lifecycle_state->allowsTrading()
             && $this->tradable
             && ! $this->suspended;
     }
@@ -258,7 +249,7 @@ class Voucher extends Model
      */
     public function canBeGifted(): bool
     {
-        return $this->isIssued()
+        return $this->lifecycle_state->allowsTrading()
             && $this->giftable
             && ! $this->suspended;
     }
@@ -288,13 +279,7 @@ class Voucher extends Model
      */
     public function getLifecycleStateLabel(): string
     {
-        return match ($this->lifecycle_state) {
-            self::STATE_ISSUED => 'Issued',
-            self::STATE_LOCKED => 'Locked',
-            self::STATE_REDEEMED => 'Redeemed',
-            self::STATE_CANCELLED => 'Cancelled',
-            default => 'Unknown',
-        };
+        return $this->lifecycle_state->label();
     }
 
     /**
@@ -302,13 +287,7 @@ class Voucher extends Model
      */
     public function getLifecycleStateColor(): string
     {
-        return match ($this->lifecycle_state) {
-            self::STATE_ISSUED => 'success',
-            self::STATE_LOCKED => 'warning',
-            self::STATE_REDEEMED => 'info',
-            self::STATE_CANCELLED => 'danger',
-            default => 'gray',
-        };
+        return $this->lifecycle_state->color();
     }
 
     /**
@@ -316,13 +295,25 @@ class Voucher extends Model
      */
     public function getLifecycleStateIcon(): string
     {
-        return match ($this->lifecycle_state) {
-            self::STATE_ISSUED => 'heroicon-o-ticket',
-            self::STATE_LOCKED => 'heroicon-o-lock-closed',
-            self::STATE_REDEEMED => 'heroicon-o-check-badge',
-            self::STATE_CANCELLED => 'heroicon-o-x-circle',
-            default => 'heroicon-o-question-mark-circle',
-        };
+        return $this->lifecycle_state->icon();
+    }
+
+    /**
+     * Check if a transition to the given state is allowed.
+     */
+    public function canTransitionTo(VoucherLifecycleState $target): bool
+    {
+        return $this->lifecycle_state->canTransitionTo($target);
+    }
+
+    /**
+     * Get the allowed transitions from the current state.
+     *
+     * @return list<VoucherLifecycleState>
+     */
+    public function getAllowedTransitions(): array
+    {
+        return $this->lifecycle_state->allowedTransitions();
     }
 
     /**
