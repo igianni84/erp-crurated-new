@@ -135,14 +135,12 @@ class Offer extends Model
 
     /**
      * Get the benefit configuration for this offer.
-     * Note: OfferBenefit model will be created in US-035
      *
-     * @return HasOne<\Illuminate\Database\Eloquent\Model, $this>
+     * @return HasOne<OfferBenefit, $this>
      */
     public function benefit(): HasOne
     {
-        // @phpstan-ignore argument.type (OfferBenefit will be created in US-035)
-        return $this->hasOne('App\\Models\\Commercial\\OfferBenefit');
+        return $this->hasOne(OfferBenefit::class);
     }
 
     /**
