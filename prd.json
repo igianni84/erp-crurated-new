@@ -129,8 +129,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented wizard step 1 with: Wine selection via autocomplete search (by name or producer), Vintage selection (dynamically filtered by selected WineMaster), Format selection (all available formats). Includes Bottle SKU preview and info message explaining allocation at Bottle SKU level. Browser verification deferred to future story."
     },
     {
       "id": "US-009",

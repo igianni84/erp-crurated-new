@@ -9,6 +9,7 @@ Started: Tue Feb  3 18:51:45 CET 2026
 - Jobs go in `app/Jobs/{Module}/` - schedule in `routes/console.php` using `Schedule::job()->everyMinute()`
 - Services go in `app/Services/{Module}/` - use DB::transaction() with lockForUpdate() for atomic quantity operations
 - Filament Resources go in `app/Filament/Resources/{Module}/` with Pages subdirectory - use enum methods for badge styling
+- Filament Wizard forms: use `CreateRecord\Concerns\HasWizard` trait in CreateXxx page class, override `form()` and `getSteps()`
 
 ---
 
@@ -114,4 +115,26 @@ Started: Tue Feb  3 18:51:45 CET 2026
   - For searchable computed columns, use `searchable(query: ...)` with custom query builder
   - Use `modifyQueryUsing()` on table for eager loading relationships
   - Default filter values with `->default()` to pre-populate filter (e.g., exclude Closed status)
+---
+
+## 2026-02-03 - US-008
+- What was implemented: Create Allocation wizard - Step 1 (Bottle SKU selection)
+- Files changed:
+  - `app/Filament/Resources/Allocation/AllocationResource/Pages/CreateAllocation.php` (modified to add wizard)
+- **Features implemented:**
+  - Wizard-based form using `CreateRecord\Concerns\HasWizard` trait
+  - Step 1: Bottle SKU selection with cascading selects:
+    - Wine selection via autocomplete search (searches by name or producer)
+    - Vintage selection (dynamically filtered by selected WineMaster)
+    - Format selection (all available formats ordered by volume_ml)
+  - Bottle SKU preview showing full label: Wine (Producer) Vintage - Format
+  - Info message: "Allocation always happens at Bottle SKU level (Wine + Vintage + Format)"
+  - `mutateFormDataBeforeCreate()` removes temporary wine_master_id field
+- **Learnings for future iterations:**
+  - Use `CreateRecord\Concerns\HasWizard` trait for multi-step forms
+  - For cascading selects: use `live()` + `afterStateUpdated()` to reset dependent fields
+  - Use `hidden()` with `Get` callback to show/hide sections based on previous selections
+  - Use `getSearchResultsUsing()` for custom autocomplete search logic
+  - Use `getOptionLabelUsing()` to format existing option labels for display
+  - Use `getAttribute()` instead of direct property access to avoid PHPStan strict type errors
 ---
