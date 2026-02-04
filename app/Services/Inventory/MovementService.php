@@ -7,12 +7,14 @@ use App\Enums\Inventory\ConsumptionReason;
 use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
 use App\Models\Inventory\InventoryCase;
+use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\MovementItem;
 use App\Models\Inventory\SerializedBottle;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Service for managing inventory movement logic.
@@ -87,6 +89,90 @@ class MovementService
     public function isDuplicateWmsEvent(string $wmsEventId): bool
     {
         return InventoryMovement::where('wms_event_id', $wmsEventId)->exists();
+    }
+
+    /**
+     * Process a WMS event with deduplication and audit logging.
+     *
+     * If the WMS event has already been processed (duplicate), it is ignored
+     * and logged to the audit trail. This ensures operators see a clean,
+     * deduplicated history with no double movements.
+     *
+     * @param  string  $wmsEventId  The WMS event ID
+     * @param  callable  $processCallback  Callback to process the event if not duplicate
+     * @return InventoryMovement|null The created movement, or null if duplicate
+     */
+    public function processWmsEvent(string $wmsEventId, callable $processCallback): ?InventoryMovement
+    {
+        // Check for duplicate
+        if ($this->isDuplicateWmsEvent($wmsEventId)) {
+            // Log the duplicate event for audit purposes
+            $this->logIgnoredWmsEvent($wmsEventId);
+
+            return null;
+        }
+
+        // Process the event
+        return $processCallback();
+    }
+
+    /**
+     * Log an ignored (duplicate) WMS event for audit purposes.
+     *
+     * Creates an InventoryException record to track the ignored event.
+     * This ensures full audit trail is preserved even for rejected events.
+     *
+     * @param  string  $wmsEventId  The WMS event ID that was ignored
+     */
+    public function logIgnoredWmsEvent(string $wmsEventId): void
+    {
+        // Log to application log for monitoring
+        Log::info("WMS event ignored (duplicate): {$wmsEventId}");
+
+        // Get the existing movement that caused this to be a duplicate
+        $existingMovement = InventoryMovement::where('wms_event_id', $wmsEventId)->first();
+
+        // Get a system user for the audit record
+        $systemUser = $this->getSystemUser();
+
+        // Create an InventoryException record for audit trail
+        InventoryException::create([
+            'exception_type' => 'wms_event_duplicate_ignored',
+            'reason' => "Duplicate WMS event ignored: {$wmsEventId}. Original movement ID: ".($existingMovement !== null ? $existingMovement->id : 'unknown'),
+            'created_by' => $systemUser->id,
+        ]);
+    }
+
+    /**
+     * Get a system user for WMS operations.
+     *
+     * Tries to find a system user, falls back to admin or first user.
+     *
+     * @return User The system user
+     *
+     * @throws \InvalidArgumentException If no user exists in the system
+     */
+    protected function getSystemUser(): User
+    {
+        // Try to find a system user by email
+        $systemUser = User::where('email', 'system@crurated.com')->first();
+        if ($systemUser) {
+            return $systemUser;
+        }
+
+        // Fall back to an admin user
+        $adminUser = User::whereIn('role', ['admin', 'super_admin'])->first();
+        if ($adminUser) {
+            return $adminUser;
+        }
+
+        // Last resort: first user in the system
+        $firstUser = User::first();
+        if ($firstUser) {
+            return $firstUser;
+        }
+
+        throw new \InvalidArgumentException('No user exists in the system to attribute WMS event audit log');
     }
 
     /**
