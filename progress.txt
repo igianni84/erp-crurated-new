@@ -324,3 +324,30 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Section does not have a `badge()` method in Filament Infolists - use string concatenation in section title instead
   - For repeatable entries from relationships, the collection is already available through the relationship
 ---
+
+## 2026-02-04 - US-014
+- What was implemented:
+  - Created `InvalidMembershipTransitionException` in `App\Exceptions\` for user-friendly error messages
+  - Added `transitionTo()` method in Membership model with validation - throws exception if transition invalid
+  - Added convenience methods: `submitForReview()`, `approve()`, `reject()`, `suspend()`, `reactivate()`
+  - Added `getTransitionErrorMessage()` helper for building user-friendly messages
+  - Added `canApproveMemberships()` to User model (requires Manager role via `hasAtLeast()`)
+  - Updated ViewCustomer to use `canTransitionTo()` for action visibility
+  - Approve and Reject actions now check `canApproveMemberships` with disabled state and tooltip
+  - All actions wrapped in try-catch for InvalidMembershipTransitionException with danger notification
+  - `effective_from` is automatically set in `transitionTo()` when transitioning to Approved
+  - All transitions logged via existing Auditable trait (user_id, timestamp, changes)
+- Files changed:
+  - app/Exceptions/InvalidMembershipTransitionException.php (new)
+  - app/Models/Customer/Membership.php (updated - added transition methods)
+  - app/Models/User.php (updated - added canApproveMemberships())
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - authorization and validation)
+- **Learnings for future iterations:**
+  - Create custom exceptions in `App\Exceptions\` namespace for domain-specific errors
+  - Use `->disabled()` with `->tooltip()` pattern to show disabled actions with explanation
+  - Transitions should use model methods (e.g., `approve()`) rather than direct `update()` for encapsulation
+  - The `canTransitionTo()` check in UI conditions prevents buttons from showing for invalid transitions
+  - Authorization checks should be done both in UI (disabled) and action callback (early return) for security
+  - Named parameters like `autoSetEffectiveFrom: false` make method calls more readable
+  - User::canApproveMemberships() follows the existing pattern of User::canApprovePriceBooks()
+---
