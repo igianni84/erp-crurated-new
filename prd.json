@@ -516,8 +516,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 31,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C003 (ShippingOrderLine immutability) and US-C012 (LateBindingService allocation validation). Verified: allocation_id copied from voucher, immutable after creation via boot() guard, binding validates allocation match, exact error message present, no override mechanisms exist."
     },
     {
       "id": "US-C032",

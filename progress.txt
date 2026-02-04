@@ -444,3 +444,19 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Pre-picking validation logs individual voucher ineligibility events before throwing exception
   - Allocation::isClosed() checks if allocation is in Closed status (not available for fulfillment)
 ---
+
+## 2026-02-04 - US-C031
+- **What was implemented:** Allocation Lineage Constraint Enforcement - verified existing implementation meets all acceptance criteria
+- **Files verified (no changes needed):**
+  - `app/Models/Fulfillment/ShippingOrderLine.php` (allocation_id immutability via boot() guard at lines 105-112)
+  - `app/Services/Fulfillment/LateBindingService.php` (allocation validation at lines 197-203)
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (allocation validation at lines 655-660, 316)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (allocation_id copied from voucher at line 1356)
+- **Learnings for future iterations:**
+  - This story was already fully implemented as part of US-C003 and US-C012
+  - ShippingOrderLine boot() guard prevents modification of allocation_id with error: "allocation_id is immutable after creation. Cross-allocation substitution is not allowed."
+  - LateBindingService.bindVoucherToBottle() validates allocation match with error: "Allocation lineage mismatch. Cross-allocation substitution not allowed."
+  - WmsIntegrationService.validateSerial() also validates allocation match with same error message
+  - No override or bypass mechanisms exist in the codebase (verified via grep search)
+  - All validation points use consistent error messaging about cross-allocation substitution
+---
