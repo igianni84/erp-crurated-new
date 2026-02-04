@@ -274,3 +274,27 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Case transfer also updates all contained bottles' locations via batch update
   - Terminal states (consumed, destroyed, missing, shipped) block bottle transfers
 ---
+
+## 2026-02-04 - US-B012
+- **Implemented**: LocationResource in Filament for managing physical storage points
+- **Files created**:
+  - app/Filament/Resources/Inventory/LocationResource.php
+  - app/Filament/Resources/Inventory/LocationResource/Pages/ListLocations.php
+  - app/Filament/Resources/Inventory/LocationResource/Pages/CreateLocation.php
+  - app/Filament/Resources/Inventory/LocationResource/Pages/ViewLocation.php
+  - app/Filament/Resources/Inventory/LocationResource/Pages/EditLocation.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 1)
+  - List columns: name, location_type (badge), country, serialization_authorized (icon), linked_wms_id (badge), status (badge), stock_summary, updated_at
+  - Filters: location_type (multi-select), country (searchable), serialization_authorized (ternary), status (with Active default), TrashedFilter
+  - Search: name and country fields are searchable
+  - Visual indicator for WMS: badge shows "Linked" (info color) or "Not Linked" (gray) with link icon
+  - Stock summary shows count of serialized bottles at location via withCount
+- **Learnings for future iterations**:
+  - Filament Resources for Inventory module go in app/Filament/Resources/Inventory/ directory
+  - Navigation group 'Inventory' is used for all Module B Filament resources
+  - Use withCount() and custom state() for computed columns like stock_summary
+  - Use formatStateUsing() with enum's label(), color(), icon() methods for enum columns
+  - TrashedFilter requires getEloquentQuery() to remove SoftDeletingScope
+  - View and Edit pages are placeholders for US-B013 and US-B014 respectively
+---
