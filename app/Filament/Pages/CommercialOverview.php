@@ -369,6 +369,13 @@ class CommercialOverview extends Page
                 'description' => 'Simulate pricing scenarios',
                 'enabled' => true,
             ],
+            [
+                'label' => 'Commercial Calendar',
+                'url' => CommercialCalendar::getUrl(),
+                'icon' => 'heroicon-o-calendar-days',
+                'description' => 'View commercial events timeline',
+                'enabled' => true,
+            ],
         ];
     }
 
@@ -385,6 +392,7 @@ class CommercialOverview extends Page
             'pricing_policies' => PricingPolicyResource::getUrl(),
             'pricing_intelligence' => PricingIntelligence::getUrl(),
             'price_simulation' => PriceSimulation::getUrl(),
+            'calendar' => CommercialCalendar::getUrl(),
         ];
     }
 
