@@ -509,4 +509,156 @@ class MovementService
             return $movement;
         });
     }
+
+    /**
+     * Place a serialized bottle in consignment at a consignee location.
+     *
+     * Creates a consignment placement movement where ownership remains with Crurated
+     * but custody changes to the consignee. Only Crurated-owned bottles can be placed
+     * in consignment.
+     *
+     * @param  SerializedBottle  $bottle  The bottle to place in consignment
+     * @param  Location  $consigneeLocation  The consignee location
+     * @param  User|null  $executor  The user performing the placement
+     * @param  string|null  $reason  Optional reason for the consignment
+     * @return InventoryMovement The created movement
+     *
+     * @throws \InvalidArgumentException If placement is not allowed
+     */
+    public function placeBottleInConsignment(
+        SerializedBottle $bottle,
+        Location $consigneeLocation,
+        ?User $executor = null,
+        ?string $reason = null
+    ): InventoryMovement {
+        // Validate bottle can be transferred
+        if ($bottle->isInTerminalState()) {
+            throw new \InvalidArgumentException(
+                'Cannot place bottle in consignment: bottle is in terminal state '.$bottle->state->label()
+            );
+        }
+
+        // Validate bottle is Crurated-owned
+        if (! $bottle->ownership_type->hasFullOwnership()) {
+            throw new \InvalidArgumentException(
+                'Cannot place bottle in consignment: only Crurated-owned bottles can be placed in consignment. Current ownership: '.$bottle->ownership_type->label()
+            );
+        }
+
+        // Get source location
+        $sourceLocation = $bottle->currentLocation;
+        if (! $sourceLocation) {
+            throw new \InvalidArgumentException(
+                'Bottle has no current location'
+            );
+        }
+
+        // Don't allow placement to same location
+        if ($sourceLocation->id === $consigneeLocation->id) {
+            throw new \InvalidArgumentException(
+                'Cannot place bottle in consignment at its current location'
+            );
+        }
+
+        return DB::transaction(function () use ($bottle, $consigneeLocation, $sourceLocation, $executor, $reason) {
+            // Create the movement
+            $movement = $this->createMovement([
+                'movement_type' => MovementType::ConsignmentPlacement,
+                'trigger' => MovementTrigger::ErpOperator,
+                'source_location_id' => $sourceLocation->id,
+                'destination_location_id' => $consigneeLocation->id,
+                'custody_changed' => true, // Custody changes to consignee
+                'reason' => $reason,
+                'executed_by' => $executor?->id,
+                'items' => [
+                    [
+                        'serialized_bottle_id' => $bottle->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ]);
+
+            // Update bottle location and custody holder
+            $bottle->update([
+                'current_location_id' => $consigneeLocation->id,
+                'custody_holder' => $consigneeLocation->name,
+            ]);
+
+            return $movement;
+        });
+    }
+
+    /**
+     * Place a case in consignment at a consignee location.
+     *
+     * Creates a consignment placement movement where ownership remains with Crurated
+     * but custody changes to the consignee. Only cases with Crurated-owned allocation
+     * can be placed in consignment. All contained bottles are also moved.
+     *
+     * @param  InventoryCase  $case  The case to place in consignment
+     * @param  Location  $consigneeLocation  The consignee location
+     * @param  User|null  $executor  The user performing the placement
+     * @param  string|null  $reason  Optional reason for the consignment
+     * @return InventoryMovement The created movement
+     *
+     * @throws \InvalidArgumentException If placement is not allowed
+     */
+    public function placeCaseInConsignment(
+        InventoryCase $case,
+        Location $consigneeLocation,
+        ?User $executor = null,
+        ?string $reason = null
+    ): InventoryMovement {
+        // Validate case can be transferred as unit
+        if (! $case->canHandleAsUnit()) {
+            throw new \InvalidArgumentException(
+                'Cannot place broken case in consignment. Place individual bottles instead.'
+            );
+        }
+
+        // Get source location
+        $sourceLocation = $case->currentLocation;
+        if (! $sourceLocation) {
+            throw new \InvalidArgumentException(
+                'Case has no current location'
+            );
+        }
+
+        // Don't allow placement to same location
+        if ($sourceLocation->id === $consigneeLocation->id) {
+            throw new \InvalidArgumentException(
+                'Cannot place case in consignment at its current location'
+            );
+        }
+
+        return DB::transaction(function () use ($case, $consigneeLocation, $sourceLocation, $executor, $reason) {
+            // Create the movement
+            $movement = $this->createMovement([
+                'movement_type' => MovementType::ConsignmentPlacement,
+                'trigger' => MovementTrigger::ErpOperator,
+                'source_location_id' => $sourceLocation->id,
+                'destination_location_id' => $consigneeLocation->id,
+                'custody_changed' => true, // Custody changes to consignee
+                'reason' => $reason,
+                'executed_by' => $executor?->id,
+                'items' => [
+                    [
+                        'case_id' => $case->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ]);
+
+            // Update case location
+            $case->update(['current_location_id' => $consigneeLocation->id]);
+
+            // Update all contained bottles' locations and custody holder
+            $case->serializedBottles()->update([
+                'current_location_id' => $consigneeLocation->id,
+                'custody_holder' => $consigneeLocation->name,
+            ]);
+
+            return $movement;
+        });
+    }
 }
