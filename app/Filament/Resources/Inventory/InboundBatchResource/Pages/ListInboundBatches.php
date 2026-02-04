@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Inventory\InboundBatchResource\Pages;
 
 use App\Filament\Resources\Inventory\InboundBatchResource;
+use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 
 class ListInboundBatches extends ListRecords
@@ -11,7 +12,12 @@ class ListInboundBatches extends ListRecords
 
     protected function getHeaderActions(): array
     {
-        // Create action will be implemented in US-B018 (Manual Inbound Batch creation)
-        return [];
+        return [
+            Actions\CreateAction::make()
+                ->label('Manual Creation')
+                ->icon('heroicon-o-plus')
+                ->color('warning')
+                ->visible(fn (): bool => InboundBatchResource::canCreate()),
+        ];
     }
 }

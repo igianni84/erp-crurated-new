@@ -5,8 +5,11 @@ namespace App\Filament\Resources\Inventory;
 use App\Enums\Inventory\InboundBatchStatus;
 use App\Enums\Inventory\OwnershipType;
 use App\Filament\Resources\Inventory\InboundBatchResource\Pages;
+use App\Models\Allocation\Allocation;
 use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\Location;
+use App\Models\Pim\WineVariant;
+use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -29,10 +32,212 @@ class InboundBatchResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Inbound Batches';
 
+    /**
+     * Check if the current user can create inbound batches manually.
+     * Only admins (admin or super_admin) can create batches manually.
+     */
+    public static function canCreate(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null && $user->isAdmin();
+    }
+
     public static function form(Form $form): Form
     {
-        // Form will be implemented in US-B018 (Manual Inbound Batch creation)
-        return $form->schema([]);
+        return $form->schema([
+            // Warning Banner Section
+            Forms\Components\Section::make()
+                ->schema([
+                    Forms\Components\Placeholder::make('warning_banner')
+                        ->label('')
+                        ->content('⚠️ MANUAL CREATION - This action bypasses normal WMS/procurement workflows. Manual batch creation is for exceptional cases only and requires full audit justification. All data entered will be permanently recorded.')
+                        ->extraAttributes(['class' => 'text-danger-600 dark:text-danger-400 font-semibold']),
+                ])
+                ->extraAttributes(['class' => 'bg-danger-50 dark:bg-danger-950/30 border-danger-300 dark:border-danger-700']),
+
+            // Mandatory Reason Section
+            Forms\Components\Section::make('Audit Justification')
+                ->description('Required: Explain why this batch is being created manually instead of through normal workflows.')
+                ->schema([
+                    Forms\Components\Textarea::make('manual_creation_reason')
+                        ->label('Reason for Manual Creation')
+                        ->placeholder('Explain why this batch is being created manually (e.g., WMS system failure, legacy data migration, correction of missing records, etc.)')
+                        ->required()
+                        ->minLength(20)
+                        ->maxLength(1000)
+                        ->rows(3)
+                        ->helperText('Minimum 20 characters. Be specific about the circumstances requiring manual entry.')
+                        ->columnSpanFull(),
+                ])
+                ->collapsible(false)
+                ->extraAttributes(['class' => 'bg-warning-50 dark:bg-warning-950/30 border-warning-300 dark:border-warning-700']),
+
+            // Source Information
+            Forms\Components\Section::make('Source Information')
+                ->schema([
+                    Forms\Components\Select::make('source_type')
+                        ->label('Source Type')
+                        ->options([
+                            'producer' => 'Producer',
+                            'supplier' => 'Supplier',
+                            'transfer' => 'Transfer',
+                        ])
+                        ->required()
+                        ->native(false),
+
+                    Forms\Components\Select::make('product_reference_type')
+                        ->label('Product Reference Type')
+                        ->options([
+                            WineVariant::class => 'Wine Variant',
+                        ])
+                        ->required()
+                        ->native(false)
+                        ->default(WineVariant::class)
+                        ->live(),
+
+                    Forms\Components\Select::make('product_reference_id')
+                        ->label('Product Reference')
+                        ->options(function (): array {
+                            return WineVariant::query()
+                                ->with('wineMaster')
+                                ->get()
+                                ->mapWithKeys(function (WineVariant $variant): array {
+                                    $wineMaster = $variant->wineMaster;
+                                    $wineName = $wineMaster ? $wineMaster->name : 'Unknown Wine';
+                                    $vintage = $variant->vintage_year ?? 'NV';
+
+                                    return [$variant->id => "{$wineName} {$vintage}"];
+                                })
+                                ->toArray();
+                        })
+                        ->searchable()
+                        ->required()
+                        ->helperText('Select the wine product for this inbound batch'),
+
+                    Forms\Components\Select::make('allocation_id')
+                        ->label('Allocation (Lineage)')
+                        ->options(function (): array {
+                            return Allocation::query()
+                                ->with(['wineVariant.wineMaster', 'format'])
+                                ->orderBy('created_at', 'desc')
+                                ->get()
+                                ->mapWithKeys(function (Allocation $allocation): array {
+                                    return [$allocation->id => $allocation->getBottleSkuLabel().' (ID: '.substr($allocation->id, 0, 8).'...)'];
+                                })
+                                ->toArray();
+                        })
+                        ->searchable()
+                        ->required()
+                        ->helperText('Required: The allocation that this batch belongs to. This will be propagated to all serialized bottles.'),
+                ])
+                ->columns(2),
+
+            // Quantities Section
+            Forms\Components\Section::make('Quantities')
+                ->schema([
+                    Forms\Components\TextInput::make('quantity_expected')
+                        ->label('Quantity Expected')
+                        ->numeric()
+                        ->required()
+                        ->minValue(1)
+                        ->default(1)
+                        ->helperText('The quantity that was expected to arrive'),
+
+                    Forms\Components\TextInput::make('quantity_received')
+                        ->label('Quantity Received')
+                        ->numeric()
+                        ->required()
+                        ->minValue(0)
+                        ->default(1)
+                        ->helperText('The actual quantity received (may differ from expected)'),
+
+                    Forms\Components\Select::make('packaging_type')
+                        ->label('Packaging Type')
+                        ->options([
+                            'bottles' => 'Bottles',
+                            'cases' => 'Cases',
+                            'pallets' => 'Pallets',
+                            'mixed' => 'Mixed',
+                        ])
+                        ->required()
+                        ->native(false)
+                        ->default('bottles'),
+                ])
+                ->columns(3),
+
+            // Location & Ownership Section
+            Forms\Components\Section::make('Location & Ownership')
+                ->schema([
+                    Forms\Components\Select::make('receiving_location_id')
+                        ->label('Receiving Location')
+                        ->relationship('receivingLocation', 'name')
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->helperText('The physical location where this batch is received'),
+
+                    Forms\Components\Select::make('ownership_type')
+                        ->label('Ownership Type')
+                        ->options(collect(OwnershipType::cases())
+                            ->mapWithKeys(fn (OwnershipType $type): array => [$type->value => $type->label()])
+                            ->toArray())
+                        ->required()
+                        ->native(false)
+                        ->default(OwnershipType::CururatedOwned->value),
+
+                    Forms\Components\DatePicker::make('received_date')
+                        ->label('Received Date')
+                        ->required()
+                        ->default(now())
+                        ->maxDate(now())
+                        ->helperText('The date when this batch was physically received'),
+                ])
+                ->columns(3),
+
+            // Serialization Status Section
+            Forms\Components\Section::make('Serialization')
+                ->schema([
+                    Forms\Components\Select::make('serialization_status')
+                        ->label('Serialization Status')
+                        ->options(collect(InboundBatchStatus::cases())
+                            ->mapWithKeys(fn (InboundBatchStatus $status): array => [$status->value => $status->label()])
+                            ->toArray())
+                        ->required()
+                        ->native(false)
+                        ->default(InboundBatchStatus::PendingSerialization->value)
+                        ->helperText('Set to Pending Serialization for new batches that need to be serialized'),
+                ])
+                ->columns(1),
+
+            // Additional Information Section
+            Forms\Components\Section::make('Additional Information')
+                ->schema([
+                    Forms\Components\TextInput::make('wms_reference_id')
+                        ->label('WMS Reference ID')
+                        ->maxLength(255)
+                        ->helperText('Optional: External WMS system reference (if applicable)'),
+
+                    Forms\Components\Textarea::make('condition_notes')
+                        ->label('Condition Notes')
+                        ->rows(3)
+                        ->maxLength(2000)
+                        ->helperText('Optional: Notes about the condition of the batch upon receipt'),
+                ])
+                ->columns(1)
+                ->collapsible(),
+
+            // Audit Confirmation Section
+            Forms\Components\Section::make('Confirmation')
+                ->schema([
+                    Forms\Components\Checkbox::make('audit_confirmation')
+                        ->label('I confirm that this manual batch creation is necessary and I have provided accurate justification')
+                        ->required()
+                        ->accepted()
+                        ->helperText('This action will be logged for audit purposes'),
+                ])
+                ->extraAttributes(['class' => 'bg-gray-50 dark:bg-gray-950/30']),
+        ]);
     }
 
     public static function table(Table $table): Table
@@ -244,6 +449,7 @@ class InboundBatchResource extends Resource
     {
         return [
             'index' => Pages\ListInboundBatches::route('/'),
+            'create' => Pages\CreateInboundBatch::route('/create'),
             'view' => Pages\ViewInboundBatch::route('/{record}'),
         ];
     }
