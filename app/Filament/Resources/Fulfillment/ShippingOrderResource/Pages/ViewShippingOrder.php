@@ -2,13 +2,16 @@
 
 namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 
+use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
+use App\Models\Allocation\Voucher;
 use App\Models\Fulfillment\ShippingOrder;
 use App\Models\Fulfillment\ShippingOrderLine;
+use App\Services\Fulfillment\ShippingOrderService;
 use Filament\Actions;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
@@ -42,8 +45,8 @@ class ViewShippingOrder extends ViewRecord
                 Tabs::make('Shipping Order Details')
                     ->tabs([
                         $this->getOverviewTab(),
+                        $this->getVouchersAndEligibilityTab(),
                         // Future tabs will be added in subsequent stories:
-                        // US-C025: Vouchers & Eligibility tab
                         // US-C026: Planning tab
                         // US-C027: Picking & Binding tab
                         // US-C028: Audit & Timeline tab
@@ -67,6 +70,387 @@ class ViewShippingOrder extends ViewRecord
                 $this->getPackagingSection(),
                 $this->getVoucherSummarySection(),
             ]);
+    }
+
+    /**
+     * Tab 2: Vouchers & Eligibility
+     * Validate eligibility of each voucher before planning.
+     */
+    protected function getVouchersAndEligibilityTab(): Tab
+    {
+        return Tab::make('Vouchers & Eligibility')
+            ->icon('heroicon-o-shield-check')
+            ->badge(function (ShippingOrder $record): ?string {
+                $ineligibleCount = $this->countIneligibleVouchers($record);
+
+                return $ineligibleCount > 0 ? (string) $ineligibleCount : null;
+            })
+            ->badgeColor('danger')
+            ->schema([
+                $this->getEligibilityBannerSection(),
+                $this->getVoucherEligibilityListSection(),
+            ]);
+    }
+
+    /**
+     * Blocking banner shown when one or more vouchers are ineligible.
+     */
+    protected function getEligibilityBannerSection(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('eligibility_banner')
+                    ->label('')
+                    ->getStateUsing(fn (): string => '⚠️ One or more vouchers are not eligible for fulfillment. '
+                        .'This Shipping Order cannot proceed until all eligibility issues are resolved upstream.')
+                    ->color('danger')
+                    ->weight(FontWeight::Bold)
+                    ->columnSpanFull(),
+            ])
+            ->visible(fn (ShippingOrder $record): bool => $this->countIneligibleVouchers($record) > 0)
+            ->extraAttributes([
+                'class' => 'bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800',
+            ])
+            ->columnSpanFull();
+    }
+
+    /**
+     * Section displaying voucher eligibility details.
+     */
+    protected function getVoucherEligibilityListSection(): Section
+    {
+        return Section::make('Voucher Eligibility')
+            ->description('Eligibility status of each voucher in this Shipping Order')
+            ->icon('heroicon-o-clipboard-document-check')
+            ->schema([
+                Grid::make(3)
+                    ->schema([
+                        TextEntry::make('total_vouchers')
+                            ->label('Total Vouchers')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $record->lines()->count())
+                            ->badge()
+                            ->color('info')
+                            ->size(TextEntry\TextEntrySize::Large),
+                        TextEntry::make('eligible_vouchers')
+                            ->label('Eligible')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->countEligibleVouchers($record))
+                            ->badge()
+                            ->color('success'),
+                        TextEntry::make('ineligible_vouchers')
+                            ->label('Ineligible')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->countIneligibleVouchers($record))
+                            ->badge()
+                            ->color(fn (ShippingOrder $record): string => $this->countIneligibleVouchers($record) > 0 ? 'danger' : 'gray'),
+                    ]),
+                RepeatableEntry::make('lines')
+                    ->label('Vouchers')
+                    ->schema([
+                        Grid::make(1)
+                            ->schema([
+                                Grid::make(6)
+                                    ->schema([
+                                        TextEntry::make('voucher.id')
+                                            ->label('Voucher ID')
+                                            ->url(fn (ShippingOrderLine $record): ?string => $record->voucher
+                                                ? VoucherResource::getUrl('view', ['record' => $record->voucher])
+                                                : null)
+                                            ->openUrlInNewTab()
+                                            ->color('primary')
+                                            ->copyable()
+                                            ->copyMessage('Voucher ID copied')
+                                            ->limit(8),
+                                        TextEntry::make('voucher.wineVariant.wineMaster.name')
+                                            ->label('Wine/SKU')
+                                            ->default('Unknown')
+                                            ->weight(FontWeight::Medium),
+                                        TextEntry::make('allocation.id')
+                                            ->label('Allocation Lineage')
+                                            ->limit(8)
+                                            ->copyable()
+                                            ->copyMessage('Allocation ID copied'),
+                                        TextEntry::make('voucher.lifecycle_state')
+                                            ->label('Voucher State')
+                                            ->badge()
+                                            ->formatStateUsing(fn (ShippingOrderLine $record): string => $record->voucher?->getLifecycleStateLabel() ?? 'Unknown')
+                                            ->color(fn (ShippingOrderLine $record): string => $record->voucher?->getLifecycleStateColor() ?? 'gray')
+                                            ->icon(fn (ShippingOrderLine $record): string => $record->voucher?->getLifecycleStateIcon() ?? 'heroicon-o-question-mark-circle'),
+                                        TextEntry::make('eligibility_status')
+                                            ->label('Eligibility')
+                                            ->getStateUsing(fn (ShippingOrderLine $line): string => $this->getEligibilityStatusLabel($line))
+                                            ->badge()
+                                            ->color(fn (ShippingOrderLine $line): string => $this->getEligibilityStatusColor($line))
+                                            ->icon(fn (ShippingOrderLine $line): string => $this->getEligibilityStatusIcon($line)),
+                                    ]),
+                                // Eligibility checks detail - shown for all vouchers
+                                $this->getEligibilityChecksGroup(),
+                            ]),
+                    ])
+                    ->columns(1),
+            ]);
+    }
+
+    /**
+     * Get the eligibility checks group showing individual check results.
+     */
+    protected function getEligibilityChecksGroup(): Group
+    {
+        return Group::make([
+            TextEntry::make('eligibility_checks')
+                ->label('Eligibility Checks')
+                ->getStateUsing(function (ShippingOrderLine $line): string {
+                    return $this->formatEligibilityChecks($line);
+                })
+                ->html()
+                ->columnSpanFull(),
+        ]);
+    }
+
+    /**
+     * Format eligibility checks as HTML for display.
+     */
+    protected function formatEligibilityChecks(ShippingOrderLine $line): string
+    {
+        $voucher = $line->voucher;
+        /** @var ShippingOrder $shippingOrder */
+        $shippingOrder = $this->record;
+
+        if ($voucher === null) {
+            return '<div class="text-danger-600">❌ Voucher not found</div>';
+        }
+
+        $checks = $this->performEligibilityChecks($voucher, $shippingOrder);
+
+        $html = '<div class="grid grid-cols-2 gap-2 text-sm mt-2">';
+        foreach ($checks as $check) {
+            $icon = $check['passed'] ? '✓' : '✗';
+            $colorClass = $check['passed'] ? 'text-success-600' : 'text-danger-600';
+            $html .= "<div class=\"{$colorClass}\">{$icon} {$check['label']}</div>";
+        }
+        $html .= '</div>';
+
+        // If any checks failed, show the reason
+        $failedChecks = array_filter($checks, fn ($c) => ! $c['passed']);
+        if ($failedChecks !== []) {
+            $html .= '<div class="mt-2 p-2 rounded bg-danger-50 dark:bg-danger-900/20 text-danger-700 dark:text-danger-300 text-sm">';
+            foreach ($failedChecks as $check) {
+                if (isset($check['reason'])) {
+                    $html .= '<div>'.e($check['reason']).'</div>';
+                }
+            }
+            $html .= '</div>';
+        }
+
+        return $html;
+    }
+
+    /**
+     * Perform all eligibility checks for a voucher.
+     *
+     * @return list<array{label: string, passed: bool, reason?: string}>
+     */
+    protected function performEligibilityChecks(Voucher $voucher, ShippingOrder $shippingOrder): array
+    {
+        $checks = [];
+
+        // Check 1: Voucher not cancelled
+        $notCancelled = $voucher->lifecycle_state !== VoucherLifecycleState::Cancelled;
+        $checks[] = [
+            'label' => 'Voucher not cancelled',
+            'passed' => $notCancelled,
+            'reason' => $notCancelled ? null : 'Voucher has been cancelled and cannot be fulfilled.',
+        ];
+
+        // Check 2: Voucher not already redeemed
+        $notRedeemed = $voucher->lifecycle_state !== VoucherLifecycleState::Redeemed;
+        $checks[] = [
+            'label' => 'Voucher not redeemed',
+            'passed' => $notRedeemed,
+            'reason' => $notRedeemed ? null : 'Voucher has already been redeemed.',
+        ];
+
+        // Check 3: Voucher not locked by other processes
+        $notLockedElsewhere = true;
+        $lockReason = null;
+        if ($voucher->lifecycle_state === VoucherLifecycleState::Locked) {
+            // Check if it's locked for THIS SO (which is OK)
+            $lockedForThisSo = $shippingOrder->lines()
+                ->where('voucher_id', $voucher->id)
+                ->exists();
+            $notLockedElsewhere = $lockedForThisSo;
+            if (! $lockedForThisSo) {
+                $lockReason = 'Voucher is locked by another process (possibly another Shipping Order).';
+            }
+        }
+        // Also check if voucher is in another active SO
+        $inOtherSo = ShippingOrderLine::query()
+            ->where('voucher_id', $voucher->id)
+            ->where('shipping_order_id', '!=', $shippingOrder->id)
+            ->whereHas('shippingOrder', function ($query) {
+                $query->whereIn('status', [
+                    ShippingOrderStatus::Draft->value,
+                    ShippingOrderStatus::Planned->value,
+                    ShippingOrderStatus::Picking->value,
+                    ShippingOrderStatus::OnHold->value,
+                ]);
+            })
+            ->first();
+        if ($inOtherSo !== null) {
+            $notLockedElsewhere = false;
+            $lockReason = "Voucher is already assigned to Shipping Order {$inOtherSo->shipping_order_id}.";
+        }
+        $checks[] = [
+            'label' => 'Not locked by other processes',
+            'passed' => $notLockedElsewhere,
+            'reason' => $lockReason,
+        ];
+
+        // Check 4: Voucher not suspended
+        $notSuspended = ! $voucher->suspended;
+        $checks[] = [
+            'label' => 'Voucher not suspended',
+            'passed' => $notSuspended,
+            'reason' => $notSuspended ? null : 'Voucher is suspended. '.$voucher->getSuspensionReason(),
+        ];
+
+        // Check 5: Customer match (holder = SO customer)
+        $customerMatch = $voucher->customer_id === $shippingOrder->customer_id;
+        $checks[] = [
+            'label' => 'Customer match (holder = SO customer)',
+            'passed' => $customerMatch,
+            'reason' => $customerMatch ? null : 'Voucher holder does not match Shipping Order customer.',
+        ];
+
+        // Additional checks from ShippingOrderService
+
+        // Check 6: Not in pending transfer
+        $noPendingTransfer = ! $voucher->hasPendingTransfer();
+        $checks[] = [
+            'label' => 'No pending transfer',
+            'passed' => $noPendingTransfer,
+            'reason' => $noPendingTransfer ? null : 'Voucher has a pending transfer. Complete or cancel the transfer first.',
+        ];
+
+        // Check 7: Not quarantined
+        $notQuarantined = ! $voucher->isQuarantined();
+        $checks[] = [
+            'label' => 'Not quarantined',
+            'passed' => $notQuarantined,
+            'reason' => $notQuarantined ? null : 'Voucher requires attention: '.($voucher->getAttentionReason() ?? 'Unknown issue'),
+        ];
+
+        // Check 8: Valid allocation lineage
+        $validAllocation = ! $voucher->hasLineageIssues();
+        $checks[] = [
+            'label' => 'Valid allocation lineage',
+            'passed' => $validAllocation,
+            'reason' => $validAllocation ? null : 'Voucher has allocation lineage issues.',
+        ];
+
+        return $checks;
+    }
+
+    /**
+     * Check if a voucher is eligible for fulfillment.
+     */
+    protected function isVoucherEligible(ShippingOrderLine $line): bool
+    {
+        $voucher = $line->voucher;
+        if ($voucher === null) {
+            return false;
+        }
+
+        /** @var ShippingOrder $shippingOrder */
+        $shippingOrder = $this->record;
+
+        $checks = $this->performEligibilityChecks($voucher, $shippingOrder);
+
+        foreach ($checks as $check) {
+            if (! $check['passed']) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the eligibility status label.
+     */
+    protected function getEligibilityStatusLabel(ShippingOrderLine $line): string
+    {
+        return $this->isVoucherEligible($line) ? 'Eligible' : 'Ineligible';
+    }
+
+    /**
+     * Get the eligibility status color.
+     */
+    protected function getEligibilityStatusColor(ShippingOrderLine $line): string
+    {
+        return $this->isVoucherEligible($line) ? 'success' : 'danger';
+    }
+
+    /**
+     * Get the eligibility status icon.
+     */
+    protected function getEligibilityStatusIcon(ShippingOrderLine $line): string
+    {
+        return $this->isVoucherEligible($line) ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle';
+    }
+
+    /**
+     * Count eligible vouchers in the Shipping Order.
+     */
+    protected function countEligibleVouchers(ShippingOrder $record): int
+    {
+        $record->load('lines.voucher');
+        $count = 0;
+
+        foreach ($record->lines as $line) {
+            if ($this->isVoucherEligibleForRecord($line, $record)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Count ineligible vouchers in the Shipping Order.
+     */
+    protected function countIneligibleVouchers(ShippingOrder $record): int
+    {
+        $record->load('lines.voucher');
+        $count = 0;
+
+        foreach ($record->lines as $line) {
+            if (! $this->isVoucherEligibleForRecord($line, $record)) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * Check if a voucher is eligible for a given shipping order record.
+     * (Used when $this->record may not be set yet, e.g., in badge callbacks)
+     */
+    protected function isVoucherEligibleForRecord(ShippingOrderLine $line, ShippingOrder $record): bool
+    {
+        $voucher = $line->voucher;
+        if ($voucher === null) {
+            return false;
+        }
+
+        $checks = $this->performEligibilityChecks($voucher, $record);
+
+        foreach ($checks as $check) {
+            if (! $check['passed']) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
