@@ -455,3 +455,24 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Pre-fill downstream fields in afterStateUpdated() to provide good UX defaults
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-021
+- What was implemented:
+  - Fixed Step 2 (Supplier) of Create PO wizard
+  - Fixed supplier search to use `whereHas('roles', ...)` with PartyRoleType enum values
+  - Removed invalid `trade_name` field reference (doesn't exist on Party)
+  - Added proper role filtering (supplier/producer only) via PartyRoleType enum
+  - Updated `formatPartyOption()` to display relevant roles (Supplier/Producer) in brackets
+  - Fixed type safety issues for PHPStan compliance (is_scalar checks before string casting)
+  - Eager-loads roles and supplierConfig for preview data
+  - ProducerSupplierConfig shown when available with default constraints
+  - "No config" message shown when supplier has no ProducerSupplierConfig
+- Files changed:
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/CreatePurchaseOrder.php (modified)
+- **Learnings for future iterations:**
+  - Party model has `roles` relationship (HasMany<PartyRole>), not a `role` field
+  - PartyRole.role is cast to PartyRoleType enum - use helper methods like `isSupplier()`, `isProducer()`
+  - Filter suppliers/producers with: `whereHas('roles', fn($q) => $q->whereIn('role', [PartyRoleType::Supplier->value, PartyRoleType::Producer->value]))`
+  - Always eager-load relationships needed for display: `with(['roles', 'supplierConfig'])`
+  - Use `$role->role->label()` for enum label (role.role is PartyRoleType enum)
+---
