@@ -523,3 +523,24 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - EVENT_CASE_BROKEN audit event added for tracking case breaks during shipment
   - InventoryCase.display_label accessor returns "Case #{id}" for display
 ---
+
+## 2026-02-04 - US-C036
+- **What was implemented:** ShipmentResource in Filament for managing Shipments
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShipmentResource.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShipmentResource/Pages/ListShipments.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShipmentResource/Pages/ViewShipment.php` (new)
+- **Learnings for future iterations:**
+  - Navigation icon: heroicon-o-paper-airplane for shipments (truck used for ShippingOrders)
+  - Navigation sort: 2 (after ShippingOrders which is 1) for logical ordering in Fulfillment group
+  - Shipments are read-only: canCreate(), canEdit(), canDelete() all return false
+  - Shipments are created from ShippingOrders only - no create page/action needed
+  - bottles_count computed via getBottleCount() method from JSON shipped_bottle_serials field
+  - Sorting by JSON array length: `orderByRaw("JSON_LENGTH(shipped_bottle_serials) {$direction}")`
+  - SO ID column links to ShippingOrderResource view using route() with 'fulfillment.shipping-orders.view' pattern
+  - Tracking URL helper method matches carrier name to tracking URL template (DHL, FedEx, UPS, etc.)
+  - ViewShipment uses Infolist with sections: Status Banner, Shipping Order, Carrier & Tracking, Shipped Items (collapsible), Audit Trail, Notes
+  - Shipped Items table displays serials with index numbering in alternating row colors
+  - Export CSV bulk action available for list view
+  - Browser verification pending
+---
