@@ -812,3 +812,36 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Use Forms\Components\Select with options callback for WineVariant and Format selection
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B030
+- **Implemented**: CaseResource in Filament - Cases list as physical containers
+- **Files created**:
+  - app/Filament/Resources/Inventory/CaseResource.php
+  - app/Filament/Resources/Inventory/CaseResource/Pages/ListCases.php
+  - app/Filament/Resources/Inventory/CaseResource/Pages/ViewCase.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 5)
+  - List columns: case_id (copyable), configuration (name + bottles count), is_original (icon), is_breakable (icon), integrity_status (badge), location, bottle_count (badge), allocation_lineage (toggleable), broken_at
+  - Visual indicators: Broken cases highlighted with danger background (bg-danger-50)
+  - Filters: integrity_status (select), location (searchable select), is_original (ternary), is_breakable (ternary), TrashedFilter
+  - Search: case_id (via id column searchable)
+  - No create action (cases created through serialization process)
+  - No bulk actions (cases managed through detail page)
+- **ViewCase page**:
+  - Basic info display with integrity status, original/breakable flags, location, bottle count
+  - Full detail tabs to be implemented in US-B031
+- **Acceptance criteria verification**:
+  - ✅ CaseResource in Filament with navigation group Inventory
+  - ✅ List columns: case_id, configuration, is_original, is_breakable, integrity_status (badge), location, bottle_count
+  - ✅ Filters: integrity_status, location, is_original
+  - ✅ Search by case_id
+  - ✅ Visual indicator for broken cases (row highlighting)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Model is InventoryCase (not Case) to avoid PHP reserved keyword - important for type hints
+  - CaseConfiguration has bottles_per_case for display in configuration column
+  - canCreate() override returns false to prevent direct case creation
+  - recordClasses() for row-level visual indicators based on integrity status
+  - bottle_count column uses sortable with custom query using withCount
+  - Browser verification requirement noted - manual testing needed
+---
