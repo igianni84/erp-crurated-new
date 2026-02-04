@@ -67,6 +67,7 @@ class ViewPricingPolicy extends ViewRecord
                         $this->getLogicTab(),
                         $this->getScopeTab(),
                         $this->getExecutionTab(),
+                        $this->getExecutionHistoryTab(),
                         $this->getImpactPreviewTab(),
                         $this->getLifecycleTab(),
                         $this->getAuditTab(),
@@ -664,7 +665,162 @@ class ViewPricingPolicy extends ViewRecord
     }
 
     /**
-     * Tab 5: Impact Preview - Old price vs new price, EMP delta, warnings.
+     * Tab 5: Execution History - Complete history of all policy executions.
+     */
+    protected function getExecutionHistoryTab(): Tab
+    {
+        /** @var PricingPolicy $record */
+        $record = $this->record;
+        $executionCount = $record->executions()->count();
+
+        return Tab::make('Execution History')
+            ->icon('heroicon-o-queue-list')
+            ->badge($executionCount > 0 ? (string) $executionCount : null)
+            ->schema([
+                Section::make('All Executions')
+                    ->description(fn (): string => "Complete execution history - {$executionCount} total executions")
+                    ->icon('heroicon-o-clock')
+                    ->schema([
+                        RepeatableEntry::make('all_executions')
+                            ->label('')
+                            ->schema([
+                                Grid::make(7)
+                                    ->schema([
+                                        TextEntry::make('executed_at')
+                                            ->label('Date/Time')
+                                            ->dateTime('M j, Y H:i:s')
+                                            ->size(TextEntry\TextEntrySize::Small),
+                                        TextEntry::make('execution_type')
+                                            ->label('Type')
+                                            ->badge()
+                                            ->formatStateUsing(fn (ExecutionType $state): string => $state->label())
+                                            ->color(fn (ExecutionType $state): string => $state->color())
+                                            ->icon(fn (ExecutionType $state): string => $state->icon()),
+                                        TextEntry::make('status')
+                                            ->label('Status')
+                                            ->badge()
+                                            ->formatStateUsing(fn (ExecutionStatus $state): string => $state->label())
+                                            ->color(fn (ExecutionStatus $state): string => $state->color())
+                                            ->icon(fn (ExecutionStatus $state): string => $state->icon()),
+                                        TextEntry::make('skus_processed')
+                                            ->label('SKUs Processed')
+                                            ->badge()
+                                            ->color('info'),
+                                        TextEntry::make('prices_generated')
+                                            ->label('Prices Generated')
+                                            ->badge()
+                                            ->color('success'),
+                                        TextEntry::make('errors_count')
+                                            ->label('Errors')
+                                            ->badge()
+                                            ->color(fn (int $state): string => $state > 0 ? 'danger' : 'gray'),
+                                        TextEntry::make('success_rate')
+                                            ->label('Success Rate')
+                                            ->getStateUsing(fn (PricingPolicyExecution $execution): string => $execution->getSuccessRate().'%')
+                                            ->badge()
+                                            ->color(fn (PricingPolicyExecution $execution): string => match (true) {
+                                                $execution->getSuccessRate() >= 100 => 'success',
+                                                $execution->getSuccessRate() >= 80 => 'warning',
+                                                default => 'danger',
+                                            }),
+                                    ]),
+                                TextEntry::make('log_summary_full')
+                                    ->label('Execution Log')
+                                    ->getStateUsing(fn (PricingPolicyExecution $execution): string => $execution->log_summary ?? 'No execution log available')
+                                    ->columnSpanFull()
+                                    ->prose()
+                                    ->markdown(),
+                            ])
+                            ->getStateUsing(fn (PricingPolicy $policyRecord) => $policyRecord->executions()->latest('executed_at')->get())
+                            ->contained(true)
+                            ->columnSpanFull(),
+                    ]),
+
+                Section::make('Target Price Book')
+                    ->description('View prices generated by this policy')
+                    ->icon('heroicon-o-book-open')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('targetPriceBook.name')
+                                    ->label('Price Book Name')
+                                    ->placeholder('No target price book assigned')
+                                    ->weight(FontWeight::Medium)
+                                    ->url(fn (PricingPolicy $policyRecord): ?string => $policyRecord->targetPriceBook
+                                        ? route('filament.admin.resources.price-books.view', ['record' => $policyRecord->targetPriceBook->id])
+                                        : null)
+                                    ->color('primary')
+                                    ->icon('heroicon-o-arrow-top-right-on-square'),
+                                TextEntry::make('targetPriceBook.market')
+                                    ->label('Market')
+                                    ->placeholder('—'),
+                                TextEntry::make('targetPriceBook.currency')
+                                    ->label('Currency')
+                                    ->placeholder('—'),
+                            ]),
+                        TextEntry::make('price_book_link_info')
+                            ->label('')
+                            ->getStateUsing(fn (PricingPolicy $policyRecord): string => $policyRecord->targetPriceBook !== null
+                                ? '<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"><p class="text-sm text-blue-700 dark:text-blue-300"><strong>Tip:</strong> Click the Price Book name above to view all prices generated by this policy. In the Prices tab, you can filter by source to see only policy-generated prices.</p></div>'
+                                : '<div class="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800"><p class="text-sm text-yellow-700 dark:text-yellow-300"><strong>Note:</strong> No target Price Book is assigned to this policy. Generated prices will not be stored until a target is configured.</p></div>')
+                            ->html()
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible(),
+
+                Section::make('Execution Statistics')
+                    ->description('Summary of execution performance')
+                    ->icon('heroicon-o-chart-pie')
+                    ->schema([
+                        Grid::make(4)
+                            ->schema([
+                                TextEntry::make('total_executions')
+                                    ->label('Total Executions')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->count())
+                                    ->badge()
+                                    ->color('primary'),
+                                TextEntry::make('successful_executions')
+                                    ->label('Successful')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->where('status', ExecutionStatus::Success->value)->count())
+                                    ->badge()
+                                    ->color('success'),
+                                TextEntry::make('partial_executions')
+                                    ->label('Partial')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->where('status', ExecutionStatus::Partial->value)->count())
+                                    ->badge()
+                                    ->color('warning'),
+                                TextEntry::make('failed_executions')
+                                    ->label('Failed')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->where('status', ExecutionStatus::Failed->value)->count())
+                                    ->badge()
+                                    ->color('danger'),
+                            ]),
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('manual_executions')
+                                    ->label('Manual')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->where('execution_type', ExecutionType::Manual->value)->count())
+                                    ->badge()
+                                    ->color('primary'),
+                                TextEntry::make('scheduled_executions')
+                                    ->label('Scheduled')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->where('execution_type', ExecutionType::Scheduled->value)->count())
+                                    ->badge()
+                                    ->color('success'),
+                                TextEntry::make('dry_run_executions')
+                                    ->label('Dry Runs')
+                                    ->getStateUsing(fn (PricingPolicy $policyRecord): int => $policyRecord->executions()->where('execution_type', ExecutionType::DryRun->value)->count())
+                                    ->badge()
+                                    ->color('warning'),
+                            ]),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
+            ]);
+    }
+
+    /**
+     * Tab 6: Impact Preview - Old price vs new price, EMP delta, warnings.
      */
     protected function getImpactPreviewTab(): Tab
     {
