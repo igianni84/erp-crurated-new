@@ -1296,3 +1296,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Date range selector affects multiple widget methods - centralize the property
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-057
+- What was implemented:
+  - Verified FK constraint at DB level: purchase_orders.procurement_intent_id NOT NULL (already in migration 2026_02_04_400003)
+  - Verified model boot() validation: throws InvalidArgumentException with "A Purchase Order cannot exist without a Procurement Intent"
+  - Verified UI wizard: CreatePurchaseOrder Step 1 requires intent selection with ->required() and prominent warning message
+  - Added comprehensive test: PurchaseOrderIntentInvariantTest with 6 test cases
+    - test_po_creation_without_intent_throws_exception
+    - test_po_creation_with_empty_intent_throws_exception
+    - test_po_creation_with_intent_succeeds
+    - test_po_belongs_to_procurement_intent
+    - test_intent_can_have_multiple_pos
+    - test_updating_intent_to_empty_throws_exception
+  - All tests pass, PHPStan and Pint pass
+- Files changed:
+  - tests/Unit/Models/Procurement/PurchaseOrderIntentInvariantTest.php (new)
+  - prd.json (marked US-057 as passes: true)
+- **Learnings for future iterations:**
+  - Intent-before-PO invariant was already fully implemented in US-003 (DB constraint) and US-020 (UI wizard)
+  - CaseConfiguration requires format_id and case_type fields for test setup
+  - PHPStan's "unused ignored pattern" error is a config issue, not a code error
+  - Test RefreshDatabase trait with full model setup works well for constraint verification
+---
