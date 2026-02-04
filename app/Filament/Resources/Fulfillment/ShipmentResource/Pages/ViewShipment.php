@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Fulfillment\ShipmentResource\Pages;
 use App\Enums\Fulfillment\ShipmentStatus;
 use App\Filament\Resources\Fulfillment\ShipmentResource;
 use App\Models\Fulfillment\Shipment;
+use App\Models\Inventory\SerializedBottle;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
@@ -138,17 +139,50 @@ class ViewShipment extends ViewRecord
                                     return new HtmlString('<p class="text-gray-500 italic">No bottles in this shipment</p>');
                                 }
 
+                                // Query bottles with wine info
+                                $bottles = SerializedBottle::whereIn('serial_number', $serials)
+                                    ->with(['wineVariant.wineMaster', 'format'])
+                                    ->get()
+                                    ->keyBy('serial_number');
+
                                 $html = '<div class="overflow-x-auto"><table class="w-full text-sm border-collapse">';
                                 $html .= '<thead><tr class="border-b">';
                                 $html .= '<th class="text-left py-2 px-3 font-medium">#</th>';
                                 $html .= '<th class="text-left py-2 px-3 font-medium">Serial Number</th>';
+                                $html .= '<th class="text-left py-2 px-3 font-medium">Wine</th>';
+                                $html .= '<th class="text-left py-2 px-3 font-medium">Vintage</th>';
+                                $html .= '<th class="text-left py-2 px-3 font-medium">Format</th>';
                                 $html .= '</tr></thead><tbody>';
 
                                 foreach ($serials as $index => $serial) {
+                                    $bottle = $bottles->get($serial);
                                     $rowClass = $index % 2 === 0 ? 'bg-gray-50 dark:bg-gray-900' : '';
+
+                                    // Get wine info
+                                    $wineName = '-';
+                                    $vintage = '-';
+                                    $formatName = '-';
+
+                                    if ($bottle !== null) {
+                                        $wineVariant = $bottle->wineVariant;
+                                        if ($wineVariant !== null && $wineVariant->wineMaster !== null) {
+                                            $wineName = $wineVariant->wineMaster->name;
+                                        }
+                                        if ($wineVariant !== null) {
+                                            $vintage = (string) $wineVariant->vintage_year;
+                                        }
+                                        $format = $bottle->format;
+                                        if ($format !== null) {
+                                            $formatName = $format->name;
+                                        }
+                                    }
+
                                     $html .= "<tr class=\"border-b {$rowClass}\">";
                                     $html .= '<td class="py-2 px-3">'.($index + 1).'</td>';
                                     $html .= '<td class="py-2 px-3 font-mono">'.e($serial).'</td>';
+                                    $html .= '<td class="py-2 px-3">'.e($wineName).'</td>';
+                                    $html .= '<td class="py-2 px-3">'.e($vintage).'</td>';
+                                    $html .= '<td class="py-2 px-3">'.e($formatName).'</td>';
                                     $html .= '</tr>';
                                 }
 
