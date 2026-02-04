@@ -244,3 +244,29 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Pint requires `concat_space` - use `.` without spaces for string concatenation
   - Migration sequence continues: 390004 for addresses table
 ---
+
+## 2026-02-04 - US-011
+- What was implemented:
+  - Created `MembershipTier` enum (legacy, member, invitation_only) with label/color/icon/description methods
+  - Created `MembershipStatus` enum (applied, under_review, approved, rejected, suspended) with label/color/icon methods
+  - Added `validTransitions()` and `canTransitionTo()` methods on MembershipStatus for workflow state machine
+  - Created `Membership` model with HasUuid, Auditable traits
+  - Created migration for `memberships` table with FK to customers, tier, status, effective dates, and decision_notes
+  - Added `memberships()` hasMany relationship to Customer for historical records
+  - Added `membership()` hasOne relationship using `latestOfMany()` for current membership
+  - Added `activeMembership()` hasOne relationship for active approved membership within effective dates
+  - Added helper methods: `hasActiveMembership()`, `getMembershipTier()`, `getMembershipStatus()`
+  - Added scopes on Membership: `scopeActive()`, `scopeCurrent()`
+- Files changed:
+  - app/Enums/Customer/MembershipTier.php (new)
+  - app/Enums/Customer/MembershipStatus.php (new)
+  - app/Models/Customer/Membership.php (new)
+  - app/Models/Customer/Customer.php (updated - added membership relationships and helpers)
+  - database/migrations/2026_02_04_390005_create_memberships_table.php (new)
+- **Learnings for future iterations:**
+  - Use `latestOfMany()` for hasOne relationship to get the most recent record from a hasMany
+  - Membership status enum includes `validTransitions()` for state machine workflow validation
+  - A Customer can have one active Membership (approved + within effective dates) but multiple historical records
+  - Migration sequence continues: 390005 for memberships table
+  - Use `HasOne` with query constraints for relationships like `activeMembership()` that filter by status and dates
+---
