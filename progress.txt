@@ -1033,3 +1033,40 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - DB::transaction() with references (&$var) allows capturing values from within transaction
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B036
+- **Implemented**: Consignment Placement page for placing Crurated-owned inventory at consignee locations
+- **Files created**:
+  - app/Filament/Pages/CreateConsignmentPlacement.php
+  - resources/views/filament/pages/create-consignment-placement.blade.php
+- **Files modified**:
+  - app/Services/Inventory/MovementService.php (added placeBottleInConsignment, placeCaseInConsignment methods)
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 8)
+  - Step 1 - Source Location: Select warehouse (main/satellite) where items are stored
+  - Step 2 - Select Items: Only shows Crurated-owned bottles (filtered by ownership_type), CheckboxList with searchable/bulk toggle
+  - Step 3 - Consignee: Select consignee location (filtered by location_type = consignee), reason field
+  - Step 4 - Review & Confirm: Summary with from/to, items count, ownership/custody explanation, confirmation
+  - Consignment execution: Uses new MovementService methods
+  - Bottles get custody_holder updated to consignee name
+  - Movement created with type = consignment_placement, custody_changed = true
+- **Service methods added**:
+  - placeBottleInConsignment(bottle, consigneeLocation, executor, reason): Creates movement, updates bottle location and custody_holder
+  - placeCaseInConsignment(case, consigneeLocation, executor, reason): Creates movement, updates case location and all contained bottles
+- **Acceptance criteria verification**:
+  - ✅ Consignment Placement action in Inventory section (navigation sort 8)
+  - ✅ Select items (bottles/cases) owned by Crurated (filtered by OwnershipType::CururatedOwned)
+  - ✅ Select consignee location (filtered by LocationType::Consignee)
+  - ✅ Movement created with type = consignment_placement
+  - ✅ Items: ownership remains Crurated (not changed), custody changes to consignee (via custody_holder field)
+  - ✅ custody_changed = true on movement record
+  - ✅ Audit log complete (movements are immutable)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - OwnershipType::CururatedOwned is the enum case for Crurated ownership (note spelling)
+  - LocationType::Consignee is used to filter consignee locations
+  - custody_holder field on SerializedBottle stores the name of the current custodian
+  - Source location should be filtered to warehouse types (MainWarehouse, SatelliteWarehouse)
+  - Consignment placement maintains ownership (Crurated) but changes custody (consignee)
+  - Browser verification requirement noted - manual testing needed
+---
