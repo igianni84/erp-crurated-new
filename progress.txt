@@ -475,3 +475,18 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Cache key pattern: `late_binding_inventory:{allocation_id}:{warehouse_id|all}`
   - clearInventoryCache() method available for cache invalidation
 ---
+
+## 2026-02-04 - US-C033
+- **What was implemented:** Late Binding Execution - verified existing implementation meets all acceptance criteria
+- **Files verified (no changes needed):**
+  - `app/Services/Fulfillment/LateBindingService.php` (bindVoucherToBottle at lines 171-264, unbindLine at lines 427-482)
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (receivePickingFeedback at lines 122-276, validateSerial at lines 642-698)
+- **Learnings for future iterations:**
+  - This story was already fully implemented as part of US-C012 and US-C015
+  - WMS pick feedback triggers binding via WmsIntegrationService.receivePickingFeedback()
+  - receivePickingFeedback() validates each serial via validateSerial(), then calls lateBindingService.bindVoucherToBottle()
+  - Validation checks: serial exists, allocation lineage match, bottle.state = Stored/ReservedForPicking, not in terminal state, not bound to another active line
+  - bindVoucherToBottle() updates: bound_bottle_serial, binding_confirmed_at, binding_confirmed_by, bottle.state → ReservedForPicking
+  - Binding reversible via unbindLine() which throws if $line->isShipped() - shipment confirmation is the "point of no return"
+  - Line status auto-transitions from Pending → Validated when receiving WMS feedback
+---

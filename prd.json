@@ -546,8 +546,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 33,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C012 (LateBindingService) and US-C015 (WmsIntegrationService). WMS pick feedback via receivePickingFeedback() triggers bindVoucherToBottle() with full validation. Binding reversible via unbindLine() until shipment."
     },
     {
       "id": "US-C034",
