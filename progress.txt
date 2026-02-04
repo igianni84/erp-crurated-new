@@ -332,3 +332,29 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Close operations require a two-phase validation: first `canClose()` to check preconditions, then `close()` to execute
   - The ViewProcurementIntent page disables the Close action when canClose() returns false, showing pending items in modal
 ---
+
+## 2026-02-04 - US-016
+- What was implemented:
+  - VoucherIssued event class in app/Events/ dispatched after vouchers are issued
+  - CreateProcurementIntentOnVoucherIssued listener (queued) in app/Listeners/Procurement/
+  - Migration adding source_allocation_id, source_voucher_id, needs_ops_review fields to procurement_intents
+  - Updated ProcurementIntent model with new fields, relationships (sourceAllocation, sourceVoucher), and helper methods
+  - Event listener registered in AppServiceProvider via Event::listen()
+  - VoucherService.issueVouchers() now dispatches VoucherIssued event after successful transaction
+  - Listener creates draft intent with voucher_driven trigger type and sourcing_model inferred from allocation source type
+  - needs_ops_review flag set to true for auto-created intents
+- Files changed:
+  - app/Events/VoucherIssued.php (new)
+  - app/Listeners/Procurement/CreateProcurementIntentOnVoucherIssued.php (new)
+  - database/migrations/2026_02_04_400016_add_source_context_to_procurement_intents.php (new)
+  - app/Models/Procurement/ProcurementIntent.php (modified - added source context fields and relationships)
+  - app/Providers/AppServiceProvider.php (modified - registered event listener)
+  - app/Services/Allocation/VoucherService.php (modified - dispatches VoucherIssued event)
+- **Learnings for future iterations:**
+  - Laravel 11+ doesn't have EventServiceProvider by default; register events via Event::listen() in AppServiceProvider
+  - Dispatch events AFTER DB transaction completes to ensure data consistency
+  - Use `implements ShouldQueue` on listeners for async processing to avoid blocking the main request
+  - The `SerializesModels` trait on events allows passing Eloquent models to queued listeners
+  - ProcurementIntentService::createFromVoucherSale() already exists and infers sourcing_model from allocation source type
+  - Use `needs_ops_review` flag pattern for items requiring manual attention rather than complex notification systems
+---
