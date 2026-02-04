@@ -659,3 +659,23 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Audit log includes: shipment_id, failure_type, reason, shipment_status=failed, redemption_executed=false, admin_intervention_required=true
   - Two failure scenarios handled: partial_shipment (missing serials), validation_failed (invalid serials)
 ---
+
+## 2026-02-04 - US-C048 to US-C054
+- **What was implemented:** Verified WMS stories and Audit Trail stories (all already implemented)
+- **Files verified (no changes needed):**
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (sendPickingInstructions, receivePickingFeedback, validateSerial, confirmShipment)
+  - `app/Services/Fulfillment/LateBindingService.php` (binding events with voucher_id, bottle_serial, allocation_id)
+  - `app/Models/Fulfillment/ShippingOrderAuditLog.php` (immutable via boot() guards)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (Audit & Timeline tab)
+  - `app/Filament/Resources/Fulfillment/ShipmentResource/Pages/ViewShipment.php` (Audit Trail section)
+- **Learnings for future iterations:**
+  - US-C048 to US-C051 (WMS stories) were already implemented in US-C015 (WmsIntegrationService)
+  - sendPickingInstructions() builds payload with early/late binding types
+  - receivePickingFeedback() validates serials and executes bindings
+  - validateSerial() checks: serial exists, allocation match, bottle state, not terminal, not bound to another
+  - confirmShipment() validates all expected serials, creates exception for partial shipment
+  - US-C052 (SO Audit Trail) implemented in US-C010 (model) and US-C028 (UI)
+  - US-C053 (Shipment Audit Trail) implemented in US-C037 with Audit Trail section
+  - US-C054 (Binding Audit) implemented in US-C012 with EVENT_BINDING_EXECUTED logging
+  - Query bindings by allocation: ShippingOrderLine.where('allocation_id', $allocationId)->whereNotNull('bound_bottle_serial')
+---

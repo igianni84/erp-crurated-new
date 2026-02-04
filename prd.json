@@ -775,8 +775,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 48,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C015. sendPickingInstructions() builds payload with so_id, warehouse_id, lines (voucher_id, allocation_id, product_info). Early binding includes specific_serial, late binding includes allocation_constraint. EVENT_WMS_INSTRUCTIONS_SENT logged."
     },
     {
       "id": "US-C049",
@@ -789,8 +789,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 49,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C015. receivePickingFeedback() validates each serial via validateSerial(), executes binding via lateBindingService.bindVoucherToBottle(), creates discrepancy via handleDiscrepancy() if invalid. checkPickingCompletion() verifies all bindings complete."
     },
     {
       "id": "US-C050",
@@ -802,8 +802,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 50,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C015. validateSerial() checks: serial exists, allocation_id match, bottle.state is Stored/ReservedForPicking, not terminal state, not bound to another active line. Validation failure creates WmsDiscrepancy exception via handleDiscrepancy()."
     },
     {
       "id": "US-C051",
@@ -818,8 +818,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 51,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C015. confirmShipment() validates all expected serials shipped, creates exception for partial shipment, triggers shipmentService.confirmShipment() which triggers redemption and ownership transfer. Partial shipment not supported - creates WmsDiscrepancy exception."
     },
     {
       "id": "US-C052",
@@ -833,8 +833,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 52,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C010 (model) and US-C028 (UI tab). ShippingOrderAuditLog model has boot() guards preventing update/delete. All services log events via logEvent(). Audit & Timeline tab in ViewShippingOrder shows chronological timeline with Export CSV."
     },
     {
       "id": "US-C053",
@@ -848,8 +848,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 53,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C037. ViewShipment has Audit Trail section showing events from ShippingOrderAuditLog. Events logged by ShipmentService: EVENT_SHIPMENT_CREATED, EVENT_SHIPMENT_CONFIRMED, EVENT_TRACKING_UPDATED, EVENT_SHIPMENT_DELIVERED, EVENT_SHIPMENT_FAILED. All use immutable ShippingOrderAuditLog."
     },
     {
       "id": "US-C054",
@@ -862,8 +862,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 54,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C012. LateBindingService logs EVENT_BINDING_EXECUTED with voucher_id, bottle_serial, allocation_id, case_id. Binding type implicit in event: EVENT_BINDING_EXECUTED for late, EVENT_EARLY_BINDING_VALIDATED for early. ShippingOrderLine stores bound_bottle_serial. Query by allocation via ShippingOrderLine.allocation_id."
     },
     {
       "id": "US-C055",
