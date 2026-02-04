@@ -41,7 +41,7 @@ use InvalidArgumentException;
  * @property string $amount_paid
  * @property InvoiceStatus $status
  * @property string|null $source_type
- * @property int|null $source_id
+ * @property string|null $source_id
  * @property \Carbon\Carbon|null $issued_at
  * @property \Carbon\Carbon|null $due_date
  * @property string|null $notes

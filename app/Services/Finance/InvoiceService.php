@@ -36,7 +36,7 @@ class InvoiceService
      * @param  Customer  $customer  The customer for this invoice
      * @param  array<int, array{description: string, quantity: string|float, unit_price: string|float, tax_rate?: string|float, tax_amount?: string|float, sellable_sku_id?: int|null, metadata?: array<string, mixed>}>  $lines  Invoice lines
      * @param  string|null  $sourceType  The type of source entity (subscription, voucher_sale, etc.)
-     * @param  int|null  $sourceId  The ID of the source entity
+     * @param  string|int|null  $sourceId  The ID of the source entity (supports UUID or integer)
      * @param  string  $currency  Currency code (default: EUR)
      * @param  Carbon|null  $dueDate  Optional due date
      * @param  string|null  $notes  Optional notes
@@ -48,7 +48,7 @@ class InvoiceService
         Customer $customer,
         array $lines,
         ?string $sourceType = null,
-        ?int $sourceId = null,
+        string|int|null $sourceId = null,
         string $currency = 'EUR',
         ?Carbon $dueDate = null,
         ?string $notes = null
@@ -354,8 +354,10 @@ class InvoiceService
      * Find an invoice by source reference.
      *
      * Used for idempotency to prevent duplicate invoices for the same event.
+     *
+     * @param  string|int  $sourceId  The ID of the source entity (supports UUID or integer)
      */
-    public function findBySource(string $sourceType, int $sourceId): ?Invoice
+    public function findBySource(string $sourceType, string|int $sourceId): ?Invoice
     {
         return Invoice::where('source_type', $sourceType)
             ->where('source_id', $sourceId)
@@ -460,9 +462,11 @@ class InvoiceService
     /**
      * Validate source reference requirements based on invoice type.
      *
+     * @param  string|int|null  $sourceId  The ID of the source entity (supports UUID or integer)
+     *
      * @throws InvalidArgumentException If source reference requirements are not met
      */
-    protected function validateSourceReference(InvoiceType $invoiceType, ?string $sourceType, ?int $sourceId): void
+    protected function validateSourceReference(InvoiceType $invoiceType, ?string $sourceType, string|int|null $sourceId): void
     {
         // Check if source reference is required
         if ($invoiceType->requiresSourceReference()) {
