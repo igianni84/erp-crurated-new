@@ -18,13 +18,84 @@
         $totalPOs = array_sum($poStatusCounts);
         $totalInbounds = array_sum($inboundStatusCounts);
         $hasExceptions = ($exceptionCounts['pending_ownership'] + $exceptionCounts['unlinked_inbounds'] + $exceptionCounts['overdue_pos'] + $exceptionCounts['variance_pos']) > 0;
+        $pollInterval = $this->getPollInterval();
+        $dateRangeOptions = $this->getDateRangeOptions();
+        $autoRefreshOptions = $this->getAutoRefreshOptions();
     @endphp
 
-    {{-- Dashboard Description --}}
-    <div class="mb-6">
-        <p class="text-sm text-gray-600 dark:text-gray-400">
-            Control tower for Module D - Procurement & Inbound. This dashboard shows where priorities are identified. Use the links to navigate to filtered lists for action.
-        </p>
+    {{-- Auto-refresh polling (if enabled) --}}
+    @if($pollInterval)
+        <div wire:poll.{{ $pollInterval }}="refreshDashboard"></div>
+    @endif
+
+    {{-- Dashboard Controls Bar --}}
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
+        <div class="px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+            {{-- Left side: Description --}}
+            <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-600 dark:text-gray-400">
+                    Control tower for Module D - Procurement & Inbound. This dashboard shows where priorities are identified.
+                </p>
+            </div>
+
+            {{-- Right side: Controls --}}
+            <div class="flex flex-wrap items-center gap-3">
+                {{-- Date Range Selector --}}
+                <div class="flex items-center gap-2">
+                    <label for="date-range" class="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        <x-heroicon-o-calendar class="inline-block h-4 w-4 mr-1" />
+                        Date Range:
+                    </label>
+                    <select
+                        id="date-range"
+                        wire:model.live="dateRangeDays"
+                        wire:change="setDateRange($event.target.value)"
+                        class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                        @foreach($dateRangeOptions as $value => $label)
+                            <option value="{{ $value }}" {{ $this->dateRangeDays == $value ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Auto-Refresh Selector --}}
+                <div class="flex items-center gap-2">
+                    <label for="auto-refresh" class="text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        <x-heroicon-o-arrow-path class="inline-block h-4 w-4 mr-1" />
+                        Auto-refresh:
+                    </label>
+                    <select
+                        id="auto-refresh"
+                        wire:model.live="autoRefreshMinutes"
+                        wire:change="setAutoRefresh($event.target.value)"
+                        class="text-sm rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 focus:ring-primary-500 focus:border-primary-500"
+                    >
+                        @foreach($autoRefreshOptions as $value => $label)
+                            <option value="{{ $value }}" {{ $this->autoRefreshMinutes == $value ? 'selected' : '' }}>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                {{-- Refresh Button --}}
+                <button
+                    type="button"
+                    wire:click="refreshDashboard"
+                    wire:loading.attr="disabled"
+                    wire:loading.class="opacity-50 cursor-wait"
+                    class="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:ring-4 focus:ring-primary-300 rounded-lg transition-colors dark:bg-primary-500 dark:hover:bg-primary-600 dark:focus:ring-primary-800"
+                >
+                    <x-heroicon-o-arrow-path class="h-4 w-4 mr-2" wire:loading.class="animate-spin" wire:target="refreshDashboard" />
+                    <span wire:loading.remove wire:target="refreshDashboard">Refresh</span>
+                    <span wire:loading wire:target="refreshDashboard">Refreshing...</span>
+                </button>
+
+                {{-- Last Updated Timestamp --}}
+                <div class="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <x-heroicon-o-clock class="h-3 w-3" />
+                    <span>Updated: {{ $this->getLastRefreshedFormatted() }}</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- Summary Cards Row (4 main widgets) --}}
@@ -74,16 +145,16 @@
             </div>
         </a>
 
-        {{-- Bottling Deadlines (30d) --}}
+        {{-- Bottling Deadlines (based on date range) --}}
         <a href="{{ $this->getBottlingDeadlinesUrl() }}" class="block">
             <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg {{ $summaryMetrics['bottling_deadlines_30d'] > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
-                        <x-heroicon-o-calendar-days class="h-6 w-6 {{ $summaryMetrics['bottling_deadlines_30d'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
+                    <div class="flex-shrink-0 rounded-lg {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
+                        <x-heroicon-o-calendar-days class="h-6 w-6 {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
                     </div>
                     <div class="ml-4">
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Deadlines (30d)</p>
-                        <p class="text-2xl font-semibold {{ $summaryMetrics['bottling_deadlines_30d'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $summaryMetrics['bottling_deadlines_30d'] }}</p>
+                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Deadlines ({{ $summaryMetrics['date_range_days'] }}d)</p>
+                        <p class="text-2xl font-semibold {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $summaryMetrics['bottling_deadlines'] }}</p>
                     </div>
                 </div>
             </div>
@@ -216,9 +287,9 @@
                             <div>
                                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Inbound Overdue</p>
                                 <p class="text-2xl font-bold {{ $overdueColorText }} mt-1">
-                                    {{ $demandExecutionMetrics['inbound_overdue'] }}<span class="text-base font-normal text-gray-400"> / {{ $demandExecutionMetrics['inbound_expected_30d'] + $demandExecutionMetrics['inbound_overdue'] }}</span>
+                                    {{ $demandExecutionMetrics['inbound_overdue'] }}<span class="text-base font-normal text-gray-400"> / {{ $demandExecutionMetrics['inbound_expected_in_range'] + $demandExecutionMetrics['inbound_overdue'] }}</span>
                                 </p>
-                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ number_format($demandExecutionMetrics['inbound_overdue_ratio'], 1) }}% overdue rate</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ number_format($demandExecutionMetrics['inbound_overdue_ratio'], 1) }}% overdue ({{ $demandExecutionMetrics['date_range_days'] }}d)</p>
                             </div>
                             <div class="flex-shrink-0">
                                 <x-heroicon-o-clock class="h-8 w-8 {{ $overdueColorText }} opacity-50" />
@@ -472,13 +543,13 @@
         </div>
         <div class="fi-section-content p-6">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {{-- Expected Next 30 Days --}}
+                {{-- Expected in Date Range --}}
                 <a href="{{ $this->getExpected30dPOsUrl() }}" class="block group">
                     <div class="p-4 rounded-lg bg-info-50 dark:bg-info-400/10 border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
                         <div class="flex items-center justify-between">
                             <div>
-                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Expected (30d)</p>
-                                <p class="text-2xl font-bold text-info-600 dark:text-info-400 mt-1">{{ $inboundStatusMetrics['expected_30d'] }}</p>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Expected ({{ $inboundStatusMetrics['date_range_days'] }}d)</p>
+                                <p class="text-2xl font-bold text-info-600 dark:text-info-400 mt-1">{{ $inboundStatusMetrics['expected_in_range'] }}</p>
                                 <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">deliveries incoming</p>
                             </div>
                             <div class="flex-shrink-0">

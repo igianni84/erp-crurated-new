@@ -36,13 +36,122 @@ class ProcurementDashboard extends Page
     protected static string $view = 'filament.pages.procurement-dashboard';
 
     // ========================================
+    // Dashboard Controls State
+    // ========================================
+
+    /**
+     * Selected date range in days (for widgets showing "next X days").
+     * Options: 30, 60, 90 days.
+     */
+    public int $dateRangeDays = 30;
+
+    /**
+     * Auto-refresh interval in minutes.
+     * Options: 0 (disabled), 1, 5, 10, 15 minutes.
+     */
+    public int $autoRefreshMinutes = 5;
+
+    /**
+     * Last time the dashboard was refreshed.
+     */
+    public ?Carbon $lastRefreshedAt = null;
+
+    /**
+     * Available date range options.
+     *
+     * @return array<int, string>
+     */
+    public function getDateRangeOptions(): array
+    {
+        return [
+            30 => 'Next 30 days',
+            60 => 'Next 60 days',
+            90 => 'Next 90 days',
+        ];
+    }
+
+    /**
+     * Available auto-refresh interval options.
+     *
+     * @return array<int, string>
+     */
+    public function getAutoRefreshOptions(): array
+    {
+        return [
+            0 => 'Off',
+            1 => '1 minute',
+            5 => '5 minutes',
+            10 => '10 minutes',
+            15 => '15 minutes',
+        ];
+    }
+
+    /**
+     * Get the Livewire poll interval string (e.g., "5m" for 5 minutes).
+     * Returns null if auto-refresh is disabled.
+     */
+    public function getPollInterval(): ?string
+    {
+        if ($this->autoRefreshMinutes <= 0) {
+            return null;
+        }
+
+        return $this->autoRefreshMinutes.'m';
+    }
+
+    /**
+     * Update the date range and refresh the dashboard.
+     */
+    public function setDateRange(int $days): void
+    {
+        $this->dateRangeDays = $days;
+        $this->refreshDashboard();
+    }
+
+    /**
+     * Update the auto-refresh interval.
+     */
+    public function setAutoRefresh(int $minutes): void
+    {
+        $this->autoRefreshMinutes = $minutes;
+    }
+
+    /**
+     * Manually refresh the dashboard.
+     */
+    public function refreshDashboard(): void
+    {
+        $this->lastRefreshedAt = Carbon::now();
+    }
+
+    /**
+     * Get the formatted last refreshed timestamp.
+     */
+    public function getLastRefreshedFormatted(): string
+    {
+        if ($this->lastRefreshedAt === null) {
+            return 'Just now';
+        }
+
+        return $this->lastRefreshedAt->diffForHumans();
+    }
+
+    /**
+     * Initialize the dashboard state.
+     */
+    public function mount(): void
+    {
+        $this->lastRefreshedAt = Carbon::now();
+    }
+
+    // ========================================
     // Summary Metrics (4 main widgets)
     // ========================================
 
     /**
      * Get summary metrics for the 4 main dashboard cards.
      *
-     * @return array{total_intents: int, pending_approvals: int, pending_inbounds: int, bottling_deadlines_30d: int}
+     * @return array{total_intents: int, pending_approvals: int, pending_inbounds: int, bottling_deadlines: int, date_range_days: int}
      */
     public function getSummaryMetrics(): array
     {
@@ -57,10 +166,11 @@ class ProcurementDashboard extends Page
                 InboundStatus::Recorded->value,
                 InboundStatus::Routed->value,
             ])->count(),
-            'bottling_deadlines_30d' => BottlingInstruction::where('status', BottlingInstructionStatus::Active->value)
-                ->where('bottling_deadline', '<=', Carbon::now()->addDays(30))
+            'bottling_deadlines' => BottlingInstruction::where('status', BottlingInstructionStatus::Active->value)
+                ->where('bottling_deadline', '<=', Carbon::now()->addDays($this->dateRangeDays))
                 ->where('bottling_deadline', '>=', Carbon::today())
                 ->count(),
+            'date_range_days' => $this->dateRangeDays,
         ];
     }
 
@@ -71,7 +181,7 @@ class ProcurementDashboard extends Page
     /**
      * Get metrics for the Demand → Execution widget.
      *
-     * @return array{vouchers_awaiting_sourcing: int, allocation_driven_pending: int, bottling_required_demand: int, inbound_expected_30d: int, inbound_overdue: int, inbound_overdue_ratio: float}
+     * @return array{vouchers_awaiting_sourcing: int, allocation_driven_pending: int, bottling_required_demand: int, inbound_expected_in_range: int, inbound_overdue: int, inbound_overdue_ratio: float, date_range_days: int}
      */
     public function getDemandExecutionMetrics(): array
     {
@@ -99,14 +209,14 @@ class ProcurementDashboard extends Page
             ])
             ->count();
 
-        // Inbound expected next 30 days (POs with delivery window ending in next 30 days)
-        $inboundExpected30d = PurchaseOrder::whereIn('status', [
+        // Inbound expected in date range (POs with delivery window ending in selected date range)
+        $inboundExpectedInRange = PurchaseOrder::whereIn('status', [
             PurchaseOrderStatus::Sent->value,
             PurchaseOrderStatus::Confirmed->value,
         ])
             ->whereNotNull('expected_delivery_end')
             ->where('expected_delivery_end', '>=', Carbon::today())
-            ->where('expected_delivery_end', '<=', Carbon::now()->addDays(30))
+            ->where('expected_delivery_end', '<=', Carbon::now()->addDays($this->dateRangeDays))
             ->count();
 
         // Inbound overdue: POs with expected delivery window passed
@@ -118,17 +228,18 @@ class ProcurementDashboard extends Page
             ->where('expected_delivery_end', '<', Carbon::today())
             ->count();
 
-        // Calculate ratio (overdue vs total expected in last 30 days + overdue)
-        $totalExpectedPool = $inboundExpected30d + $inboundOverdue;
+        // Calculate ratio (overdue vs total expected in date range + overdue)
+        $totalExpectedPool = $inboundExpectedInRange + $inboundOverdue;
         $overdueRatio = $totalExpectedPool > 0 ? round(($inboundOverdue / $totalExpectedPool) * 100, 1) : 0.0;
 
         return [
             'vouchers_awaiting_sourcing' => $vouchersAwaitingSourcing,
             'allocation_driven_pending' => $allocationDrivenPending,
             'bottling_required_demand' => $bottlingRequiredDemand,
-            'inbound_expected_30d' => $inboundExpected30d,
+            'inbound_expected_in_range' => $inboundExpectedInRange,
             'inbound_overdue' => $inboundOverdue,
             'inbound_overdue_ratio' => $overdueRatio,
+            'date_range_days' => $this->dateRangeDays,
         ];
     }
 
@@ -645,12 +756,18 @@ class ProcurementDashboard extends Page
     /**
      * Get metrics for the Bottling Risk widget.
      *
-     * @return array{deadlines_30d: int, deadlines_60d: int, deadlines_90d: int, deadlines_14d: int, preferences_collected_pct: float, preferences_total: int, preferences_collected: int, default_fallback_count: int}
+     * @return array{deadlines_in_range: int, deadlines_30d: int, deadlines_60d: int, deadlines_90d: int, deadlines_14d: int, preferences_collected_pct: float, preferences_total: int, preferences_collected: int, default_fallback_count: int, date_range_days: int}
      */
     public function getBottlingRiskMetrics(): array
     {
         // Base query for active bottling instructions
         $baseQuery = fn () => BottlingInstruction::where('status', BottlingInstructionStatus::Active->value);
+
+        // Deadline counts based on selected date range
+        $deadlinesInRange = $baseQuery()
+            ->where('bottling_deadline', '>=', Carbon::today())
+            ->where('bottling_deadline', '<=', Carbon::now()->addDays($this->dateRangeDays))
+            ->count();
 
         // Deadline counts (cumulative - 60d includes 30d, etc.)
         $deadlines30d = $baseQuery()
@@ -697,6 +814,7 @@ class ProcurementDashboard extends Page
             ->count();
 
         return [
+            'deadlines_in_range' => $deadlinesInRange,
             'deadlines_30d' => $deadlines30d,
             'deadlines_60d' => $deadlines60d,
             'deadlines_90d' => $deadlines90d,
@@ -705,6 +823,7 @@ class ProcurementDashboard extends Page
             'preferences_total' => $totalPreferencesExpected,
             'preferences_collected' => $totalPreferencesCollected,
             'default_fallback_count' => $defaultFallbackCount,
+            'date_range_days' => $this->dateRangeDays,
         ];
     }
 
@@ -799,18 +918,18 @@ class ProcurementDashboard extends Page
     /**
      * Get metrics for the Inbound Status widget.
      *
-     * @return array{expected_30d: int, delayed: int, awaiting_serialization_routing: int, awaiting_handoff: int}
+     * @return array{expected_in_range: int, delayed: int, awaiting_serialization_routing: int, awaiting_handoff: int, date_range_days: int}
      */
     public function getInboundStatusMetrics(): array
     {
-        // Expected next 30 days: POs with delivery window in next 30 days (count from PO side)
-        $expectedNext30d = PurchaseOrder::whereIn('status', [
+        // Expected in date range: POs with delivery window in selected date range (count from PO side)
+        $expectedInRange = PurchaseOrder::whereIn('status', [
             PurchaseOrderStatus::Sent->value,
             PurchaseOrderStatus::Confirmed->value,
         ])
             ->whereNotNull('expected_delivery_end')
             ->where('expected_delivery_end', '>=', Carbon::today())
-            ->where('expected_delivery_end', '<=', Carbon::now()->addDays(30))
+            ->where('expected_delivery_end', '<=', Carbon::now()->addDays($this->dateRangeDays))
             ->count();
 
         // Delayed: POs with delivery window passed but not closed
@@ -834,10 +953,11 @@ class ProcurementDashboard extends Page
             ->count();
 
         return [
-            'expected_30d' => $expectedNext30d,
+            'expected_in_range' => $expectedInRange,
             'delayed' => $delayed,
             'awaiting_serialization_routing' => $awaitingSerializationRouting,
             'awaiting_handoff' => $awaitingHandoff,
+            'date_range_days' => $this->dateRangeDays,
         ];
     }
 
@@ -851,7 +971,7 @@ class ProcurementDashboard extends Page
     public function getInboundStatusHealthStatus(string $metric, int $value): string
     {
         return match ($metric) {
-            'expected_30d' => 'info', // Informational, not a health indicator
+            'expected_in_range' => 'info', // Informational, not a health indicator
             'delayed' => match (true) {
                 $value === 0 => 'success',
                 $value <= 3 => 'warning',
