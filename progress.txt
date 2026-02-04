@@ -10,6 +10,7 @@ Started: Wed Feb  4 10:35:15 CET 2026
 - Enums: String-backed PHP 8.1+ enums in `app/Enums/{Module}/` with `label()`, `color()`, `icon()` methods
 - Models: Organized by module in `app/Models/{Module}/`
 - Invariant enforcement: Use `boot()` method with `static::saving()` callback
+- Filament resources: Organized by module in `app/Filament/Resources/{Module}/`, use navigation groups, Pages subdirectory for List/View/Create pages
 
 ---
 
@@ -181,4 +182,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Ownership clarity is required before completing or handing off
   - Serialization routing validation is a placeholder for future ProducerSupplierConfig.serialization_constraints integration
   - AuditLog::EVENT_FLAG_CHANGE is appropriate for boolean flag changes (handed_to_module_b, ownership_flag)
+---
+
+## 2026-02-04 - US-009
+- What was implemented:
+  - ProcurementIntentResource in Filament under navigation group "Procurement"
+  - List columns: intent_id, product (via getProductLabel()), quantity, trigger_type, sourcing_model, preferred_location, status, linked_objects_count (badge), awaiting_action (icon), updated_at
+  - Filters: status (with closed hidden by default), trigger_type, sourcing_model, trashed
+  - Search: intent_id searchable directly, product searchable via complex multi-table query (sellable_skus, liquid_products, wine_masters)
+  - Closed intents hidden by default via status filter defaulting to [draft, approved, executed]
+  - Visual indicator (warning icon) for intents without linked objects that need action
+  - ListProcurementIntents page with Create action
+  - ViewProcurementIntent page (placeholder for US-014 detail tabs)
+- Files changed:
+  - app/Filament/Resources/Procurement/ProcurementIntentResource.php (new)
+  - app/Filament/Resources/Procurement/ProcurementIntentResource/Pages/ListProcurementIntents.php (new)
+  - app/Filament/Resources/Procurement/ProcurementIntentResource/Pages/ViewProcurementIntent.php (new)
+- **Learnings for future iterations:**
+  - Filament resources in this codebase use navigation groups (PIM, Customers, Vouchers, Procurement, etc.)
+  - Use `withCount()` in modifyQueryUsing to efficiently count related records for badges
+  - Complex morphic search requires raw SQL with `whereExists()` for multiple related tables
+  - Status filters with multiple() and default() can hide terminal states by default
+  - Visual indicators for "needs attention" use IconColumn with boolean state and custom trueIcon/falseIcon
 ---
