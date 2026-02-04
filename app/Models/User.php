@@ -130,4 +130,14 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
     }
+
+    /**
+     * Check if the user can manage operational blocks.
+     * This includes adding and removing blocks on Customers and Accounts.
+     * Requires at least Manager role (Compliance/Operations function).
+     */
+    public function canManageOperationalBlocks(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
 }

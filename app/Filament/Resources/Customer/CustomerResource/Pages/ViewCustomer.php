@@ -6,6 +6,8 @@ use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Customer\AccountStatus;
 use App\Enums\Customer\AddressType;
+use App\Enums\Customer\BlockStatus;
+use App\Enums\Customer\BlockType;
 use App\Enums\Customer\ChannelScope;
 use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\CustomerType;
@@ -18,6 +20,7 @@ use App\Models\Customer\Account;
 use App\Models\Customer\Address;
 use App\Models\Customer\Customer;
 use App\Models\Customer\Membership;
+use App\Models\Customer\OperationalBlock;
 use App\Models\Customer\PaymentPermission;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
@@ -2289,68 +2292,259 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 8: Operational Blocks - Active and historical blocks (placeholder).
+     * Tab 8: Operational Blocks - Active and historical blocks with CRUD.
      */
     protected function getOperationalBlocksTab(): Tab
     {
+        /** @var Customer $record */
+        $record = $this->record;
+        $activeBlocksCount = $record->getActiveBlocksCount();
+        $hasCriticalBlocks = $record->hasCriticalBlocks();
+        $user = auth()->user();
+        $canManageBlocks = $user instanceof \App\Models\User && $user->canManageOperationalBlocks();
+
         return Tab::make('Operational Blocks')
             ->icon('heroicon-o-shield-exclamation')
+            ->badge($activeBlocksCount > 0 ? (string) $activeBlocksCount : null)
+            ->badgeColor($hasCriticalBlocks ? 'danger' : ($activeBlocksCount > 0 ? 'warning' : null))
             ->schema([
                 Section::make('Active Blocks')
-                    ->description('Current operational restrictions on this customer')
+                    ->description('Current operational restrictions on this customer. Critical blocks (Payment, Compliance) affect eligibility.')
+                    ->headerActions($canManageBlocks ? [
+                        \Filament\Infolists\Components\Actions\Action::make('add_block')
+                            ->label('Add Block')
+                            ->icon('heroicon-o-plus-circle')
+                            ->color('danger')
+                            ->form([
+                                Select::make('block_type')
+                                    ->label('Block Type')
+                                    ->options(collect(BlockType::cases())
+                                        ->mapWithKeys(fn (BlockType $type): array => [
+                                            $type->value => $type->label(),
+                                        ])
+                                        ->toArray())
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('Select the type of operational restriction'),
+                                Textarea::make('reason')
+                                    ->label('Reason')
+                                    ->required()
+                                    ->rows(3)
+                                    ->helperText('Explain why this block is being applied'),
+                            ])
+                            ->modalHeading('Add Operational Block')
+                            ->modalDescription('Apply an operational block to this customer. The block will take effect immediately.')
+                            ->modalSubmitActionLabel('Apply Block')
+                            ->action(function (array $data) use ($record): void {
+                                $block = $record->operationalBlocks()->create([
+                                    'block_type' => $data['block_type'],
+                                    'reason' => $data['reason'],
+                                    'applied_by' => auth()->id(),
+                                    'status' => BlockStatus::Active,
+                                ]);
+
+                                $blockType = BlockType::from($data['block_type']);
+
+                                Notification::make()
+                                    ->title('Block applied')
+                                    ->body("{$blockType->label()} has been applied to this customer.")
+                                    ->danger()
+                                    ->send();
+
+                                $this->refreshFormData(['operationalBlocks']);
+                            }),
+                    ] : [])
                     ->schema([
-                        TextEntry::make('active_blocks_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No active blocks. This customer can operate normally.')
-                            ->icon('heroicon-o-shield-check')
-                            ->color('success'),
+                        $this->getActiveBlocksDisplay($record, $canManageBlocks),
                     ]),
-                Section::make('Block Types')
-                    ->description('Available block types that can be applied')
+                Section::make('Block Types Reference')
+                    ->description('Available block types and their effects')
                     ->collapsed()
                     ->collapsible()
                     ->schema([
-                        Grid::make(5)
-                            ->schema([
-                                TextEntry::make('block_type_payment')
-                                    ->label('Payment')
-                                    ->getStateUsing(fn (): string => 'Blocks all payment transactions')
-                                    ->icon('heroicon-o-credit-card')
-                                    ->color('gray'),
-                                TextEntry::make('block_type_shipment')
-                                    ->label('Shipment')
-                                    ->getStateUsing(fn (): string => 'Blocks all shipments')
-                                    ->icon('heroicon-o-truck')
-                                    ->color('gray'),
-                                TextEntry::make('block_type_redemption')
-                                    ->label('Redemption')
-                                    ->getStateUsing(fn (): string => 'Blocks voucher redemption')
-                                    ->icon('heroicon-o-ticket')
-                                    ->color('gray'),
-                                TextEntry::make('block_type_trading')
-                                    ->label('Trading')
-                                    ->getStateUsing(fn (): string => 'Blocks voucher trading')
-                                    ->icon('heroicon-o-arrows-right-left')
-                                    ->color('gray'),
-                                TextEntry::make('block_type_compliance')
-                                    ->label('Compliance')
-                                    ->getStateUsing(fn (): string => 'General compliance block')
-                                    ->icon('heroicon-o-scale')
-                                    ->color('gray'),
-                            ]),
+                        $this->getBlockTypesReference(),
                     ]),
                 Section::make('Block History')
-                    ->description('Previously applied and removed blocks')
+                    ->description('Previously removed blocks')
                     ->collapsed()
                     ->collapsible()
                     ->schema([
-                        TextEntry::make('block_history_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No historical blocks found. Block management will be implemented in US-027 through US-030.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                        $this->getRemovedBlocksDisplay($record),
                     ]),
             ]);
+    }
+
+    /**
+     * Build the active blocks display with remove actions.
+     */
+    protected function getActiveBlocksDisplay(Customer $record, bool $canManageBlocks): RepeatableEntry|TextEntry
+    {
+        $activeBlocks = $record->activeOperationalBlocks()->with('appliedByUser')->get();
+
+        if ($activeBlocks->isEmpty()) {
+            return TextEntry::make('no_active_blocks')
+                ->label('')
+                ->getStateUsing(fn (): string => 'No active blocks. This customer can operate normally.')
+                ->icon('heroicon-o-shield-check')
+                ->color('success');
+        }
+
+        return RepeatableEntry::make('activeOperationalBlocks')
+            ->label('')
+            ->schema([
+                Grid::make($canManageBlocks ? 5 : 4)
+                    ->schema(array_merge([
+                        TextEntry::make('block_type')
+                            ->label('Type')
+                            ->badge()
+                            ->formatStateUsing(fn (BlockType $state): string => $state->label())
+                            ->color(fn (BlockType $state): string => $state->color())
+                            ->icon(fn (BlockType $state): string => $state->icon()),
+                        TextEntry::make('reason')
+                            ->label('Reason')
+                            ->limit(50)
+                            ->tooltip(fn (OperationalBlock $block): string => $block->reason),
+                        TextEntry::make('appliedByUser.name')
+                            ->label('Applied By')
+                            ->default('System')
+                            ->icon('heroicon-o-user'),
+                        TextEntry::make('created_at')
+                            ->label('Applied At')
+                            ->dateTime('M d, Y H:i')
+                            ->icon('heroicon-o-clock'),
+                    ], $canManageBlocks ? [
+                        \Filament\Infolists\Components\Actions::make([
+                            \Filament\Infolists\Components\Actions\Action::make('remove_block')
+                                ->label('Remove')
+                                ->icon('heroicon-o-x-circle')
+                                ->color('success')
+                                ->size('sm')
+                                ->form([
+                                    Textarea::make('removal_reason')
+                                        ->label('Removal Reason')
+                                        ->required()
+                                        ->rows(2)
+                                        ->helperText('Explain why this block is being removed'),
+                                ])
+                                ->modalHeading('Remove Operational Block')
+                                ->modalDescription(fn (OperationalBlock $block): string => "Remove the {$block->getBlockTypeLabel()} from this customer?")
+                                ->modalSubmitActionLabel('Remove Block')
+                                ->action(function (array $data, OperationalBlock $block): void {
+                                    /** @var \App\Models\User $user */
+                                    $user = auth()->user();
+                                    $block->remove($user, $data['removal_reason']);
+
+                                    Notification::make()
+                                        ->title('Block removed')
+                                        ->body("{$block->getBlockTypeLabel()} has been removed from this customer.")
+                                        ->success()
+                                        ->send();
+
+                                    $this->refreshFormData(['operationalBlocks']);
+                                }),
+                        ])->alignEnd(),
+                    ] : [])),
+            ]);
+    }
+
+    /**
+     * Build the removed blocks history display.
+     */
+    protected function getRemovedBlocksDisplay(Customer $record): RepeatableEntry|TextEntry
+    {
+        $removedBlocks = $record->operationalBlocks()
+            ->where('status', BlockStatus::Removed)
+            ->with(['appliedByUser', 'removedByUser'])
+            ->orderBy('removed_at', 'desc')
+            ->get();
+
+        if ($removedBlocks->isEmpty()) {
+            return TextEntry::make('no_removed_blocks')
+                ->label('')
+                ->getStateUsing(fn (): string => 'No historical blocks found.')
+                ->icon('heroicon-o-information-circle')
+                ->color('gray');
+        }
+
+        return RepeatableEntry::make('removedBlocks')
+            ->label('')
+            ->getStateUsing(fn () => $removedBlocks)
+            ->schema([
+                Grid::make(6)
+                    ->schema([
+                        TextEntry::make('block_type')
+                            ->label('Type')
+                            ->badge()
+                            ->formatStateUsing(fn (BlockType $state): string => $state->label())
+                            ->color('gray')
+                            ->icon(fn (BlockType $state): string => $state->icon()),
+                        TextEntry::make('reason')
+                            ->label('Original Reason')
+                            ->limit(30)
+                            ->tooltip(fn (OperationalBlock $block): string => $block->reason),
+                        TextEntry::make('appliedByUser.name')
+                            ->label('Applied By')
+                            ->default('System'),
+                        TextEntry::make('created_at')
+                            ->label('Applied At')
+                            ->dateTime('M d, Y'),
+                        TextEntry::make('removedByUser.name')
+                            ->label('Removed By')
+                            ->default('System'),
+                        TextEntry::make('removed_at')
+                            ->label('Removed At')
+                            ->dateTime('M d, Y'),
+                    ]),
+                TextEntry::make('removal_reason')
+                    ->label('Removal Reason')
+                    ->placeholder('No reason provided')
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * Build the block types reference section.
+     */
+    protected function getBlockTypesReference(): TextEntry
+    {
+        $html = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+
+        foreach (BlockType::cases() as $blockType) {
+            $label = htmlspecialchars($blockType->label());
+            $description = htmlspecialchars($blockType->description());
+            $color = $blockType->color();
+            $isCritical = $blockType->isCritical();
+
+            $colorClass = match ($color) {
+                'danger' => 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20',
+                'warning' => 'border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20',
+                default => 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20',
+            };
+
+            $criticalBadge = $isCritical
+                ? '<span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">Critical</span>'
+                : '';
+
+            $html .= <<<HTML
+            <div class="p-3 rounded-lg border {$colorClass}">
+                <div class="font-medium text-gray-900 dark:text-gray-100 flex items-center">
+                    {$label}{$criticalBadge}
+                </div>
+                <div class="mt-1 text-sm text-gray-600 dark:text-gray-400">{$description}</div>
+            </div>
+            HTML;
+        }
+
+        $html .= '</div>';
+        $html .= '<div class="mt-4 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">';
+        $html .= '<p class="text-sm text-gray-600 dark:text-gray-400">';
+        $html .= '<strong>Note:</strong> Critical blocks (Payment, Compliance) affect channel eligibility calculations and will prevent the customer from accessing certain sales channels.';
+        $html .= '</p></div>';
+
+        return TextEntry::make('block_types_ref')
+            ->label('')
+            ->getStateUsing(fn (): string => $html)
+            ->html();
     }
 
     /**
