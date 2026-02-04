@@ -6,6 +6,8 @@ use App\Enums\Customer\ClubStatus;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -118,5 +120,56 @@ class Club extends Model
     public function getStatusIcon(): string
     {
         return $this->status->icon();
+    }
+
+    /**
+     * Get the customers affiliated with this club.
+     *
+     * @return BelongsToMany<Customer, $this>
+     */
+    public function customers(): BelongsToMany
+    {
+        return $this->belongsToMany(Customer::class, 'customer_clubs')
+            ->withPivot(['id', 'affiliation_status', 'start_date', 'end_date', 'created_by', 'updated_by'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the customer affiliations (pivot records) for this club.
+     *
+     * @return HasMany<CustomerClub, $this>
+     */
+    public function customerAffiliations(): HasMany
+    {
+        return $this->hasMany(CustomerClub::class);
+    }
+
+    /**
+     * Get only the active customer affiliations for this club.
+     *
+     * @return HasMany<CustomerClub, $this>
+     */
+    public function activeCustomerAffiliations(): HasMany
+    {
+        return $this->hasMany(CustomerClub::class)
+            ->where('affiliation_status', \App\Enums\Customer\AffiliationStatus::Active);
+    }
+
+    /**
+     * Get the count of active members in this club.
+     */
+    public function getActiveMembersCount(): int
+    {
+        return $this->activeCustomerAffiliations()->count();
+    }
+
+    /**
+     * Check if a customer is affiliated with this club.
+     */
+    public function hasCustomer(Customer $customer): bool
+    {
+        return $this->customerAffiliations()
+            ->where('customer_id', $customer->id)
+            ->exists();
     }
 }

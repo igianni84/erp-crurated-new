@@ -9,6 +9,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -514,5 +515,90 @@ class Customer extends Model
         }
 
         return $permission->isBankTransferAllowed();
+    }
+
+    /**
+     * Get the clubs this customer is affiliated with.
+     *
+     * @return BelongsToMany<Club, $this>
+     */
+    public function clubs(): BelongsToMany
+    {
+        return $this->belongsToMany(Club::class, 'customer_clubs')
+            ->withPivot(['id', 'affiliation_status', 'start_date', 'end_date', 'created_by', 'updated_by'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get the club affiliations (pivot records) for this customer.
+     *
+     * @return HasMany<CustomerClub, $this>
+     */
+    public function clubAffiliations(): HasMany
+    {
+        return $this->hasMany(CustomerClub::class);
+    }
+
+    /**
+     * Get only the active club affiliations for this customer.
+     *
+     * @return HasMany<CustomerClub, $this>
+     */
+    public function activeClubAffiliations(): HasMany
+    {
+        return $this->hasMany(CustomerClub::class)
+            ->where('affiliation_status', \App\Enums\Customer\AffiliationStatus::Active);
+    }
+
+    /**
+     * Get only the effective club affiliations (active, started, not ended).
+     *
+     * @return HasMany<CustomerClub, $this>
+     */
+    public function effectiveClubAffiliations(): HasMany
+    {
+        return $this->hasMany(CustomerClub::class)
+            ->where('affiliation_status', \App\Enums\Customer\AffiliationStatus::Active)
+            ->where('start_date', '<=', now())
+            ->where(function ($query) {
+                $query->whereNull('end_date')
+                    ->orWhere('end_date', '>=', now());
+            });
+    }
+
+    /**
+     * Check if the customer has any active club affiliations.
+     */
+    public function hasActiveClubAffiliation(): bool
+    {
+        return $this->activeClubAffiliations()->exists();
+    }
+
+    /**
+     * Check if the customer has any effective club affiliations.
+     */
+    public function hasEffectiveClubAffiliation(): bool
+    {
+        return $this->effectiveClubAffiliations()->exists();
+    }
+
+    /**
+     * Check if the customer is affiliated with a specific club.
+     */
+    public function isAffiliatedWith(Club $club): bool
+    {
+        return $this->clubAffiliations()
+            ->where('club_id', $club->id)
+            ->exists();
+    }
+
+    /**
+     * Check if the customer has an effective affiliation with a specific club.
+     */
+    public function hasEffectiveAffiliationWith(Club $club): bool
+    {
+        return $this->effectiveClubAffiliations()
+            ->where('club_id', $club->id)
+            ->exists();
     }
 }
