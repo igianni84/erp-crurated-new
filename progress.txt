@@ -499,3 +499,24 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Dynamic content in Placeholders via closures reacts to `live()` field changes
   - Mismatch warnings help operators catch inconsistent data entry
 ---
+
+## 2026-02-04 - US-023
+- What was implemented:
+  - Verified Step 4 (Delivery) was already implemented in US-020
+  - Step 4 has all required fields: expected_delivery_start, expected_delivery_end, destination_warehouse, serialization_routing_note
+  - expected_delivery_start: DatePicker with native(false), live() for validation
+  - expected_delivery_end: DatePicker with afterOrEqual('expected_delivery_start') validation
+  - destination_warehouse: Select with warehouse options (main_warehouse, secondary_warehouse, bonded_warehouse, third_party_storage)
+  - destination_warehouse pre-filled from intent.preferred_inbound_location (done in Step 1 afterStateUpdated)
+  - serialization_routing_note: Textarea for special routing instructions (e.g., "France required")
+  - Informational note about destination being pre-filled from intent
+  - Verified typecheck and lint pass
+- Files changed:
+  - prd.json (marked US-023 as passes: true)
+  - No code changes needed - implementation was complete in US-020
+- **Learnings for future iterations:**
+  - Filament DatePicker validation uses afterOrEqual() for date range constraints
+  - Wizard steps implemented together in US-020 allows for faster iteration on subsequent stories
+  - Pre-filling fields across wizard steps is done in afterStateUpdated() of the source step
+  - Browser verification should be done manually as dev-browser skill is not available
+---
