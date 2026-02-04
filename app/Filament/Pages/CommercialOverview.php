@@ -419,4 +419,90 @@ class CommercialOverview extends Page
     {
         return true;
     }
+
+    /**
+     * Get upcoming expirations for offers and price books.
+     *
+     * @return array{
+     *     offers: array<array{id: string, name: string, valid_to: string, days_until_expiry: int, urgency: string, url: string}>,
+     *     price_books: array<array{id: string, name: string, valid_to: string, days_until_expiry: int, urgency: string, url: string}>,
+     *     total: int
+     * }
+     */
+    public function getUpcomingExpirations(): array
+    {
+        // Get offers expiring within 7 days
+        $expiringOffers = Offer::where('status', OfferStatus::Active->value)
+            ->whereNotNull('valid_to')
+            ->where('valid_to', '>', now())
+            ->where('valid_to', '<=', now()->addDays(7))
+            ->orderBy('valid_to', 'asc')
+            ->with(['sellableSku.wineVariant.wineMaster', 'channel'])
+            ->get()
+            ->map(function (Offer $offer) {
+                $daysUntilExpiry = (int) now()->diffInDays($offer->valid_to, false);
+                $urgency = $this->getExpirationUrgency($daysUntilExpiry);
+
+                return [
+                    'id' => $offer->id,
+                    'name' => $offer->name,
+                    'type' => 'offer',
+                    'valid_to' => $offer->valid_to->format('M j, Y H:i'),
+                    'days_until_expiry' => $daysUntilExpiry,
+                    'urgency' => $urgency,
+                    'url' => OfferResource::getUrl('view', ['record' => $offer->id]),
+                    'extra_info' => $offer->channel !== null ? $offer->channel->name : null,
+                ];
+            })
+            ->toArray();
+
+        // Get price books expiring within 30 days
+        $expiringPriceBooks = PriceBook::where('status', PriceBookStatus::Active->value)
+            ->whereNotNull('valid_to')
+            ->where('valid_to', '>', now())
+            ->where('valid_to', '<=', now()->addDays(30))
+            ->orderBy('valid_to', 'asc')
+            ->with('channel')
+            ->get()
+            ->map(function (PriceBook $priceBook) {
+                $daysUntilExpiry = (int) now()->diffInDays($priceBook->valid_to, false);
+                $urgency = $this->getExpirationUrgency($daysUntilExpiry);
+
+                return [
+                    'id' => $priceBook->id,
+                    'name' => $priceBook->name,
+                    'type' => 'price_book',
+                    'valid_to' => $priceBook->valid_to->format('M j, Y'),
+                    'days_until_expiry' => $daysUntilExpiry,
+                    'urgency' => $urgency,
+                    'url' => PriceBookResource::getUrl('view', ['record' => $priceBook->id]),
+                    'extra_info' => $priceBook->market.' / '.$priceBook->currency,
+                ];
+            })
+            ->toArray();
+
+        return [
+            'offers' => $expiringOffers,
+            'price_books' => $expiringPriceBooks,
+            'total' => count($expiringOffers) + count($expiringPriceBooks),
+        ];
+    }
+
+    /**
+     * Get urgency level based on days until expiry.
+     *
+     * @return 'critical'|'warning'|'normal'
+     */
+    public function getExpirationUrgency(int $daysUntilExpiry): string
+    {
+        if ($daysUntilExpiry < 3) {
+            return 'critical';
+        }
+
+        if ($daysUntilExpiry < 7) {
+            return 'warning';
+        }
+
+        return 'normal';
+    }
 }

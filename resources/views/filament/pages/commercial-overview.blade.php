@@ -363,6 +363,129 @@
         </div>
     </div>
 
+    {{-- Upcoming Expirations Widget --}}
+    @php
+        $expirations = $this->getUpcomingExpirations();
+    @endphp
+    @if($expirations['total'] > 0)
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white flex items-center">
+                        <x-heroicon-o-calendar class="h-5 w-5 mr-2 text-warning-500" />
+                        Upcoming Expirations
+                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-700 dark:bg-warning-400/10 dark:text-warning-400">
+                            {{ $expirations['total'] }}
+                        </span>
+                    </h3>
+                </div>
+            </div>
+            <div class="fi-section-content p-6">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    {{-- Expiring Offers --}}
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                            <x-heroicon-o-tag class="h-4 w-4 mr-1.5 text-success-500" />
+                            Offers (7 days)
+                        </h4>
+                        @if(count($expirations['offers']) > 0)
+                            <div class="space-y-2">
+                                @foreach($expirations['offers'] as $offer)
+                                    <a href="{{ $offer['url'] }}" class="block rounded-lg border p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors {{ match($offer['urgency']) {
+                                        'critical' => 'border-danger-300 bg-danger-50 dark:border-danger-400/30 dark:bg-danger-400/10',
+                                        'warning' => 'border-warning-300 bg-warning-50 dark:border-warning-400/30 dark:bg-warning-400/10',
+                                        default => 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800',
+                                    } }}">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $offer['name'] }}</p>
+                                                @if($offer['extra_info'])
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $offer['extra_info'] }}</p>
+                                                @endif
+                                            </div>
+                                            <div class="flex-shrink-0 ml-3 text-right">
+                                                @if($offer['urgency'] === 'critical')
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-danger-100 text-danger-800 dark:bg-danger-400/20 dark:text-danger-400">
+                                                        <x-heroicon-o-exclamation-triangle class="h-3 w-3 mr-1" />
+                                                        {{ $offer['days_until_expiry'] === 0 ? 'Today' : ($offer['days_until_expiry'] === 1 ? '1 day' : $offer['days_until_expiry'] . ' days') }}
+                                                    </span>
+                                                @elseif($offer['urgency'] === 'warning')
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-400/20 dark:text-warning-400">
+                                                        {{ $offer['days_until_expiry'] }} days
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                        {{ $offer['days_until_expiry'] }} days
+                                                    </span>
+                                                @endif
+                                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ $offer['valid_to'] }}</p>
+                                            </div>
+                                        </div>
+                                    </a>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="text-center py-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
+                                <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-400" />
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">No offers expiring soon</p>
+                            </div>
+                        @endif
+                    </div>
+
+                    {{-- Expiring Price Books --}}
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                            <x-heroicon-o-book-open class="h-4 w-4 mr-1.5 text-primary-500" />
+                            Price Books (30 days)
+                        </h4>
+                        @if(count($expirations['price_books']) > 0)
+                            <div class="space-y-2">
+                                @foreach($expirations['price_books'] as $priceBook)
+                                    <a href="{{ $priceBook['url'] }}" class="block rounded-lg border p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors {{ match($priceBook['urgency']) {
+                                        'critical' => 'border-danger-300 bg-danger-50 dark:border-danger-400/30 dark:bg-danger-400/10',
+                                        'warning' => 'border-warning-300 bg-warning-50 dark:border-warning-400/30 dark:bg-warning-400/10',
+                                        default => 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800',
+                                    } }}">
+                                        <div class="flex items-center justify-between">
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 dark:text-white truncate">{{ $priceBook['name'] }}</p>
+                                                @if($priceBook['extra_info'])
+                                                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ $priceBook['extra_info'] }}</p>
+                                                @endif
+                                            </div>
+                                            <div class="flex-shrink-0 ml-3 text-right">
+                                                @if($priceBook['urgency'] === 'critical')
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-danger-100 text-danger-800 dark:bg-danger-400/20 dark:text-danger-400">
+                                                        <x-heroicon-o-exclamation-triangle class="h-3 w-3 mr-1" />
+                                                        {{ $priceBook['days_until_expiry'] === 0 ? 'Today' : ($priceBook['days_until_expiry'] === 1 ? '1 day' : $priceBook['days_until_expiry'] . ' days') }}
+                                                    </span>
+                                                @elseif($priceBook['urgency'] === 'warning')
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-400/20 dark:text-warning-400">
+                                                        {{ $priceBook['days_until_expiry'] }} days
+                                                    </span>
+                                                @else
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                                                        {{ $priceBook['days_until_expiry'] }} days
+                                                    </span>
+                                                @endif
+                                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ $priceBook['valid_to'] }}</p>
+                                            </div>
+                                        </div>
+                                    </a>
+                                @endforeach
+                            </div>
+                        @else
+                            <div class="text-center py-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-700">
+                                <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-400" />
+                                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">No price books expiring soon</p>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
     {{-- Quick Actions --}}
     <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
         <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
