@@ -607,8 +607,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 37,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Enhanced Shipped Items section to show wine info (wine name, vintage, format) alongside serial numbers. Queries SerializedBottle with wineVariant.wineMaster and format relationships. Browser verification pending."
     },
     {
       "id": "US-C038",

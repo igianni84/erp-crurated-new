@@ -544,3 +544,17 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Export CSV bulk action available for list view
   - Browser verification pending
 ---
+
+## 2026-02-04 - US-C037
+- **What was implemented:** Enhanced Shipment Detail View with wine info in Shipped Items section
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShipmentResource/Pages/ViewShipment.php` (enhanced Shipped Items section)
+- **Learnings for future iterations:**
+  - Shipped Items section now shows Wine, Vintage, Format columns alongside serial numbers
+  - Query SerializedBottle by serial_number array using whereIn(), eager load wineVariant.wineMaster and format relationships
+  - Wine info hierarchy: SerializedBottle → wineVariant → wineMaster (has name field)
+  - WineVariant.vintage_year is non-nullable int per PHPStan - no null check needed
+  - Use keyBy('serial_number') on collection for O(1) lookups when iterating shipped serials
+  - All acceptance criteria were already met by US-C036 implementation; only enhancement needed was adding wine info to Shipped Items table
+  - Browser verification pending
+---
