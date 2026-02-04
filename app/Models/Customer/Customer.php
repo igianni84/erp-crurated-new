@@ -2,27 +2,55 @@
 
 namespace App\Models\Customer;
 
+use App\Enums\Customer\CustomerStatus;
+use App\Enums\Customer\CustomerType;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Customer Model
  *
- * Placeholder model for Module A (Allocations/Vouchers).
- * This will be enhanced by Module K (Parties, Customers & Eligibility) implementation.
+ * Represents a customer as a specialization of Party.
+ * A Customer is created automatically when a Party receives the customer role.
  *
- * @property string $name
- * @property string $email
- * @property string $status
+ * @property string $id
+ * @property string|null $party_id
+ * @property string|null $name (legacy field, deprecated - use party.legal_name)
+ * @property string|null $email (legacy field, deprecated - use contact system)
+ * @property CustomerType $customer_type
+ * @property CustomerStatus $status
+ * @property string|null $default_billing_address_id
+ * @property int|null $created_by
+ * @property int|null $updated_by
+ * @property \Carbon\Carbon $created_at
+ * @property \Carbon\Carbon $updated_at
+ * @property \Carbon\Carbon|null $deleted_at
  */
 class Customer extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
     use SoftDeletes;
+
+    /**
+     * Legacy status constants for backward compatibility.
+     *
+     * @deprecated Use CustomerStatus enum instead
+     */
+    public const STATUS_PROSPECT = 'prospect';
+
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_SUSPENDED = 'suspended';
+
+    public const STATUS_CLOSED = 'closed';
 
     /**
      * The table associated with the model.
@@ -32,23 +60,17 @@ class Customer extends Model
     protected $table = 'customers';
 
     /**
-     * Status constants.
-     */
-    public const STATUS_ACTIVE = 'active';
-
-    public const STATUS_SUSPENDED = 'suspended';
-
-    public const STATUS_CLOSED = 'closed';
-
-    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
      */
     protected $fillable = [
+        'party_id',
         'name',
         'email',
+        'customer_type',
         'status',
+        'default_billing_address_id',
     ];
 
     /**
@@ -59,8 +81,19 @@ class Customer extends Model
     protected function casts(): array
     {
         return [
-            'status' => 'string',
+            'customer_type' => CustomerType::class,
+            'status' => CustomerStatus::class,
         ];
+    }
+
+    /**
+     * Get the party that this customer belongs to.
+     *
+     * @return BelongsTo<Party, $this>
+     */
+    public function party(): BelongsTo
+    {
+        return $this->belongsTo(Party::class);
     }
 
     /**
@@ -84,11 +117,29 @@ class Customer extends Model
     }
 
     /**
+     * Get the audit logs for this customer.
+     *
+     * @return MorphMany<\App\Models\AuditLog, $this>
+     */
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+    }
+
+    /**
+     * Check if the customer is a prospect.
+     */
+    public function isProspect(): bool
+    {
+        return $this->status === CustomerStatus::Prospect;
+    }
+
+    /**
      * Check if the customer is active.
      */
     public function isActive(): bool
     {
-        return $this->status === self::STATUS_ACTIVE;
+        return $this->status === CustomerStatus::Active;
     }
 
     /**
@@ -96,7 +147,7 @@ class Customer extends Model
      */
     public function isSuspended(): bool
     {
-        return $this->status === self::STATUS_SUSPENDED;
+        return $this->status === CustomerStatus::Suspended;
     }
 
     /**
@@ -104,6 +155,75 @@ class Customer extends Model
      */
     public function isClosed(): bool
     {
-        return $this->status === self::STATUS_CLOSED;
+        return $this->status === CustomerStatus::Closed;
+    }
+
+    /**
+     * Check if the customer is B2C.
+     */
+    public function isB2C(): bool
+    {
+        return $this->customer_type === CustomerType::B2C;
+    }
+
+    /**
+     * Check if the customer is B2B.
+     */
+    public function isB2B(): bool
+    {
+        return $this->customer_type === CustomerType::B2B;
+    }
+
+    /**
+     * Check if the customer is a partner type.
+     */
+    public function isPartnerType(): bool
+    {
+        return $this->customer_type === CustomerType::Partner;
+    }
+
+    /**
+     * Get the status color for UI display.
+     */
+    public function getStatusColor(): string
+    {
+        return $this->status->color();
+    }
+
+    /**
+     * Get the status label for UI display.
+     */
+    public function getStatusLabel(): string
+    {
+        return $this->status->label();
+    }
+
+    /**
+     * Get the customer type color for UI display.
+     */
+    public function getCustomerTypeColor(): string
+    {
+        return $this->customer_type->color();
+    }
+
+    /**
+     * Get the customer type label for UI display.
+     */
+    public function getCustomerTypeLabel(): string
+    {
+        return $this->customer_type->label();
+    }
+
+    /**
+     * Get the customer's display name.
+     * Prefers party.legal_name, falls back to legacy name field.
+     */
+    public function getName(): string
+    {
+        if ($this->party !== null) {
+            return $this->party->legal_name;
+        }
+
+        return $this->name ?? 'Unknown';
     }
 }

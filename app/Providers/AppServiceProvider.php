@@ -5,6 +5,8 @@ namespace App\Providers;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
+use App\Models\Customer\PartyRole;
+use App\Observers\Customer\PartyRoleObserver;
 use App\Policies\AllocationPolicy;
 use App\Policies\VoucherPolicy;
 use App\Policies\VoucherTransferPolicy;
@@ -30,5 +32,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Allocation::class, AllocationPolicy::class);
         Gate::policy(Voucher::class, VoucherPolicy::class);
         Gate::policy(VoucherTransfer::class, VoucherTransferPolicy::class);
+
+        // Register observers for Module K
+        PartyRole::observe(PartyRoleObserver::class);
     }
 }

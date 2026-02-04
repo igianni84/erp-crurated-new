@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Customer\CustomerStatus;
 use App\Filament\Resources\Allocation\CaseEntitlementResource;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
@@ -80,19 +81,9 @@ class ViewCustomer extends ViewRecord
                                     TextEntry::make('status')
                                         ->label('Status')
                                         ->badge()
-                                        ->color(fn (Customer $record): string => match ($record->status) {
-                                            Customer::STATUS_ACTIVE => 'success',
-                                            Customer::STATUS_SUSPENDED => 'warning',
-                                            Customer::STATUS_CLOSED => 'danger',
-                                            default => 'gray',
-                                        })
-                                        ->icon(fn (Customer $record): string => match ($record->status) {
-                                            Customer::STATUS_ACTIVE => 'heroicon-o-check-circle',
-                                            Customer::STATUS_SUSPENDED => 'heroicon-o-pause-circle',
-                                            Customer::STATUS_CLOSED => 'heroicon-o-x-circle',
-                                            default => 'heroicon-o-question-mark-circle',
-                                        })
-                                        ->formatStateUsing(fn (string $state): string => ucfirst($state)),
+                                        ->color(fn (Customer $record): string => $record->status->color())
+                                        ->icon(fn (Customer $record): string => $record->status->icon())
+                                        ->formatStateUsing(fn (CustomerStatus $state): string => $state->label()),
                                     TextEntry::make('created_at')
                                         ->label('Customer Since')
                                         ->date(),
