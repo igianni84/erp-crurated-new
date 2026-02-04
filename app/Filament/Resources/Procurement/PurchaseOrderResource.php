@@ -254,6 +254,7 @@ class PurchaseOrderResource extends Resource
     {
         return [
             'index' => Pages\ListPurchaseOrders::route('/'),
+            'create' => Pages\CreatePurchaseOrder::route('/create'),
             'view' => Pages\ViewPurchaseOrder::route('/{record}'),
         ];
     }
