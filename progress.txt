@@ -1418,3 +1418,20 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Module C will use InventoryService.validateAllocationLineageMatch() for voucher fulfillment
   - ViewSerializedBottle already has prominent allocation display with warning about blocked substitution
 ---
+
+## 2026-02-04 - US-B049
+- **Implemented**: Serial number immutability enforcement with model accessor
+- **Files modified**:
+  - app/Models/Inventory/SerializedBottle.php (added setSerialNumberAttribute mutator)
+- **Immutability enforcement layers**:
+  1. DB constraint: `serial_number` column has UNIQUE constraint
+  2. Model boot guard: `updating` event throws InvalidArgumentException if serial_number is dirty
+  3. Model mutator: `setSerialNumberAttribute()` throws InvalidArgumentException if attempting to modify existing serial_number
+- **Error message guides to correction flow**:
+  - "Serial number is immutable and cannot be changed after creation. Use the mis-serialization correction flow (US-B029) instead."
+- **Learnings for future iterations**:
+  - Multi-layer immutability (DB, boot guard, mutator) provides defense in depth
+  - The setSerialNumberAttribute mutator catches modifications at the earliest point (attribute assignment)
+  - Mis-serialization correction flow (US-B029) is the only valid way to handle serial number errors
+  - The $immutableFields array and boot guard already existed from US-B004; this adds the mutator layer
+---
