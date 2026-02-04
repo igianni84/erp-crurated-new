@@ -1551,3 +1551,33 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - TextEntry can have both url() and openUrlInNewTab() for external links
   - Section.extraAttributes() provides conditional styling based on record state
 ---
+
+## 2026-02-04 - US-B054
+- **Verified**: Provenance timeline view (already implemented in US-B026)
+- **Files involved**:
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (getProvenanceTab method, lines 387-600)
+- **Implementation details verified**:
+  - Provenance Timeline section in Tab Provenance (lines 462-598)
+  - Timeline events include:
+    1. Serialization event - shows origin from inbound batch with source type (producer/supplier/transfer)
+    2. All movements - fetched via MovementItem relationship ordered by created_at
+    3. NFT minting event - shown when nft_minted_at is set
+  - Movement types handled: InternalTransfer, ConsignmentPlacement, ConsignmentReturn, EventShipment, EventConsumption
+  - Each timeline event shows: icon, color, title, description, date, user
+  - HTML timeline with color-coded cards and responsive design
+- **Acceptance criteria verification**:
+  - ✅ Timeline shows custody with producer: Serialization event shows source_type from inbound batch
+  - ✅ Timeline shows transfer to warehouse: First timeline entry is serialization event
+  - ✅ Timeline shows all subsequent movements: Loop through MovementItem records
+  - ✅ Timeline shows shipment events: MovementType::EventShipment handled with truck icon
+  - ✅ Timeline alimentata da InventoryMovements: MovementItem->inventoryMovement relationship used
+  - ✅ Read-only, append-only presentation: No edit capability, view-only display
+  - ✅ Typecheck and lint pass
+- **Browser verification**:
+  - Manual browser verification needed to confirm timeline display
+- **Learnings for future iterations**:
+  - US-B054 was a verification story - full implementation was done in US-B026
+  - Timeline is built as raw HTML using HtmlString for flexible styling
+  - Movement color coding: success=transfer, info=internal, warning=consignment, danger=consumption, primary=shipment
+  - Timeline always has at least the serialization event (never empty)
+---
