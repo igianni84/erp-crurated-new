@@ -1024,6 +1024,24 @@
                         Clarify {{ $exceptionCounts['pending_ownership'] }} Pending Ownerships
                     </a>
                 @endif
+                @if($exceptionCounts['overdue_pos'] > 0)
+                    <a href="{{ $this->getOverduePOsUrl() }}" class="inline-flex items-center px-4 py-2 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-danger-700 dark:text-danger-400 text-sm font-medium rounded-lg border border-danger-300 dark:border-danger-600 transition-colors">
+                        <x-heroicon-o-clock class="h-4 w-4 mr-2" />
+                        {{ $exceptionCounts['overdue_pos'] }} Overdue POs
+                    </a>
+                @endif
+                @if($exceptionCounts['variance_pos'] > 0)
+                    <a href="{{ $this->getVariancePOsUrl() }}" class="inline-flex items-center px-4 py-2 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-danger-700 dark:text-danger-400 text-sm font-medium rounded-lg border border-danger-300 dark:border-danger-600 transition-colors">
+                        <x-heroicon-o-arrow-trending-down class="h-4 w-4 mr-2" />
+                        {{ $exceptionCounts['variance_pos'] }} POs with Variance
+                    </a>
+                @endif
+                @if($bottlingDeadlineCounts['past_deadline'] > 0)
+                    <a href="{{ $this->getBottlingPastDeadlineUrl() }}" class="inline-flex items-center px-4 py-2 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 text-danger-700 dark:text-danger-400 text-sm font-medium rounded-lg border border-danger-300 dark:border-danger-600 transition-colors">
+                        <x-heroicon-o-fire class="h-4 w-4 mr-2" />
+                        {{ $bottlingDeadlineCounts['past_deadline'] }} Bottling Past Deadline
+                    </a>
+                @endif
             </div>
         </div>
     </div>
