@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Customer\AccountStatus;
+use App\Enums\Customer\AccountUserRole;
 use App\Enums\Customer\AddressType;
 use App\Enums\Customer\BlockStatus;
 use App\Enums\Customer\BlockType;
@@ -17,11 +18,13 @@ use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Account;
+use App\Models\Customer\AccountUser;
 use App\Models\Customer\Address;
 use App\Models\Customer\Customer;
 use App\Models\Customer\Membership;
 use App\Models\Customer\OperationalBlock;
 use App\Models\Customer\PaymentPermission;
+use App\Models\User;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -92,6 +95,7 @@ class ViewCustomer extends ViewRecord
                         $this->getEligibilityTab(),
                         $this->getPaymentCreditTab(),
                         $this->getClubsTab(),
+                        $this->getUsersAccessTab(),
                         $this->getOperationalBlocksTab(),
                         $this->getAuditTab(),
                     ])
@@ -2292,7 +2296,269 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 8: Operational Blocks - Active and historical blocks with CRUD.
+     * Tab 8: Users & Access - Manage user access to customer accounts.
+     */
+    protected function getUsersAccessTab(): Tab
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+
+        // Get all account users across all customer accounts
+        $accounts = $record->accounts()->with(['accountUsers.user'])->get();
+        $totalUsersCount = 0;
+        $pendingInvitationsCount = 0;
+
+        foreach ($accounts as $account) {
+            $totalUsersCount += $account->accountUsers->count();
+            $pendingInvitationsCount += $account->accountUsers->filter(fn (AccountUser $au): bool => $au->isPending())->count();
+        }
+
+        return Tab::make('Users & Access')
+            ->icon('heroicon-o-users')
+            ->badge($totalUsersCount > 0 ? (string) $totalUsersCount : null)
+            ->badgeColor($pendingInvitationsCount > 0 ? 'warning' : 'info')
+            ->schema([
+                Section::make('Account Users Overview')
+                    ->description('Manage which users have access to each account and their permissions.')
+                    ->schema([
+                        $this->getUsersAccessRepeatableEntry(),
+                    ]),
+                Section::make('Role Reference')
+                    ->description('Permission levels for account access.')
+                    ->collapsed()
+                    ->schema([
+                        TextEntry::make('roles_reference')
+                            ->label('')
+                            ->getStateUsing(function (): string {
+                                $html = '<div class="space-y-2">';
+                                foreach (AccountUserRole::cases() as $role) {
+                                    $color = match ($role->color()) {
+                                        'danger' => 'red',
+                                        'warning' => 'amber',
+                                        'primary' => 'blue',
+                                        'gray' => 'gray',
+                                        default => 'gray',
+                                    };
+                                    $html .= '<div class="flex items-start gap-2">';
+                                    $html .= '<span class="inline-flex items-center justify-center rounded-full px-2 py-1 text-xs font-medium bg-'.$color.'-100 text-'.$color.'-800 dark:bg-'.$color.'-800 dark:text-'.$color.'-200">';
+                                    $html .= htmlspecialchars($role->label());
+                                    $html .= '</span>';
+                                    $html .= '<span class="text-sm text-gray-600 dark:text-gray-400">'.htmlspecialchars($role->description()).'</span>';
+                                    $html .= '</div>';
+                                }
+                                $html .= '</div>';
+
+                                return $html;
+                            })
+                            ->html(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Get the repeatable entry for users & access per account.
+     */
+    protected function getUsersAccessRepeatableEntry(): RepeatableEntry|TextEntry
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+        $accounts = $record->accounts;
+
+        if ($accounts->isEmpty()) {
+            return TextEntry::make('no_accounts_notice')
+                ->label('')
+                ->getStateUsing(fn (): string => 'No accounts found for this customer. Create an account in the Accounts tab first.')
+                ->icon('heroicon-o-information-circle')
+                ->color('gray');
+        }
+
+        return RepeatableEntry::make('accounts')
+            ->label('')
+            ->schema([
+                Section::make(fn (Account $account): string => "Account: {$account->name}")
+                    ->description(fn (Account $account): string => "Channel: {$account->channel_scope->label()} | Status: {$account->status->label()}")
+                    ->icon('heroicon-o-rectangle-stack')
+                    ->collapsible()
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('invite_user')
+                            ->label('Invite User')
+                            ->icon('heroicon-o-user-plus')
+                            ->color('primary')
+                            ->size('sm')
+                            ->form([
+                                TextInput::make('email')
+                                    ->label('User Email')
+                                    ->email()
+                                    ->required()
+                                    ->helperText('Enter the email address of the user to invite'),
+                                Select::make('role')
+                                    ->label('Role')
+                                    ->options(collect(AccountUserRole::cases())
+                                        ->filter(fn (AccountUserRole $role): bool => $role !== AccountUserRole::Owner)
+                                        ->mapWithKeys(fn (AccountUserRole $role): array => [
+                                            $role->value => $role->label().' - '.$role->description(),
+                                        ])
+                                        ->toArray())
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('Select the permission level for this user'),
+                            ])
+                            ->modalHeading('Invite User to Account')
+                            ->modalDescription(fn (Account $account): string => "Invite a user to access account \"{$account->name}\"")
+                            ->modalSubmitActionLabel('Send Invitation')
+                            ->action(function (array $data, Account $account): void {
+                                $user = User::where('email', $data['email'])->first();
+
+                                if (! $user) {
+                                    Notification::make()
+                                        ->title('User not found')
+                                        ->body("No user found with email \"{$data['email']}\". The user must be registered in the system first.")
+                                        ->danger()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                // Check if user already has access
+                                if ($account->hasUser($user)) {
+                                    Notification::make()
+                                        ->title('User already has access')
+                                        ->body("User \"{$user->email}\" already has access to this account.")
+                                        ->warning()
+                                        ->send();
+
+                                    return;
+                                }
+
+                                // Create the account-user relationship
+                                AccountUser::create([
+                                    'account_id' => $account->id,
+                                    'user_id' => $user->id,
+                                    'role' => $data['role'],
+                                    'invited_at' => now(),
+                                    'accepted_at' => null,
+                                ]);
+
+                                Notification::make()
+                                    ->title('User invited')
+                                    ->body("User \"{$user->email}\" has been invited to account \"{$account->name}\" with role ".AccountUserRole::from($data['role'])->label().'.')
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData(['accounts']);
+                            }),
+                    ])
+                    ->schema([
+                        $this->getAccountUsersGrid(),
+                    ]),
+            ])
+            ->columns(1);
+    }
+
+    /**
+     * Get the grid component for account users.
+     */
+    protected function getAccountUsersGrid(): Grid|TextEntry
+    {
+        return Grid::make(1)
+            ->schema([
+                RepeatableEntry::make('accountUsers')
+                    ->label('')
+                    ->schema([
+                        Grid::make(6)
+                            ->schema([
+                                TextEntry::make('user.email')
+                                    ->label('Email')
+                                    ->icon('heroicon-o-envelope')
+                                    ->copyable()
+                                    ->weight(FontWeight::Bold),
+                                TextEntry::make('user.name')
+                                    ->label('Name')
+                                    ->placeholder('Not available'),
+                                TextEntry::make('role')
+                                    ->label('Role')
+                                    ->badge()
+                                    ->formatStateUsing(fn (AccountUserRole $state): string => $state->label())
+                                    ->color(fn (AccountUserRole $state): string => $state->color())
+                                    ->icon(fn (AccountUserRole $state): string => $state->icon()),
+                                TextEntry::make('status_display')
+                                    ->label('Status')
+                                    ->getStateUsing(fn (AccountUser $accountUser): string => $accountUser->getStatusLabel())
+                                    ->badge()
+                                    ->color(fn (AccountUser $accountUser): string => $accountUser->getStatusColor()),
+                                TextEntry::make('invited_at')
+                                    ->label('Invited')
+                                    ->dateTime()
+                                    ->placeholder('Not invited'),
+                                \Filament\Infolists\Components\Actions::make([
+                                    \Filament\Infolists\Components\Actions\Action::make('change_role')
+                                        ->label('Change Role')
+                                        ->icon('heroicon-o-arrow-path')
+                                        ->color('gray')
+                                        ->size('sm')
+                                        ->visible(fn (AccountUser $accountUser): bool => ! $accountUser->isOwner())
+                                        ->form(fn (AccountUser $accountUser): array => [
+                                            Select::make('role')
+                                                ->label('New Role')
+                                                ->options(collect(AccountUserRole::cases())
+                                                    ->filter(fn (AccountUserRole $role): bool => $role !== AccountUserRole::Owner)
+                                                    ->mapWithKeys(fn (AccountUserRole $role): array => [
+                                                        $role->value => $role->label().' - '.$role->description(),
+                                                    ])
+                                                    ->toArray())
+                                                ->required()
+                                                ->native(false)
+                                                ->default($accountUser->role->value),
+                                        ])
+                                        ->modalHeading('Change User Role')
+                                        ->modalDescription(fn (AccountUser $accountUser): string => "Change role for user \"{$accountUser->user->email}\"")
+                                        ->modalSubmitActionLabel('Update Role')
+                                        ->action(function (array $data, AccountUser $accountUser): void {
+                                            $oldRole = $accountUser->role;
+                                            $newRole = AccountUserRole::from($data['role']);
+
+                                            $accountUser->update(['role' => $data['role']]);
+
+                                            Notification::make()
+                                                ->title('Role updated')
+                                                ->body("User \"{$accountUser->user->email}\" role changed from {$oldRole->label()} to {$newRole->label()}.")
+                                                ->success()
+                                                ->send();
+
+                                            $this->refreshFormData(['accounts']);
+                                        }),
+                                    \Filament\Infolists\Components\Actions\Action::make('remove_user')
+                                        ->label('Remove')
+                                        ->icon('heroicon-o-trash')
+                                        ->color('danger')
+                                        ->size('sm')
+                                        ->visible(fn (AccountUser $accountUser): bool => ! $accountUser->isOwner())
+                                        ->requiresConfirmation()
+                                        ->modalHeading('Remove User Access')
+                                        ->modalDescription(fn (AccountUser $accountUser): string => "Are you sure you want to remove access for \"{$accountUser->user->email}\" from this account? They will no longer be able to access this account.")
+                                        ->modalSubmitActionLabel('Remove Access')
+                                        ->action(function (AccountUser $accountUser): void {
+                                            $email = $accountUser->user->email;
+                                            $accountUser->delete();
+
+                                            Notification::make()
+                                                ->title('Access removed')
+                                                ->body("User \"{$email}\" has been removed from this account.")
+                                                ->success()
+                                                ->send();
+
+                                            $this->refreshFormData(['accounts']);
+                                        }),
+                                ])->alignEnd(),
+                            ]),
+                    ])
+                    ->columns(1)
+                    ->placeholder('No users have access to this account yet. Use "Invite User" to add users.'),
+            ]);
+    }
+
+    /**
+     * Tab 9: Operational Blocks - Active and historical blocks with CRUD.
      */
     protected function getOperationalBlocksTab(): Tab
     {
