@@ -1002,8 +1002,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 60,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "InboundService validates location against ProducerSupplierConfig.serialization_constraints, ViewInbound Route action shows blockers"
     },
     {
       "id": "US-061",

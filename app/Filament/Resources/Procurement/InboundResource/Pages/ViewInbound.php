@@ -702,24 +702,90 @@ class ViewInbound extends ViewRecord
                 ->color('primary')
                 ->requiresConfirmation()
                 ->modalHeading('Route Inbound')
-                ->modalDescription('Assign a serialization location and route this inbound for processing.')
+                ->modalDescription(function (Inbound $record): string {
+                    $inboundService = app(InboundService::class);
+                    $authorizedLocations = $inboundService->getAuthorizedSerializationLocations($record);
+
+                    if ($authorizedLocations !== null && count($authorizedLocations) > 0) {
+                        $locationList = implode(', ', $authorizedLocations);
+
+                        return "⚠️ Supplier config restricts serialization to: {$locationList}. "
+                            .'Selecting a location not in this list will be blocked.';
+                    }
+
+                    return 'Assign a serialization location and route this inbound for processing.';
+                })
                 ->modalSubmitActionLabel('Route Inbound')
                 ->form([
                     Select::make('serialization_location')
                         ->label('Serialization Location')
-                        ->options([
-                            'main_warehouse' => 'Main Warehouse',
-                            'secondary_warehouse' => 'Secondary Warehouse',
-                            'bonded_warehouse' => 'Bonded Warehouse',
-                            'third_party_storage' => 'Third Party Storage',
-                            'france_facility' => 'France Facility',
-                            'uk_facility' => 'UK Facility',
-                            'origin_winery' => 'Origin Winery',
-                        ])
+                        ->options(function (Inbound $record): array {
+                            $inboundService = app(InboundService::class);
+                            $authorizedLocations = $inboundService->getAuthorizedSerializationLocations($record);
+
+                            $allLocations = [
+                                'main_warehouse' => 'Main Warehouse',
+                                'secondary_warehouse' => 'Secondary Warehouse',
+                                'bonded_warehouse' => 'Bonded Warehouse',
+                                'third_party_storage' => 'Third Party Storage',
+                                'france_facility' => 'France Facility',
+                                'uk_facility' => 'UK Facility',
+                                'origin_winery' => 'Origin Winery',
+                            ];
+
+                            if ($authorizedLocations !== null && count($authorizedLocations) > 0) {
+                                // Filter to only authorized locations and mark others as disabled
+                                $options = [];
+                                foreach ($allLocations as $value => $label) {
+                                    if (in_array($value, $authorizedLocations, true)) {
+                                        $options[$value] = $label.' ✓';
+                                    } else {
+                                        $options[$value] = $label.' (Not authorized)';
+                                    }
+                                }
+
+                                return $options;
+                            }
+
+                            return $allLocations;
+                        })
                         ->required()
                         ->native(false)
                         ->default(fn (Inbound $record) => $record->serialization_location_authorized)
-                        ->helperText('Where serialization will be performed'),
+                        ->helperText(function (Inbound $record): string {
+                            $inboundService = app(InboundService::class);
+                            $authorizedLocations = $inboundService->getAuthorizedSerializationLocations($record);
+
+                            if ($authorizedLocations !== null && count($authorizedLocations) > 0) {
+                                return 'Locations marked with ✓ are authorized per supplier config.';
+                            }
+
+                            return 'Where serialization will be performed';
+                        })
+                        ->live()
+                        ->afterStateUpdated(function (string $state, callable $set, Inbound $record): void {
+                            $inboundService = app(InboundService::class);
+                            $checkResult = $inboundService->checkSerializationLocationAuthorization($record, $state);
+
+                            if (! $checkResult['authorized']) {
+                                $set('location_warning', $checkResult['message']);
+                            } else {
+                                $set('location_warning', null);
+                            }
+                        }),
+                    \Filament\Forms\Components\Placeholder::make('location_warning_display')
+                        ->label('')
+                        ->content(fn ($get): ?\Illuminate\Support\HtmlString => $get('location_warning') !== null
+                            ? new \Illuminate\Support\HtmlString(
+                                '<div class="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">'
+                                .'<p class="text-red-700 dark:text-red-300 font-medium text-sm">'
+                                .'🚫 '.$get('location_warning')
+                                .'</p></div>'
+                            )
+                            : null
+                        )
+                        ->hidden(fn ($get): bool => $get('location_warning') === null),
+                    \Filament\Forms\Components\Hidden::make('location_warning'),
                 ])
                 ->visible(fn (Inbound $record): bool => $record->isRecorded())
                 ->action(function (Inbound $record, array $data): void {

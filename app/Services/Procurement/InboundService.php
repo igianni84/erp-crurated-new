@@ -246,9 +246,10 @@ class InboundService
     /**
      * Validate serialization routing.
      *
-     * Ensures that if serialization is required, an authorized location has been set.
+     * Ensures that if serialization is required, an authorized location has been set
+     * and the location is authorized according to ProducerSupplierConfig.serialization_constraints.
      *
-     * @throws \InvalidArgumentException If serialization routing is invalid
+     * @throws \InvalidArgumentException If serialization routing is invalid or location not authorized
      */
     public function validateSerializationRouting(Inbound $inbound): void
     {
@@ -262,8 +263,131 @@ class InboundService
             );
         }
 
-        // In future, this could check against ProducerSupplierConfig.serialization_constraints
-        // For now, we just verify that a location has been set
+        // Check against ProducerSupplierConfig.serialization_constraints if available
+        $this->validateLocationAgainstSupplierConfig($inbound, $inbound->serialization_location_authorized);
+    }
+
+    /**
+     * Validate that a serialization location is authorized according to supplier config.
+     *
+     * If the inbound is linked to a PurchaseOrder with a supplier that has serialization constraints,
+     * the location must be in the list of authorized locations.
+     *
+     * @throws \InvalidArgumentException If location is not authorized for this product/supplier
+     */
+    protected function validateLocationAgainstSupplierConfig(Inbound $inbound, string $location): void
+    {
+        // Get supplier config through PurchaseOrder if linked
+        $purchaseOrder = $inbound->purchaseOrder;
+        if ($purchaseOrder === null) {
+            // No PO linked, no supplier constraints to check
+            return;
+        }
+
+        $supplier = $purchaseOrder->supplier;
+        if ($supplier === null) {
+            return;
+        }
+
+        $supplierConfig = $supplier->supplierConfig;
+        if ($supplierConfig === null || ! $supplierConfig->hasSerializationConstraints()) {
+            // No config or no serialization constraints, location is allowed
+            return;
+        }
+
+        // Check if the location is authorized
+        if (! $supplierConfig->isSerializationLocationAuthorized($location)) {
+            $authorizedLocations = $supplierConfig->getSerializationConstraint('authorized_locations', []);
+            $authorizedList = is_array($authorizedLocations)
+                ? implode(', ', $authorizedLocations)
+                : 'none defined';
+
+            throw new \InvalidArgumentException(
+                "Serialization location '{$location}' is not authorized for this product. "
+                ."Authorized locations: {$authorizedList}."
+            );
+        }
+    }
+
+    /**
+     * Check if a serialization location is authorized for an inbound.
+     * Returns a result array instead of throwing an exception.
+     *
+     * @return array{authorized: bool, message: string|null, authorized_locations: array<string>|null}
+     */
+    public function checkSerializationLocationAuthorization(Inbound $inbound, string $location): array
+    {
+        // Get supplier config through PurchaseOrder if linked
+        $purchaseOrder = $inbound->purchaseOrder;
+        if ($purchaseOrder === null) {
+            return [
+                'authorized' => true,
+                'message' => null,
+                'authorized_locations' => null,
+            ];
+        }
+
+        $supplier = $purchaseOrder->supplier;
+        if ($supplier === null) {
+            return [
+                'authorized' => true,
+                'message' => null,
+                'authorized_locations' => null,
+            ];
+        }
+
+        $supplierConfig = $supplier->supplierConfig;
+        if ($supplierConfig === null || ! $supplierConfig->hasSerializationConstraints()) {
+            return [
+                'authorized' => true,
+                'message' => null,
+                'authorized_locations' => null,
+            ];
+        }
+
+        $authorizedLocations = $supplierConfig->getSerializationConstraint('authorized_locations', []);
+        $authorizedArray = is_array($authorizedLocations) ? $authorizedLocations : [];
+
+        if ($supplierConfig->isSerializationLocationAuthorized($location)) {
+            return [
+                'authorized' => true,
+                'message' => null,
+                'authorized_locations' => $authorizedArray,
+            ];
+        }
+
+        return [
+            'authorized' => false,
+            'message' => "Serialization location '{$location}' is not authorized for this product.",
+            'authorized_locations' => $authorizedArray,
+        ];
+    }
+
+    /**
+     * Get the authorized serialization locations for an inbound based on supplier config.
+     *
+     * @return array<string>|null Returns null if no constraints, array of authorized locations otherwise
+     */
+    public function getAuthorizedSerializationLocations(Inbound $inbound): ?array
+    {
+        $purchaseOrder = $inbound->purchaseOrder;
+        if ($purchaseOrder === null) {
+            return null;
+        }
+
+        $supplier = $purchaseOrder->supplier;
+        if ($supplier === null) {
+            return null;
+        }
+
+        $supplierConfig = $supplier->supplierConfig;
+        if ($supplierConfig === null || ! $supplierConfig->hasSerializationConstraints()) {
+            return null;
+        }
+
+        $authorizedLocations = $supplierConfig->getSerializationConstraint('authorized_locations');
+
+        return is_array($authorizedLocations) ? $authorizedLocations : null;
     }
 
     /**

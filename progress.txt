@@ -1356,3 +1356,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Ownership clarity is validated in both complete() and handOffToModuleB() methods
   - No new code needed - just verification that existing implementation meets criteria
 ---
+
+## 2026-02-04 - US-060
+- What was implemented:
+  - Updated InboundService::validateSerializationRouting() to check against ProducerSupplierConfig.serialization_constraints
+  - Added validateLocationAgainstSupplierConfig() method to check location against authorized_locations in supplier config
+  - Added checkSerializationLocationAuthorization() method for UI to check without throwing exception
+  - Added getAuthorizedSerializationLocations() method to retrieve authorized locations from supplier config
+  - Updated ViewInbound Route action:
+    - Modal description shows warning when supplier has serialization constraints
+    - Location options show ✓ for authorized and "(Not authorized)" for non-authorized locations
+    - Live validation shows inline warning when selecting non-authorized location
+    - Error message matches acceptance criteria: "Serialization location [X] is not authorized for this product"
+  - Error flow: Inbound → PurchaseOrder → supplier → supplierConfig → serialization_constraints → authorized_locations
+- Files changed:
+  - app/Services/Procurement/InboundService.php (modified - added constraint validation)
+  - app/Filament/Resources/Procurement/InboundResource/Pages/ViewInbound.php (modified - enhanced Route action)
+  - prd.json (marked US-060 as passes: true)
+- **Learnings for future iterations:**
+  - Supplier config check chain: Inbound → PurchaseOrder → supplier → supplierConfig
+  - If no PO linked or no supplier config, location is allowed (no constraints to check)
+  - Use checkSerializationLocationAuthorization() for UI validation, validateSerializationRouting() for blocking
+  - Filament forms can show live validation with afterStateUpdated and Hidden fields for state
+---
