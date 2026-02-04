@@ -670,3 +670,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Added removal_reason field for tracking why a block was removed
   - Both Customer and Account have identical helper methods for operational blocks
 ---
+
+## 2026-02-04 - US-028
+- What was implemented:
+  - Verified existing BlockType enum has all 5 block types defined with label/color/icon/description methods
+  - Each block type has `blockedOperations()` method returning list of operations it prevents
+  - Updated EligibilityEngine to use actual OperationalBlock checks (no longer placeholder)
+  - EligibilityEngine now checks for Payment and Compliance blocks when computing channel eligibility
+  - Updated `customerHasActiveClubAffiliation()` to use real CustomerClub data from US-022
+  - Added `getBlockingOperationalBlocks()` and `getBlockTypesForChannel()` methods to EligibilityEngine
+  - Added operation-checking helper methods to Customer model:
+    - `isOperationBlocked($operation)` - checks if any active block prevents the operation
+    - `hasPaymentOperationBlocked()`, `hasShipmentOperationBlocked()`, `hasRedemptionOperationBlocked()`, `hasTradingOperationBlocked()`
+  - Added same helper methods to Account model (with inheritance from Customer)
+- Files changed:
+  - app/Services/Customer/EligibilityEngine.php (updated - real OperationalBlock integration)
+  - app/Models/Customer/Customer.php (updated - added operation blocked helper methods)
+  - app/Models/Customer/Account.php (updated - added operation blocked helper methods)
+- **Learnings for future iterations:**
+  - BlockType enum was already created in US-027 with all 5 types and helper methods
+  - EligibilityEngine's operational_blocks factor now shows which specific block types are preventing access
+  - Block types that affect channel eligibility: Payment and Compliance for B2C/B2B, Compliance only for Club
+  - Account operation checks inherit from Customer (account block OR customer block = blocked)
+  - Compliance block is "super block" - prevents ALL operations
+---
