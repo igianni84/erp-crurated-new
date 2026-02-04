@@ -19,8 +19,10 @@ use App\Models\Fulfillment\ShippingOrderLine;
 use App\Models\Inventory\Location;
 use App\Services\Fulfillment\LateBindingService;
 use App\Services\Fulfillment\ShippingOrderService;
+use App\Services\Fulfillment\WmsIntegrationService;
 use Filament\Actions;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -57,8 +59,8 @@ class ViewShippingOrder extends ViewRecord
                         $this->getOverviewTab(),
                         $this->getVouchersAndEligibilityTab(),
                         $this->getPlanningTab(),
+                        $this->getPickingAndBindingTab(),
                         // Future tabs will be added in subsequent stories:
-                        // US-C027: Picking & Binding tab
                         // US-C028: Audit & Timeline tab
                     ])
                     ->persistTabInQueryString()
@@ -131,6 +133,586 @@ class ViewShippingOrder extends ViewRecord
                 $this->getSourceWarehouseSection(),
                 $this->getInventoryAvailabilitySection(),
                 $this->getPlanningActionsSection(),
+            ]);
+    }
+
+    /**
+     * Tab 4: Picking & Binding
+     * View late binding in action during picking.
+     * Active only if status >= picking.
+     */
+    protected function getPickingAndBindingTab(): Tab
+    {
+        return Tab::make('Picking & Binding')
+            ->icon('heroicon-o-hand-raised')
+            ->visible(fn (ShippingOrder $record): bool => $this->isPickingOrBeyond($record))
+            ->badge(function (ShippingOrder $record): ?string {
+                if (! $this->isPickingOrBeyond($record)) {
+                    return null;
+                }
+
+                $completion = $this->getBindingCompletion($record);
+                if ($completion['all_bound']) {
+                    return '✓';
+                }
+                if ($completion['discrepancy_count'] > 0) {
+                    return (string) $completion['discrepancy_count'];
+                }
+                if ($completion['pending_count'] > 0) {
+                    return (string) $completion['pending_count'];
+                }
+
+                return null;
+            })
+            ->badgeColor(function (ShippingOrder $record): string {
+                if (! $this->isPickingOrBeyond($record)) {
+                    return 'gray';
+                }
+
+                $completion = $this->getBindingCompletion($record);
+                if ($completion['all_bound']) {
+                    return 'success';
+                }
+                if ($completion['discrepancy_count'] > 0) {
+                    return 'danger';
+                }
+
+                return 'warning';
+            })
+            ->schema([
+                $this->getPickingStatusBannerSection(),
+                $this->getBindingSummarySection(),
+                $this->getBindingLinesSection(),
+                $this->getDiscrepancyAlertSection(),
+            ]);
+    }
+
+    /**
+     * Check if the shipping order is in picking status or beyond (shipped, completed).
+     */
+    protected function isPickingOrBeyond(ShippingOrder $record): bool
+    {
+        return in_array($record->status, [
+            ShippingOrderStatus::Picking,
+            ShippingOrderStatus::Shipped,
+            ShippingOrderStatus::Completed,
+        ], true);
+    }
+
+    /**
+     * Get binding completion statistics.
+     *
+     * @return array{all_bound: bool, bound_count: int, pending_count: int, early_binding_count: int, late_binding_count: int, discrepancy_count: int}
+     */
+    protected function getBindingCompletion(ShippingOrder $record): array
+    {
+        static $cache = [];
+        $cacheKey = 'binding-'.$record->id.'-'.$record->status->value;
+
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+
+        $record->load('lines');
+
+        $boundCount = 0;
+        $pendingCount = 0;
+        $earlyBindingCount = 0;
+        $lateBindingCount = 0;
+        $discrepancyCount = 0;
+
+        foreach ($record->lines as $line) {
+            if ($line->hasEarlyBinding()) {
+                $earlyBindingCount++;
+                $boundCount++;
+            } elseif ($line->isBound()) {
+                $lateBindingCount++;
+                $boundCount++;
+            } else {
+                $pendingCount++;
+            }
+
+            // Check for discrepancies (lines with exceptions)
+            if ($this->hasBindingDiscrepancy($line)) {
+                $discrepancyCount++;
+            }
+        }
+
+        $result = [
+            'all_bound' => $pendingCount === 0 && $discrepancyCount === 0,
+            'bound_count' => $boundCount,
+            'pending_count' => $pendingCount,
+            'early_binding_count' => $earlyBindingCount,
+            'late_binding_count' => $lateBindingCount,
+            'discrepancy_count' => $discrepancyCount,
+        ];
+
+        $cache[$cacheKey] = $result;
+
+        return $result;
+    }
+
+    /**
+     * Check if a line has a binding discrepancy.
+     */
+    protected function hasBindingDiscrepancy(ShippingOrderLine $line): bool
+    {
+        // Check if there's an active exception for this line
+        return ShippingOrderException::query()
+            ->where('shipping_order_line_id', $line->id)
+            ->where('status', ShippingOrderExceptionStatus::Active)
+            ->whereIn('exception_type', [
+                ShippingOrderExceptionType::WmsDiscrepancy,
+                ShippingOrderExceptionType::BindingFailed,
+                ShippingOrderExceptionType::EarlyBindingFailed,
+            ])
+            ->exists();
+    }
+
+    /**
+     * Banner showing picking status.
+     */
+    protected function getPickingStatusBannerSection(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('picking_status_banner')
+                    ->label('')
+                    ->getStateUsing(function (ShippingOrder $record): string {
+                        $completion = $this->getBindingCompletion($record);
+
+                        if ($record->status === ShippingOrderStatus::Completed) {
+                            return '✓ This Shipping Order has been completed. All items have been shipped and vouchers redeemed.';
+                        }
+
+                        if ($record->status === ShippingOrderStatus::Shipped) {
+                            return '✓ This Shipping Order has been shipped. Awaiting delivery confirmation.';
+                        }
+
+                        if ($completion['discrepancy_count'] > 0) {
+                            return "⚠️ {$completion['discrepancy_count']} discrepancy(ies) detected. Review binding issues and request re-pick if necessary.";
+                        }
+
+                        if ($completion['all_bound']) {
+                            return '✓ All bindings confirmed. Ready for shipment confirmation.';
+                        }
+
+                        if ($completion['pending_count'] > 0) {
+                            return "Awaiting WMS feedback for {$completion['pending_count']} item(s). Binding in progress.";
+                        }
+
+                        return 'Picking in progress. WMS is processing this order.';
+                    })
+                    ->icon(function (ShippingOrder $record): string {
+                        $completion = $this->getBindingCompletion($record);
+
+                        if ($record->status === ShippingOrderStatus::Completed || $record->status === ShippingOrderStatus::Shipped) {
+                            return 'heroicon-o-check-circle';
+                        }
+                        if ($completion['discrepancy_count'] > 0) {
+                            return 'heroicon-o-exclamation-triangle';
+                        }
+                        if ($completion['all_bound']) {
+                            return 'heroicon-o-check-circle';
+                        }
+
+                        return 'heroicon-o-clock';
+                    })
+                    ->color(function (ShippingOrder $record): string {
+                        $completion = $this->getBindingCompletion($record);
+
+                        if ($record->status === ShippingOrderStatus::Completed || $record->status === ShippingOrderStatus::Shipped) {
+                            return 'success';
+                        }
+                        if ($completion['discrepancy_count'] > 0) {
+                            return 'danger';
+                        }
+                        if ($completion['all_bound']) {
+                            return 'success';
+                        }
+
+                        return 'info';
+                    })
+                    ->weight(FontWeight::Medium)
+                    ->columnSpanFull(),
+            ])
+            ->extraAttributes(function (ShippingOrder $record): array {
+                $completion = $this->getBindingCompletion($record);
+
+                if ($record->status === ShippingOrderStatus::Completed || $record->status === ShippingOrderStatus::Shipped) {
+                    return ['class' => 'bg-success-50 dark:bg-success-900/20 border-success-200 dark:border-success-800'];
+                }
+                if ($completion['discrepancy_count'] > 0) {
+                    return ['class' => 'bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800'];
+                }
+                if ($completion['all_bound']) {
+                    return ['class' => 'bg-success-50 dark:bg-success-900/20 border-success-200 dark:border-success-800'];
+                }
+
+                return ['class' => 'bg-info-50 dark:bg-info-900/20 border-info-200 dark:border-info-800'];
+            })
+            ->columnSpanFull();
+    }
+
+    /**
+     * Section showing binding summary statistics.
+     */
+    protected function getBindingSummarySection(): Section
+    {
+        return Section::make('Binding Summary')
+            ->description('Overview of bottle binding progress')
+            ->icon('heroicon-o-chart-bar')
+            ->schema([
+                Grid::make(5)
+                    ->schema([
+                        TextEntry::make('total_lines')
+                            ->label('Total Items')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $record->lines()->count())
+                            ->badge()
+                            ->color('info'),
+                        TextEntry::make('early_binding_count')
+                            ->label('Early Binding')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->getBindingCompletion($record)['early_binding_count'])
+                            ->badge()
+                            ->color('primary')
+                            ->icon('heroicon-o-star'),
+                        TextEntry::make('late_binding_count')
+                            ->label('Late Binding')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->getBindingCompletion($record)['late_binding_count'])
+                            ->badge()
+                            ->color('success')
+                            ->icon('heroicon-o-check'),
+                        TextEntry::make('pending_binding_count')
+                            ->label('Pending')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->getBindingCompletion($record)['pending_count'])
+                            ->badge()
+                            ->color(fn (ShippingOrder $record): string => $this->getBindingCompletion($record)['pending_count'] > 0 ? 'warning' : 'gray')
+                            ->icon('heroicon-o-clock'),
+                        TextEntry::make('discrepancy_count')
+                            ->label('Discrepancies')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->getBindingCompletion($record)['discrepancy_count'])
+                            ->badge()
+                            ->color(fn (ShippingOrder $record): string => $this->getBindingCompletion($record)['discrepancy_count'] > 0 ? 'danger' : 'gray')
+                            ->icon('heroicon-o-exclamation-triangle'),
+                    ]),
+                TextEntry::make('binding_note')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'Note: Manual bottle selection is not allowed. Operator can only accept or reject WMS feedback.')
+                    ->color('gray')
+                    ->icon('heroicon-o-information-circle')
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * Section showing binding lines details.
+     */
+    protected function getBindingLinesSection(): Section
+    {
+        return Section::make('Binding Details')
+            ->description('Status of each item\'s binding to a serialized bottle')
+            ->icon('heroicon-o-queue-list')
+            ->schema([
+                RepeatableEntry::make('lines')
+                    ->label('')
+                    ->schema([
+                        Grid::make(1)
+                            ->schema([
+                                // Main line info row
+                                Grid::make(6)
+                                    ->schema([
+                                        TextEntry::make('voucher.id')
+                                            ->label('Voucher')
+                                            ->url(fn (ShippingOrderLine $record): ?string => $record->voucher
+                                                ? VoucherResource::getUrl('view', ['record' => $record->voucher])
+                                                : null)
+                                            ->openUrlInNewTab()
+                                            ->color('primary')
+                                            ->copyable()
+                                            ->copyMessage('Voucher ID copied')
+                                            ->limit(8),
+                                        TextEntry::make('voucher.wineVariant.wineMaster.name')
+                                            ->label('Wine')
+                                            ->default('Unknown')
+                                            ->weight(FontWeight::Medium),
+                                        TextEntry::make('allocation.id')
+                                            ->label('Allocation')
+                                            ->limit(8)
+                                            ->copyable()
+                                            ->copyMessage('Allocation ID copied'),
+                                        TextEntry::make('binding_type')
+                                            ->label('Binding Type')
+                                            ->getStateUsing(fn (ShippingOrderLine $line): string => $this->getBindingTypeLabel($line))
+                                            ->badge()
+                                            ->color(fn (ShippingOrderLine $line): string => $this->getBindingTypeColor($line))
+                                            ->icon(fn (ShippingOrderLine $line): string => $this->getBindingTypeIcon($line)),
+                                        TextEntry::make('binding_status')
+                                            ->label('Binding Status')
+                                            ->getStateUsing(fn (ShippingOrderLine $line): string => $this->getBindingStatusLabel($line))
+                                            ->badge()
+                                            ->color(fn (ShippingOrderLine $line): string => $this->getBindingStatusColor($line))
+                                            ->icon(fn (ShippingOrderLine $line): string => $this->getBindingStatusIcon($line)),
+                                        TextEntry::make('line_status')
+                                            ->label('Line Status')
+                                            ->getStateUsing(fn (ShippingOrderLine $line): string => $line->getStatusLabel())
+                                            ->badge()
+                                            ->color(fn (ShippingOrderLine $line): string => $line->getStatusColor())
+                                            ->icon(fn (ShippingOrderLine $line): string => $line->getStatusIcon()),
+                                    ]),
+                                // Binding details row
+                                $this->getBindingDetailsGroup(),
+                            ]),
+                    ])
+                    ->columns(1),
+            ]);
+    }
+
+    /**
+     * Get the binding details group for a line.
+     */
+    protected function getBindingDetailsGroup(): Group
+    {
+        return Group::make([
+            TextEntry::make('binding_details')
+                ->label('')
+                ->getStateUsing(function (ShippingOrderLine $line): string {
+                    return $this->formatBindingDetails($line);
+                })
+                ->html()
+                ->columnSpanFull(),
+        ]);
+    }
+
+    /**
+     * Format binding details as HTML for display.
+     */
+    protected function formatBindingDetails(ShippingOrderLine $line): string
+    {
+        $html = '<div class="grid grid-cols-3 gap-4 text-sm mt-2 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">';
+
+        // Early binding serial
+        $html .= '<div>';
+        $html .= '<span class="font-medium text-gray-500 dark:text-gray-400">Early Binding Serial:</span><br>';
+        if ($line->early_binding_serial !== null) {
+            $html .= '<span class="font-mono text-primary-600 dark:text-primary-400">';
+            $html .= '<span class="inline-flex items-center px-2 py-0.5 rounded bg-primary-100 dark:bg-primary-900/30">';
+            $html .= '⭐ '.e($line->early_binding_serial);
+            $html .= '</span></span>';
+            $html .= '<br><span class="text-xs text-primary-600 dark:text-primary-400">Pre-bound (Personalized)</span>';
+        } else {
+            $html .= '<span class="text-gray-400 italic">Not applicable</span>';
+        }
+        $html .= '</div>';
+
+        // Bound bottle serial (late binding)
+        $html .= '<div>';
+        $html .= '<span class="font-medium text-gray-500 dark:text-gray-400">Bound Bottle Serial:</span><br>';
+        if ($line->bound_bottle_serial !== null) {
+            $hasDiscrepancy = $this->hasBindingDiscrepancy($line);
+            $serialClass = $hasDiscrepancy
+                ? 'text-danger-600 dark:text-danger-400 bg-danger-100 dark:bg-danger-900/30'
+                : 'text-success-600 dark:text-success-400 bg-success-100 dark:bg-success-900/30';
+            $html .= '<span class="font-mono">';
+            $html .= '<span class="inline-flex items-center px-2 py-0.5 rounded '.$serialClass.'">';
+            $html .= ($hasDiscrepancy ? '⚠ ' : '✓ ').e($line->bound_bottle_serial);
+            $html .= '</span></span>';
+            if ($hasDiscrepancy) {
+                $html .= '<br><span class="text-xs text-danger-600 dark:text-danger-400">Discrepancy detected</span>';
+            }
+        } elseif ($line->hasEarlyBinding()) {
+            $html .= '<span class="text-gray-400 italic">Using early binding serial</span>';
+        } else {
+            $html .= '<span class="text-warning-600 dark:text-warning-400 italic">Awaiting WMS feedback</span>';
+        }
+        $html .= '</div>';
+
+        // Binding confirmation
+        $html .= '<div>';
+        $html .= '<span class="font-medium text-gray-500 dark:text-gray-400">Binding Confirmation:</span><br>';
+        if ($line->binding_confirmed_at !== null) {
+            $html .= '<span class="text-success-600 dark:text-success-400">✓ Confirmed</span>';
+            $html .= '<br><span class="text-xs text-gray-500 dark:text-gray-400">';
+            $html .= e($line->binding_confirmed_at->format('Y-m-d H:i:s'));
+            if ($line->bindingConfirmedByUser !== null) {
+                $html .= ' by '.e($line->bindingConfirmedByUser->name);
+            }
+            $html .= '</span>';
+        } else {
+            $html .= '<span class="text-gray-400 italic">Pending confirmation</span>';
+        }
+        $html .= '</div>';
+
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Get the binding type label.
+     */
+    protected function getBindingTypeLabel(ShippingOrderLine $line): string
+    {
+        if ($line->hasEarlyBinding()) {
+            return 'Early Binding';
+        }
+
+        return 'Late Binding';
+    }
+
+    /**
+     * Get the binding type color.
+     */
+    protected function getBindingTypeColor(ShippingOrderLine $line): string
+    {
+        if ($line->hasEarlyBinding()) {
+            return 'primary';
+        }
+
+        return 'info';
+    }
+
+    /**
+     * Get the binding type icon.
+     */
+    protected function getBindingTypeIcon(ShippingOrderLine $line): string
+    {
+        if ($line->hasEarlyBinding()) {
+            return 'heroicon-o-star';
+        }
+
+        return 'heroicon-o-clock';
+    }
+
+    /**
+     * Get the binding status label.
+     */
+    protected function getBindingStatusLabel(ShippingOrderLine $line): string
+    {
+        if ($this->hasBindingDiscrepancy($line)) {
+            return 'Discrepancy';
+        }
+
+        if ($line->isBindingConfirmed()) {
+            return 'Confirmed';
+        }
+
+        if ($line->isBound() || $line->hasEarlyBinding()) {
+            return 'Bound';
+        }
+
+        return 'Pending';
+    }
+
+    /**
+     * Get the binding status color.
+     */
+    protected function getBindingStatusColor(ShippingOrderLine $line): string
+    {
+        if ($this->hasBindingDiscrepancy($line)) {
+            return 'danger';
+        }
+
+        if ($line->isBindingConfirmed()) {
+            return 'success';
+        }
+
+        if ($line->isBound() || $line->hasEarlyBinding()) {
+            return 'info';
+        }
+
+        return 'warning';
+    }
+
+    /**
+     * Get the binding status icon.
+     */
+    protected function getBindingStatusIcon(ShippingOrderLine $line): string
+    {
+        if ($this->hasBindingDiscrepancy($line)) {
+            return 'heroicon-o-exclamation-triangle';
+        }
+
+        if ($line->isBindingConfirmed()) {
+            return 'heroicon-o-check-circle';
+        }
+
+        if ($line->isBound() || $line->hasEarlyBinding()) {
+            return 'heroicon-o-link';
+        }
+
+        return 'heroicon-o-clock';
+    }
+
+    /**
+     * Section showing discrepancy alert and re-pick action.
+     */
+    protected function getDiscrepancyAlertSection(): Section
+    {
+        return Section::make('Discrepancy Resolution')
+            ->description('Handle binding issues and request WMS re-picks')
+            ->icon('heroicon-o-exclamation-triangle')
+            ->visible(function (ShippingOrder $record): bool {
+                // Only show if in picking status and has discrepancies
+                if ($record->status !== ShippingOrderStatus::Picking) {
+                    return false;
+                }
+
+                $completion = $this->getBindingCompletion($record);
+
+                return $completion['discrepancy_count'] > 0;
+            })
+            ->schema([
+                TextEntry::make('discrepancy_warning')
+                    ->label('')
+                    ->getStateUsing(function (ShippingOrder $record): string {
+                        // Get active exceptions for this SO
+                        $exceptions = ShippingOrderException::query()
+                            ->where('shipping_order_id', $record->id)
+                            ->where('status', ShippingOrderExceptionStatus::Active)
+                            ->whereIn('exception_type', [
+                                ShippingOrderExceptionType::WmsDiscrepancy,
+                                ShippingOrderExceptionType::BindingFailed,
+                                ShippingOrderExceptionType::EarlyBindingFailed,
+                            ])
+                            ->get();
+
+                        if ($exceptions->isEmpty()) {
+                            return '';
+                        }
+
+                        $html = '<div class="space-y-3">';
+                        foreach ($exceptions as $exception) {
+                            $html .= '<div class="p-3 rounded-lg bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800">';
+                            $html .= '<div class="flex items-start gap-2">';
+                            $html .= '<span class="text-danger-600 dark:text-danger-400">⚠️</span>';
+                            $html .= '<div class="flex-1">';
+                            $html .= '<div class="font-medium text-danger-700 dark:text-danger-300">'.e($exception->exception_type->label()).'</div>';
+                            $html .= '<div class="text-sm text-danger-600 dark:text-danger-400 mt-1">'.e($exception->description).'</div>';
+                            if ($exception->resolution_path !== null) {
+                                $html .= '<div class="text-xs text-gray-600 dark:text-gray-400 mt-2">';
+                                $html .= '<span class="font-medium">Resolution options:</span><br>';
+                                $html .= nl2br(e($exception->resolution_path));
+                                $html .= '</div>';
+                            }
+                            $html .= '</div>';
+                            $html .= '</div>';
+                            $html .= '</div>';
+                        }
+                        $html .= '</div>';
+
+                        return $html;
+                    })
+                    ->html()
+                    ->columnSpanFull(),
+                TextEntry::make('repick_note')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'Use the "Request Re-pick" action in the line actions to ask WMS to re-pick a different bottle for discrepant items.')
+                    ->color('gray')
+                    ->icon('heroicon-o-information-circle')
+                    ->columnSpanFull(),
+            ])
+            ->extraAttributes([
+                'class' => 'bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800',
             ]);
     }
 
@@ -1209,6 +1791,7 @@ class ViewShippingOrder extends ViewRecord
         return [
             $this->getSelectWarehouseAction(),
             $this->getPlanOrderAction(),
+            $this->getRequestRePickAction(),
             Actions\EditAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
             Actions\DeleteAction::make()
@@ -1341,6 +1924,124 @@ class ViewShippingOrder extends ViewRecord
                 } catch (\Exception $e) {
                     Notification::make()
                         ->title('Planning Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to request a re-pick from WMS for discrepant items.
+     */
+    protected function getRequestRePickAction(): Actions\Action
+    {
+        return Actions\Action::make('requestRePick')
+            ->label('Request Re-pick')
+            ->icon('heroicon-o-arrow-path')
+            ->color('warning')
+            ->visible(function (ShippingOrder $record): bool {
+                // Only show in picking status with discrepancies
+                if ($record->status !== ShippingOrderStatus::Picking) {
+                    return false;
+                }
+
+                $completion = $this->getBindingCompletion($record);
+
+                return $completion['discrepancy_count'] > 0;
+            })
+            ->form([
+                Select::make('line_id')
+                    ->label('Select Line to Re-pick')
+                    ->options(function (ShippingOrder $record): array {
+                        // Get lines with discrepancies
+                        $record->load('lines.voucher.wineVariant.wineMaster');
+                        $options = [];
+                        foreach ($record->lines as $line) {
+                            if ($this->hasBindingDiscrepancy($line)) {
+                                $wineName = 'Unknown';
+                                if ($line->voucher !== null
+                                    && $line->voucher->wineVariant !== null
+                                    && $line->voucher->wineVariant->wineMaster !== null
+                                ) {
+                                    $wineName = $line->voucher->wineVariant->wineMaster->name;
+                                }
+                                $options[$line->id] = "Line {$line->id} - {$wineName}";
+                            }
+                        }
+
+                        return $options;
+                    })
+                    ->required()
+                    ->searchable()
+                    ->helperText('Select the line with discrepancy to request WMS to pick a different bottle.'),
+                Textarea::make('reason')
+                    ->label('Reason for Re-pick')
+                    ->placeholder('Describe the issue that requires re-picking...')
+                    ->required()
+                    ->maxLength(1000)
+                    ->rows(3),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Request Re-pick from WMS')
+            ->modalDescription('This will request WMS to pick a different bottle for the selected line. The current binding will be cleared.')
+            ->modalSubmitActionLabel('Request Re-pick')
+            ->action(function (ShippingOrder $record, array $data): void {
+                $lineId = $data['line_id'] ?? null;
+                $reason = $data['reason'] ?? '';
+
+                if ($lineId === null) {
+                    Notification::make()
+                        ->title('Re-pick Failed')
+                        ->body('No line selected.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $line = ShippingOrderLine::find($lineId);
+                if ($line === null || $line->shipping_order_id !== $record->id) {
+                    Notification::make()
+                        ->title('Re-pick Failed')
+                        ->body('Line not found or does not belong to this shipping order.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                try {
+                    /** @var WmsIntegrationService $wmsService */
+                    $wmsService = app(WmsIntegrationService::class);
+                    $result = $wmsService->requestRePick($line, $reason);
+
+                    // Mark related exceptions as resolved
+                    ShippingOrderException::query()
+                        ->where('shipping_order_line_id', $line->id)
+                        ->where('status', ShippingOrderExceptionStatus::Active)
+                        ->whereIn('exception_type', [
+                            ShippingOrderExceptionType::WmsDiscrepancy,
+                            ShippingOrderExceptionType::BindingFailed,
+                        ])
+                        ->update([
+                            'status' => ShippingOrderExceptionStatus::Resolved,
+                            'resolution_path' => 'Re-pick requested (Message ID: '.$result['message_id'].')',
+                            'resolved_at' => now(),
+                            'resolved_by' => Auth::id(),
+                        ]);
+
+                    Notification::make()
+                        ->title('Re-pick Requested')
+                        ->body("Re-pick request sent to WMS (Message ID: {$result['message_id']}). Awaiting new bottle selection.")
+                        ->success()
+                        ->send();
+
+                    // Refresh the page
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Re-pick Request Failed')
                         ->body($e->getMessage())
                         ->danger()
                         ->send();
