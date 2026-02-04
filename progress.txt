@@ -100,3 +100,50 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Method `hasChangeTracking()` instead of `hasChanges()` to avoid conflict with Model base class
   - Uses HasUuid trait but NOT Auditable (no created_by/updated_by needed, has user_id instead)
 ---
+
+## 2026-02-04 - US-C011
+- **What was implemented:** ShippingOrderService for centralized Shipping Order management
+- **Files changed:**
+  - `app/Services/Fulfillment/ShippingOrderService.php` (new)
+- **Learnings for future iterations:**
+  - Service methods: create(), validateVouchers(), transitionTo(), cancel(), lockVouchersForSO(), unlockVouchers()
+  - Uses VoucherService.lockForFulfillment() and unlock() for voucher lifecycle management
+  - Voucher eligibility checks: lifecycle_state=issued, not suspended, no pending transfer, not quarantined, allocation lineage valid
+  - Prevents same voucher in multiple active SOs (draft/planned/picking/on_hold)
+  - Pre-transition hook validates vouchers before planning
+  - Post-transition hook locks vouchers when moving to planned, unlocks when cancelled
+  - Event constants defined for audit logging: EVENT_CREATED, EVENT_STATUS_CHANGE, etc.
+  - Uses ShippingOrderAuditLog for event logging (not morphMany auditLogs)
+---
+
+## 2026-02-04 - US-C012
+- **What was implemented:** LateBindingService for centralized Late Binding logic
+- **Files changed:**
+  - `app/Services/Fulfillment/LateBindingService.php` (new)
+- **Learnings for future iterations:**
+  - Service methods: requestEligibleInventory(), bindVoucherToBottle(), validateBinding(), validateEarlyBinding(), unbindLine()
+  - Uses InventoryService for bottle queries and InventoryCase for intact case checks
+  - Binding only allowed in Validated status (via ShippingOrderLineStatus.allowsBinding())
+  - Allocation lineage mismatch throws explicit exception: "Cross-allocation substitution not allowed"
+  - Bottle state transitions: stored → reserved_for_picking upon binding, reversed on unbind
+  - Early binding validation has NO fallback to late binding - creates ShippingOrderException if fails
+  - Cache TTL of 5 minutes for inventory queries to balance freshness and performance
+  - Event constants for audit logging: EVENT_BINDING_REQUESTED, EVENT_BINDING_EXECUTED, etc.
+---
+
+## 2026-02-04 - US-C013
+- **What was implemented:** ShipmentService for centralized Shipment logic
+- **Files changed:**
+  - `app/Services/Fulfillment/ShipmentService.php` (new)
+- **Learnings for future iterations:**
+  - Service methods: createFromOrder(), confirmShipment(), triggerRedemption(), triggerOwnershipTransfer(), updateTracking(), markDelivered(), markFailed()
+  - confirmShipment() is the "point of no return" - triggers voucher redemption and ownership transfer
+  - Redemption is IRREVERSIBLE - uses VoucherService.redeem() for each voucher
+  - Ownership transfer updates bottle state to Shipped via BottleState enum
+  - Shipment can only be created from SO in Picking status with all bindings complete
+  - Uses LateBindingService.checkAllLinesBinding() and validateAllBindings() before shipment creation
+  - Line statuses updated during flow: Validated → Picked (createFromOrder), Picked → Shipped (confirmShipment)
+  - Provenance blockchain update would be dispatched as a job (placeholder noted for US-C042)
+  - markDelivered() optionally completes the SO if in Shipped status
+  - Event constants for audit logging: EVENT_SHIPMENT_CREATED, EVENT_SHIPMENT_CONFIRMED, EVENT_VOUCHER_REDEEMED, etc.
+---
