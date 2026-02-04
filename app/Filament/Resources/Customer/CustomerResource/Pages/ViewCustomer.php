@@ -18,11 +18,13 @@ use App\Models\Customer\Account;
 use App\Models\Customer\Address;
 use App\Models\Customer\Customer;
 use App\Models\Customer\Membership;
+use App\Models\Customer\PaymentPermission;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -1618,53 +1620,303 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 6: Payment & Credit - Payment permissions, credit limits (placeholder).
+     * Tab 6: Payment & Credit - Payment permissions and credit limits.
      */
     protected function getPaymentCreditTab(): Tab
     {
+        /** @var Customer $customer */
+        $customer = $this->record;
+        $paymentPermission = $customer->paymentPermission;
+
+        // Build section header actions for editing permissions
+        $sectionActions = [];
+
+        // Only show edit action if user can manage payment permissions
+        $currentUser = auth()->user();
+        $canManagePayments = $currentUser?->canManagePaymentPermissions() ?? false;
+
+        if ($canManagePayments) {
+            $sectionActions[] = \Filament\Infolists\Components\Actions\Action::make('editPaymentPermissions')
+                ->label('Edit Permissions')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary')
+                ->modalHeading('Edit Payment Permissions')
+                ->modalDescription('Modify payment methods and credit limit for this customer. Changes are logged automatically.')
+                ->form([
+                    Toggle::make('card_allowed')
+                        ->label('Card Payments Allowed')
+                        ->helperText('Enable or disable card payments for this customer.')
+                        ->default($paymentPermission !== null ? $paymentPermission->card_allowed : true),
+                    Toggle::make('bank_transfer_allowed')
+                        ->label('Bank Transfer Allowed')
+                        ->helperText('Enable or disable bank transfer payments. Requires Finance approval.')
+                        ->default($paymentPermission !== null ? $paymentPermission->bank_transfer_allowed : false),
+                    TextInput::make('credit_limit')
+                        ->label('Credit Limit (EUR)')
+                        ->helperText('Maximum credit amount. Leave empty for no credit (cash/card only).')
+                        ->numeric()
+                        ->minValue(0)
+                        ->step(0.01)
+                        ->prefix('€')
+                        ->placeholder('No credit')
+                        ->default($paymentPermission?->credit_limit),
+                ])
+                ->action(function (array $data) use ($customer): void {
+                    $paymentPermission = $customer->paymentPermission;
+
+                    if (! $paymentPermission) {
+                        // Create a new payment permission record if none exists
+                        $paymentPermission = $customer->paymentPermission()->create([
+                            'card_allowed' => $data['card_allowed'],
+                            'bank_transfer_allowed' => $data['bank_transfer_allowed'],
+                            'credit_limit' => $data['credit_limit'] !== '' ? $data['credit_limit'] : null,
+                        ]);
+                    } else {
+                        // Update existing payment permission
+                        $paymentPermission->update([
+                            'card_allowed' => $data['card_allowed'],
+                            'bank_transfer_allowed' => $data['bank_transfer_allowed'],
+                            'credit_limit' => $data['credit_limit'] !== '' ? $data['credit_limit'] : null,
+                        ]);
+                    }
+
+                    Notification::make()
+                        ->success()
+                        ->title('Payment Permissions Updated')
+                        ->body('Payment permissions have been updated successfully.')
+                        ->send();
+
+                    $this->refreshFormData(['paymentPermission']);
+                });
+        }
+
+        // Determine display values
+        $cardAllowed = $paymentPermission !== null ? $paymentPermission->card_allowed : true;
+        $bankTransferAllowed = $paymentPermission !== null ? $paymentPermission->bank_transfer_allowed : false;
+        $creditLimit = $paymentPermission?->credit_limit;
+
         return Tab::make('Payment & Credit')
             ->icon('heroicon-o-credit-card')
+            ->badge(fn (): ?string => ! $cardAllowed ? '!' : null)
+            ->badgeColor('danger')
             ->schema([
                 Section::make('Payment Permissions')
                     ->description('Allowed payment methods for this customer')
+                    ->headerActions($sectionActions)
                     ->schema([
                         Grid::make(3)
                             ->schema([
-                                TextEntry::make('card_allowed_placeholder')
+                                TextEntry::make('paymentPermission.card_allowed')
                                     ->label('Card Payments')
-                                    ->getStateUsing(fn (): string => 'Allowed')
+                                    ->getStateUsing(fn (): string => $cardAllowed ? 'Allowed' : 'Blocked')
                                     ->badge()
-                                    ->color('success')
-                                    ->icon('heroicon-o-credit-card')
-                                    ->helperText('Default: enabled'),
-                                TextEntry::make('bank_transfer_placeholder')
+                                    ->color(fn (): string => $cardAllowed ? 'success' : 'danger')
+                                    ->icon(fn (): string => $cardAllowed ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                                    ->helperText('Default payment method. If blocked, customer cannot make payments.'),
+                                TextEntry::make('paymentPermission.bank_transfer_allowed')
                                     ->label('Bank Transfer')
-                                    ->getStateUsing(fn (): string => 'Not Allowed')
+                                    ->getStateUsing(fn (): string => $bankTransferAllowed ? 'Authorized' : 'Not Authorized')
                                     ->badge()
-                                    ->color('danger')
-                                    ->icon('heroicon-o-building-library')
-                                    ->helperText('Requires Finance approval'),
-                                TextEntry::make('credit_limit_placeholder')
+                                    ->color(fn (): string => $bankTransferAllowed ? 'success' : 'gray')
+                                    ->icon(fn (): string => $bankTransferAllowed ? 'heroicon-o-check-circle' : 'heroicon-o-minus-circle')
+                                    ->helperText($paymentPermission?->getBankTransferExplanation() ?? 'Bank transfers not authorized. Requires Finance approval.'),
+                                TextEntry::make('paymentPermission.credit_limit')
                                     ->label('Credit Limit')
-                                    ->getStateUsing(fn (): string => 'No Credit')
+                                    ->getStateUsing(function () use ($creditLimit): string {
+                                        if ($creditLimit === null) {
+                                            return 'No Credit';
+                                        }
+
+                                        return '€'.number_format((float) $creditLimit, 2);
+                                    })
                                     ->badge()
-                                    ->color('gray')
-                                    ->icon('heroicon-o-banknotes')
-                                    ->helperText('No credit line configured'),
+                                    ->color(fn (): string => $creditLimit !== null ? 'success' : 'gray')
+                                    ->icon(fn (): string => $creditLimit !== null ? 'heroicon-o-banknotes' : 'heroicon-o-minus-circle')
+                                    ->helperText($paymentPermission?->getCreditLimitExplanation() ?? 'No credit approved. Customer must pay by card or cash.'),
                             ]),
                     ]),
-                Section::make('Payment History')
-                    ->description('Changes to payment permissions')
+                Section::make('Permission Details')
+                    ->description('Additional information about payment permissions')
                     ->collapsed()
                     ->collapsible()
                     ->schema([
-                        TextEntry::make('payment_history_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'Payment permissions management will be implemented in US-018 through US-020.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('payment_eligibility_impact')
+                                    ->label('Impact on Eligibility')
+                                    ->getStateUsing(function () use ($cardAllowed, $creditLimit): string {
+                                        $impacts = [];
+
+                                        if (! $cardAllowed) {
+                                            $impacts[] = '❌ Payment blocked: Customer cannot access any sales channel (B2C, B2B, Club)';
+                                        }
+
+                                        if ($creditLimit === null) {
+                                            $impacts[] = '⚠️ No credit: Customer cannot access B2B channel (requires credit approval)';
+                                        } else {
+                                            $impacts[] = '✓ Credit approved: Customer eligible for B2B channel';
+                                        }
+
+                                        if ($cardAllowed && $creditLimit !== null) {
+                                            $impacts[] = '✓ All payment methods available';
+                                        }
+
+                                        return implode("\n", $impacts);
+                                    })
+                                    ->html()
+                                    ->columnSpanFull(),
+                                TextEntry::make('payment_last_modified')
+                                    ->label('Last Modified')
+                                    ->getStateUsing(function () use ($paymentPermission): string {
+                                        if (! $paymentPermission) {
+                                            return 'Not yet configured';
+                                        }
+
+                                        $updatedAt = $paymentPermission->updated_at->format('d M Y, H:i');
+                                        $updatedBy = $paymentPermission->updater->name ?? 'System';
+
+                                        return "{$updatedAt} by {$updatedBy}";
+                                    })
+                                    ->icon('heroicon-o-clock'),
+                                TextEntry::make('payment_created')
+                                    ->label('Created')
+                                    ->getStateUsing(function () use ($paymentPermission): string {
+                                        if (! $paymentPermission) {
+                                            return 'Not yet configured';
+                                        }
+
+                                        $createdAt = $paymentPermission->created_at->format('d M Y, H:i');
+                                        $createdBy = $paymentPermission->creator->name ?? 'System';
+
+                                        return "{$createdAt} by {$createdBy}";
+                                    })
+                                    ->icon('heroicon-o-calendar'),
+                            ]),
+                    ]),
+                Section::make('Modification History')
+                    ->description('Audit log of all changes to payment permissions')
+                    ->collapsed()
+                    ->collapsible()
+                    ->schema([
+                        $this->getPaymentPermissionHistoryEntry($paymentPermission),
                     ]),
             ]);
+    }
+
+    /**
+     * Get the payment permission history entry for the audit section.
+     */
+    protected function getPaymentPermissionHistoryEntry(?PaymentPermission $paymentPermission): TextEntry
+    {
+        return TextEntry::make('payment_history')
+            ->label('')
+            ->getStateUsing(function () use ($paymentPermission): string {
+                if (! $paymentPermission) {
+                    return '<div class="text-gray-500 text-sm py-4 text-center">No payment permissions configured yet. History will appear once permissions are set.</div>';
+                }
+
+                // Get audit logs for this payment permission
+                $auditLogs = AuditLog::where('auditable_type', PaymentPermission::class)
+                    ->where('auditable_id', $paymentPermission->id)
+                    ->with('user')
+                    ->orderBy('created_at', 'desc')
+                    ->limit(50)
+                    ->get();
+
+                if ($auditLogs->isEmpty()) {
+                    return '<div class="text-gray-500 text-sm py-4 text-center">No modification history available.</div>';
+                }
+
+                $html = '<div class="space-y-3">';
+
+                foreach ($auditLogs as $log) {
+                    $date = $log->created_at?->format('d M Y, H:i') ?? 'Unknown';
+                    $user = htmlspecialchars($log->user->name ?? 'System');
+                    $event = htmlspecialchars($log->getEventLabel());
+                    $eventColor = $log->getEventColor();
+                    $eventIcon = $log->getEventIcon();
+
+                    // Build changes description
+                    $changes = $this->formatPaymentPermissionChanges($log->old_values ?? [], $log->new_values ?? []);
+
+                    $html .= <<<HTML
+                    <div class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                        <div class="flex-shrink-0">
+                            <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-{$eventColor}-100 dark:bg-{$eventColor}-900">
+                                <x-heroicon-o-{$this->extractIconName($eventIcon)} class="w-4 h-4 text-{$eventColor}-600 dark:text-{$eventColor}-400" />
+                            </span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-gray-900 dark:text-gray-100">{$event}</span>
+                                <span class="text-xs text-gray-500 dark:text-gray-400">{$date}</span>
+                            </div>
+                            <div class="text-sm text-gray-600 dark:text-gray-300">by {$user}</div>
+                            {$changes}
+                        </div>
+                    </div>
+                    HTML;
+                }
+
+                $html .= '</div>';
+
+                return $html;
+            })
+            ->html()
+            ->columnSpanFull();
+    }
+
+    /**
+     * Format payment permission changes for display.
+     *
+     * @param  array<string, mixed>  $oldValues
+     * @param  array<string, mixed>  $newValues
+     */
+    protected function formatPaymentPermissionChanges(array $oldValues, array $newValues): string
+    {
+        $changes = [];
+
+        $fieldLabels = [
+            'card_allowed' => 'Card Payments',
+            'bank_transfer_allowed' => 'Bank Transfer',
+            'credit_limit' => 'Credit Limit',
+        ];
+
+        foreach ($fieldLabels as $field => $label) {
+            $oldValue = $oldValues[$field] ?? null;
+            $newValue = $newValues[$field] ?? null;
+
+            // Skip if both values are the same or both are null
+            if ($oldValue === $newValue) {
+                continue;
+            }
+
+            // Format values for display
+            if ($field === 'credit_limit') {
+                $oldDisplay = $oldValue !== null ? '€'.number_format((float) $oldValue, 2) : 'No Credit';
+                $newDisplay = $newValue !== null ? '€'.number_format((float) $newValue, 2) : 'No Credit';
+            } else {
+                $oldDisplay = $oldValue ? 'Enabled' : 'Disabled';
+                $newDisplay = $newValue ? 'Enabled' : 'Disabled';
+            }
+
+            $changes[] = "<span class=\"font-medium\">{$label}</span>: {$oldDisplay} → {$newDisplay}";
+        }
+
+        if (empty($changes)) {
+            return '';
+        }
+
+        return '<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">'.implode(' | ', $changes).'</div>';
+    }
+
+    /**
+     * Extract the icon name from a Heroicon identifier.
+     */
+    protected function extractIconName(string $heroicon): string
+    {
+        // Convert "heroicon-o-credit-card" to "credit-card"
+        return preg_replace('/^heroicon-[os]-/', '', $heroicon) ?? 'document';
     }
 
     /**
