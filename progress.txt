@@ -642,3 +642,27 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Multiple icon indicators for different attention states (deadline urgent, preference pending) help operators quickly scan
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-029
+- What was implemented:
+  - CreateBottlingInstruction wizard page with 4 steps
+  - Step 1 (Liquid Product): Procurement Intent selection filtered for liquid products only
+  - Intent search filters: only Approved/Executed status, only product_reference_type = liquid_products
+  - Preview sections: Intent Summary (product, wine, vintage, quantity, sourcing model, status)
+  - Auto-fill: liquid_product_id and bottle_equivalents auto-filled from intent
+  - Pre-fill: delivery_location pre-filled from intent.preferred_inbound_location
+  - Informational message about Bottling Instructions managing post-sale bottling decisions
+  - Steps 2-4 implemented ahead (Rules, Personalisation, Review) for complete wizard flow
+  - "Create as Draft" and "Create and Activate" submit options
+  - Registered create route in BottlingInstructionResource
+- Files changed:
+  - app/Filament/Resources/Procurement/BottlingInstructionResource/Pages/CreateBottlingInstruction.php (new)
+  - app/Filament/Resources/Procurement/BottlingInstructionResource.php (modified - added create route)
+- **Learnings for future iterations:**
+  - Filter morphic relationships by type: where('product_reference_type', 'liquid_products')
+  - Search through nested relationships: whereHas('productReference', fn($q) => $q->whereHas('wineVariant.wineMaster', ...))
+  - Bottling Instructions require both procurement_intent_id and liquid_product_id (both enforced in model boot())
+  - All 4 wizard steps (Liquid Product, Rules, Personalisation, Review) implemented together for complete flow
+  - "Create and Activate" option uses Hidden field with wire:click to set flag before submit
+  - Browser verification should be done manually as dev-browser skill is not available
+---
