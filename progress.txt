@@ -556,3 +556,28 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Immutable fields enforced at both model level (boot guard) and DB level (unique constraint on serial_number)
   - NFT minting is async (queued job) with exponential backoff retry (10s, 60s, 300s)
 ---
+
+## 2026-02-04 - US-B022
+- **Implemented**: Serialization location blocker - hard blocking of serialization at unauthorized locations
+- **Files modified**:
+  - app/Services/Inventory/SerializationService.php (added WMS event handling methods)
+- **Features implemented**:
+  - `processWmsSerializationEvent()` method for handling WMS-triggered serialization requests
+  - Hard blocker: Location must have `serialization_authorized = true` - NO override exists
+  - When WMS event blocked: Creates InventoryException record with type `wms_serialization_blocked`
+  - System logging via Laravel Log facade for monitoring blocked events
+  - `logBlockedWmsSerializationEvent()` for audit trail creation
+  - `getSystemUser()` for WMS operations (tries system@crurated.com, admin users, or first user)
+  - `isSerializationBlocked()` convenience method for checking block status
+  - `getSerializationBlockReason()` for human-readable blocking reason
+- **Pre-existing blockers verified**:
+  - UI: Start Serialization action uses `visible()` callback with `canStartSerialization()` - hides when unauthorized
+  - API: `serializeBatch()` throws `'Serialization not authorized at this location'` InvalidArgumentException
+  - Location detail: `getSerializationWarningSection()` shows prominent danger banner when unauthorized
+- **Learnings for future iterations**:
+  - WMS event rejection creates an InventoryException for audit, not just a log entry
+  - User model uses `role` enum field (not `roles` relationship) - check with `whereIn('role', ['admin', 'super_admin'])`
+  - PHPStan requires explicit null checks instead of `?->property ?? default` pattern
+  - Location.canSerialize() checks both `serialization_authorized` AND `status === Active`
+  - No override mechanism exists by design - this is a hard business rule
+---
