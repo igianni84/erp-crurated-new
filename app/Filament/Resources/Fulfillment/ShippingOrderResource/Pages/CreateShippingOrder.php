@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Fulfillment\Carrier;
 use App\Enums\Fulfillment\Incoterms;
+use App\Enums\Fulfillment\PackagingPreference;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\Voucher;
@@ -85,8 +86,8 @@ class CreateShippingOrder extends CreateRecord
             $this->getCustomerAndDestinationStep(),
             $this->getVoucherSelectionStep(),
             $this->getShippingMethodStep(),
+            $this->getPackagingPreferencesStep(),
             // Future steps will be added in subsequent US stories:
-            // US-C021: getPackagingPreferencesStep()
             // US-C022: getReviewAndSubmitStep()
         ];
     }
@@ -658,6 +659,109 @@ class CreateShippingOrder extends CreateRecord
                     }
                 }
             });
+    }
+
+    /**
+     * Step 4: Packaging Preferences (US-C021)
+     * Allows selection of packaging preference with inline explanations.
+     */
+    protected function getPackagingPreferencesStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Packaging')
+            ->description('Choose how bottles should be packaged for shipping')
+            ->icon('heroicon-o-archive-box')
+            ->schema([
+                Forms\Components\Section::make('Packaging Preference')
+                    ->description('Select how you want the bottles to be packaged for this shipment')
+                    ->schema([
+                        Forms\Components\Radio::make('packaging_preference')
+                            ->label('Select Packaging Option')
+                            ->options(
+                                collect(PackagingPreference::cases())
+                                    ->mapWithKeys(fn (PackagingPreference $pref) => [$pref->value => $pref->label()])
+                                    ->toArray()
+                            )
+                            ->descriptions(
+                                collect(PackagingPreference::cases())
+                                    ->mapWithKeys(fn (PackagingPreference $pref) => [$pref->value => $pref->description()])
+                                    ->toArray()
+                            )
+                            ->default(PackagingPreference::Loose->value)
+                            ->required()
+                            ->live()
+                            ->columnSpanFull(),
+
+                        // Visual breakdown of packaging options
+                        Forms\Components\Placeholder::make('packaging_details')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $selected = $get('packaging_preference');
+                                $preference = $selected ? PackagingPreference::tryFrom($selected) : null;
+
+                                $looseClass = $preference === PackagingPreference::Loose ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'bg-gray-50 dark:bg-gray-800';
+                                $casesClass = $preference === PackagingPreference::Cases ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'bg-gray-50 dark:bg-gray-800';
+                                $preserveClass = $preference === PackagingPreference::PreserveCases ? 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900/20' : 'bg-gray-50 dark:bg-gray-800';
+
+                                return new HtmlString(<<<HTML
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 {$looseClass}">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <svg class="w-5 h-5 text-gray-600 dark:text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" />
+                                                </svg>
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300">Loose Bottles</span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Each bottle is shipped individually with protective packaging. Best for mixed orders or small quantities.</p>
+                                        </div>
+                                        <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 {$casesClass}">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <svg class="w-5 h-5 text-info-600 dark:text-info-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                                                </svg>
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300">Cases</span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Bottles are assembled into composite shipping cases. Ideal for larger orders with standard packaging.</p>
+                                        </div>
+                                        <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 {$preserveClass}">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <svg class="w-5 h-5 text-warning-600 dark:text-warning-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+                                                </svg>
+                                                <span class="font-semibold text-gray-700 dark:text-gray-300">Preserve Cases</span>
+                                            </div>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Original wooden cases (OWC) are preserved when available. Premium option for collectors.</p>
+                                        </div>
+                                    </div>
+                                HTML);
+                            })
+                            ->columnSpanFull(),
+
+                        // Warning for preserve_cases option
+                        Forms\Components\Placeholder::make('preserve_cases_warning')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('packaging_preference') === PackagingPreference::PreserveCases->value)
+                            ->content(new HtmlString(<<<'HTML'
+                                <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0">
+                                            <svg class="h-5 w-5 text-warning-600 dark:text-warning-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium text-warning-800 dark:text-warning-200">May delay shipment if case not available</h3>
+                                            <p class="mt-1 text-sm text-warning-700 dark:text-warning-300">
+                                                Preserving original wooden cases requires the intact case to be available in inventory.
+                                                If the case is not available or has been broken, the shipment may be delayed while alternatives are found.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            HTML))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
+            ]);
     }
 
     /**
