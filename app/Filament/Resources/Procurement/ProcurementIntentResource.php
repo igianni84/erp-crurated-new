@@ -206,6 +206,7 @@ class ProcurementIntentResource extends Resource
     {
         return [
             'index' => Pages\ListProcurementIntents::route('/'),
+            'create' => Pages\CreateProcurementIntent::route('/create'),
             'view' => Pages\ViewProcurementIntent::route('/{record}'),
         ];
     }
