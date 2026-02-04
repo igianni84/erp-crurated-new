@@ -1126,3 +1126,39 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Bottles without NFT should be skipped (provenance update requires NFT)
   - Blockchain service integration is isolated in callBlockchainService() for future replacement
 ---
+
+## 2026-02-04 - US-B039
+- **Implemented**: Event Consumption page with 4-step wizard for consuming inventory at events
+- **Files created**:
+  - app/Filament/Pages/EventConsumption.php
+  - resources/views/filament/pages/event-consumption.blade.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 9)
+  - Step 1 - Event Location: Select event location (filtered by LocationType::EventLocation), location info display
+  - Step 2 - Event Reference: Optional event reference text input, optional notes textarea
+  - Step 3 - Select Items: Crurated-owned bottles only, stored state only, committed bottles BLOCKED via InventoryService.canConsume() filter, cases available for bulk consumption
+  - Step 4 - Review & Confirm: Summary with location, event reference, items count, consumption consequences, confirmation checkbox
+  - Consumption execution: Uses MovementService.recordConsumption() with ConsumptionReason::EventConsumption
+  - Cases are broken before bottle consumption (MovementService.breakCase())
+  - Double-check on canConsume() before each bottle consumption
+  - Success/error notifications with link to movements list
+- **Key patterns used**:
+  - Filament Page with HasForms and Wizard component (same as CreateInternalTransfer, CreateConsignmentPlacement)
+  - InventoryService.canConsume() filters out committed bottles
+  - ConsumptionReason::EventConsumption enum value
+  - Danger-themed UI (red banners, danger buttons) to emphasize irreversibility
+- **Acceptance criteria verification**:
+  - ✅ Page Event Consumption in navigation Inventory
+  - ✅ Step 1: Select event location (filtered to LocationType::EventLocation)
+  - ✅ Step 2: Select event reference (optional text field)
+  - ✅ Step 3: Select bottles/cases with pre-filter: only crurated_owned, only state = stored, committed bottles BLOCKED
+  - ✅ Step 4: Confirm consumption reason = EVENT_CONSUMPTION
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Event locations are filtered by LocationType::EventLocation
+  - Committed bottle blocking is enforced via InventoryService.canConsume() which checks free quantity > 0
+  - Cases require breaking before contained bottles can be consumed individually
+  - Event reference is optional but useful for audit purposes
+  - The page follows the same wizard pattern as CreateInternalTransfer and CreateConsignmentPlacement
+  - Browser verification requirement noted - manual testing needed
+---
