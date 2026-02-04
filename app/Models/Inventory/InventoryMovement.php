@@ -19,6 +19,19 @@ use InvalidArgumentException;
  * Movements are append-only: insert only, no update, no delete.
  * This ensures complete audit trail for all inventory changes.
  *
+ * IMMUTABILITY RULES (US-B051):
+ * - Model has no update() or delete() capability (boot guards throw exceptions)
+ * - DB table has no soft_deletes column
+ * - Any correction requires creating a new compensating movement
+ * - Original movements are NEVER modified
+ * - Full audit trail is preserved indefinitely
+ *
+ * COMPENSATING MOVEMENT PATTERN:
+ * When an error needs to be corrected, create a new movement that reverses
+ * or compensates for the original movement. Never modify the original.
+ * Example: If items were transferred to wrong location, create a new
+ * transfer movement to move them to the correct location.
+ *
  * @property string $id
  * @property MovementType $movement_type
  * @property MovementTrigger $trigger
@@ -193,5 +206,67 @@ class InventoryMovement extends Model
     public function getItemsCountAttribute(): int
     {
         return $this->movementItems()->count();
+    }
+
+    // =========================================================================
+    // IMMUTABILITY ENFORCEMENT (US-B051)
+    // =========================================================================
+
+    /**
+     * Check if this model is immutable.
+     * InventoryMovement is ALWAYS immutable.
+     *
+     * This method exists to make immutability explicit and queryable.
+     */
+    public static function isImmutable(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Check if this movement can be corrected.
+     * Movements cannot be corrected directly - a compensating movement must be created instead.
+     *
+     * @return false Always returns false as movements are immutable
+     */
+    public function canBeEdited(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Check if this movement can be deleted.
+     * Movements cannot be deleted - they form an append-only ledger.
+     *
+     * @return false Always returns false as movements are immutable
+     */
+    public function canBeDeleted(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Get guidance on how to correct an error in this movement.
+     * Since movements are immutable, corrections must be made via compensating movements.
+     *
+     * @return string Human-readable guidance for operators
+     */
+    public function getCorrectionGuidance(): string
+    {
+        return 'This movement cannot be modified or deleted. To correct an error, '.
+               'create a new compensating movement that reverses or corrects the effect '.
+               'of the original movement. All movements are preserved for audit purposes.';
+    }
+
+    /**
+     * Get the reason why this model is immutable.
+     *
+     * @return string Explanation of immutability
+     */
+    public static function getImmutabilityReason(): string
+    {
+        return 'InventoryMovement records form an append-only audit ledger. '.
+               'Modifying or deleting movements would compromise the integrity of the inventory audit trail. '.
+               'Use compensating movements to correct errors.';
     }
 }

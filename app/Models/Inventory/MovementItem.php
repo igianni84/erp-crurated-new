@@ -14,9 +14,12 @@ use InvalidArgumentException;
  * Items are immutable: insert only, no update, no delete.
  * Each item references either a serialized bottle or a case (or both).
  *
- * IMMUTABILITY RULES:
- * - Items cannot be updated after creation
- * - Items cannot be deleted
+ * IMMUTABILITY RULES (US-B051):
+ * - Items cannot be updated after creation (boot guard throws exception)
+ * - Items cannot be deleted (boot guard throws exception)
+ * - DB table has no soft_deletes column
+ * - Items follow the same append-only pattern as InventoryMovement
+ * - Corrections require new compensating movement with new items
  *
  * @property int $id
  * @property string $inventory_movement_id
@@ -157,5 +160,40 @@ class MovementItem extends Model
         }
 
         return "Case #{$this->case_id}";
+    }
+
+    // =========================================================================
+    // IMMUTABILITY ENFORCEMENT (US-B051)
+    // =========================================================================
+
+    /**
+     * Check if this model is immutable.
+     * MovementItem is ALWAYS immutable (follows parent InventoryMovement pattern).
+     */
+    public static function isImmutable(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Check if this item can be edited.
+     * Items cannot be edited - create a new compensating movement instead.
+     *
+     * @return false Always returns false as items are immutable
+     */
+    public function canBeEdited(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Check if this item can be deleted.
+     * Items cannot be deleted - they form part of an append-only ledger.
+     *
+     * @return false Always returns false as items are immutable
+     */
+    public function canBeDeleted(): bool
+    {
+        return false;
     }
 }
