@@ -10,6 +10,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -82,6 +83,25 @@ class Party extends Model
     public function roles(): HasMany
     {
         return $this->hasMany(PartyRole::class);
+    }
+
+    /**
+     * Get the supplier/producer config for this party.
+     * This is an optional one-to-one relationship - not all parties have a config.
+     *
+     * @return HasOne<\App\Models\Procurement\ProducerSupplierConfig, $this>
+     */
+    public function supplierConfig(): HasOne
+    {
+        return $this->hasOne(\App\Models\Procurement\ProducerSupplierConfig::class, 'party_id');
+    }
+
+    /**
+     * Check if the party has a supplier/producer config.
+     */
+    public function hasSupplierConfig(): bool
+    {
+        return $this->supplierConfig()->exists();
     }
 
     /**
