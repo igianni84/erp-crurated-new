@@ -95,3 +95,25 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - BottlingInstruction uses BottlingInstructionStatus for lifecycle and BottlingPreferenceStatus for preference collection tracking
   - Deadline urgency helper methods useful for UI display (getDeadlineUrgency, getDaysUntilDeadline)
 ---
+
+## 2026-02-04 - US-005
+- What was implemented:
+  - Migration `2026_02_04_400005_create_inbounds_table.php` with all required fields
+  - Inbound model with relationships to ProcurementIntent (optional) and PurchaseOrder (optional)
+  - Morphic relationship to product reference (SellableSku or LiquidProduct)
+  - All required fields: warehouse, quantity, packaging, ownership_flag, received_date, condition_notes, serialization_required, serialization_location_authorized, serialization_routing_rule, status, handed_to_module_b, handed_to_module_b_at
+  - FK constraints: both procurement_intent_id and purchase_order_id are nullable (inbound can exist without intent but is flagged)
+  - Ownership flag defaults to 'pending' - explicit that Inbound does NOT imply ownership
+  - Added `inbounds()` hasMany relationship to ProcurementIntent and PurchaseOrder models
+  - Soft deletes enabled
+- Files changed:
+  - database/migrations/2026_02_04_400005_create_inbounds_table.php (new)
+  - app/Models/Procurement/Inbound.php (new)
+  - app/Models/Procurement/ProcurementIntent.php (modified - added inbounds relationship)
+  - app/Models/Procurement/PurchaseOrder.php (modified - added inbounds relationship)
+- **Learnings for future iterations:**
+  - Inbound is a "physical fact" entity - it records that goods arrived, NOT that we own them
+  - Use nullable FKs when the relationship is optional but should still be flagged as "unlinked"
+  - Helper methods like `isLinked()`, `isUnlinked()`, `hasOwnershipClarity()` are useful for business rule enforcement
+  - The `canHandOffToModuleB()` method consolidates multiple preconditions (status, ownership clarity, not already handed off)
+---
