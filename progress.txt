@@ -270,3 +270,28 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Migration sequence continues: 390005 for memberships table
   - Use `HasOne` with query constraints for relationships like `activeMembership()` that filter by status and dates
 ---
+
+## 2026-02-04 - US-012
+- What was implemented:
+  - Enhanced `MembershipTier` enum with channel eligibility computation methods
+  - Added `eligibleChannels()` to return array of ChannelScope values the tier grants access to
+  - Added `isEligibleForChannel(ChannelScope)` to check tier-based eligibility for a specific channel
+  - Added `hasAutomaticClubAccess()` - Legacy and InvitationOnly tiers get automatic Club access
+  - Added `requiresApproval()` - Member and InvitationOnly require approval process
+  - Added `hasExclusiveProductAccess()` - Legacy and InvitationOnly have exclusive product access
+  - Added `priority()` and `isHigherThan()` for tier comparison/upgrade paths
+  - Added `getChannelEligibilityReasons()` for human-readable eligibility explanations
+  - Extended Membership model with eligibility proxy methods that also check status
+  - Extended Customer model with `isMembershipEligibleForChannel()`, `hasAutomaticClubAccess()`, `hasExclusiveProductAccess()`, `getMembershipChannelEligibilityReasons()`
+- Files changed:
+  - app/Enums/Customer/MembershipTier.php (updated - added channel eligibility methods)
+  - app/Models/Customer/Membership.php (updated - added eligibility proxy methods)
+  - app/Models/Customer/Customer.php (updated - added customer-level eligibility helpers)
+- **Learnings for future iterations:**
+  - Channel eligibility is tiered: MembershipTier defines base eligibility, Membership checks status, Customer provides convenient access
+  - Legacy tier is grandfathered with highest priority (3), full access to everything
+  - Member tier (priority 1) is standard, requires Club affiliation for Club channel access
+  - InvitationOnly tier (priority 2) has full access like Legacy plus exclusive product benefits
+  - Eligibility reasons follow `array<string, array{eligible: bool, reason: string}>` format for human-readable explanations
+  - This eligibility logic will be consumed by EligibilityEngine (US-015) for complete channel eligibility computation
+---
