@@ -451,3 +451,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Migration sequence continues: 390006 for payment_permissions table
   - PaymentPermission defaults: card_allowed=true, bank_transfer_allowed=false, credit_limit=null
 ---
+
+## 2026-02-04 - US-019
+- What was implemented:
+  - Added `canManagePaymentPermissions()` method to User model (requires Manager role = Finance function)
+  - Enhanced PaymentPermission model with authorization enforcement:
+    - `canBeModifiedBy(User)` static method to check authorization
+    - `updateWithAuthorization()` method that throws AuthorizationException if unauthorized
+    - `authorizeBankTransfer()` and `revokeBankTransfer()` methods with authorization
+    - `setCreditLimitWithAuthorization()` method with authorization
+  - Added human-readable explanation methods:
+    - `getCreditLimitExplanation()` - explains credit status (null = no credit, value = max)
+    - `getBankTransferExplanation()` - explains bank transfer authorization status
+  - Enhanced model docblock with credit limit rules and bank transfer authorization requirements
+  - Audit logging already functional via Auditable trait from US-018
+- Files changed:
+  - app/Models/User.php (updated - added canManagePaymentPermissions())
+  - app/Models/Customer/PaymentPermission.php (updated - added authorization methods and explanations)
+- **Learnings for future iterations:**
+  - Finance authorization in this codebase means Manager role or higher (UserRole::Manager)
+  - Use static `canBeModifiedBy(User)` pattern for reusable authorization checks
+  - Wrap modifications in `*WithAuthorization()` methods to enforce auth at model level
+  - `AuthorizationException` is the standard Laravel exception for unauthorized access
+  - Human-readable explanation methods help UI display and debugging
+---
