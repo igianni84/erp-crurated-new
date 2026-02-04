@@ -71,3 +71,30 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - PHPStan requires explicit null checks instead of nullsafe operator (?->) when used with null coalescing (??)
   - Helper method recalculateTax() can be used to auto-compute tax_amount from tax_rate
 ---
+
+## 2026-02-04 - US-E004
+- What was implemented: Created Payment model with migration for received payments from Stripe and bank transfers
+- Files changed:
+  - database/migrations/2026_02_04_300002_create_payments_table.php (payments table with all required fields)
+  - app/Models/Finance/Payment.php (full model with relationships, status helpers, and computed properties)
+- **Learnings for future iterations:**
+  - Payment model uses HasUuid, Auditable, SoftDeletes traits like other Finance models
+  - Payment has two status fields: status (PaymentStatus) and reconciliation_status (ReconciliationStatus)
+  - canTriggerBusinessEvents() checks both reconciliation_status=matched AND status=confirmed
+  - Payment->customer is nullable for unreconciled payments from bank transfers
+  - getTotalAppliedAmount() and getUnappliedAmount() use invoicePayments relationship to calculate applied amounts
+  - stripe_payment_intent_id has unique constraint for idempotency
+---
+
+## 2026-02-04 - US-E005
+- What was implemented: Created InvoicePayment pivot model to track payment applications to invoices
+- Files changed:
+  - database/migrations/2026_02_04_300003_create_invoice_payments_table.php (invoice_payments table with FKs and unique constraint)
+  - app/Models/Finance/InvoicePayment.php (full model replacing stub, with relationships and validation)
+- **Learnings for future iterations:**
+  - InvoicePayment is a pivot model with simple id (not UUID) and no Auditable/SoftDeletes traits
+  - Validation of amount constraints (sum per invoice <= total, sum per payment <= amount) done in boot() creating/updating hooks
+  - Use static helper methods (getTotalAppliedToInvoice, getTotalAppliedFromPayment) for querying applied amounts
+  - Unique constraint on (invoice_id, payment_id) prevents duplicate applications
+  - applied_by field tracks who applied the payment (nullable for automated reconciliation)
+---
