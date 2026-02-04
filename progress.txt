@@ -147,3 +147,228 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - markDelivered() optionally completes the SO if in Shipped status
   - Event constants for audit logging: EVENT_SHIPMENT_CREATED, EVENT_SHIPMENT_CONFIRMED, EVENT_VOUCHER_REDEEMED, etc.
 ---
+
+## 2026-02-04 - US-C014
+- **What was implemented:** VoucherLockService for centralized voucher lock/unlock management during fulfillment
+- **Files changed:**
+  - `app/Services/Fulfillment/VoucherLockService.php` (new)
+- **Learnings for future iterations:**
+  - Service methods: lockForShippingOrder(), lockAllForShippingOrder(), unlock(), unlockAllForShippingOrder(), isLockedForSO(), getLockedVouchers()
+  - Provides integration layer between Fulfillment module and Module A VoucherService
+  - Uses VoucherService.lockForFulfillment() and unlock() for actual lifecycle transitions
+  - lockForShippingOrder() validates voucher is in the SO before locking
+  - lockAllForShippingOrder() has atomic rollback - unlocks already-locked vouchers if any lock fails
+  - isLockedForSO() checks both lifecycle state AND SO membership
+  - Helper methods: validateCanLock(), isVoucherInActiveShippingOrder(), findShippingOrderForLockedVoucher()
+  - Event constants for audit logging: EVENT_VOUCHER_LOCKED, EVENT_VOUCHER_UNLOCKED, EVENT_LOCK_FAILED, EVENT_UNLOCK_FAILED
+  - Existing ShippingOrderService already has similar methods - VoucherLockService provides dedicated service for lock management
+---
+
+## 2026-02-04 - US-C015
+- **What was implemented:** WmsIntegrationService for centralized WMS integration
+- **Files changed:**
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (new)
+- **Learnings for future iterations:**
+  - Service methods: sendPickingInstructions(), receivePickingFeedback(), validateSerials(), confirmShipment(), handleDiscrepancy(), requestRePick(), checkPickingCompletion()
+  - Bidirectional WMS communication: outbound (picking instructions) and inbound (feedback/confirmation)
+  - Picked serials MUST match allocation lineage - hard constraint enforced via validateSerial()
+  - Invalid picks create WmsDiscrepancy exceptions automatically via handleDiscrepancy()
+  - No manual acceptance of invalid picks - operator can only request re-pick
+  - Early binding takes precedence - lines with early binding are skipped in WMS feedback processing
+  - Partial shipments NOT supported in MVP - creates exception and blocks confirmation
+  - Uses LateBindingService.bindVoucherToBottle() for binding execution after validation
+  - buildPickingPayload() constructs WMS message with binding_type (early/late) and allocation constraints
+  - Event constants for audit logging: EVENT_WMS_INSTRUCTIONS_SENT, EVENT_WMS_FEEDBACK_RECEIVED, EVENT_WMS_SERIAL_VALIDATED, EVENT_WMS_DISCREPANCY, etc.
+  - Message IDs generated as WMS-{timestamp}-{id} for tracking
+---
+
+## 2026-02-04 - US-C016
+- **What was implemented:** ShippingOrderResource in Filament with navigation group Fulfillment
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ListShippingOrders.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/EditShippingOrder.php` (new)
+- **Learnings for future iterations:**
+  - Filament resources go in app/Filament/Resources/{Module}/ directory structure
+  - Navigation icon: heroicon-o-truck for shipping/fulfillment resources
+  - Permissions via canCreate(), canEdit(), canDelete() static methods
+  - Edit/Delete only available for draft orders via isDraft() check
+  - Status badges use ShippingOrderStatus enum's label(), color(), icon() methods
+  - Table filters default to hide completed/cancelled (active statuses only)
+  - ViewRecord uses Infolist with Section, Grid, Group, TextEntry components
+  - Status banner section with dynamic background color based on status
+---
+
+## 2026-02-04 - US-C017
+- **What was implemented:** Enhanced SO List View with full filtering, search, and status badges
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource.php` (updated table() method)
+- **Learnings for future iterations:**
+  - Table columns order per PRD: so_id, customer, destination_country, voucher_count, source_warehouse, status, created_at, requested_ship_date
+  - Status badge prominence: use `->size(Tables\Columns\TextColumn\TextColumnSize::Large)` for larger badges
+  - Destination country placeholder using shipments relationship (Module K addresses not yet implemented)
+  - Dynamic carrier filter: use `ShippingOrder::query()->whereNotNull('carrier')->distinct()->pluck()` for options
+  - Date range filter with indicateUsing() for visual indicators
+  - Global search across relationships: `getGloballySearchableAttributes()` can include 'shipments.tracking_number'
+  - Eager load relationships in modifyQueryUsing() for N+1 prevention: with(['customer', 'sourceWarehouse', 'shipments'])
+  - Default hide completed/cancelled via status filter default values
+---
+
+## 2026-02-04 - US-C018
+- **What was implemented:** SO Creation Wizard - Step 1 (Customer & Destination)
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (rewritten as wizard)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource.php` (added destination_address field)
+  - `app/Models/Fulfillment/ShippingOrder.php` (added destination_address property)
+  - `database/migrations/2026_02_04_250000_add_destination_address_to_shipping_orders_table.php` (new)
+- **Learnings for future iterations:**
+  - Wizard creation uses `CreateRecord\Concerns\HasWizard` trait
+  - Define steps in `getSteps()` method returning array of `Wizard\Step` objects
+  - Customer search uses `getSearchResultsUsing()` and `getOptionLabelUsing()` for async search
+  - Filter search to active customers only for eligibility: `where('status', Customer::STATUS_ACTIVE)`
+  - Use `afterValidation()` on step to validate before proceeding to next step
+  - `Set $set` for updating other form fields reactively (clear address when customer changes)
+  - `Get $get` for reading form state in closures
+  - Customer `vouchers()` relationship can be queried for eligible voucher count
+  - Saved addresses feature deferred to Module K implementation - using text field as placeholder
+  - `HtmlString` for embedding HTML in Placeholder content
+---
+
+## 2026-02-04 - US-C019
+- **What was implemented:** SO Creation Wizard - Step 2 (Voucher Selection)
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (added getVoucherSelectionStep method)
+- **Learnings for future iterations:**
+  - CheckboxList component supports `options()`, `descriptions()`, `searchable()`, `bulkToggleable()` for multi-select
+  - Voucher eligibility: lifecycle_state = Issued AND suspended = false
+  - Prevent duplicate SO assignment: query ShippingOrderLines for vouchers already in active SOs (Draft/Planned/Picking/OnHold)
+  - Inline filters reset selection: use `afterStateUpdated(fn (Set $set) => $set('selected_vouchers', []))`
+  - PHPStan: avoid collection pluck after get() - use query-level pluck with distinct() instead
+  - Form data for related records: access via `$this->data['field_name']` in afterCreate()
+  - Create ShippingOrderLines in afterCreate() hook, copying allocation_id from voucher (IMMUTABLE constraint)
+  - Remove non-model fields in mutateFormDataBeforeCreate() with unset()
+  - Early binding badge noted as future enhancement when Module D personalization is integrated
+---
+
+## 2026-02-04 - US-C020
+- **What was implemented:** SO Creation Wizard - Step 3 (Shipping Method)
+- **Files changed:**
+  - `app/Enums/Fulfillment/Carrier.php` (new)
+  - `app/Enums/Fulfillment/Incoterms.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (added getShippingMethodStep method)
+- **Learnings for future iterations:**
+  - Created dedicated Carrier enum with tracking URL templates for each carrier (DHL, FedEx, UPS, etc.)
+  - Created Incoterms enum with descriptions and helper methods (sellerPaysImportDuties, sellerPaysInsurance)
+  - Wizard step validation via `afterValidation()` with `\Filament\Support\Exceptions\Halt` exception
+  - DatePicker `minDate(now()->startOfDay())` for future-only date validation
+  - Dynamic helper text using `helperText(function (Get $get))` to show enum descriptions based on selection
+  - Placeholder sections with conditional visibility for contextual info (e.g., incoterms responsibilities)
+  - Browser verification pending
+---
+
+## 2026-02-04 - US-C021
+- **What was implemented:** SO Creation Wizard - Step 4 (Packaging Preferences)
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (added getPackagingPreferencesStep method)
+- **Learnings for future iterations:**
+  - Radio component with `options()` and `descriptions()` for labeled choices with inline explanations
+  - PackagingPreference enum already existed with label(), description(), color(), icon(), mayDelayShipment() helper methods
+  - Visual card layout using grid with conditional ring/background classes based on selected option
+  - Warning placeholder with `visible()` condition for preserve_cases selection
+  - Default value using enum case value: `->default(PackagingPreference::Loose->value)`
+  - Live updates via `->live()` to reactively show/hide warning and update visual cards
+  - Browser verification pending
+---
+
+## 2026-02-04 - US-C022
+- **What was implemented:** SO Creation Wizard - Step 5 (Review & Submit)
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/CreateShippingOrder.php` (added getReviewAndSubmitStep method)
+- **Learnings for future iterations:**
+  - Review step uses read-only Placeholder components to display summary of all wizard data
+  - Collapsible Sections for organizing summary (Customer & Destination, Vouchers, Shipping Method, Packaging)
+  - Draft info banner at top emphasizes that planning is required before execution
+  - Voucher list displayed as HTML table for clarity (voucher_id, wine, format, allocation)
+  - Conditional warning display using enum's mayDelayShipment() and getWarningMessage() methods
+  - Used `Get $get` to access all form state from wizard steps (customer_id, selected_vouchers, etc.)
+  - HTML string construction using HtmlString class with heredoc syntax for complex layouts
+  - e() helper function for HTML escaping user data (customer name, etc.)
+  - Browser verification pending
+---
+
+## 2026-02-04 - US-C023
+- **What was implemented:** SO Bulk Actions - Export CSV and Cancel
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource.php` (updated bulkActions in table())
+- **Learnings for future iterations:**
+  - Bulk actions defined in `->bulkActions([])` using `Tables\Actions\BulkActionGroup::make([])`
+  - Export CSV uses `response()->streamDownload()` with fputcsv for CSV generation
+  - Cancel bulk action uses `->requiresConfirmation()` and `->form([])` for modal with input
+  - ShippingOrderService.cancel() handles voucher unlocking and status transition
+  - Check record status in action closure: `$record->isDraft() || $record->isPlanned()`
+  - Use `App::make()` to resolve services in static closures
+  - Notification::make() for success/warning feedback to user
+  - `->deselectRecordsAfterCompletion()` clears table selection after action
+  - PHPStan: avoid `?->property ?? '-'` when relation may be null - use explicit null checks instead
+  - Browser verification pending
+---
+
+## 2026-02-04 - US-C024
+- **What was implemented:** SO Detail - Tab Overview as the first default tab
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (major rewrite to use Tabs)
+- **Learnings for future iterations:**
+  - Filament Tabs use `Tabs::make('Label')->tabs([Tab::make('TabName')->schema([...])])`
+  - Use `->persistTabInQueryString()` to persist selected tab in URL
+  - Tab methods accept schema array just like Sections
+  - RepeatableEntry displays related models inline with Grid layout
+  - Use `getStateUsing()` with closures for computed values (voucher counts by status)
+  - CustomerResource::getUrl() for generating links to other resources
+  - nl2br(e($text)) for displaying multiline text safely as HTML
+  - Conditional color based on date: check isPast(), isToday() for date fields
+  - Warning display with `->visible()` closure checking enum method
+  - Status banner section uses extraAttributes for dynamic background color classes
+  - Browser verification pending
+---
+
+## 2026-02-04 - US-C025
+- **What was implemented:** SO Detail - Tab Vouchers & Eligibility for validating voucher eligibility before planning
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added Vouchers & Eligibility tab)
+- **Learnings for future iterations:**
+  - Tab badge with count: `->badge(fn ($record) => $count > 0 ? (string) $count : null)->badgeColor('danger')`
+  - Eligibility checks are reused from ShippingOrderService logic: lifecycle state, suspended, pending transfer, quarantined, customer match, allocation lineage
+  - VoucherLifecycleState enum has Issued, Locked, Redeemed, Cancelled states
+  - Voucher can be locked for THIS SO (OK during planning) vs locked by OTHER processes (blocks)
+  - Check for voucher in other active SOs using ShippingOrderLine query with whereHas on shippingOrder status
+  - Use performEligibilityChecks() method to run all checks and return array of {label, passed, reason}
+  - Format check results as HTML grid using e() for escaping user data
+  - Blocking banner uses extraAttributes with danger background color classes
+  - countIneligibleVouchers() method used in multiple places (banner visibility, badge count)
+  - NO override possible - fix must happen upstream per PRD requirement
+  - Browser verification pending
+---
+
+## 2026-02-04 - US-C026
+- **What was implemented:** SO Detail - Tab Planning for verifying inventory availability before planning
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added Planning tab with multiple sections)
+- **Learnings for future iterations:**
+  - Planning tab visible only when status = draft or planned (use `->visible()` with condition)
+  - Source warehouse selection uses header action with Select form component
+  - Inventory availability data fetched via LateBindingService.requestEligibleInventory() - returns allocations array with status
+  - Allocation status values: 'sufficient', 'intact_case_unavailable', 'insufficient'
+  - Static cache used within page methods to avoid repeated service calls: `static $cache = [];`
+  - Format inventory data as HTML table with status badges (success/warning/danger)
+  - Planning readiness checks: source_warehouse selected, all vouchers eligible, all allocations sufficient, preserve_cases satisfied
+  - Plan Order action disabled via `->disabled()` when canPlanShippingOrder() returns false
+  - Supply exceptions (ShippingOrderExceptionType::SupplyInsufficient) created when planning fails due to insufficient inventory
+  - ShippingOrderService.transitionTo() handles voucher locking when moving to Planned status
+  - Use Notification::make() for user feedback on success/error
+  - Redirect to same page after planning to refresh UI state
+  - PHPStan: badgeColor return type must be `string` not `?string` if always returning a value
+  - PHPStan: avoid `?->property ?? default` when relation may be null - use explicit null checks
+  - Browser verification pending
+---

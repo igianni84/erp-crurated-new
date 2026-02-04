@@ -3,16 +3,24 @@
 namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Fulfillment\PackagingPreference;
+use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
+use App\Enums\Fulfillment\ShippingOrderExceptionType;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
+use App\Enums\Inventory\LocationType;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\Voucher;
 use App\Models\Fulfillment\ShippingOrder;
+use App\Models\Fulfillment\ShippingOrderException;
 use App\Models\Fulfillment\ShippingOrderLine;
+use App\Models\Inventory\Location;
+use App\Services\Fulfillment\LateBindingService;
 use App\Services\Fulfillment\ShippingOrderService;
 use Filament\Actions;
+use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -21,9 +29,11 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Auth;
 
 class ViewShippingOrder extends ViewRecord
 {
@@ -46,8 +56,8 @@ class ViewShippingOrder extends ViewRecord
                     ->tabs([
                         $this->getOverviewTab(),
                         $this->getVouchersAndEligibilityTab(),
+                        $this->getPlanningTab(),
                         // Future tabs will be added in subsequent stories:
-                        // US-C026: Planning tab
                         // US-C027: Picking & Binding tab
                         // US-C028: Audit & Timeline tab
                     ])
@@ -90,6 +100,462 @@ class ViewShippingOrder extends ViewRecord
                 $this->getEligibilityBannerSection(),
                 $this->getVoucherEligibilityListSection(),
             ]);
+    }
+
+    /**
+     * Tab 3: Planning
+     * Plan the SO by verifying inventory availability.
+     * Active only if status = draft or planned.
+     */
+    protected function getPlanningTab(): Tab
+    {
+        return Tab::make('Planning')
+            ->icon('heroicon-o-clipboard-document-list')
+            ->visible(fn (ShippingOrder $record): bool => $record->isDraft() || $record->isPlanned())
+            ->badge(function (ShippingOrder $record): ?string {
+                if ($record->isPlanned()) {
+                    return '✓';
+                }
+                if ($record->isDraft() && $record->source_warehouse_id !== null) {
+                    $availability = $this->getInventoryAvailability($record);
+                    if (! $availability['all_available']) {
+                        return '!';
+                    }
+                }
+
+                return null;
+            })
+            ->badgeColor(fn (ShippingOrder $record): string => $record->isPlanned() ? 'success' : 'warning')
+            ->schema([
+                $this->getPlanningStatusBannerSection(),
+                $this->getSourceWarehouseSection(),
+                $this->getInventoryAvailabilitySection(),
+                $this->getPlanningActionsSection(),
+            ]);
+    }
+
+    /**
+     * Banner showing planning status.
+     */
+    protected function getPlanningStatusBannerSection(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('planning_status_banner')
+                    ->label('')
+                    ->getStateUsing(function (ShippingOrder $record): string {
+                        if ($record->isPlanned()) {
+                            return '✓ This Shipping Order has been planned. Vouchers are locked and inventory is reserved.';
+                        }
+
+                        return 'Planning required. Select a source warehouse and verify inventory availability before proceeding.';
+                    })
+                    ->icon(fn (ShippingOrder $record): string => $record->isPlanned() ? 'heroicon-o-check-circle' : 'heroicon-o-information-circle')
+                    ->color(fn (ShippingOrder $record): string => $record->isPlanned() ? 'success' : 'info')
+                    ->weight(FontWeight::Medium)
+                    ->columnSpanFull(),
+            ])
+            ->extraAttributes(fn (ShippingOrder $record): array => [
+                'class' => $record->isPlanned()
+                    ? 'bg-success-50 dark:bg-success-900/20 border-success-200 dark:border-success-800'
+                    : 'bg-info-50 dark:bg-info-900/20 border-info-200 dark:border-info-800',
+            ])
+            ->columnSpanFull();
+    }
+
+    /**
+     * Section 1: Source Warehouse selection/confirmation.
+     */
+    protected function getSourceWarehouseSection(): Section
+    {
+        return Section::make('Source Warehouse')
+            ->description('Where the shipment will be dispatched from')
+            ->icon('heroicon-o-building-storefront')
+            ->schema([
+                Grid::make(2)
+                    ->schema([
+                        TextEntry::make('sourceWarehouse.name')
+                            ->label('Selected Warehouse')
+                            ->icon('heroicon-o-building-storefront')
+                            ->default('Not selected')
+                            ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null)
+                            ->weight(FontWeight::Bold)
+                            ->size(TextEntry\TextEntrySize::Large),
+                        TextEntry::make('sourceWarehouse.country')
+                            ->label('Country')
+                            ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null),
+                        TextEntry::make('sourceWarehouse.location_type')
+                            ->label('Type')
+                            ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null)
+                            ->formatStateUsing(fn (ShippingOrder $record): string => $record->sourceWarehouse?->location_type->label() ?? 'Unknown')
+                            ->badge()
+                            ->color(fn (ShippingOrder $record): string => $record->sourceWarehouse?->location_type->color() ?? 'gray'),
+                        TextEntry::make('sourceWarehouse.serialization_authorized')
+                            ->label('Serialization Authorized')
+                            ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null)
+                            ->formatStateUsing(fn (ShippingOrder $record): string => $record->sourceWarehouse?->serialization_authorized ? 'Yes' : 'No')
+                            ->badge()
+                            ->color(fn (ShippingOrder $record): string => $record->sourceWarehouse?->serialization_authorized ? 'success' : 'warning'),
+                    ]),
+                TextEntry::make('no_warehouse_selected')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'No source warehouse selected. Please select a warehouse to check inventory availability.')
+                    ->color('warning')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id === null && $record->isDraft()),
+            ]);
+    }
+
+    /**
+     * Section 2: Inventory Availability per allocation lineage.
+     */
+    protected function getInventoryAvailabilitySection(): Section
+    {
+        return Section::make('Inventory Availability')
+            ->description('Available inventory per allocation lineage')
+            ->icon('heroicon-o-archive-box')
+            ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null)
+            ->schema([
+                $this->getInventoryAvailabilitySummary(),
+                TextEntry::make('inventory_availability_details')
+                    ->label('')
+                    ->getStateUsing(fn (ShippingOrder $record): string => $this->formatInventoryAvailability($record))
+                    ->html()
+                    ->columnSpanFull(),
+                $this->getInsufficientInventoryWarning(),
+                $this->getPreserveCasesWarning(),
+            ]);
+    }
+
+    /**
+     * Summary of inventory availability status.
+     */
+    protected function getInventoryAvailabilitySummary(): Grid
+    {
+        return Grid::make(3)
+            ->schema([
+                TextEntry::make('total_allocations')
+                    ->label('Allocations')
+                    ->getStateUsing(function (ShippingOrder $record): int {
+                        $availability = $this->getInventoryAvailability($record);
+
+                        return count($availability['allocations']);
+                    })
+                    ->badge()
+                    ->color('info'),
+                TextEntry::make('sufficient_allocations')
+                    ->label('Sufficient')
+                    ->getStateUsing(function (ShippingOrder $record): int {
+                        $availability = $this->getInventoryAvailability($record);
+
+                        return count(array_filter($availability['allocations'], fn ($a) => $a['status'] === 'sufficient'));
+                    })
+                    ->badge()
+                    ->color('success'),
+                TextEntry::make('insufficient_allocations')
+                    ->label('Insufficient')
+                    ->getStateUsing(function (ShippingOrder $record): int {
+                        $availability = $this->getInventoryAvailability($record);
+
+                        return count(array_filter($availability['allocations'], fn ($a) => $a['status'] === 'insufficient'));
+                    })
+                    ->badge()
+                    ->color(function (ShippingOrder $record): string {
+                        $availability = $this->getInventoryAvailability($record);
+                        $insufficientCount = count(array_filter($availability['allocations'], fn ($a) => $a['status'] === 'insufficient'));
+
+                        return $insufficientCount > 0 ? 'danger' : 'gray';
+                    }),
+            ]);
+    }
+
+    /**
+     * Warning banner for insufficient inventory.
+     */
+    protected function getInsufficientInventoryWarning(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('insufficient_warning')
+                    ->label('')
+                    ->getStateUsing(fn (): string => '⚠️ Insufficient eligible inventory for one or more allocations. '
+                        .'This Shipping Order cannot proceed until inventory becomes available.')
+                    ->color('danger')
+                    ->weight(FontWeight::Bold)
+                    ->columnSpanFull(),
+            ])
+            ->visible(function (ShippingOrder $record): bool {
+                if ($record->isPlanned()) {
+                    return false;
+                }
+                $availability = $this->getInventoryAvailability($record);
+
+                return ! $availability['all_available'];
+            })
+            ->extraAttributes([
+                'class' => 'bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800',
+            ])
+            ->columnSpanFull();
+    }
+
+    /**
+     * Warning banner for preserve_cases when intact case is unavailable.
+     */
+    protected function getPreserveCasesWarning(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('preserve_cases_warning')
+                    ->label('')
+                    ->getStateUsing(fn (): string => '⚠️ Original wooden case (OWC) not available for some allocations. '
+                        .'This may delay shipment if preserve_cases packaging preference is required.')
+                    ->color('warning')
+                    ->weight(FontWeight::Medium)
+                    ->columnSpanFull(),
+            ])
+            ->visible(function (ShippingOrder $record): bool {
+                if ($record->isPlanned()) {
+                    return false;
+                }
+                if ($record->packaging_preference !== PackagingPreference::PreserveCases) {
+                    return false;
+                }
+                $availability = $this->getInventoryAvailability($record);
+
+                return ! $availability['preserve_cases_satisfied'];
+            })
+            ->extraAttributes([
+                'class' => 'bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-800',
+            ])
+            ->columnSpanFull();
+    }
+
+    /**
+     * Section for planning actions.
+     */
+    protected function getPlanningActionsSection(): Section
+    {
+        return Section::make('Planning Actions')
+            ->description('Actions available for this Shipping Order')
+            ->icon('heroicon-o-cog-6-tooth')
+            ->visible(fn (ShippingOrder $record): bool => $record->isDraft())
+            ->schema([
+                TextEntry::make('planning_actions_info')
+                    ->label('')
+                    ->getStateUsing(function (ShippingOrder $record): string {
+                        if ($record->source_warehouse_id === null) {
+                            return 'Select a source warehouse before planning.';
+                        }
+
+                        $availability = $this->getInventoryAvailability($record);
+                        $ineligibleCount = $this->countIneligibleVouchers($record);
+
+                        if ($ineligibleCount > 0) {
+                            return "Cannot plan: {$ineligibleCount} voucher(s) are ineligible. Resolve issues in the Vouchers & Eligibility tab.";
+                        }
+
+                        if (! $availability['all_available']) {
+                            return 'Cannot plan: Insufficient inventory for one or more allocations.';
+                        }
+
+                        if (! $availability['preserve_cases_satisfied'] && $record->packaging_preference === PackagingPreference::PreserveCases) {
+                            return 'Cannot plan: Preserve cases preference requires intact original case, but none available.';
+                        }
+
+                        return '✓ All requirements met. Ready to plan this Shipping Order.';
+                    })
+                    ->color(function (ShippingOrder $record): string {
+                        if ($record->source_warehouse_id === null) {
+                            return 'warning';
+                        }
+
+                        $availability = $this->getInventoryAvailability($record);
+                        $ineligibleCount = $this->countIneligibleVouchers($record);
+
+                        if ($ineligibleCount > 0 || ! $availability['all_available']) {
+                            return 'danger';
+                        }
+
+                        if (! $availability['preserve_cases_satisfied'] && $record->packaging_preference === PackagingPreference::PreserveCases) {
+                            return 'danger';
+                        }
+
+                        return 'success';
+                    })
+                    ->icon(function (ShippingOrder $record): string {
+                        if ($record->source_warehouse_id === null) {
+                            return 'heroicon-o-exclamation-triangle';
+                        }
+
+                        $availability = $this->getInventoryAvailability($record);
+                        $ineligibleCount = $this->countIneligibleVouchers($record);
+
+                        if ($ineligibleCount > 0 || ! $availability['all_available']) {
+                            return 'heroicon-o-x-circle';
+                        }
+
+                        if (! $availability['preserve_cases_satisfied'] && $record->packaging_preference === PackagingPreference::PreserveCases) {
+                            return 'heroicon-o-x-circle';
+                        }
+
+                        return 'heroicon-o-check-circle';
+                    })
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * Get inventory availability for the shipping order.
+     *
+     * @return array{allocations: array<string, array{allocation_id: string, required_quantity: int, available_quantity: int, available_bottles: list<string>, intact_case_available: bool, status: string}>, all_available: bool, preserve_cases_satisfied: bool}
+     */
+    protected function getInventoryAvailability(ShippingOrder $record): array
+    {
+        // Use cached result if available
+        static $cache = [];
+        $cacheKey = $record->id.'-'.$record->source_warehouse_id;
+
+        if (isset($cache[$cacheKey])) {
+            return $cache[$cacheKey];
+        }
+
+        if ($record->source_warehouse_id === null) {
+            $cache[$cacheKey] = [
+                'allocations' => [],
+                'all_available' => false,
+                'preserve_cases_satisfied' => false,
+            ];
+
+            return $cache[$cacheKey];
+        }
+
+        /** @var LateBindingService $lateBindingService */
+        $lateBindingService = app(LateBindingService::class);
+        $availability = $lateBindingService->requestEligibleInventory($record);
+
+        $cache[$cacheKey] = $availability;
+
+        return $availability;
+    }
+
+    /**
+     * Format inventory availability as HTML for display.
+     */
+    protected function formatInventoryAvailability(ShippingOrder $record): string
+    {
+        $availability = $this->getInventoryAvailability($record);
+
+        if (empty($availability['allocations'])) {
+            return '<div class="text-gray-400">No allocation data available.</div>';
+        }
+
+        // Load lines with their vouchers for wine info
+        $record->load(['lines.voucher.wineVariant.wineMaster', 'lines.allocation']);
+
+        // Create a map of allocation_id to wine name
+        $allocationWineMap = [];
+        foreach ($record->lines as $line) {
+            $allocationId = $line->allocation_id;
+            $wineName = 'Unknown Wine';
+            if ($line->voucher !== null
+                && $line->voucher->wineVariant !== null
+                && $line->voucher->wineVariant->wineMaster !== null
+            ) {
+                $wineName = $line->voucher->wineVariant->wineMaster->name;
+            }
+            if (! isset($allocationWineMap[$allocationId])) {
+                $allocationWineMap[$allocationId] = $wineName;
+            }
+        }
+
+        $html = '<div class="overflow-x-auto">';
+        $html .= '<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">';
+        $html .= '<thead class="bg-gray-50 dark:bg-gray-800">';
+        $html .= '<tr>';
+        $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Allocation</th>';
+        $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Wine/SKU</th>';
+        $html .= '<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Required</th>';
+        $html .= '<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Available</th>';
+        $html .= '<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Intact Case</th>';
+        $html .= '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>';
+        $html .= '</tr>';
+        $html .= '</thead>';
+        $html .= '<tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">';
+
+        foreach ($availability['allocations'] as $allocationId => $data) {
+            $wineName = $allocationWineMap[$allocationId] ?? 'Unknown';
+            $statusColor = match ($data['status']) {
+                'sufficient' => 'text-success-600 bg-success-50 dark:bg-success-900/20',
+                'intact_case_unavailable' => 'text-warning-600 bg-warning-50 dark:bg-warning-900/20',
+                'insufficient' => 'text-danger-600 bg-danger-50 dark:bg-danger-900/20',
+                default => 'text-gray-600 bg-gray-50 dark:bg-gray-900/20',
+            };
+            $statusLabel = match ($data['status']) {
+                'sufficient' => 'Eligible inventory available',
+                'intact_case_unavailable' => 'Bottles available, intact case unavailable',
+                'insufficient' => 'Insufficient eligible inventory',
+                default => 'Unknown',
+            };
+            $statusIcon = match ($data['status']) {
+                'sufficient' => '✓',
+                'intact_case_unavailable' => '⚠',
+                'insufficient' => '✗',
+                default => '?',
+            };
+
+            $shortAllocationId = substr($allocationId, 0, 8).'...';
+
+            $html .= '<tr>';
+            $html .= "<td class=\"px-4 py-2 text-sm font-mono text-gray-900 dark:text-gray-100\" title=\"{$allocationId}\">{$shortAllocationId}</td>";
+            $html .= '<td class="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">'.e($wineName).'</td>';
+            $html .= '<td class="px-4 py-2 text-sm text-center text-gray-900 dark:text-gray-100">'.$data['required_quantity'].'</td>';
+            $html .= '<td class="px-4 py-2 text-sm text-center text-gray-900 dark:text-gray-100">'.$data['available_quantity'].'</td>';
+            $html .= '<td class="px-4 py-2 text-sm text-center text-gray-900 dark:text-gray-100">'.($data['intact_case_available'] ? '✓ Yes' : '✗ No').'</td>';
+            $html .= "<td class=\"px-4 py-2 text-sm\"><span class=\"inline-flex items-center px-2 py-1 rounded-md {$statusColor}\">{$statusIcon} {$statusLabel}</span></td>";
+            $html .= '</tr>';
+        }
+
+        $html .= '</tbody>';
+        $html .= '</table>';
+        $html .= '</div>';
+
+        // Add allocation lineage constraint note
+        $html .= '<div class="mt-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400">';
+        $html .= '<strong>Note:</strong> Allocation lineage is a HARD constraint. Cross-allocation substitution is not allowed. ';
+        $html .= 'Each voucher must be fulfilled with a bottle from its specific allocation.';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Check if the shipping order can be planned.
+     */
+    protected function canPlanShippingOrder(ShippingOrder $record): bool
+    {
+        if (! $record->isDraft()) {
+            return false;
+        }
+
+        if ($record->source_warehouse_id === null) {
+            return false;
+        }
+
+        $ineligibleCount = $this->countIneligibleVouchers($record);
+        if ($ineligibleCount > 0) {
+            return false;
+        }
+
+        $availability = $this->getInventoryAvailability($record);
+        if (! $availability['all_available']) {
+            return false;
+        }
+
+        if (! $availability['preserve_cases_satisfied'] && $record->packaging_preference === PackagingPreference::PreserveCases) {
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -741,6 +1207,8 @@ class ViewShippingOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->getSelectWarehouseAction(),
+            $this->getPlanOrderAction(),
             Actions\EditAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
             Actions\DeleteAction::make()
@@ -749,5 +1217,134 @@ class ViewShippingOrder extends ViewRecord
                 ->modalHeading('Delete Shipping Order')
                 ->modalDescription('Are you sure you want to delete this shipping order? This action cannot be undone.'),
         ];
+    }
+
+    /**
+     * Action to select/change source warehouse.
+     */
+    protected function getSelectWarehouseAction(): Actions\Action
+    {
+        return Actions\Action::make('selectWarehouse')
+            ->label(fn (ShippingOrder $record): string => $record->source_warehouse_id === null
+                ? 'Select Warehouse'
+                : 'Change Warehouse')
+            ->icon('heroicon-o-building-storefront')
+            ->color('gray')
+            ->visible(fn (ShippingOrder $record): bool => $record->isDraft())
+            ->form([
+                Select::make('source_warehouse_id')
+                    ->label('Source Warehouse')
+                    ->options(function (): array {
+                        return Location::query()
+                            ->whereIn('location_type', [
+                                LocationType::MainWarehouse,
+                                LocationType::SatelliteWarehouse,
+                            ])
+                            ->where('status', \App\Enums\Inventory\LocationStatus::Active)
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->default(fn (ShippingOrder $record): ?string => $record->source_warehouse_id)
+                    ->required()
+                    ->searchable()
+                    ->helperText('Select the warehouse from which this shipment will be dispatched.'),
+            ])
+            ->action(function (ShippingOrder $record, array $data): void {
+                $record->source_warehouse_id = $data['source_warehouse_id'];
+                $record->save();
+
+                Notification::make()
+                    ->title('Warehouse Updated')
+                    ->body('Source warehouse has been updated. Check inventory availability.')
+                    ->success()
+                    ->send();
+            })
+            ->modalHeading('Select Source Warehouse')
+            ->modalSubmitActionLabel('Save Warehouse');
+    }
+
+    /**
+     * Action to plan the shipping order.
+     */
+    protected function getPlanOrderAction(): Actions\Action
+    {
+        return Actions\Action::make('planOrder')
+            ->label('Plan Order')
+            ->icon('heroicon-o-clipboard-document-check')
+            ->color('primary')
+            ->visible(fn (ShippingOrder $record): bool => $record->isDraft())
+            ->disabled(fn (ShippingOrder $record): bool => ! $this->canPlanShippingOrder($record))
+            ->requiresConfirmation()
+            ->modalHeading('Plan Shipping Order')
+            ->modalDescription(function (ShippingOrder $record): string {
+                $voucherCount = $record->lines()->count();
+
+                return "Are you sure you want to plan this Shipping Order?\n\n"
+                    ."This will:\n"
+                    ."• Lock {$voucherCount} voucher(s) for fulfillment\n"
+                    ."• Reserve inventory at the selected warehouse\n"
+                    ."• Prevent changes to the order without cancellation\n\n"
+                    .'This action cannot be undone without cancelling the order.';
+            })
+            ->modalSubmitActionLabel('Plan Order')
+            ->action(function (ShippingOrder $record): void {
+                // Final validation checks
+                if (! $this->canPlanShippingOrder($record)) {
+                    Notification::make()
+                        ->title('Cannot Plan Order')
+                        ->body('This order does not meet all requirements for planning. Check voucher eligibility and inventory availability.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                // Check for any insufficient inventory and create exceptions
+                $availability = $this->getInventoryAvailability($record);
+                if (! $availability['all_available']) {
+                    foreach ($availability['allocations'] as $allocationId => $data) {
+                        if ($data['status'] === 'insufficient') {
+                            ShippingOrderException::create([
+                                'shipping_order_id' => $record->id,
+                                'exception_type' => ShippingOrderExceptionType::SupplyInsufficient,
+                                'description' => "Insufficient eligible inventory for allocation {$allocationId}. "
+                                    ."Required: {$data['required_quantity']}, Available: {$data['available_quantity']}.",
+                                'resolution_path' => 'Wait for inventory to become available, request internal transfer (Module B), or cancel Shipping Order.',
+                                'status' => ShippingOrderExceptionStatus::Active,
+                                'created_by' => Auth::id(),
+                            ]);
+                        }
+                    }
+
+                    Notification::make()
+                        ->title('Cannot Plan Order')
+                        ->body('Insufficient inventory for one or more allocations. Supply exceptions have been created.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                try {
+                    /** @var ShippingOrderService $shippingOrderService */
+                    $shippingOrderService = app(ShippingOrderService::class);
+                    $shippingOrderService->transitionTo($record, ShippingOrderStatus::Planned);
+
+                    Notification::make()
+                        ->title('Order Planned')
+                        ->body('Shipping Order has been planned. Vouchers are now locked for fulfillment.')
+                        ->success()
+                        ->send();
+
+                    // Redirect to refresh the page
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Planning Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
     }
 }
