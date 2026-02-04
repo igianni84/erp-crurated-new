@@ -714,3 +714,17 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Quick links use Resource::getUrl('index', ['tableFilters' => [...]])
   - Color classes mapped from enum color() values to Tailwind classes
 ---
+
+## 2026-02-04 - US-C056
+- **What was implemented:** Visual workflow indicator in SO detail header
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added getWorkflowIndicator method)
+  - `resources/views/filament/components/shipping-order-workflow.blade.php` (new)
+- **Learnings for future iterations:**
+  - Use Filament\Infolists\Components\View::make() to embed custom Blade views in infolists
+  - Workflow indicator maps status to step index for completed/current determination
+  - OnHold uses previous_status to show where in workflow the SO was paused
+  - Connecting lines use absolute positioning with transform: translateX(50%)
+  - Color classes: success-500 for completed, info-500 for current, gray-200 for future
+  - Overlay for OnHold (danger) and Cancelled (gray) with z-10 to cover workflow
+---

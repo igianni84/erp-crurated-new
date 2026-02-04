@@ -897,8 +897,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 56,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added visual workflow indicator to SO detail view header. Steps: Draft → Planned → Picking → Shipped → Completed. Completed steps green, current blue, future gray. OnHold red overlay, Cancelled gray overlay."
     },
     {
       "id": "US-C057",

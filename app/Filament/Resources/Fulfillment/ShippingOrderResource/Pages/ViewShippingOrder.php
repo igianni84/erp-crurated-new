@@ -31,6 +31,7 @@ use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\View;
 use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -54,6 +55,7 @@ class ViewShippingOrder extends ViewRecord
     {
         return $infolist
             ->schema([
+                $this->getWorkflowIndicator(),
                 $this->getStatusBanner(),
                 Tabs::make('Shipping Order Details')
                     ->tabs([
@@ -2247,6 +2249,21 @@ class ViewShippingOrder extends ViewRecord
                     ->icon('heroicon-o-information-circle')
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * Visual workflow indicator showing SO progress through statuses.
+     * Steps: Draft → Planned → Picking → Shipped → Completed
+     * Completed steps are green, current is blue, future is gray.
+     * On Hold shows red overlay, Cancelled shows gray overlay.
+     */
+    protected function getWorkflowIndicator(): Section
+    {
+        return Section::make()
+            ->schema([
+                View::make('filament.components.shipping-order-workflow'),
+            ])
+            ->columnSpanFull();
     }
 
     /**
