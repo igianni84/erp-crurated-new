@@ -43,6 +43,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Gate;
 
 class ViewCustomer extends ViewRecord
 {
@@ -1749,9 +1750,8 @@ class ViewCustomer extends ViewRecord
         // Build section header actions for editing permissions
         $sectionActions = [];
 
-        // Only show edit action if user can manage payment permissions
-        $currentUser = auth()->user();
-        $canManagePayments = $currentUser?->canManagePaymentPermissions() ?? false;
+        // Only show edit action if user can manage payment permissions (via policy)
+        $canManagePayments = Gate::allows('managePayments', $customer);
 
         if ($canManagePayments) {
             $sectionActions[] = \Filament\Infolists\Components\Actions\Action::make('editPaymentPermissions')
@@ -2566,8 +2566,8 @@ class ViewCustomer extends ViewRecord
         $record = $this->record;
         $activeBlocksCount = $record->getActiveBlocksCount();
         $hasCriticalBlocks = $record->hasCriticalBlocks();
-        $user = auth()->user();
-        $canManageBlocks = $user instanceof \App\Models\User && $user->canManageOperationalBlocks();
+        // Use policy for authorization
+        $canManageBlocks = Gate::allows('manageBlocks', $record);
 
         return Tab::make('Operational Blocks')
             ->icon('heroicon-o-shield-exclamation')
@@ -3092,7 +3092,8 @@ class ViewCustomer extends ViewRecord
 
                 $this->refreshFormData(['status']);
             })
-            ->visible(fn (): bool => $record->status === CustomerStatus::Active);
+            ->visible(fn (): bool => $record->status === CustomerStatus::Active
+                && Gate::allows('suspend', $record));
     }
 
     /**
@@ -3140,6 +3141,7 @@ class ViewCustomer extends ViewRecord
 
                 $this->refreshFormData(['status']);
             })
-            ->visible(fn (): bool => in_array($record->status, [CustomerStatus::Prospect, CustomerStatus::Suspended], true));
+            ->visible(fn (): bool => in_array($record->status, [CustomerStatus::Prospect, CustomerStatus::Suspended], true)
+                && Gate::allows('activate', $record));
     }
 }

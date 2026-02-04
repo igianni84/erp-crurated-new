@@ -13,6 +13,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Gate;
 
 class CustomerResource extends Resource
 {
@@ -182,7 +183,8 @@ class CustomerResource extends Resource
                     ->requiresConfirmation()
                     ->modalDescription('Are you sure you want to suspend this customer?')
                     ->action(fn (Customer $record) => $record->update(['status' => CustomerStatus::Suspended]))
-                    ->visible(fn (Customer $record): bool => $record->status === CustomerStatus::Active),
+                    ->visible(fn (Customer $record): bool => $record->status === CustomerStatus::Active
+                        && Gate::allows('suspend', $record)),
                 Tables\Actions\Action::make('activate')
                     ->label('Activate')
                     ->icon('heroicon-o-check-circle')
@@ -190,7 +192,8 @@ class CustomerResource extends Resource
                     ->requiresConfirmation()
                     ->modalDescription('Are you sure you want to activate this customer?')
                     ->action(fn (Customer $record) => $record->update(['status' => CustomerStatus::Active]))
-                    ->visible(fn (Customer $record): bool => $record->status === CustomerStatus::Suspended || $record->status === CustomerStatus::Prospect),
+                    ->visible(fn (Customer $record): bool => ($record->status === CustomerStatus::Suspended || $record->status === CustomerStatus::Prospect)
+                        && Gate::allows('activate', $record)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
