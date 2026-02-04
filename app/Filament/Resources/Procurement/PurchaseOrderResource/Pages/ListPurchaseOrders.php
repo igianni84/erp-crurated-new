@@ -58,6 +58,23 @@ class ListPurchaseOrders extends ListRecords
                 ->badge($this->getOverdueCount())
                 ->badgeColor('danger'),
 
+            'variance' => Tab::make('With Variance')
+                ->modifyQueryUsing(fn (Builder $query) => $query
+                    ->whereHas('inbounds')
+                    ->whereRaw('(SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) != purchase_orders.quantity'))
+                ->badge($this->getVarianceCount())
+                ->badgeColor('warning')
+                ->icon('heroicon-o-exclamation-triangle'),
+
+            'significant_variance' => Tab::make('Variance > 10%')
+                ->modifyQueryUsing(fn (Builder $query) => $query
+                    ->whereHas('inbounds')
+                    ->where('quantity', '>', 0)
+                    ->whereRaw('ABS((SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) - purchase_orders.quantity) / purchase_orders.quantity * 100 > 10'))
+                ->badge($this->getSignificantVarianceCount())
+                ->badgeColor('danger')
+                ->icon('heroicon-o-exclamation-circle'),
+
             'closed' => Tab::make('Closed')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', PurchaseOrderStatus::Closed->value))
                 ->badge($this->getClosedCount())
@@ -124,5 +141,22 @@ class ListPurchaseOrders extends ListRecords
     private function getAllCount(): int
     {
         return PurchaseOrder::count();
+    }
+
+    private function getVarianceCount(): int
+    {
+        return PurchaseOrder::query()
+            ->whereHas('inbounds')
+            ->whereRaw('(SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) != purchase_orders.quantity')
+            ->count();
+    }
+
+    private function getSignificantVarianceCount(): int
+    {
+        return PurchaseOrder::query()
+            ->whereHas('inbounds')
+            ->where('quantity', '>', 0)
+            ->whereRaw('ABS((SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) - purchase_orders.quantity) / purchase_orders.quantity * 100 > 10')
+            ->count();
     }
 }

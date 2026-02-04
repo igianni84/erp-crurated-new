@@ -312,4 +312,95 @@ class PurchaseOrder extends Model
 
         return 'Until '.$this->expected_delivery_end->format('Y-m-d');
     }
+
+    /**
+     * Get the total inbound quantity linked to this PO.
+     */
+    public function getInboundQuantity(): int
+    {
+        return (int) $this->inbounds()->sum('quantity');
+    }
+
+    /**
+     * Get the variance between inbound quantity and PO quantity.
+     * Positive = over delivery, Negative = short delivery, Zero = exact match.
+     */
+    public function getVariance(): int
+    {
+        return $this->getInboundQuantity() - $this->quantity;
+    }
+
+    /**
+     * Get the variance as a percentage of the PO quantity.
+     * Returns null if PO quantity is zero.
+     */
+    public function getVariancePercentage(): ?float
+    {
+        if ($this->quantity === 0) {
+            return null;
+        }
+
+        return (abs($this->getVariance()) / $this->quantity) * 100;
+    }
+
+    /**
+     * Get the variance status label.
+     * Returns: 'Exact Match', 'Over Delivery', 'Short Delivery'
+     */
+    public function getVarianceStatus(): string
+    {
+        $variance = $this->getVariance();
+
+        return match (true) {
+            $variance === 0 => 'Exact Match',
+            $variance > 0 => 'Over Delivery',
+            default => 'Short Delivery',
+        };
+    }
+
+    /**
+     * Check if variance exceeds threshold (default 10%).
+     */
+    public function hasSignificantVariance(float $thresholdPercent = 10.0): bool
+    {
+        $variancePercent = $this->getVariancePercentage();
+
+        if ($variancePercent === null) {
+            return false;
+        }
+
+        return $variancePercent > $thresholdPercent;
+    }
+
+    /**
+     * Check if this PO has any inbound records.
+     */
+    public function hasInbounds(): bool
+    {
+        return $this->inbounds()->exists();
+    }
+
+    /**
+     * Check if this is an over delivery.
+     */
+    public function isOverDelivery(): bool
+    {
+        return $this->getVariance() > 0;
+    }
+
+    /**
+     * Check if this is a short delivery.
+     */
+    public function isShortDelivery(): bool
+    {
+        return $this->getVariance() < 0;
+    }
+
+    /**
+     * Check if inbound quantity exactly matches PO quantity.
+     */
+    public function isExactMatch(): bool
+    {
+        return $this->getVariance() === 0 && $this->hasInbounds();
+    }
 }

@@ -142,6 +142,75 @@ class PurchaseOrderResource extends Resource
                         ? 'Delivery window has passed'
                         : null),
 
+                Tables\Columns\TextColumn::make('variance_status')
+                    ->label('Variance')
+                    ->state(function (PurchaseOrder $record): string {
+                        if (! $record->hasInbounds()) {
+                            return 'No Inbounds';
+                        }
+
+                        $variance = $record->getVariance();
+                        $status = $record->getVarianceStatus();
+                        $percent = $record->getVariancePercentage();
+
+                        if ($variance === 0) {
+                            return $status;
+                        }
+
+                        $sign = $variance > 0 ? '+' : '';
+                        $percentStr = $percent !== null ? ' ('.number_format($percent, 1).'%)' : '';
+
+                        return "{$status}: {$sign}{$variance}{$percentStr}";
+                    })
+                    ->badge()
+                    ->color(function (PurchaseOrder $record): string {
+                        if (! $record->hasInbounds()) {
+                            return 'gray';
+                        }
+
+                        $variance = $record->getVariance();
+
+                        if ($variance === 0) {
+                            return 'success';
+                        }
+
+                        // Check if variance > 10%
+                        if ($record->hasSignificantVariance(10.0)) {
+                            return 'danger';
+                        }
+
+                        return 'warning';
+                    })
+                    ->icon(function (PurchaseOrder $record): ?string {
+                        if (! $record->hasInbounds()) {
+                            return null;
+                        }
+
+                        $variance = $record->getVariance();
+
+                        return match (true) {
+                            $variance === 0 => 'heroicon-o-check-circle',
+                            $variance > 0 => 'heroicon-o-arrow-up-circle',
+                            default => 'heroicon-o-arrow-down-circle',
+                        };
+                    })
+                    ->tooltip(function (PurchaseOrder $record): ?string {
+                        if (! $record->hasInbounds()) {
+                            return 'No inbound records linked to this PO';
+                        }
+
+                        if ($record->hasSignificantVariance(10.0)) {
+                            return 'Variance exceeds 10% threshold!';
+                        }
+
+                        return null;
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query
+                            ->withSum('inbounds', 'quantity')
+                            ->orderByRaw("(COALESCE(inbounds_sum_quantity, 0) - quantity) {$direction}");
+                    }),
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
@@ -227,6 +296,41 @@ class PurchaseOrderResource extends Resource
                         ->where('expected_delivery_end', '<', now())
                         ->where('status', '!=', PurchaseOrderStatus::Closed->value))
                     ->toggle(),
+
+                Tables\Filters\SelectFilter::make('variance')
+                    ->label('Delivery Variance')
+                    ->options([
+                        'exact_match' => 'Exact Match',
+                        'over_delivery' => 'Over Delivery',
+                        'short_delivery' => 'Short Delivery',
+                        'significant_variance' => 'Variance > 10%',
+                        'no_inbounds' => 'No Inbounds',
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+
+                        if (empty($value)) {
+                            return $query;
+                        }
+
+                        return match ($value) {
+                            'exact_match' => $query
+                                ->whereHas('inbounds')
+                                ->whereRaw('(SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) = purchase_orders.quantity'),
+                            'over_delivery' => $query
+                                ->whereHas('inbounds')
+                                ->whereRaw('(SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) > purchase_orders.quantity'),
+                            'short_delivery' => $query
+                                ->whereHas('inbounds')
+                                ->whereRaw('(SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) < purchase_orders.quantity'),
+                            'significant_variance' => $query
+                                ->whereHas('inbounds')
+                                ->where('quantity', '>', 0)
+                                ->whereRaw('ABS((SELECT COALESCE(SUM(quantity), 0) FROM inbounds WHERE inbounds.purchase_order_id = purchase_orders.id AND inbounds.deleted_at IS NULL) - purchase_orders.quantity) / purchase_orders.quantity * 100 > 10'),
+                            'no_inbounds' => $query->whereDoesntHave('inbounds'),
+                            default => $query,
+                        };
+                    }),
 
                 Tables\Filters\TrashedFilter::make(),
             ])

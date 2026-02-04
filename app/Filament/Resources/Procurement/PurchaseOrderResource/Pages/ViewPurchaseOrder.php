@@ -843,13 +843,30 @@ class ViewPurchaseOrder extends ViewRecord
                 ->color('gray')
                 ->requiresConfirmation()
                 ->modalHeading('Close PO')
-                ->modalDescription('This will close the purchase order. Make sure all expected deliveries have been received.')
+                ->modalDescription(function (PurchaseOrder $record): string {
+                    $baseMessage = 'This will close the purchase order. Make sure all expected deliveries have been received.';
+
+                    if ($record->hasSignificantVariance(10.0)) {
+                        $variance = $record->getVariance();
+                        $variancePercent = $record->getVariancePercentage();
+                        $status = $record->getVarianceStatus();
+                        $sign = $variance > 0 ? '+' : '';
+                        $percentStr = $variancePercent !== null ? number_format($variancePercent, 1) : '0';
+
+                        return "⚠️ WARNING: This PO has a significant variance ({$status}: {$sign}{$variance}, {$percentStr}%).\n\n{$baseMessage}";
+                    }
+
+                    return $baseMessage;
+                })
                 ->modalSubmitActionLabel('Close PO')
                 ->form([
                     Textarea::make('variance_notes')
                         ->label('Variance Notes')
                         ->placeholder('Add any notes about quantity variances or delivery issues (optional)')
-                        ->rows(3),
+                        ->rows(3)
+                        ->helperText(fn (PurchaseOrder $record): ?string => $record->hasSignificantVariance(10.0)
+                            ? 'Recommended: Document the reason for the significant variance'
+                            : null),
                 ])
                 ->visible(fn (PurchaseOrder $record): bool => $record->isConfirmed())
                 ->action(function (PurchaseOrder $record, array $data): void {
