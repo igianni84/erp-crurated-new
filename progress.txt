@@ -1455,3 +1455,37 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Eloquent boot guard catches updates even if mutator is bypassed (e.g., via $model->forceFill())
   - The existing boot guard in static::updating() was already functional for allocation_id
 ---
+
+## 2026-02-04 - US-B051
+- **Implemented**: Movement append-only enforcement with explicit documentation and helper methods
+- **Files modified**:
+  - app/Models/Inventory/InventoryMovement.php (enhanced docblock, added immutability helper methods)
+  - app/Models/Inventory/MovementItem.php (enhanced docblock, added immutability helper methods)
+- **Pre-existing enforcement verified** (from US-B006/US-B007):
+  - Boot guards preventing updates (throws InvalidArgumentException)
+  - Boot guards preventing deletes (throws InvalidArgumentException)
+  - No SoftDeletes trait on either model
+  - DB tables have no deleted_at column
+- **New additions**:
+  - Comprehensive docblock with IMMUTABILITY RULES (US-B051) section
+  - Compensating Movement Pattern documentation in docblock
+  - `isImmutable()` static method - returns true (always immutable)
+  - `canBeEdited()` instance method - returns false (never editable)
+  - `canBeDeleted()` instance method - returns false (never deletable)
+  - `getCorrectionGuidance()` - returns human-readable guidance for operators
+  - `getImmutabilityReason()` - returns explanation of why movements are immutable
+  - MovementItem has matching helper methods for consistency
+- **Acceptance criteria verification**:
+  - ✅ InventoryMovement model has no update/delete methods: Boot guards throw exceptions on update/delete attempts
+  - ✅ DB table has no soft_deletes: Migration does not include $table->softDeletes()
+  - ✅ Any correction requires new compensating movement: Documented in getCorrectionGuidance() and error messages
+  - ✅ Original movements never modified: Boot guard prevents any updates
+  - ✅ Full audit trail preserved: Movements and items are never deleted
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - The append-only pattern was already enforced at runtime via boot guards from US-B006/US-B007
+  - US-B051 makes immutability a first-class documented concept with queryable methods
+  - canBeEdited(), canBeDeleted() can be used by Filament resources to hide edit/delete actions
+  - getCorrectionGuidance() can be shown in UI when operators attempt forbidden actions
+  - Compensating movements are the correct pattern for correcting errors in inventory movements
+---
