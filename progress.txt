@@ -1145,3 +1145,27 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Problem area sections with "All Clear!" empty states provide positive feedback when no issues
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-051
+- What was implemented:
+  - Widget A: "Demand → Execution Knowability" added to Procurement Dashboard
+  - Four metrics tracked with color-coded health status:
+    1. Vouchers Awaiting Sourcing: Count of voucher-driven intents in draft/approved status
+    2. Allocation-Driven Pending: Count of allocation-driven intents in draft/approved status
+    3. Bottling Required Demand: Count of active bottling instructions with pending/partial preference status
+    4. Inbound Overdue vs Expected: Ratio showing overdue POs against expected deliveries (30d window)
+  - Health status helper method with thresholds: green (healthy), yellow (attention), red (critical)
+  - Click navigation: Each metric links to its filtered list in the appropriate resource
+  - Visual design: Grid layout with icons, background color coding, hover effects
+  - Legend showing color meanings and click hint
+- Files changed:
+  - app/Filament/Pages/ProcurementDashboard.php (modified - added getDemandExecutionMetrics, getDemandExecutionHealthStatus, and URL helper methods)
+  - resources/views/filament/pages/procurement-dashboard.blade.php (modified - added Widget A section)
+- **Learnings for future iterations:**
+  - Dashboard widgets follow pattern: PHP data method + Blade view with Tailwind styling
+  - Health status thresholds should be tuned based on actual business requirements
+  - Use match expressions with multiple return values for clean threshold logic
+  - Filter URLs use tableFilters array structure that maps to Filament's filter system
+  - Color coding: 'success' for healthy (0), 'warning' for attention (low count), 'danger' for critical (high count)
+  - Browser verification should be done manually as dev-browser skill is not available
+---
