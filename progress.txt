@@ -12,6 +12,8 @@ Started: Wed Feb  4 08:12:32 CET 2026
 - Migration naming: `YYYY_MM_DD_XXXXXX_create_table_name_table.php`
 - Use `foreignId()->constrained()->nullOnDelete()` for FK references to users table
 - Use `foreignUuid()->constrained()->cascadeOnDelete()` for FK references to UUID tables (Module K uses UUIDs)
+- Filament Resources for Customer module go in `App\Filament\Resources\Customer\` namespace
+- For PHPStan on Filament bulk actions, add `/** @var Collection<int, ModelName> $records */` PHPDoc before each() call
 
 ---
 
@@ -49,4 +51,28 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Use `foreignUuid()->constrained()->cascadeOnDelete()` for FK references to UUID tables (vs foreignId for int tables)
   - Migration sequence continues: 390001 for party_roles
   - Party model uses union type `PartyRoleType|string` to accept both enum and string values for backward compatibility
+---
+
+## 2026-02-04 - US-003
+- What was implemented:
+  - Created `PartyResource` Filament resource in `App\Filament\Resources\Customer` namespace
+  - List view with columns: legal_name, party_type (badge), roles (badges), jurisdiction, status (badge), tax_id, vat_number, updated_at
+  - Filters: party_type, role (with custom query for relationship), status, jurisdiction (dynamic), TrashedFilter
+  - Search on: legal_name, tax_id, vat_number
+  - Bulk actions: activate, deactivate with confirmation
+  - CRUD pages: ListParties, CreateParty, ViewParty, EditParty
+  - Added "Customers" navigation group to AdminPanelProvider
+- Files changed:
+  - app/Providers/Filament/AdminPanelProvider.php (updated - added Customers navigation group)
+  - app/Filament/Resources/Customer/PartyResource.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/ListParties.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/CreateParty.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/ViewParty.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/EditParty.php (new)
+- **Learnings for future iterations:**
+  - Filament Resources in Customer module go in `App\Filament\Resources\Customer\` namespace
+  - Use `->with('roles')` in `getEloquentQuery()` to eager load relationships for list display
+  - For bulk actions with Collection, use PHPDoc annotation `/** @var Collection<int, Model> $records */` before the each() call to satisfy PHPStan
+  - Role filter needs custom query using `whereHas()` to filter by relationship
+  - Navigation groups must be defined in AdminPanelProvider's `navigationGroups()` array
 ---
