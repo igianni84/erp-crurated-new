@@ -1034,85 +1034,146 @@ class ViewInboundBatch extends ViewRecord
     }
 
     /**
-     * Tab 5: Audit Log - WMS events, operator actions, discrepancy resolutions.
+     * Tab 6: Audit - Immutable audit log timeline for compliance.
+     *
+     * Events logged:
+     * - creation (batch_created)
+     * - quantity_update (batch_quantity_update)
+     * - discrepancy_flagged (batch_discrepancy_flagged)
+     * - discrepancy_resolved (batch_discrepancy_resolved)
+     * - serialization_started (batch_serialization_started)
+     * - serialization_completed (batch_serialization_completed)
+     *
+     * @see US-B057
      */
     protected function getAuditLogTab(): Tab
     {
-        return Tab::make('Audit Log')
+        return Tab::make('Audit')
             ->icon('heroicon-o-clipboard-document-list')
+            ->badge(function (InboundBatch $record): ?string {
+                $count = $record->auditLogs()->count();
+
+                return $count > 0 ? (string) $count : null;
+            })
+            ->badgeColor('gray')
             ->schema([
-                Section::make('WMS Events')
-                    ->description('Events received from the Warehouse Management System')
+                Section::make('WMS Reference')
+                    ->description('Warehouse Management System integration')
                     ->schema([
-                        TextEntry::make('wms_events')
+                        TextEntry::make('wms_reference_display')
                             ->label('')
                             ->getStateUsing(function (InboundBatch $record): string {
                                 if (! $record->hasWmsReference()) {
-                                    return 'No WMS events recorded. This batch is not linked to a WMS.';
+                                    return 'This batch is not linked to a WMS. All events are from ERP operations.';
                                 }
 
-                                return "WMS Reference: {$record->wms_reference_id}. WMS events are synchronized automatically.";
+                                return "WMS Reference: {$record->wms_reference_id}. WMS events are synchronized automatically and included in the audit log below.";
                             })
                             ->icon(fn (InboundBatch $record): string => $record->hasWmsReference()
                                 ? 'heroicon-o-server-stack'
-                                : 'heroicon-o-minus')
+                                : 'heroicon-o-information-circle')
                             ->color(fn (InboundBatch $record): string => $record->hasWmsReference() ? 'info' : 'gray'),
-                    ]),
-                Section::make('Operator Actions')
-                    ->description('Actions performed by operators on this batch')
+                    ])
+                    ->collapsible(),
+                Section::make('Audit Log')
+                    ->description('Immutable record of all changes to this inbound batch')
                     ->schema([
-                        TextEntry::make('audit_log_entries')
+                        TextEntry::make('audit_immutability_notice')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Audit logs are immutable and cannot be modified or deleted. They provide a complete history of all changes for compliance purposes.')
+                            ->icon('heroicon-o-shield-check')
+                            ->iconColor('success')
+                            ->color('gray'),
+                        TextEntry::make('audit_timeline')
                             ->label('')
                             ->getStateUsing(function (InboundBatch $record): string {
-                                $logs = $record->auditLogs()
+                                $auditLogs = $record->auditLogs()
+                                    ->with('user')
                                     ->orderBy('created_at', 'desc')
-                                    ->limit(20)
                                     ->get();
 
-                                if ($logs->isEmpty()) {
-                                    return 'No audit log entries recorded.';
+                                if ($auditLogs->isEmpty()) {
+                                    return '<div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
+                                        <p class="text-gray-500">No audit logs recorded for this batch.</p>
+                                    </div>';
                                 }
 
-                                $html = '<div class="space-y-2">';
-                                foreach ($logs as $log) {
+                                $html = '<div class="space-y-3">';
+
+                                foreach ($auditLogs as $log) {
                                     /** @var AuditLog $log */
-                                    $event = $log->getEventLabel();
-                                    $icon = $log->getEventIcon();
-                                    $color = $log->getEventColor();
+                                    $eventLabel = $log->getEventLabel();
+                                    $eventColor = $log->getEventColor();
+
                                     $user = $log->user;
-                                    $userName = $user ? $user->name : 'System';
-                                    $date = $log->created_at->format('M d, Y H:i:s');
+                                    $userName = $user !== null ? e($user->name) : 'System';
+                                    $timestamp = $log->created_at->format('M d, Y H:i:s');
 
-                                    // Build changes summary
-                                    $changes = '';
-                                    /** @var array<string, mixed>|null $newValues */
-                                    $newValues = $log->getAttribute('new_values');
-                                    if ($newValues !== null && count($newValues) > 0) {
-                                        $changedFields = array_keys($newValues);
-                                        $changes = implode(', ', array_slice($changedFields, 0, 3));
-                                        $fieldCount = count($changedFields);
-                                        if ($fieldCount > 3) {
-                                            $changes .= ' +'.($fieldCount - 3).' more';
-                                        }
-                                    }
+                                    $oldValues = $log->old_values ?? [];
+                                    $newValues = $log->new_values ?? [];
 
-                                    $colorClass = match ($color) {
-                                        'success' => 'text-success-600 dark:text-success-400',
-                                        'danger' => 'text-danger-600 dark:text-danger-400',
-                                        'warning' => 'text-warning-600 dark:text-warning-400',
-                                        'info' => 'text-info-600 dark:text-info-400',
-                                        default => 'text-gray-600 dark:text-gray-400',
+                                    $colorClass = match ($eventColor) {
+                                        'success' => 'border-success-200 dark:border-success-800 bg-success-50/50 dark:bg-success-900/10',
+                                        'info' => 'border-info-200 dark:border-info-800 bg-info-50/50 dark:bg-info-900/10',
+                                        'warning' => 'border-warning-200 dark:border-warning-800 bg-warning-50/50 dark:bg-warning-900/10',
+                                        'danger' => 'border-danger-200 dark:border-danger-800 bg-danger-50/50 dark:bg-danger-900/10',
+                                        default => 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50',
                                     };
 
+                                    $badgeClass = match ($eventColor) {
+                                        'success' => 'bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300',
+                                        'info' => 'bg-info-100 dark:bg-info-900/30 text-info-700 dark:text-info-300',
+                                        'warning' => 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300',
+                                        'danger' => 'bg-danger-100 dark:bg-danger-900/30 text-danger-700 dark:text-danger-300',
+                                        default => 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
+                                    };
+
+                                    // Build changes display
+                                    $changesHtml = '';
+                                    if (! empty($oldValues) || ! empty($newValues)) {
+                                        $changesHtml = '<div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-sm">';
+                                        $changesHtml .= '<div class="font-medium text-gray-500 mb-1">Changes:</div>';
+                                        $changesHtml .= '<div class="grid grid-cols-2 gap-2">';
+
+                                        $allKeys = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+                                        foreach ($allKeys as $key) {
+                                            /** @var mixed $oldValRaw */
+                                            $oldValRaw = $oldValues[$key] ?? null;
+                                            /** @var mixed $newValRaw */
+                                            $newValRaw = $newValues[$key] ?? null;
+
+                                            // Format values for display (handle arrays, objects, etc.)
+                                            $oldValStr = $this->formatAuditValue($oldValRaw);
+                                            $newValStr = $this->formatAuditValue($newValRaw);
+
+                                            $changesHtml .= "<div class='col-span-2 flex items-center gap-2'>";
+                                            $changesHtml .= "<span class='text-gray-400'>".e($key).':</span>';
+                                            $changesHtml .= "<span class='text-danger-500 line-through'>{$oldValStr}</span>";
+                                            $changesHtml .= "<span class='text-gray-400'>→</span>";
+                                            $changesHtml .= "<span class='text-success-500'>{$newValStr}</span>";
+                                            $changesHtml .= '</div>';
+                                        }
+
+                                        $changesHtml .= '</div></div>';
+                                    }
+
                                     $html .= <<<HTML
-                                    <div class="flex items-center gap-4 p-3 bg-gray-50 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700">
-                                        <span class="font-medium {$colorClass}">{$event}</span>
-                                        <span class="text-sm text-gray-500">by {$userName}</span>
-                                        <span class="text-sm text-gray-400">{$date}</span>
-                                        <span class="text-xs text-gray-400">{$changes}</span>
+                                    <div class="p-4 rounded-lg border {$colorClass}">
+                                        <div class="flex items-start justify-between mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="px-2 py-1 text-sm font-medium rounded {$badgeClass}">{$eventLabel}</span>
+                                            </div>
+                                            <span class="text-sm text-gray-500">{$timestamp}</span>
+                                        </div>
+                                        <div class="text-sm">
+                                            <span class="text-gray-500">By:</span>
+                                            <span class="ml-1">{$userName}</span>
+                                        </div>
+                                        {$changesHtml}
                                     </div>
                                     HTML;
                                 }
+
                                 $html .= '</div>';
 
                                 return $html;
@@ -1135,6 +1196,26 @@ class ViewInboundBatch extends ViewRecord
                             ->color('info'),
                     ]),
             ]);
+    }
+
+    /**
+     * Format a value from audit log for display.
+     */
+    protected function formatAuditValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '<em>null</em>';
+        }
+
+        if (is_array($value)) {
+            return e(json_encode($value) ?: '[]');
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return e((string) $value);
     }
 
     protected function getHeaderActions(): array
