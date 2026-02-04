@@ -458,6 +458,167 @@
         </div>
     </div>
 
+    {{-- Widget C: Inbound Status --}}
+    @php
+        $inboundStatusMetrics = $this->getInboundStatusMetrics();
+    @endphp
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
+                <x-heroicon-o-inbox-arrow-down class="inline-block h-5 w-5 mr-2 -mt-0.5 text-info-500" />
+                Inbound Status
+            </h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">Physical arrival tracking</span>
+        </div>
+        <div class="fi-section-content p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {{-- Expected Next 30 Days --}}
+                <a href="{{ $this->getExpected30dPOsUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg bg-info-50 dark:bg-info-400/10 border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Expected (30d)</p>
+                                <p class="text-2xl font-bold text-info-600 dark:text-info-400 mt-1">{{ $inboundStatusMetrics['expected_30d'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">deliveries incoming</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-calendar-days class="h-8 w-8 text-info-600 dark:text-info-400 opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                {{-- Delayed --}}
+                @php
+                    $delayedStatus = $this->getInboundStatusHealthStatus('delayed', $inboundStatusMetrics['delayed']);
+                    $delayedColorBg = match($delayedStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $delayedColorText = match($delayedStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getDelayedPOsUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $delayedColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Delayed</p>
+                                <p class="text-2xl font-bold {{ $delayedColorText }} mt-1">{{ $inboundStatusMetrics['delayed'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">past expected date</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-clock class="h-8 w-8 {{ $delayedColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                {{-- Awaiting Serialization Routing --}}
+                @php
+                    $serialStatus = $this->getInboundStatusHealthStatus('awaiting_serialization_routing', $inboundStatusMetrics['awaiting_serialization_routing']);
+                    $serialColorBg = match($serialStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $serialColorText = match($serialStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getAwaitingSerializationRoutingUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $serialColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Awaiting Routing</p>
+                                <p class="text-2xl font-bold {{ $serialColorText }} mt-1">{{ $inboundStatusMetrics['awaiting_serialization_routing'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">need serialization</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-qr-code class="h-8 w-8 {{ $serialColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                {{-- Awaiting Hand-off --}}
+                @php
+                    $handoffStatus = $this->getInboundStatusHealthStatus('awaiting_handoff', $inboundStatusMetrics['awaiting_handoff']);
+                    $handoffColorBg = match($handoffStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $handoffColorText = match($handoffStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getAwaitingHandoffUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $handoffColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Awaiting Hand-off</p>
+                                <p class="text-2xl font-bold {{ $handoffColorText }} mt-1">{{ $inboundStatusMetrics['awaiting_handoff'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">ready for Module B</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-arrow-right-circle class="h-8 w-8 {{ $handoffColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            {{-- Delayed Alert (if any) --}}
+            @if($inboundStatusMetrics['delayed'] > 0)
+                <a href="{{ $this->getDelayedPOsUrl() }}" class="mt-4 block">
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-danger-50 dark:bg-danger-400/10 border-2 border-danger-300 dark:border-danger-600 hover:border-danger-500 transition-colors">
+                        <div class="flex items-center">
+                            <x-heroicon-o-exclamation-triangle class="h-5 w-5 text-danger-600 dark:text-danger-400 mr-2" />
+                            <span class="text-sm font-medium text-danger-700 dark:text-danger-300">
+                                <span class="font-bold">{{ $inboundStatusMetrics['delayed'] }}</span> delivery{{ $inboundStatusMetrics['delayed'] !== 1 ? 'ies' : '' }} overdue - action required!
+                            </span>
+                        </div>
+                        <x-heroicon-o-chevron-right class="h-5 w-5 text-danger-500" />
+                    </div>
+                </a>
+            @endif
+
+            {{-- Legend / Help text --}}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-success-500 mr-2"></span>
+                        <span>Healthy</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-warning-500 mr-2"></span>
+                        <span>Attention</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-danger-500 mr-2"></span>
+                        <span>Critical</span>
+                    </div>
+                    <span class="text-gray-400 dark:text-gray-500">|</span>
+                    <span>Click each metric to view filtered list</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Main Content Grid (Status Distributions) --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {{-- Intents by Status --}}

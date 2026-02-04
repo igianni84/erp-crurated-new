@@ -791,4 +791,142 @@ class ProcurementDashboard extends Page
             ],
         ]);
     }
+
+    // ========================================
+    // Widget C: Inbound Status
+    // ========================================
+
+    /**
+     * Get metrics for the Inbound Status widget.
+     *
+     * @return array{expected_30d: int, delayed: int, awaiting_serialization_routing: int, awaiting_handoff: int}
+     */
+    public function getInboundStatusMetrics(): array
+    {
+        // Expected next 30 days: POs with delivery window in next 30 days (count from PO side)
+        $expectedNext30d = PurchaseOrder::whereIn('status', [
+            PurchaseOrderStatus::Sent->value,
+            PurchaseOrderStatus::Confirmed->value,
+        ])
+            ->whereNotNull('expected_delivery_end')
+            ->where('expected_delivery_end', '>=', Carbon::today())
+            ->where('expected_delivery_end', '<=', Carbon::now()->addDays(30))
+            ->count();
+
+        // Delayed: POs with delivery window passed but not closed
+        $delayed = PurchaseOrder::whereIn('status', [
+            PurchaseOrderStatus::Sent->value,
+            PurchaseOrderStatus::Confirmed->value,
+        ])
+            ->whereNotNull('expected_delivery_end')
+            ->where('expected_delivery_end', '<', Carbon::today())
+            ->count();
+
+        // Awaiting serialization routing: Inbounds in Recorded status with serialization_required but no location set
+        $awaitingSerializationRouting = Inbound::where('status', InboundStatus::Recorded->value)
+            ->where('serialization_required', true)
+            ->whereNull('serialization_location_authorized')
+            ->count();
+
+        // Awaiting hand-off: Inbounds in Completed status that haven't been handed off to Module B
+        $awaitingHandoff = Inbound::where('status', InboundStatus::Completed->value)
+            ->where('handed_to_module_b', false)
+            ->count();
+
+        return [
+            'expected_30d' => $expectedNext30d,
+            'delayed' => $delayed,
+            'awaiting_serialization_routing' => $awaitingSerializationRouting,
+            'awaiting_handoff' => $awaitingHandoff,
+        ];
+    }
+
+    /**
+     * Get the health status for an inbound status metric.
+     *
+     * @param  string  $metric  The metric name
+     * @param  int  $value  The metric value
+     * @return string Color class: 'success' (green/healthy), 'warning' (yellow/attention), 'danger' (red/critical)
+     */
+    public function getInboundStatusHealthStatus(string $metric, int $value): string
+    {
+        return match ($metric) {
+            'expected_30d' => 'info', // Informational, not a health indicator
+            'delayed' => match (true) {
+                $value === 0 => 'success',
+                $value <= 3 => 'warning',
+                default => 'danger',
+            },
+            'awaiting_serialization_routing' => match (true) {
+                $value === 0 => 'success',
+                $value <= 5 => 'warning',
+                default => 'danger',
+            },
+            'awaiting_handoff' => match (true) {
+                $value === 0 => 'success',
+                $value <= 5 => 'warning',
+                default => 'danger',
+            },
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Get URL to inbounds awaiting serialization routing.
+     */
+    public function getAwaitingSerializationRoutingUrl(): string
+    {
+        return InboundResource::getUrl('index', [
+            'tableFilters' => [
+                'status' => [
+                    'values' => [InboundStatus::Recorded->value],
+                ],
+                'serialization_required' => true,
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to inbounds awaiting hand-off.
+     */
+    public function getAwaitingHandoffUrl(): string
+    {
+        return InboundResource::getUrl('index', [
+            'tableFilters' => [
+                'status' => [
+                    'values' => [InboundStatus::Completed->value],
+                ],
+                'handed_to_module_b' => false,
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to delayed POs (expected delivery passed).
+     */
+    public function getDelayedPOsUrl(): string
+    {
+        return PurchaseOrderResource::getUrl('index', [
+            'tableFilters' => [
+                'overdue' => true,
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to POs expected in next 30 days.
+     */
+    public function getExpected30dPOsUrl(): string
+    {
+        return PurchaseOrderResource::getUrl('index', [
+            'tableFilters' => [
+                'status' => [
+                    'values' => [
+                        PurchaseOrderStatus::Sent->value,
+                        PurchaseOrderStatus::Confirmed->value,
+                    ],
+                ],
+            ],
+        ]);
+    }
 }
