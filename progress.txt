@@ -117,3 +117,28 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - canBreak() checks is_breakable AND isIntact() for Break Case action (US-B032)
   - bottle_count accessor counts related serializedBottles
 ---
+
+## 2026-02-04 - US-B006
+- **Implemented**: InventoryMovement model as immutable record of physical inventory events
+- **Files created**:
+  - app/Models/Inventory/InventoryMovement.php (HasUuid only, NO Auditable, NO SoftDeletes)
+  - database/migrations/2026_02_04_100004_create_inventory_movements_table.php
+- **Relationships**:
+  - belongsTo Location (source_location_id) - nullable
+  - belongsTo Location (destination_location_id) - nullable
+  - belongsTo User (executed_by) - nullable
+  - hasMany MovementItem (inventory_movement_id) - model created in US-B007
+- **Key immutability enforcement**:
+  - NO soft deletes - movements are never deleted
+  - Model boot guard throws InvalidArgumentException on update attempt
+  - Model boot guard throws InvalidArgumentException on delete attempt
+  - Movements are append-only (insert only)
+- **WMS deduplication**:
+  - wms_event_id is unique nullable for deduplication
+- **Learnings for future iterations**:
+  - InventoryMovement does NOT use Auditable trait (movements ARE the audit log)
+  - MovementItem model doesn't exist yet (US-B007), used @phpstan-ignore for relationship
+  - MovementType and MovementTrigger enums already exist from US-B002
+  - Helper methods delegate to enums (isWmsTriggered, isTransfer, isConsumption)
+  - items_count accessor counts related movementItems
+---
