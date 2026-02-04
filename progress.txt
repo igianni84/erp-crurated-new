@@ -160,3 +160,29 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Use `->visible(fn())` on actions for conditional display based on record state
   - Eager load with `->with(['party', 'accounts'])` and `->withCount('accounts')` in getEloquentQuery()
 ---
+
+## 2026-02-04 - US-008
+- What was implemented:
+  - Complete rewrite of ViewCustomer page with 9 thematic tabs
+  - Tab Overview: customer identity (ID, name, email, customer_type, status, party info, tax_id), quick summary (accounts count, vouchers count, membership tier placeholder, active blocks placeholder), assets summary (vouchers and cases by status)
+  - Tab Membership: placeholder sections for tier, status, effective date, lifecycle timeline, and decision history
+  - Tab Accounts: displays customer's accounts with ID, name, channel_scope, status, created_at using RepeatableEntry
+  - Tab Addresses: placeholder sections for billing and shipping addresses
+  - Tab Eligibility: placeholder showing B2C/B2B/Club channel eligibility with factors (to be computed by engine)
+  - Tab Payment & Credit: placeholder showing card_allowed, bank_transfer_allowed, credit_limit permissions
+  - Tab Clubs: placeholder for club affiliations and their eligibility impact
+  - Tab Operational Blocks: placeholder showing active blocks, block types explanation, and history
+  - Tab Audit: full audit trail with filters (event type, date range) using same HTML rendering pattern as ViewParty
+  - Added header actions: Suspend (visible when Active), Activate (visible when Prospect/Suspended)
+  - Added getSubheading() to show customer type and status badges
+  - Title uses Customer.getName() method for Party-aware display
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - complete rewrite with 9 tabs)
+- **Learnings for future iterations:**
+  - ViewCustomer now follows same pattern as ViewParty with Tabs, Sections, and audit trail rendering
+  - Each placeholder tab references the future US story that will implement the full functionality
+  - Use `->collapsed()` and `->collapsible()` on sections for progressive disclosure
+  - Audit trail filtering uses Livewire properties ($auditEventFilter, $auditDateFrom, $auditDateUntil)
+  - Header actions pattern: Suspend visible when Active, Activate visible when Prospect or Suspended
+  - Customer.getName() method handles both Party-linked and legacy customers gracefully
+---
