@@ -168,3 +168,29 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Uses cascadeOnDelete on inventory_movement_id FK (if parent is somehow deleted, items go too)
   - Uses nullOnDelete on serialized_bottle_id and case_id (item stays, reference becomes null)
 ---
+
+## 2026-02-04 - US-B008
+- **Implemented**: InventoryException model for recording inventory exceptions and audit trail
+- **Files created**:
+  - app/Models/Inventory/InventoryException.php (HasUuid, Auditable, SoftDeletes)
+  - database/migrations/2026_02_04_100006_create_inventory_exceptions_table.php
+- **Relationships**:
+  - belongsTo SerializedBottle (serialized_bottle_id) - nullable
+  - belongsTo InventoryCase (case_id) - nullable
+  - belongsTo InboundBatch (inbound_batch_id) - nullable
+  - belongsTo User (created_by) - required, the creator
+  - belongsTo User (resolved_by) - nullable, the resolver
+- **Key fields**:
+  - exception_type: string (e.g., 'shortage', 'overage', 'damage', 'committed_consumption_override')
+  - reason: required text explaining the exception
+  - resolution: nullable text filled when resolved
+  - resolved_at: timestamp for when exception was resolved
+- **Helper methods**:
+  - isResolved(), isPending() for checking resolution status
+  - hasBottle(), hasCase(), hasInboundBatch() for checking related entities
+- **Learnings for future iterations**:
+  - InventoryException is used by US-B047 (Committed inventory consumption override) to flag exceptions for finance & ops review
+  - The exception_type field is a string (not enum) for flexibility in exception types
+  - Both creator and resolver relationships point to User model
+  - Uses Auditable trait for created_by/updated_by audit trail
+---
