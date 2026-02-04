@@ -532,8 +532,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 32,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C012. requestEligibleInventory() queries Module B (SerializedBottle, InventoryCase), returns available_quantity and available_bottles (serials), checks intact case availability for preserve_cases, and uses 5-minute cache TTL."
     },
     {
       "id": "US-C033",

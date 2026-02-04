@@ -460,3 +460,18 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - No override or bypass mechanisms exist in the codebase (verified via grep search)
   - All validation points use consistent error messaging about cross-allocation substitution
 ---
+
+## 2026-02-04 - US-C032
+- **What was implemented:** Inventory Availability Request - verified existing implementation meets all acceptance criteria
+- **Files verified (no changes needed):**
+  - `app/Services/Fulfillment/LateBindingService.php` (requestEligibleInventory at lines 84-154, queryEligibleInventory at lines 564-591)
+- **Learnings for future iterations:**
+  - This story was already fully implemented as part of US-C012 (LateBindingService creation)
+  - requestEligibleInventory() takes ShippingOrder and extracts allocation_id/quantity/warehouse_id internally
+  - queryEligibleInventory() is the protected method that queries Module B (SerializedBottle, InventoryCase models)
+  - Return structure: `{allocations: [{allocation_id, required_quantity, available_quantity, available_bottles, intact_case_available, status}], all_available, preserve_cases_satisfied}`
+  - Status values: 'sufficient', 'intact_case_unavailable', 'insufficient'
+  - Caching uses Cache::remember() with CACHE_TTL = 300 seconds (5 minutes)
+  - Cache key pattern: `late_binding_inventory:{allocation_id}:{warehouse_id|all}`
+  - clearInventoryCache() method available for cache invalidation
+---
