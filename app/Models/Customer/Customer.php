@@ -601,4 +601,64 @@ class Customer extends Model
             ->where('club_id', $club->id)
             ->exists();
     }
+
+    /**
+     * Get all operational blocks for this customer.
+     *
+     * @return MorphMany<OperationalBlock, $this>
+     */
+    public function operationalBlocks(): MorphMany
+    {
+        return $this->morphMany(OperationalBlock::class, 'blockable');
+    }
+
+    /**
+     * Get only active operational blocks for this customer.
+     *
+     * @return MorphMany<OperationalBlock, $this>
+     */
+    public function activeOperationalBlocks(): MorphMany
+    {
+        return $this->morphMany(OperationalBlock::class, 'blockable')
+            ->where('status', \App\Enums\Customer\BlockStatus::Active);
+    }
+
+    /**
+     * Check if the customer has any active operational blocks.
+     */
+    public function hasActiveBlocks(): bool
+    {
+        return $this->activeOperationalBlocks()->exists();
+    }
+
+    /**
+     * Check if the customer has an active block of a specific type.
+     */
+    public function hasActiveBlockOfType(\App\Enums\Customer\BlockType $type): bool
+    {
+        return $this->activeOperationalBlocks()
+            ->where('block_type', $type)
+            ->exists();
+    }
+
+    /**
+     * Check if the customer has any critical active blocks (payment or compliance).
+     */
+    public function hasCriticalBlocks(): bool
+    {
+        return $this->activeOperationalBlocks()
+            ->whereIn('block_type', [
+                \App\Enums\Customer\BlockType::Payment,
+                \App\Enums\Customer\BlockType::Compliance,
+            ])
+            ->exists();
+    }
+
+    /**
+     * Get the count of active operational blocks.
+     */
+    public function getActiveBlocksCount(): int
+    {
+        return $this->activeOperationalBlocks()->count();
+    }
 }
