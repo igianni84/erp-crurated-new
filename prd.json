@@ -561,8 +561,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 35,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Account Detail is embedded within Customer Detail (Accounts tab); Account-level audit is accessible via Customer audit tab"
     }
   ]
 }

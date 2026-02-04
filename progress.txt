@@ -843,3 +843,30 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - RuntimeException is appropriate for "this should never happen" scenarios like immutability violations
   - The getChangesSummary() method provides human-readable change descriptions for UI display
 ---
+
+## 2026-02-04 - US-035
+- What was implemented:
+  - Verified Party Detail (ViewParty) has Audit tab with timeline, event/date filters (implemented in US-004)
+  - Verified Customer Detail (ViewCustomer) has Audit tab with timeline, event/date filters (implemented in US-008)
+  - Account Detail is embedded within Customer Detail (Accounts tab), audit accessible via Customer audit
+  - Enhanced Club Detail (ViewClub) with complete tabbed view:
+    - Overview tab: club ID, partner name, status, active member count, branding metadata
+    - Members tab: list of active club affiliations with effective status indicators
+    - Audit tab: timeline read-only with event type and date range filters
+  - Club Audit tab features:
+    - Timeline showing all changes with color-coded event badges (success/info/danger/warning)
+    - Filter by event type (Created, Updated, Deleted, Status Changed)
+    - Filter by date range (From/Until)
+    - Clear Filters action when filters are active
+    - Shows: timestamp, user name, event type badge, detailed changes summary
+    - Collapsible "Audit Information" section explaining immutability
+  - Added header actions to Club Detail: Activate (when Suspended), Suspend (when Active), End Club (when not Ended)
+- Files changed:
+  - app/Filament/Resources/Customer/ClubResource/Pages/ViewClub.php (updated - complete rewrite with tabs and audit)
+- **Learnings for future iterations:**
+  - ViewClub was previously a minimal ViewRecord page - enhanced to match ViewParty pattern with tabs
+  - Audit Tab pattern is consistent across all detail views: Section with timeline HTML rendering + filters
+  - PHPStan prefers direct property access when PHPDoc types are non-nullable (no ?-> needed)
+  - Club has 3 status states (Active, Suspended, Ended) requiring 3 separate actions vs Party's 2
+  - Members tab uses activeCustomerAffiliations() relationship and isEffective() helper for display
+---
