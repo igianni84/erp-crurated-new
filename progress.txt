@@ -444,3 +444,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Helper methods like canModifyDueDate(), requiresDueDate(), expectsImmediatePayment() provide clean API for UI/service use
   - InvoiceType enum contains the business rules; Invoice model delegates to enum for due date requirements
 ---
+
+## 2026-02-04 - US-E024
+- What was implemented: Enhanced Invoice global search to include customer name and email
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource.php (added customer.name and customer.email to global search attributes, added getGlobalSearchEloquentQuery() for eager loading)
+- **Acceptance criteria verification:**
+  - ✅ Global search in Finance section: Already implemented in prior stories
+  - ✅ Search by: invoice_number, customer name/email, xero_id: Added customer.name and customer.email to getGloballySearchableAttributes()
+  - ✅ Results show: invoice_number, customer, amount, status: Already implemented in getGlobalSearchResultDetails()
+  - ✅ Click opens Invoice Detail: Already implemented via getGlobalSearchResultUrl()
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Filament global search supports related model attributes via dot notation (e.g., 'customer.name')
+  - Use getGlobalSearchEloquentQuery() to eager load relationships for search results display
+  - Much of global search infrastructure was already implemented in US-E013, this story completed the customer search capability
+---
