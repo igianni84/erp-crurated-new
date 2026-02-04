@@ -592,7 +592,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 35,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
