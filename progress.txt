@@ -1614,3 +1614,72 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Audit tab follows same pattern as other tabs (Section with TextEntry.html())
   - PHPStan requires @var mixed annotation for values from arrays cast to array type
 ---
+
+## 2026-02-04 - US-B056
+- **Implemented**: Audit log per Case with Tab Audit in Case Detail
+- **Files modified**:
+  - app/Filament/Resources/Inventory/CaseResource/Pages/ViewCase.php (added Tab 5: Audit with timeline)
+- **Pre-existing implementation verified**:
+  - InventoryCase model already has Auditable trait applied (from US-B005)
+  - AuditLog model already has all case event types (from US-B055):
+    - case_created, case_location_change, case_broken, case_bottle_added, case_bottle_removed
+  - auditLogs() MorphMany relationship already exists on InventoryCase
+- **New additions**:
+  - getAuditTab() method: Tab 5 showing immutable audit log timeline
+  - formatAuditValue() helper method for displaying old/new values
+  - Audit tab shows event type badge, timestamp, user, and value changes
+  - Timeline styled with color-coded cards matching event type colors
+  - Badge shows count of audit logs
+  - Immutability notice explaining logs cannot be modified
+- **Acceptance criteria verification**:
+  - ✅ Trait Auditable applied to Case: Already in InventoryCase model (line 50)
+  - ✅ Events logged: All case events defined in AuditLog constants with label/icon/color support
+  - ✅ Tab Audit in Case Detail with timeline: getAuditTab() renders timeline with all audit logs
+  - ✅ Audit logs are immutable: AuditLog uses UPDATED_AT = null, created_at only
+  - ✅ Typecheck and lint pass
+- **Browser verification**:
+  - Manual browser verification needed to confirm Tab Audit displays correctly
+- **Learnings for future iterations**:
+  - US-B056 followed the same pattern as US-B055 (bottle audit) for consistency
+  - AuditLog already had all case event types from US-B055 implementation
+  - formatAuditValue() helper handles null, array, bool, and string values
+  - Timeline uses same color scheme as bottle audit for UI consistency
+  - PHPStan requires @var mixed annotation for values from arrays
+---
+
+## 2026-02-04 - US-B057
+- **Implemented**: Audit log per InboundBatch with Tab Audit in Inbound Batch Detail
+- **Files modified**:
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ViewInboundBatch.php (enhanced getAuditLogTab method)
+- **Pre-existing implementation verified**:
+  - InboundBatch model already has Auditable trait applied (from US-B003)
+  - AuditLog model already has all batch event types (from US-B055):
+    - batch_created, batch_quantity_update
+    - batch_discrepancy_flagged, batch_discrepancy_resolved
+    - batch_serialization_started, batch_serialization_completed
+  - auditLogs() MorphMany relationship already exists on InboundBatch
+- **New additions**:
+  - Enhanced getAuditLogTab() method following same pattern as US-B055 (Bottle) and US-B056 (Case)
+  - Tab renamed from "Audit Log" to "Audit" for consistency
+  - Badge showing count of audit logs
+  - Immutability notice explaining logs cannot be modified or deleted
+  - Timeline view with event type badges (color-coded), timestamps, user names
+  - Changes display showing old → new values with color formatting
+  - WMS Reference section (collapsible) explaining WMS integration
+  - formatAuditValue() helper method for displaying audit values
+- **Acceptance criteria verification**:
+  - ✅ Trait Auditable applied to InboundBatch: Already in model (line 43)
+  - ✅ Events logged: All batch events defined in AuditLog constants with label/icon/color support
+  - ✅ Tab Audit in Inbound Batch Detail with timeline: getAuditLogTab() renders timeline with all audit logs
+  - ✅ WMS event references included: WMS Reference section shows wms_reference_id
+  - ✅ Audit logs are immutable: AuditLog uses UPDATED_AT = null, created_at only
+  - ✅ Typecheck and lint pass
+- **Browser verification**:
+  - Manual browser verification needed to confirm Tab Audit displays correctly
+- **Learnings for future iterations**:
+  - US-B057 followed the same pattern as US-B055 (bottle) and US-B056 (case) for consistency
+  - AuditLog already had all batch event types from US-B055 implementation
+  - formatAuditValue() helper handles null, array, bool, and string values
+  - Timeline uses same color scheme as bottle/case audit for UI consistency
+  - WMS reference section is collapsible since not all batches have WMS integration
+---
