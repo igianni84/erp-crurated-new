@@ -574,3 +574,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Form KeyValue component works well for JSON metadata fields
   - Navigation order: Customers (1), Parties (2), Clubs (3) within Customers group
 ---
+
+## 2026-02-04 - US-024
+- What was implemented:
+  - Full Clubs Tab implementation in Customer Detail (replaced placeholder)
+  - Tab badge shows affiliation count with color coding (green if effective affiliations exist)
+  - Club Affiliations section with header "Add Affiliation" action
+  - Add affiliation: modal form with Club select (filtered to show only active clubs not already affiliated) and start_date
+  - RepeatableEntry displaying affiliations with 7-column grid: club_name (with link to ClubResource), affiliation_status (badge), start_date, end_date, effective_indicator (badge with tooltip), club_status (badge), actions
+  - Edit affiliation: modal form to change affiliation_status and end_date
+  - Suspend affiliation: quick action (visible when Active and not ended)
+  - Reactivate affiliation: quick action (visible when Suspended and not ended)
+  - End affiliation: sets end_date to now (visible when not already ended)
+  - Club Eligibility Impact collapsible section explaining how affiliations affect Club channel access
+  - "Effective" indicator shows whether affiliation contributes to eligibility (active + started + not ended)
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Clubs tab implementation)
+- **Learnings for future iterations:**
+  - Use separate helper method (getClubAffiliationsRepeatableEntry) for complex repeatable entries to keep tab methods clean
+  - Filter available clubs in Add Affiliation form using whereNotIn with existing affiliated club IDs
+  - CustomerClub model has isEffective(), isActive(), isSuspended(), hasEnded() helper methods for UI conditions
+  - For union return types in helper methods (RepeatableEntry|TextEntry), use when list is empty vs populated
+  - Club affiliation status (Active/Suspended) is independent of Club status (Active/Suspended/Ended)
+  - Use $this->refreshFormData(['clubAffiliations']) to refresh the repeatable entry after CRUD operations
+---
