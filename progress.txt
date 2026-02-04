@@ -31,3 +31,27 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Morphic relationships need `instanceof` checks before accessing type-specific properties (PHPStan requirement)
   - Use `product_reference_type = 'sellable_skus'` or `'liquid_products'` for the morphic type column
 ---
+
+## 2026-02-04 - US-002
+- What was implemented:
+  - Six new enums for Procurement module (3 already existed from US-001)
+  - PurchaseOrderStatus: draft, sent, confirmed, closed
+  - BottlingPreferenceStatus: pending, partial, complete, defaulted
+  - BottlingInstructionStatus: draft, active, executed
+  - InboundPackaging: cases, loose, mixed
+  - OwnershipFlag: owned, in_custody, pending
+  - InboundStatus: recorded, routed, completed
+  - All enums follow established pattern with label(), color(), icon() methods
+  - Status enums include allowedTransitions() and canTransitionTo() helpers
+- Files changed:
+  - app/Enums/Procurement/PurchaseOrderStatus.php (new)
+  - app/Enums/Procurement/BottlingPreferenceStatus.php (new)
+  - app/Enums/Procurement/BottlingInstructionStatus.php (new)
+  - app/Enums/Procurement/InboundPackaging.php (new)
+  - app/Enums/Procurement/OwnershipFlag.php (new)
+  - app/Enums/Procurement/InboundStatus.php (new)
+- **Learnings for future iterations:**
+  - Enums with status transitions should include `allowedTransitions()` and `canTransitionTo()` methods
+  - Include domain-specific helper methods (e.g., `OwnershipFlag::isClarified()`, `InboundStatus::allowsHandOff()`)
+  - BottlingPreferenceStatus tracks customer preference collection and supports defaulting
+---
