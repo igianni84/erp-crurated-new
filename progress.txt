@@ -315,3 +315,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Pre-existing migration issue with SQLite (MODIFY COLUMN syntax) blocks all RefreshDatabase tests - unrelated to Finance module
   - canBeEdited() helper methods on models should be tested to ensure UI helpers work correctly
 ---
+
+## 2026-02-04 - US-E018
+- What was implemented: Created manual invoice creation wizard in Filament
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/CreateInvoice.php (new file - wizard-based create form)
+  - app/Filament/Resources/Finance/InvoiceResource.php (registered CreateInvoice page)
+- **Acceptance criteria verification:**
+  - ✅ Create Invoice form with: customer (select), invoice_type (select), currency, due_date, notes
+  - ✅ Step 2: add lines with description, quantity, unit_price, tax_rate
+  - ✅ Tax amount calculated automatically based on tax rate
+  - ✅ Totals calculated in real-time (subtotal, tax, total displayed dynamically)
+  - ✅ Warning: Manual invoices should be exceptional - prominent warning banner in step 1
+  - ✅ Save as draft (requires Issue to activate) - creates draft invoice, notification guides user to Issue
+  - ✅ Typecheck passes: phpstan and pint both pass
+- **Learnings for future iterations:**
+  - Wizard-based create pages use CreateRecord\Concerns\HasWizard trait
+  - Use Repeater component for dynamic line items with live() validation
+  - Real-time totals use Placeholder with Get $get to read repeater state
+  - Access parent form state from repeater with $get('../../fieldName')
+  - Customer search uses getSearchResultsUsing() for async search
+  - After create, manually handle invoice_lines via afterCreate() since repeater data isn't model-bound
+  - bcmul/bcadd/bcdiv for all decimal calculations to maintain precision
+---
