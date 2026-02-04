@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Events\VoucherIssued;
+use App\Listeners\Procurement\CreateProcurementIntentOnVoucherIssued;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
@@ -15,6 +17,7 @@ use App\Policies\AllocationPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\VoucherPolicy;
 use App\Policies\VoucherTransferPolicy;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -43,5 +46,9 @@ class AppServiceProvider extends ServiceProvider
         // Register observers for Module K
         PartyRole::observe(PartyRoleObserver::class);
         Customer::observe(CustomerObserver::class);
+
+        // Register event listeners for Module D (Procurement)
+        // VoucherIssued event triggers auto-creation of ProcurementIntent
+        Event::listen(VoucherIssued::class, CreateProcurementIntentOnVoucherIssued::class);
     }
 }

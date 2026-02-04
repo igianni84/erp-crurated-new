@@ -5,6 +5,8 @@ namespace App\Models\Procurement;
 use App\Enums\Procurement\ProcurementIntentStatus;
 use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\SourcingModel;
+use App\Models\Allocation\Allocation;
+use App\Models\Allocation\Voucher;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
@@ -33,6 +35,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property ProcurementIntentStatus $status Current lifecycle status
  * @property \Carbon\Carbon|null $approved_at When the intent was approved
  * @property int|null $approved_by User ID who approved the intent
+ * @property string|null $source_allocation_id FK to allocation that triggered this intent (voucher-driven)
+ * @property string|null $source_voucher_id FK to voucher that triggered this intent (voucher-driven)
+ * @property bool $needs_ops_review Flag indicating intent needs Ops attention
  */
 class ProcurementIntent extends Model
 {
@@ -61,6 +66,9 @@ class ProcurementIntent extends Model
         'sourcing_model',
         'preferred_inbound_location',
         'rationale',
+        'source_allocation_id',
+        'source_voucher_id',
+        'needs_ops_review',
         'status',
         'approved_at',
         'approved_by',
@@ -79,6 +87,7 @@ class ProcurementIntent extends Model
             'sourcing_model' => SourcingModel::class,
             'status' => ProcurementIntentStatus::class,
             'approved_at' => 'datetime',
+            'needs_ops_review' => 'boolean',
         ];
     }
 
@@ -118,6 +127,26 @@ class ProcurementIntent extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    /**
+     * Get the source allocation that triggered this intent (for voucher-driven intents).
+     *
+     * @return BelongsTo<Allocation, $this>
+     */
+    public function sourceAllocation(): BelongsTo
+    {
+        return $this->belongsTo(Allocation::class, 'source_allocation_id');
+    }
+
+    /**
+     * Get the source voucher that triggered this intent (for voucher-driven intents).
+     *
+     * @return BelongsTo<Voucher, $this>
+     */
+    public function sourceVoucher(): BelongsTo
+    {
+        return $this->belongsTo(Voucher::class, 'source_voucher_id');
     }
 
     /**
@@ -198,6 +227,39 @@ class ProcurementIntent extends Model
     public function isForLiquidProduct(): bool
     {
         return $this->product_reference_type === 'liquid_products';
+    }
+
+    /**
+     * Check if this intent was auto-created from a voucher sale.
+     */
+    public function isVoucherDriven(): bool
+    {
+        return $this->trigger_type === ProcurementTriggerType::VoucherDriven;
+    }
+
+    /**
+     * Check if this intent has source context (allocation/voucher linked).
+     */
+    public function hasSourceContext(): bool
+    {
+        return $this->source_allocation_id !== null || $this->source_voucher_id !== null;
+    }
+
+    /**
+     * Check if this intent needs Ops review.
+     */
+    public function needsOpsReview(): bool
+    {
+        return $this->needs_ops_review;
+    }
+
+    /**
+     * Mark this intent as reviewed by Ops.
+     */
+    public function markAsReviewed(): void
+    {
+        $this->needs_ops_review = false;
+        $this->save();
     }
 
     /**
