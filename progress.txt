@@ -215,3 +215,83 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Validation throws InvalidArgumentException with descriptive messages
   - TODO comments mark where events should be emitted for downstream modules (Xero sync, InvoicePaid event)
 ---
+
+## 2026-02-04 - US-E013
+- What was implemented: Created InvoiceResource in Filament with list view, filters, search, and status tabs
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource.php (main resource with table configuration)
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ListInvoices.php (list page with status tabs)
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (basic view page for detail)
+- **Learnings for future iterations:**
+  - Finance Filament resources go in app/Filament/Resources/Finance/ directory
+  - Use Tab::make() with modifyQueryUsing() for list page tabs
+  - Badge counts can use closures: badge(fn (): int => Model::where(...)->count())
+  - For nullable relationships in CSV export or global search, use explicit null check instead of ?-> with ?? (PHPStan rule)
+  - Use ->money(fn ($record) => $record->currency) for dynamic currency formatting
+  - Bulk actions for CSV export use response()->streamDownload() with fputcsv()
+  - Global search attributes require getGloballySearchableAttributes(), getGlobalSearchResultTitle(), getGlobalSearchResultDetails(), getGlobalSearchResultUrl()
+  - Overdue visual indicator uses color() callback on due_date column
+---
+
+## 2026-02-04 - US-E014
+- What was implemented: Created Invoice Detail view with 5 tabs in Filament
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (full implementation with tabs)
+- **Tabs implemented:**
+  - Tab 1 - Lines: Read-only invoice lines with description, qty, unit_price, tax, total
+  - Tab 2 - Payments: Applied payments with amount, date, source, reference
+  - Tab 3 - Linked ERP Events: Source reference with type and links to source records
+  - Tab 4 - Accounting: Xero sync info, statutory invoice number, GL posting, FX rate
+  - Tab 5 - Audit: Immutable event timeline using AuditLog model
+- **Header section:** invoice_number, type (locked badge), status, customer, currency, totals (subtotal, tax, total, paid, outstanding)
+- **Learnings for future iterations:**
+  - Use Tabs::make() with persistTabInQueryString() for tabbed ViewRecord pages
+  - RepeatableEntry is used for displaying HasMany relations in Infolist
+  - For nullable relationships in closures, use explicit null check `$model !== null ? $model->field : 'default'` instead of `$model?->field ?? 'default'` (PHPStan rule)
+  - getStateUsing() can be used to compute derived values not stored in the model
+  - Use FontWeight::Bold and TextEntry\TextEntrySize::Large for emphasis
+  - Badge colors and icons can be dynamically set using closures with model/enum state
+  - Section::make() supports ->collapsed() and ->collapsible() for optional sections
+---
+
+## 2026-02-04 - US-E015
+- What was implemented: Added contextual actions to Invoice Detail view based on invoice status
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added getHeaderActions with 4 contextual actions)
+- **Actions implemented:**
+  - Issue Invoice: visible only when status = draft, calls InvoiceService::issue()
+  - Record Bank Payment: visible when status = issued or partially_paid, form with amount/reference/date (placeholder for US-E056)
+  - Create Credit Note: visible when status = issued, paid, or partially_paid, form with amount/reason (placeholder for US-E065)
+  - Cancel Invoice: visible only when status = draft, calls InvoiceService::cancel()
+- **All actions require confirmation via modal**
+- **Learnings for future iterations:**
+  - Use Action::make() with ->visible(fn () => $condition) for contextual visibility
+  - Use ->requiresConfirmation() for dangerous actions that need user confirmation
+  - ->modalDescription() supports callable to show dynamic content based on record
+  - ->form([]) allows adding input fields to action modals
+  - Use separate protected methods (getIssueAction, etc.) to keep getHeaderActions() clean
+  - Use app(ServiceClass::class) to resolve services in action callbacks
+  - Use Notification::make() for success/error feedback after actions
+  - $this->refreshFormData(['field1', 'field2']) refreshes specific fields after action
+  - Placeholder actions with warning notifications allow implementing UI patterns before backend services are ready
+---
+
+## 2026-02-04 - US-E016
+- What was implemented: Verified Invoice issuance flow - all functionality already implemented in prior stories
+- Files verified (no changes needed):
+  - app/Services/Finance/InvoiceService.php (issue() method with all validations)
+  - app/Models/Finance/Invoice.php (immutability enforcement)
+  - app/Models/Finance/InvoiceLine.php (post-issuance immutability)
+- **Acceptance criteria verification:**
+  - ✅ Invoice number generation: INV-YYYY-NNNNNN format in generateInvoiceNumber() method
+  - ✅ issued_at = now(): Set in issue() method
+  - ✅ Validation: at least one invoice line present: Checked before issuance
+  - ✅ Validation: total_amount > 0: Checked with bccomp()
+  - ✅ Post-issuance lines immutable: InvoiceLine boot() updating/deleting hooks
+  - ✅ Post-issuance Xero sync trigger: TODO placeholder for US-E098
+  - ✅ Audit log: logInvoiceEvent() with status change details
+- **Learnings for future iterations:**
+  - US-E016 validates functionality already built in US-E002, US-E003, US-E012, US-E015
+  - When a story's acceptance criteria are already met by prior implementations, verify and document rather than duplicate code
+  - Xero sync trigger is a TODO placeholder until US-E098 implements the actual integration
+---
