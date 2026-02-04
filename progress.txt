@@ -1099,3 +1099,30 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - getSystemUser() provides fallback chain for finding a user to attribute system actions
   - PHPStan prefers explicit null checks over nullsafe + ?? pattern
 ---
+
+## 2026-02-04 - US-B038
+- **Implemented**: UpdateProvenanceOnMovementJob for blockchain provenance updates after movements
+- **Files created**:
+  - app/Jobs/Inventory/UpdateProvenanceOnMovementJob.php
+- **Features implemented**:
+  - Job accepts InventoryMovement as input
+  - Processes all MovementItems in the movement
+  - For individual bottles: calls blockchain service to update provenance
+  - For cases: updates provenance for all contained bottles
+  - Exponential backoff retry: 10s, 60s, 300s (max 3 attempts)
+  - Individual bottle failures logged but don't fail the whole job
+  - Skips bottles without NFT (not yet minted)
+  - Placeholder blockchain integration (callBlockchainService method)
+- **Acceptance criteria verification**:
+  - ✅ Job class UpdateProvenanceOnMovementJob in app/Jobs/Inventory/
+  - ✅ Input: InventoryMovement $movement
+  - ✅ Per ogni SerializedBottle coinvolta: calls blockchain service via updateBottleProvenance()
+  - ✅ On failure: retry with exponential backoff ($backoff = [10, 60, 300])
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Movement items can reference bottles directly or via cases
+  - Bottles in cases need to be processed when the case is in a movement
+  - Individual provenance updates shouldn't fail the whole job
+  - Bottles without NFT should be skipped (provenance update requires NFT)
+  - Blockchain service integration is isolated in callBlockchainService() for future replacement
+---
