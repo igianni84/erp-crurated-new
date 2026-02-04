@@ -1,6 +1,7 @@
 <x-filament-panels::page>
     @php
         $summaryMetrics = $this->getSummaryMetrics();
+        $demandExecutionMetrics = $this->getDemandExecutionMetrics();
         $intentStatusCounts = $this->getIntentStatusCounts();
         $intentStatusMeta = $this->getIntentStatusMeta();
         $poStatusCounts = $this->getPOStatusCounts();
@@ -87,6 +88,166 @@
                 </div>
             </div>
         </a>
+    </div>
+
+    {{-- Widget A: Demand → Execution Knowability --}}
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
+                <x-heroicon-o-arrow-trending-up class="inline-block h-5 w-5 mr-2 -mt-0.5 text-primary-500" />
+                Demand → Execution
+            </h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">Sourcing pipeline visibility</span>
+        </div>
+        <div class="fi-section-content p-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {{-- Vouchers Awaiting Sourcing --}}
+                @php
+                    $voucherStatus = $this->getDemandExecutionHealthStatus('vouchers_awaiting_sourcing', $demandExecutionMetrics['vouchers_awaiting_sourcing']);
+                    $voucherColorBg = match($voucherStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $voucherColorText = match($voucherStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getVouchersAwaitingSourcingUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $voucherColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Vouchers Awaiting</p>
+                                <p class="text-2xl font-bold {{ $voucherColorText }} mt-1">{{ $demandExecutionMetrics['vouchers_awaiting_sourcing'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">sourcing needed</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-ticket class="h-8 w-8 {{ $voucherColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                {{-- Allocation-Driven Pending --}}
+                @php
+                    $allocStatus = $this->getDemandExecutionHealthStatus('allocation_driven_pending', $demandExecutionMetrics['allocation_driven_pending']);
+                    $allocColorBg = match($allocStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $allocColorText = match($allocStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getAllocationDrivenPendingUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $allocColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Allocation-Driven</p>
+                                <p class="text-2xl font-bold {{ $allocColorText }} mt-1">{{ $demandExecutionMetrics['allocation_driven_pending'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">pending procurement</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-cube class="h-8 w-8 {{ $allocColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                {{-- Bottling Required Demand --}}
+                @php
+                    $bottlingStatus = $this->getDemandExecutionHealthStatus('bottling_required_demand', $demandExecutionMetrics['bottling_required_demand']);
+                    $bottlingColorBg = match($bottlingStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $bottlingColorText = match($bottlingStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getBottlingRequiredDemandUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $bottlingColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Bottling Required</p>
+                                <p class="text-2xl font-bold {{ $bottlingColorText }} mt-1">{{ $demandExecutionMetrics['bottling_required_demand'] }}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">liquid demand</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-beaker class="h-8 w-8 {{ $bottlingColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+
+                {{-- Inbound Overdue vs Expected (Ratio) --}}
+                @php
+                    $overdueStatus = $this->getDemandExecutionHealthStatus('inbound_overdue_ratio', $demandExecutionMetrics['inbound_overdue_ratio']);
+                    $overdueColorBg = match($overdueStatus) {
+                        'success' => 'bg-success-50 dark:bg-success-400/10',
+                        'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                        'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                        default => 'bg-gray-50 dark:bg-gray-800',
+                    };
+                    $overdueColorText = match($overdueStatus) {
+                        'success' => 'text-success-600 dark:text-success-400',
+                        'warning' => 'text-warning-600 dark:text-warning-400',
+                        'danger' => 'text-danger-600 dark:text-danger-400',
+                        default => 'text-gray-600 dark:text-gray-400',
+                    };
+                @endphp
+                <a href="{{ $this->getOverduePOsUrl() }}" class="block group">
+                    <div class="p-4 rounded-lg {{ $overdueColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Inbound Overdue</p>
+                                <p class="text-2xl font-bold {{ $overdueColorText }} mt-1">
+                                    {{ $demandExecutionMetrics['inbound_overdue'] }}<span class="text-base font-normal text-gray-400"> / {{ $demandExecutionMetrics['inbound_expected_30d'] + $demandExecutionMetrics['inbound_overdue'] }}</span>
+                                </p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ number_format($demandExecutionMetrics['inbound_overdue_ratio'], 1) }}% overdue rate</p>
+                            </div>
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-clock class="h-8 w-8 {{ $overdueColorText }} opacity-50" />
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </div>
+
+            {{-- Legend / Help text --}}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-success-500 mr-2"></span>
+                        <span>Healthy</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-warning-500 mr-2"></span>
+                        <span>Attention</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-danger-500 mr-2"></span>
+                        <span>Critical</span>
+                    </div>
+                    <span class="text-gray-400 dark:text-gray-500">|</span>
+                    <span>Click each metric to view filtered list</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- Main Content Grid (Status Distributions) --}}

@@ -7,6 +7,7 @@ use App\Enums\Procurement\BottlingPreferenceStatus;
 use App\Enums\Procurement\InboundStatus;
 use App\Enums\Procurement\OwnershipFlag;
 use App\Enums\Procurement\ProcurementIntentStatus;
+use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\PurchaseOrderStatus;
 use App\Filament\Resources\Procurement\BottlingInstructionResource;
 use App\Filament\Resources\Procurement\InboundResource;
@@ -61,6 +62,179 @@ class ProcurementDashboard extends Page
                 ->where('bottling_deadline', '>=', Carbon::today())
                 ->count(),
         ];
+    }
+
+    // ========================================
+    // Widget A: Demand → Execution Knowability
+    // ========================================
+
+    /**
+     * Get metrics for the Demand → Execution widget.
+     *
+     * @return array{vouchers_awaiting_sourcing: int, allocation_driven_pending: int, bottling_required_demand: int, inbound_expected_30d: int, inbound_overdue: int, inbound_overdue_ratio: float}
+     */
+    public function getDemandExecutionMetrics(): array
+    {
+        // Vouchers issued awaiting sourcing: Voucher-driven intents that are draft/approved but not yet executed
+        $vouchersAwaitingSourcing = ProcurementIntent::where('trigger_type', ProcurementTriggerType::VoucherDriven->value)
+            ->whereIn('status', [
+                ProcurementIntentStatus::Draft->value,
+                ProcurementIntentStatus::Approved->value,
+            ])
+            ->count();
+
+        // Allocation-driven procurement pending: Allocation-driven intents that are draft/approved
+        $allocationDrivenPending = ProcurementIntent::where('trigger_type', ProcurementTriggerType::AllocationDriven->value)
+            ->whereIn('status', [
+                ProcurementIntentStatus::Draft->value,
+                ProcurementIntentStatus::Approved->value,
+            ])
+            ->count();
+
+        // Bottling-required liquid demand: Intents for liquid products that need bottling (have active bottling instructions)
+        $bottlingRequiredDemand = BottlingInstruction::where('status', BottlingInstructionStatus::Active->value)
+            ->whereIn('preference_status', [
+                BottlingPreferenceStatus::Pending->value,
+                BottlingPreferenceStatus::Partial->value,
+            ])
+            ->count();
+
+        // Inbound expected next 30 days (POs with delivery window ending in next 30 days)
+        $inboundExpected30d = PurchaseOrder::whereIn('status', [
+            PurchaseOrderStatus::Sent->value,
+            PurchaseOrderStatus::Confirmed->value,
+        ])
+            ->whereNotNull('expected_delivery_end')
+            ->where('expected_delivery_end', '>=', Carbon::today())
+            ->where('expected_delivery_end', '<=', Carbon::now()->addDays(30))
+            ->count();
+
+        // Inbound overdue: POs with expected delivery window passed
+        $inboundOverdue = PurchaseOrder::whereIn('status', [
+            PurchaseOrderStatus::Sent->value,
+            PurchaseOrderStatus::Confirmed->value,
+        ])
+            ->whereNotNull('expected_delivery_end')
+            ->where('expected_delivery_end', '<', Carbon::today())
+            ->count();
+
+        // Calculate ratio (overdue vs total expected in last 30 days + overdue)
+        $totalExpectedPool = $inboundExpected30d + $inboundOverdue;
+        $overdueRatio = $totalExpectedPool > 0 ? round(($inboundOverdue / $totalExpectedPool) * 100, 1) : 0.0;
+
+        return [
+            'vouchers_awaiting_sourcing' => $vouchersAwaitingSourcing,
+            'allocation_driven_pending' => $allocationDrivenPending,
+            'bottling_required_demand' => $bottlingRequiredDemand,
+            'inbound_expected_30d' => $inboundExpected30d,
+            'inbound_overdue' => $inboundOverdue,
+            'inbound_overdue_ratio' => $overdueRatio,
+        ];
+    }
+
+    /**
+     * Get the health status for a demand execution metric.
+     *
+     * @param  string  $metric  The metric name
+     * @param  int|float  $value  The metric value
+     * @return string Color class: 'success' (green/healthy), 'warning' (yellow/attention), 'danger' (red/critical)
+     */
+    public function getDemandExecutionHealthStatus(string $metric, int|float $value): string
+    {
+        return match ($metric) {
+            'vouchers_awaiting_sourcing' => match (true) {
+                $value === 0 => 'success',
+                $value <= 5 => 'warning',
+                default => 'danger',
+            },
+            'allocation_driven_pending' => match (true) {
+                $value === 0 => 'success',
+                $value <= 10 => 'warning',
+                default => 'danger',
+            },
+            'bottling_required_demand' => match (true) {
+                $value === 0 => 'success',
+                $value <= 5 => 'warning',
+                default => 'danger',
+            },
+            'inbound_overdue_ratio' => match (true) {
+                $value === 0.0 => 'success',
+                $value <= 10.0 => 'warning',
+                default => 'danger',
+            },
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Get URL to voucher-driven intents awaiting sourcing.
+     */
+    public function getVouchersAwaitingSourcingUrl(): string
+    {
+        return ProcurementIntentResource::getUrl('index', [
+            'tableFilters' => [
+                'trigger_type' => [
+                    'value' => ProcurementTriggerType::VoucherDriven->value,
+                ],
+                'status' => [
+                    'values' => [
+                        ProcurementIntentStatus::Draft->value,
+                        ProcurementIntentStatus::Approved->value,
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to allocation-driven intents pending.
+     */
+    public function getAllocationDrivenPendingUrl(): string
+    {
+        return ProcurementIntentResource::getUrl('index', [
+            'tableFilters' => [
+                'trigger_type' => [
+                    'value' => ProcurementTriggerType::AllocationDriven->value,
+                ],
+                'status' => [
+                    'values' => [
+                        ProcurementIntentStatus::Draft->value,
+                        ProcurementIntentStatus::Approved->value,
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to bottling instructions requiring attention.
+     */
+    public function getBottlingRequiredDemandUrl(): string
+    {
+        return BottlingInstructionResource::getUrl('index', [
+            'tableFilters' => [
+                'status' => [
+                    'value' => BottlingInstructionStatus::Active->value,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to expected inbounds (POs).
+     */
+    public function getExpectedInboundsUrl(): string
+    {
+        return PurchaseOrderResource::getUrl('index', [
+            'tableFilters' => [
+                'status' => [
+                    'values' => [
+                        PurchaseOrderStatus::Sent->value,
+                        PurchaseOrderStatus::Confirmed->value,
+                    ],
+                ],
+            ],
+        ]);
     }
 
     // ========================================
