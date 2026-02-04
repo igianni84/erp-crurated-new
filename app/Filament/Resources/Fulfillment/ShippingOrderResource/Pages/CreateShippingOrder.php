@@ -2,9 +2,13 @@
 
 namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 
+use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
+use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
+use App\Models\Fulfillment\ShippingOrder;
+use App\Models\Fulfillment\ShippingOrderLine;
 use Filament\Forms;
 use Filament\Forms\Components\Wizard;
 use Filament\Forms\Form;
@@ -13,6 +17,7 @@ use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 
 class CreateShippingOrder extends CreateRecord
@@ -76,8 +81,8 @@ class CreateShippingOrder extends CreateRecord
     {
         return [
             $this->getCustomerAndDestinationStep(),
+            $this->getVoucherSelectionStep(),
             // Future steps will be added in subsequent US stories:
-            // US-C019: getVoucherSelectionStep()
             // US-C020: getShippingMethodStep()
             // US-C021: getPackagingPreferencesStep()
             // US-C022: getReviewAndSubmitStep()
@@ -282,6 +287,420 @@ class CreateShippingOrder extends CreateRecord
     }
 
     /**
+     * Step 2: Voucher Selection (US-C019)
+     * Allows multi-select of customer vouchers for the shipping order.
+     */
+    protected function getVoucherSelectionStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Voucher Selection')
+            ->description('Select vouchers to include in this shipment')
+            ->icon('heroicon-o-ticket')
+            ->schema([
+                Forms\Components\Section::make('Available Vouchers')
+                    ->description('Select the vouchers to ship to this customer')
+                    ->schema([
+                        // Info about voucher selection
+                        Forms\Components\Placeholder::make('voucher_selection_info')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $customerId = $get('customer_id');
+                                if (! $customerId) {
+                                    return new HtmlString('<p class="text-gray-500">Please select a customer first.</p>');
+                                }
+
+                                $voucherCounts = $this->getVoucherCounts($customerId);
+
+                                return new HtmlString(<<<HTML
+                                    <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                            <div>
+                                                <div class="text-2xl font-bold text-success-600 dark:text-success-400">{$voucherCounts['eligible']}</div>
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">Eligible</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-2xl font-bold text-warning-600 dark:text-warning-400">{$voucherCounts['locked']}</div>
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">Locked</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-2xl font-bold text-danger-600 dark:text-danger-400">{$voucherCounts['suspended']}</div>
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">Suspended</div>
+                                            </div>
+                                            <div>
+                                                <div class="text-2xl font-bold text-gray-600 dark:text-gray-400">{$voucherCounts['other']}</div>
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">Other</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                HTML);
+                            }),
+
+                        // Suspended vouchers warning
+                        Forms\Components\Placeholder::make('suspended_warning')
+                            ->label('')
+                            ->visible(function (Get $get): bool {
+                                $customerId = $get('customer_id');
+                                if (! $customerId) {
+                                    return false;
+                                }
+
+                                return Voucher::where('customer_id', $customerId)
+                                    ->where('lifecycle_state', VoucherLifecycleState::Issued)
+                                    ->where('suspended', true)
+                                    ->exists();
+                            })
+                            ->content(new HtmlString(<<<'HTML'
+                                <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0">
+                                            <svg class="h-5 w-5 text-warning-600 dark:text-warning-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm text-warning-700 dark:text-warning-300">
+                                                <strong>Some vouchers are suspended</strong><br>
+                                                Suspended vouchers cannot be selected for shipping. They are shown below for reference but are not selectable.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            HTML)),
+
+                        // Filters section
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('voucher_filter_wine')
+                                    ->label('Filter by Wine')
+                                    ->placeholder('Search wine name...')
+                                    ->live(debounce: 300)
+                                    ->afterStateUpdated(fn (Set $set) => $set('selected_vouchers', [])),
+
+                                Forms\Components\Select::make('voucher_filter_allocation')
+                                    ->label('Filter by Allocation')
+                                    ->placeholder('All allocations')
+                                    ->options(function (Get $get): array {
+                                        $customerId = $get('customer_id');
+                                        if (! $customerId) {
+                                            return [];
+                                        }
+
+                                        $allocationIds = Voucher::where('customer_id', $customerId)
+                                            ->where('lifecycle_state', VoucherLifecycleState::Issued)
+                                            ->where('suspended', false)
+                                            ->distinct()
+                                            ->pluck('allocation_id');
+
+                                        return $allocationIds
+                                            ->mapWithKeys(function ($allocationId) {
+                                                $shortId = substr((string) $allocationId, 0, 8);
+
+                                                return [$allocationId => "Allocation: {$shortId}..."];
+                                            })
+                                            ->toArray();
+                                    })
+                                    ->live()
+                                    ->afterStateUpdated(fn (Set $set) => $set('selected_vouchers', [])),
+                            ]),
+
+                        // Voucher selection checklist
+                        Forms\Components\CheckboxList::make('selected_vouchers')
+                            ->label('Select Vouchers')
+                            ->required()
+                            ->minItems(1)
+                            ->options(function (Get $get): array {
+                                return $this->getEligibleVoucherOptions($get);
+                            })
+                            ->descriptions(function (Get $get): array {
+                                return $this->getVoucherDescriptions($get);
+                            })
+                            ->searchable()
+                            ->bulkToggleable()
+                            ->gridDirection('row')
+                            ->columns(1)
+                            ->helperText('At least one voucher must be selected')
+                            ->validationMessages([
+                                'required' => 'At least one voucher must be selected.',
+                                'min' => 'At least one voucher must be selected.',
+                            ]),
+
+                        // Selected vouchers count
+                        Forms\Components\Placeholder::make('selected_count')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $selected = $get('selected_vouchers') ?? [];
+                                $count = count($selected);
+
+                                if ($count === 0) {
+                                    return new HtmlString('<p class="text-sm text-gray-500">No vouchers selected</p>');
+                                }
+
+                                $plural = $count === 1 ? 'voucher' : 'vouchers';
+
+                                return new HtmlString(<<<HTML
+                                    <div class="p-3 rounded-lg bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800">
+                                        <p class="text-sm text-success-700 dark:text-success-300">
+                                            <strong>{$count}</strong> {$plural} selected for shipping
+                                        </p>
+                                    </div>
+                                HTML);
+                            }),
+                    ])
+                    ->columns(1),
+            ])
+            ->afterValidation(function (Get $get): void {
+                $selectedVouchers = $get('selected_vouchers') ?? [];
+
+                if (count($selectedVouchers) === 0) {
+                    Notification::make()
+                        ->title('No vouchers selected')
+                        ->body('Please select at least one voucher to include in the shipping order.')
+                        ->danger()
+                        ->send();
+
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                // Validate that selected vouchers are still eligible
+                $customerId = $get('customer_id');
+                $invalidVouchers = Voucher::whereIn('id', $selectedVouchers)
+                    ->where(function ($query) use ($customerId) {
+                        $query->where('customer_id', '!=', $customerId)
+                            ->orWhere('lifecycle_state', '!=', VoucherLifecycleState::Issued)
+                            ->orWhere('suspended', true);
+                    })
+                    ->count();
+
+                if ($invalidVouchers > 0) {
+                    Notification::make()
+                        ->title('Invalid voucher selection')
+                        ->body('Some selected vouchers are no longer eligible. Please refresh and try again.')
+                        ->danger()
+                        ->send();
+
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+
+                // Check if any vouchers are already in another active SO
+                $vouchersInOtherSO = $this->getVouchersInActiveSOs($selectedVouchers);
+                if ($vouchersInOtherSO->count() > 0) {
+                    $voucherIds = $vouchersInOtherSO->pluck('id')->take(3)->implode(', ');
+                    Notification::make()
+                        ->title('Vouchers already in Shipping Order')
+                        ->body("Some vouchers are already assigned to another shipping order: {$voucherIds}")
+                        ->danger()
+                        ->send();
+
+                    throw new \Filament\Support\Exceptions\Halt;
+                }
+            });
+    }
+
+    /**
+     * Get voucher counts for display.
+     *
+     * @return array{eligible: int, locked: int, suspended: int, other: int}
+     */
+    protected function getVoucherCounts(string $customerId): array
+    {
+        $vouchers = Voucher::where('customer_id', $customerId)->get();
+
+        $eligible = $vouchers->filter(fn (Voucher $v) => $v->lifecycle_state === VoucherLifecycleState::Issued && ! $v->suspended)->count();
+
+        $locked = $vouchers->filter(fn (Voucher $v) => $v->lifecycle_state === VoucherLifecycleState::Locked)->count();
+
+        $suspended = $vouchers->filter(fn (Voucher $v) => $v->lifecycle_state === VoucherLifecycleState::Issued && $v->suspended)->count();
+
+        $other = $vouchers->count() - $eligible - $locked - $suspended;
+
+        return [
+            'eligible' => $eligible,
+            'locked' => $locked,
+            'suspended' => $suspended,
+            'other' => $other,
+        ];
+    }
+
+    /**
+     * Get eligible voucher options for the checkbox list.
+     *
+     * @return array<string, string>
+     */
+    protected function getEligibleVoucherOptions(Get $get): array
+    {
+        $customerId = $get('customer_id');
+        if (! $customerId) {
+            return [];
+        }
+
+        $wineFilter = $get('voucher_filter_wine');
+        $allocationFilter = $get('voucher_filter_allocation');
+
+        $query = Voucher::query()
+            ->with(['wineVariant.wineMaster', 'format', 'allocation'])
+            ->where('customer_id', $customerId)
+            ->where('lifecycle_state', VoucherLifecycleState::Issued)
+            ->where('suspended', false);
+
+        // Apply wine name filter
+        if ($wineFilter) {
+            $query->whereHas('wineVariant.wineMaster', function ($q) use ($wineFilter) {
+                $q->where('name', 'like', "%{$wineFilter}%");
+            });
+        }
+
+        // Apply allocation filter
+        if ($allocationFilter) {
+            $query->where('allocation_id', $allocationFilter);
+        }
+
+        // Exclude vouchers already in active SOs
+        $vouchersInActiveSOs = $this->getVoucherIdsInActiveSOs();
+        if ($vouchersInActiveSOs->isNotEmpty()) {
+            $query->whereNotIn('id', $vouchersInActiveSOs);
+        }
+
+        return $query->get()
+            ->mapWithKeys(function (Voucher $voucher) {
+                $label = $this->formatVoucherOption($voucher);
+
+                return [$voucher->id => $label];
+            })
+            ->toArray();
+    }
+
+    /**
+     * Get voucher descriptions for the checkbox list.
+     *
+     * @return array<string, string>
+     */
+    protected function getVoucherDescriptions(Get $get): array
+    {
+        $customerId = $get('customer_id');
+        if (! $customerId) {
+            return [];
+        }
+
+        $wineFilter = $get('voucher_filter_wine');
+        $allocationFilter = $get('voucher_filter_allocation');
+
+        $query = Voucher::query()
+            ->with(['wineVariant.wineMaster', 'format', 'allocation'])
+            ->where('customer_id', $customerId)
+            ->where('lifecycle_state', VoucherLifecycleState::Issued)
+            ->where('suspended', false);
+
+        // Apply wine name filter
+        if ($wineFilter) {
+            $query->whereHas('wineVariant.wineMaster', function ($q) use ($wineFilter) {
+                $q->where('name', 'like', "%{$wineFilter}%");
+            });
+        }
+
+        // Apply allocation filter
+        if ($allocationFilter) {
+            $query->where('allocation_id', $allocationFilter);
+        }
+
+        // Exclude vouchers already in active SOs
+        $vouchersInActiveSOs = $this->getVoucherIdsInActiveSOs();
+        if ($vouchersInActiveSOs->isNotEmpty()) {
+            $query->whereNotIn('id', $vouchersInActiveSOs);
+        }
+
+        return $query->get()
+            ->mapWithKeys(function (Voucher $voucher) {
+                $description = $this->formatVoucherDescription($voucher);
+
+                return [$voucher->id => $description];
+            })
+            ->toArray();
+    }
+
+    /**
+     * Format a voucher for display in the options list.
+     */
+    protected function formatVoucherOption(Voucher $voucher): string
+    {
+        $wineVariant = $voucher->wineVariant;
+        $format = $voucher->format;
+
+        $wineName = 'Unknown Wine';
+        $vintage = 'NV';
+
+        if ($wineVariant) {
+            $wineMaster = $wineVariant->wineMaster;
+            if ($wineMaster) {
+                $wineName = $wineMaster->name;
+            }
+            $vintage = $wineVariant->vintage_year ?? 'NV';
+        }
+
+        $formatLabel = $format ? "{$format->volume_ml}ml" : 'Unknown Format';
+
+        // Check for early binding (personalized voucher)
+        $earlyBindingBadge = '';
+        // Note: Early binding is tracked in ShippingOrderLine, not Voucher directly
+        // For personalized vouchers from Module D, we would need additional logic
+
+        $voucherId = substr($voucher->id, 0, 8);
+
+        return "#{$voucherId} - {$wineName} {$vintage} ({$formatLabel})";
+    }
+
+    /**
+     * Format a voucher description for the checkbox list.
+     */
+    protected function formatVoucherDescription(Voucher $voucher): string
+    {
+        $allocation = $voucher->allocation;
+        $allocationRef = $allocation ? substr($allocation->id, 0, 8) : 'Unknown';
+
+        return "Allocation: {$allocationRef}";
+    }
+
+    /**
+     * Get IDs of vouchers that are already in active Shipping Orders.
+     *
+     * @return Collection<int, string>
+     */
+    protected function getVoucherIdsInActiveSOs(): Collection
+    {
+        return ShippingOrderLine::query()
+            ->whereHas('shippingOrder', function ($q) {
+                $q->whereIn('status', [
+                    ShippingOrderStatus::Draft,
+                    ShippingOrderStatus::Planned,
+                    ShippingOrderStatus::Picking,
+                    ShippingOrderStatus::OnHold,
+                ]);
+            })
+            ->pluck('voucher_id');
+    }
+
+    /**
+     * Get vouchers that are already in active SOs.
+     *
+     * @param  array<string>  $voucherIds
+     * @return Collection<int, Voucher>
+     */
+    protected function getVouchersInActiveSOs(array $voucherIds): Collection
+    {
+        $existingVoucherIds = ShippingOrderLine::query()
+            ->whereHas('shippingOrder', function ($q) {
+                $q->whereIn('status', [
+                    ShippingOrderStatus::Draft,
+                    ShippingOrderStatus::Planned,
+                    ShippingOrderStatus::Picking,
+                    ShippingOrderStatus::OnHold,
+                ]);
+            })
+            ->whereIn('voucher_id', $voucherIds)
+            ->pluck('voucher_id');
+
+        return Voucher::whereIn('id', $existingVoucherIds)->get();
+    }
+
+    /**
      * Format a Customer record for display in select options.
      */
     protected static function formatCustomerOption(Customer $customer): string
@@ -307,6 +726,11 @@ class CreateShippingOrder extends CreateRecord
         $data['status'] = ShippingOrderStatus::Draft->value;
         $data['created_by'] = auth()->id();
 
+        // Remove non-model fields that are only used for the form
+        unset($data['voucher_filter_wine']);
+        unset($data['voucher_filter_allocation']);
+        unset($data['selected_vouchers']);
+
         return $data;
     }
 
@@ -315,10 +739,33 @@ class CreateShippingOrder extends CreateRecord
      */
     protected function afterCreate(): void
     {
+        // Get selected vouchers from form data
+        $selectedVouchers = $this->data['selected_vouchers'] ?? [];
+
+        // Create ShippingOrderLine for each selected voucher
+        if (is_array($selectedVouchers) && count($selectedVouchers) > 0) {
+            $vouchers = Voucher::whereIn('id', $selectedVouchers)->get();
+
+            /** @var ShippingOrder $shippingOrder */
+            $shippingOrder = $this->record;
+
+            foreach ($vouchers as $voucher) {
+                ShippingOrderLine::create([
+                    'shipping_order_id' => $shippingOrder->id,
+                    'voucher_id' => $voucher->id,
+                    'allocation_id' => $voucher->allocation_id,
+                    'created_by' => auth()->id(),
+                ]);
+            }
+        }
+
+        $count = count($selectedVouchers);
+        $plural = $count === 1 ? 'voucher' : 'vouchers';
+
         Notification::make()
             ->success()
             ->title('Shipping Order Created')
-            ->body('Draft Shipping Orders require planning before execution. Add vouchers and plan the order when ready.')
+            ->body("Draft Shipping Order created with {$count} {$plural}. Planning required before execution.")
             ->send();
     }
 }
