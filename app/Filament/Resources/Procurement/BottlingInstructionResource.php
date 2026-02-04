@@ -237,6 +237,7 @@ class BottlingInstructionResource extends Resource
     {
         return [
             'index' => Pages\ListBottlingInstructions::route('/'),
+            'create' => Pages\CreateBottlingInstruction::route('/create'),
             'view' => Pages\ViewBottlingInstruction::route('/{record}'),
         ];
     }
