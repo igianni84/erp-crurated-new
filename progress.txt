@@ -1099,3 +1099,22 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Tab badges with badgeColor() highlight important states (e.g., warning for missing config)
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-049
+- What was implemented:
+  - ProducerSupplierConfigService class in app/Services/Procurement/
+  - getOrCreate(Party $party): Returns existing config or creates new empty one, validates party has Supplier/Producer role
+  - update(ProducerSupplierConfig $config, array $data): Updates config with validation and audit logging, only logs changed fields
+  - getDefaultsForProduct(Party $party, $product): Returns applicable defaults array with deadline days, deadline date, allowed formats, serialization constraints, authorized locations, required location, has_config flag
+  - Additional helper methods: isFormatAllowedForParty(), isSerializationLocationAuthorizedForParty(), getDefaultBottlingDeadlineForParty()
+  - Full audit logging for creation (EVENT_CREATED) and update (EVENT_UPDATED) operations
+  - Validation for deadline_days (must be positive int or null), allowed_formats (must be array or null), serialization_constraints (must be array or null)
+- Files changed:
+  - app/Services/Procurement/ProducerSupplierConfigService.php (new)
+- **Learnings for future iterations:**
+  - ProducerSupplierConfigService follows same pattern as other Procurement services (ProcurementIntentService, InboundService, BottlingInstructionService)
+  - getOrCreate pattern useful for one-to-one optional relationships where config should exist when accessed
+  - Audit log update method only logs fields that actually changed to avoid noise in audit trail
+  - getDefaultsForProduct returns structured array with all relevant defaults for easy consumption by UI/other services
+  - Party.isSupplier() and Party.isProducer() helper methods used for role validation
+---
