@@ -151,6 +151,16 @@ class ProcurementIntent extends Model
     }
 
     /**
+     * Get the inbounds linked to this intent.
+     *
+     * @return HasMany<Inbound, $this>
+     */
+    public function inbounds(): HasMany
+    {
+        return $this->hasMany(Inbound::class, 'procurement_intent_id');
+    }
+
+    /**
      * Check if the intent is in draft status.
      */
     public function isDraft(): bool

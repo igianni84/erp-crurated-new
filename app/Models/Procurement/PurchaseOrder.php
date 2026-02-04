@@ -148,6 +148,16 @@ class PurchaseOrder extends Model
     }
 
     /**
+     * Get the inbounds linked to this PO.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Inbound, $this>
+     */
+    public function inbounds(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Inbound::class, 'purchase_order_id');
+    }
+
+    /**
      * Check if the PO is in draft status.
      */
     public function isDraft(): bool
