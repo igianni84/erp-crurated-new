@@ -1395,3 +1395,26 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - User.canConsumeCommittedInventory() checks role permission
   - Static canAccess() in Filament pages controls navigation visibility
 ---
+
+## 2026-02-04 - US-B048
+- **Implemented**: Allocation lineage substitution blocker to prevent cross-allocation bottle substitution
+- **Files modified**:
+  - app/Services/Inventory/InventoryService.php (added validation methods)
+  - app/Filament/Pages/EventConsumption.php (allocation lineage in bottle picker)
+  - app/Filament/Pages/CreateInternalTransfer.php (allocation lineage in bottle picker)
+  - app/Filament/Pages/CreateConsignmentPlacement.php (allocation lineage in bottle picker)
+  - app/Filament/Resources/Inventory/CaseResource/Pages/ViewCase.php (allocation in contained bottles)
+- **Key methods added to InventoryService**:
+  - validateAllocationLineageMatch() - throws InvalidArgumentException with "Allocation lineage mismatch. Substitution not allowed."
+  - bottleMatchesAllocation() - non-throwing boolean check
+  - filterBottlesByAllocation() - filter collection by allocation
+  - getAvailableBottlesForAllocation() - get bottles available for specific allocation
+  - hasAvailableBottlesForAllocation() - check if bottles exist for allocation
+  - getAllocationLineageDisplay() - consistent UI display string
+- **Learnings for future iterations**:
+  - Cross-allocation substitution is now blocked at the service layer with explicit validation
+  - Allocation lineage is now shown in all bottle pickers with format: `[allocation_id_prefix...]`
+  - The existing model-level immutability on allocation_id (SerializedBottle) already prevents direct modification
+  - Module C will use InventoryService.validateAllocationLineageMatch() for voucher fulfillment
+  - ViewSerializedBottle already has prominent allocation display with warning about blocked substitution
+---
