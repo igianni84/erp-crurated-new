@@ -402,3 +402,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Placeholder methods (customerHasCreditApproved) return true to not block until US-018 implements PaymentPermission
   - ChannelScope helper methods allow type-safe rule checking in EligibilityEngine
 ---
+
+## 2026-02-04 - US-017
+- What was implemented:
+  - Full implementation of Eligibility Tab in Customer Detail (no longer placeholder)
+  - Tab shows real-time computed eligibility for B2C, B2B, and Club channels
+  - Tab badge shows eligibility count (e.g., "2/3") with color coding (green=all, yellow=some, red=none)
+  - Refresh button to recalculate eligibility in real-time
+  - For each channel: status badge (Eligible/Not Eligible), channel description, and detailed factors list
+  - Factors displayed with color-coded icons: green check for positive, red X for negative
+  - Negative factors shown first (most important for troubleshooting)
+  - "Channel Requirements" collapsible section showing rules for each channel
+  - "How to Resolve Issues" collapsible section with contextual links to relevant tabs
+  - Issue resolution suggestions map keywords to tabs (membership → Membership tab, payment → Payment & Credit tab, etc.)
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Eligibility tab implementation)
+- **Learnings for future iterations:**
+  - EligibilityEngine's `getDetailedEligibility()` returns `channel_label` and `channel_description` alongside eligibility data
+  - Use `htmlspecialchars()` for all user-facing strings in HTML rendering
+  - Infolist Group components work well for channel cards with multiple TextEntry items
+  - `TextEntry\TextEntrySize::Small` requires full namespace path for size enum
+  - For refresh functionality, use `$this->refreshFormData([])` to refresh the entire form
+  - Keywords in reasons can be mapped to relevant tabs for contextual navigation help
+  - SVG icons can be embedded directly in HTML strings for consistent styling
+---
