@@ -1187,3 +1187,53 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - PHPStan's vintage_year null checks are unnecessary since it's cast to integer - use direct cast instead
   - Session-based data passing between mutateFormDataBeforeCreate() and afterCreate() for non-model data
 ---
+
+## 2026-02-04 - US-053
+- What was implemented:
+  - BundleService class in `app/Services/Commercial/` centralizing all Bundle business logic
+  - `activate(Bundle)` method: draft → active with component validation and PIM sync placeholder
+  - `deactivate(Bundle)` method: active → inactive with audit logging
+  - `reactivate(Bundle)` method: inactive → active with re-validation
+  - `calculatePrice(Bundle, PriceBook)` method: calculates bundle price based on pricing_logic (returns BundlePriceCalculation value object)
+  - `calculatePriceValue(Bundle, PriceBook)` method: convenience method returning float price
+  - `getComponentsPrice(Bundle, PriceBook)` method: sums all component prices from Price Book (returns ComponentsPriceResult value object)
+  - `validateComponents(Bundle)` method: validates all components have valid quantities, active SKUs, and allocations
+  - `allComponentsHaveAllocations(Bundle)` method: boolean check for allocations
+  - `getComponentsWithoutAllocations(Bundle)` method: returns Collection of components missing allocations
+  - `getComponentsWithInactiveSku(Bundle)` method: returns Collection of components with inactive SKUs
+  - `getComponentsSummary(Bundle, PriceBook)` method: returns array summary with prices
+  - Helper methods: canActivate, canDeactivate, canReactivate
+  - Value objects: ComponentPriceItem (component price breakdown), ComponentsPriceResult (total + items), BundlePriceCalculation (complete calculation result)
+  - Audit logging via logStatusTransition() using direct DB insert to audit_logs table
+  - PIM sync placeholder: syncWithPim() method with TODO comment for future PIM integration
+- Files changed:
+  - app/Services/Commercial/BundleService.php (created)
+- **Learnings for future iterations:**
+  - Services should use value objects (readonly classes) for structured return types with multiple fields
+  - BundlePriceCalculation includes helper methods for formatted output (getFormattedFinalPrice, getSummary)
+  - Component validation iterates through components using model's validate() method and hasAllocation() check
+  - When model doesn't use Auditable trait, use direct DB insert to audit_logs table with Str::uuid()
+  - PIM integration is a placeholder - syncWithPim() method is empty but documented with TODO comments
+  - Price calculation uses Bundle.calculateBundlePrice() which handles all pricing_logic cases (sum_components, fixed_price, percentage_off_sum)
+---
+
+## 2026-02-04 - US-054
+- What was implemented:
+  - PriceSimulation Filament page under Commercial navigation group
+  - Form with inputs: sellable_sku_id (searchable select with auto-suggest), customer_id (optional, searchable), channel_id (select), date (datepicker), quantity (numeric)
+  - SKU preview showing wine details, format, packaging, status, and EMP reference
+  - "Simulate" CTA button that runs simulation
+  - "Reset" button to clear results
+  - Results display showing simulation context and step-by-step breakdown (placeholder for US-056)
+  - Steps shown: Allocation Check, EMP Reference (with real data), Price Book Resolution, Offer Resolution, Final Price Calculation
+- Files changed:
+  - app/Filament/Pages/PriceSimulation.php (created)
+  - resources/views/filament/pages/price-simulation.blade.php (created)
+  - prd.json (updated US-054 passes: true)
+- **Learnings for future iterations:**
+  - Filament form pages use InteractsWithForms trait and implement HasForms interface
+  - For form data, use public array property with statePath() and access via $this->data directly
+  - Avoid $this->form property access in mount() - instead populate $this->data directly
+  - PHPStan doesn't like nullsafe operator (?->) on left side of ?? - use ternary instead
+  - Wire directives like wire:click and wire:target work with Livewire methods for interactivity
+---
