@@ -34,6 +34,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $destination_warehouse Warehouse for delivery
  * @property string|null $serialization_routing_note Special routing instructions
  * @property PurchaseOrderStatus $status Current lifecycle status
+ * @property \Carbon\Carbon|null $confirmed_at Timestamp when PO was confirmed
+ * @property int|null $confirmed_by User who confirmed the PO
  */
 class PurchaseOrder extends Model
 {
@@ -69,6 +71,8 @@ class PurchaseOrder extends Model
         'destination_warehouse',
         'serialization_routing_note',
         'status',
+        'confirmed_at',
+        'confirmed_by',
     ];
 
     /**
@@ -85,6 +89,7 @@ class PurchaseOrder extends Model
             'expected_delivery_start' => 'date',
             'expected_delivery_end' => 'date',
             'status' => PurchaseOrderStatus::class,
+            'confirmed_at' => 'datetime',
         ];
     }
 
@@ -155,6 +160,16 @@ class PurchaseOrder extends Model
     public function inbounds(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Inbound::class, 'purchase_order_id');
+    }
+
+    /**
+     * Get the user who confirmed this PO.
+     *
+     * @return BelongsTo<\App\Models\User, $this>
+     */
+    public function confirmedByUser(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class, 'confirmed_by');
     }
 
     /**

@@ -112,7 +112,18 @@ class ViewPurchaseOrder extends ViewRecord
                                     TextEntry::make('updated_at')
                                         ->label('Last Updated')
                                         ->dateTime(),
-                                ])->columnSpan(2),
+                                ])->columnSpan(1),
+                                Group::make([
+                                    TextEntry::make('confirmed_at')
+                                        ->label('Confirmed At')
+                                        ->dateTime()
+                                        ->placeholder('Not confirmed yet')
+                                        ->visible(fn (PurchaseOrder $record): bool => $record->confirmed_at !== null),
+                                    TextEntry::make('confirmedByUser.name')
+                                        ->label('Confirmed By')
+                                        ->placeholder('—')
+                                        ->visible(fn (PurchaseOrder $record): bool => $record->confirmed_by !== null),
+                                ])->columnSpan(1),
                             ]),
                     ]),
 
@@ -795,6 +806,8 @@ class ViewPurchaseOrder extends ViewRecord
 
                     $oldStatus = $record->status->value;
                     $record->status = PurchaseOrderStatus::Confirmed;
+                    $record->confirmed_at = now();
+                    $record->confirmed_by = auth()->id();
                     $record->save();
 
                     // Create audit log
@@ -807,6 +820,10 @@ class ViewPurchaseOrder extends ViewRecord
                             'status' => [
                                 'old' => $oldStatus,
                                 'new' => PurchaseOrderStatus::Confirmed->value,
+                            ],
+                            'confirmed_at' => [
+                                'old' => null,
+                                'new' => now()->toDateTimeString(),
                             ],
                         ],
                         'notes' => 'PO confirmed by supplier',
