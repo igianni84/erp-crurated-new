@@ -378,3 +378,30 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - `->deselectRecordsAfterCompletion()` provides better UX after bulk operations
   - Use separate Notification::make() calls for success, warnings, and errors
 ---
+
+## 2026-02-04 - US-018
+- What was implemented:
+  - Toggle view "Aggregated by Product" accessible via button in Intent List header
+  - New AggregatedProcurementIntents page showing intents grouped by product reference
+  - Aggregation query using GROUP BY on product_reference_type + product_reference_id
+  - Columns: product_label (wine+vintage+format), total_quantity (sum), intents_count, status breakdown (draft/approved/executed/closed counts)
+  - Expand row functionality via "View Intents" action opening modal with individual intents
+  - Modal shows summary stats (total, quantity, draft/approved counts) and detailed table
+  - Each intent in modal links to its detail view in new tab
+  - Filters: product type (bottle SKU/liquid), has draft intents, high volume (>100)
+  - Enhanced ListProcurementIntents with tabs by status (Active, Draft, Approved, Executed, Closed, All) with badge counts
+  - Blade views for aggregated page and intent list modal
+- Files changed:
+  - app/Filament/Resources/Procurement/ProcurementIntentResource.php (modified - added aggregated route)
+  - app/Filament/Resources/Procurement/ProcurementIntentResource/Pages/ListProcurementIntents.php (modified - added toggle button and tabs)
+  - app/Filament/Resources/Procurement/ProcurementIntentResource/Pages/AggregatedProcurementIntents.php (new)
+  - resources/views/filament/resources/procurement/procurement-intent-resource/pages/aggregated-procurement-intents.blade.php (new)
+  - resources/views/filament/resources/procurement/procurement-intent-resource/pages/partials/intent-list-modal.blade.php (new)
+- **Learnings for future iterations:**
+  - Filament toggle views use separate Page classes with InteractsWithTable trait for custom queries
+  - Aggregated queries need explicit JOINs for related data in GROUP BY (can't use Eloquent relations)
+  - Use `view()` helper with `modalContent()` for custom modal content in table actions
+  - ListRecords supports `getTabs()` for tabbed filtering with badge counts
+  - Tab badges use closures for dynamic counts: `->badge(fn () => $this->getCount())`
+  - SQL CONCAT with COALESCE handles NULL values in joined columns
+---
