@@ -229,3 +229,22 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - When auto-creating SellableSku, need to provide a default CaseConfiguration
   - HtmlString allows rich HTML content in Placeholder components
 ---
+
+## 2026-02-04 - US-011
+- What was implemented:
+  - Step 2 (Source & Model) was already implemented in US-010 iteration
+  - Verified all acceptance criteria are met:
+    - trigger_type, sourcing_model, quantity fields present
+    - Trigger type guidance with dynamic explanations (voucher_driven, allocation_driven, strategic, contractual)
+    - Sourcing model guidance with dynamic explanations (purchase, passive_consignment, third_party_custody)
+    - Inline explanation updates dynamically based on selection
+    - Quantity validation with minValue(1)
+  - Typecheck and lint pass for all Procurement module files
+- Files changed:
+  - No new files (implementation was done ahead in US-010)
+  - prd.json (marked US-011 as passes: true)
+- **Learnings for future iterations:**
+  - When implementing wizards, implementing all steps together provides better UX for testing
+  - US-010 implemented ahead to provide complete wizard flow
+  - Enum-based selects with Placeholder guidance provide excellent UX for domain-specific options
+---
