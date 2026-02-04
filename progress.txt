@@ -957,3 +957,36 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - ViewInventoryMovement is a placeholder - full MovementItem list will be in US-B034
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B034
+- **Implemented**: Movement Detail page with comprehensive view of all movement information
+- **Files modified**:
+  - app/Filament/Resources/Inventory/InventoryMovementResource/Pages/ViewInventoryMovement.php (complete rewrite)
+- **Features implemented**:
+  - Immutability notice banner at top explaining movements cannot be edited/deleted
+  - Movement Summary section: Movement ID, movement_type badge, trigger badge, custody_changed indicator
+  - Locations section: Source and destination with clickable links to Location detail pages, movement direction summary
+  - Movement Details section: Reason (markdown), WMS event ID (copyable), WMS status notice
+  - Audit Information section: executed_at with full timestamp format, executed_by with user link, record created timestamp, total items count badge
+  - Movement Items section: Full detailed list of all MovementItems with:
+    - Bottle info: serial number (linked), wine name + vintage, format, state badge
+    - Case info: case ID (linked), configuration name, bottles per case, integrity status badge
+    - Item notes (if any)
+    - Summary footer with bottle/case counts
+  - All links to bottles/cases go directly to their respective detail pages
+  - Empty state handling when no items in movement
+- **Acceptance criteria verification**:
+  - ✅ Summary: type, trigger, source/destination, custody_changed, reason, wms_event_id
+  - ✅ Items List: all MovementItems with links to bottle/case detail
+  - ✅ Audit info: executed_at, executed_by
+  - ✅ Read-only view (movements are immutable - no header actions)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Use HtmlString for complex HTML layouts in TextEntry.state()
+  - MovementItem eager loading: include serializedBottle.wineVariant.wineMaster, serializedBottle.format, case.caseConfiguration
+  - SerializedBottleResource::getUrl('view', ...) and CaseResource::getUrl('view', ...) for generating links
+  - Location routes: filament.admin.resources.inventory.locations.view
+  - Movement items can reference bottle, case, or both - check with hasBottle() and hasCase()
+  - Enum state badges use color names (success, warning, info, danger) which work in Tailwind classes
+  - Browser verification requirement noted - manual testing needed
+---
