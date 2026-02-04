@@ -286,4 +286,83 @@ class Membership extends Model
                 ->groupBy('customer_id');
         });
     }
+
+    /**
+     * Get the channels this membership's tier is eligible for.
+     * Note: This only returns tier-based eligibility. Membership status must also be active.
+     *
+     * @return array<\App\Enums\Customer\ChannelScope>
+     */
+    public function getEligibleChannels(): array
+    {
+        return $this->tier->eligibleChannels();
+    }
+
+    /**
+     * Check if this membership allows access to a specific channel.
+     * Considers both tier eligibility and membership status.
+     *
+     * @param  \App\Enums\Customer\ChannelScope  $channel
+     */
+    public function isEligibleForChannel($channel): bool
+    {
+        // Must be active (approved and within effective dates)
+        if (! $this->isActive()) {
+            return false;
+        }
+
+        // Check tier-based eligibility
+        return $this->tier->isEligibleForChannel($channel);
+    }
+
+    /**
+     * Check if this membership grants automatic club access.
+     * Only applies when membership is active.
+     */
+    public function hasAutomaticClubAccess(): bool
+    {
+        if (! $this->isActive()) {
+            return false;
+        }
+
+        return $this->tier->hasAutomaticClubAccess();
+    }
+
+    /**
+     * Check if this membership grants access to exclusive products.
+     * Only applies when membership is active.
+     */
+    public function hasExclusiveProductAccess(): bool
+    {
+        if (! $this->isActive()) {
+            return false;
+        }
+
+        return $this->tier->hasExclusiveProductAccess();
+    }
+
+    /**
+     * Get channel eligibility reasons for this membership.
+     * Returns human-readable explanations considering both tier and status.
+     *
+     * @return array<string, array{eligible: bool, reason: string}>
+     */
+    public function getChannelEligibilityReasons(): array
+    {
+        $tierReasons = $this->tier->getChannelEligibilityReasons();
+
+        // If membership is not active, override all eligibility to false
+        if (! $this->isActive()) {
+            $statusReason = $this->status === MembershipStatus::Approved
+                ? 'Membership is approved but outside effective dates.'
+                : 'Membership status is '.$this->status->label().'.';
+
+            foreach ($tierReasons as $channel => &$data) {
+                $data['eligible'] = false;
+                $data['reason'] = $statusReason.' '.$data['reason'];
+            }
+        }
+
+        return $tierReasons;
+    }
 }

@@ -366,4 +366,66 @@ class Customer extends Model
 
         return $this->name ?? 'Unknown';
     }
+
+    /**
+     * Check if the customer's membership tier allows access to a channel.
+     * This is the base tier eligibility check - other factors may restrict access.
+     *
+     * @param  \App\Enums\Customer\ChannelScope  $channel
+     */
+    public function isMembershipEligibleForChannel($channel): bool
+    {
+        $membership = $this->activeMembership;
+
+        if ($membership === null) {
+            return false;
+        }
+
+        return $membership->isEligibleForChannel($channel);
+    }
+
+    /**
+     * Check if the customer has automatic club access via their membership tier.
+     */
+    public function hasAutomaticClubAccess(): bool
+    {
+        $membership = $this->activeMembership;
+
+        if ($membership === null) {
+            return false;
+        }
+
+        return $membership->hasAutomaticClubAccess();
+    }
+
+    /**
+     * Check if the customer has access to exclusive/invitation-only products.
+     */
+    public function hasExclusiveProductAccess(): bool
+    {
+        $membership = $this->activeMembership;
+
+        if ($membership === null) {
+            return false;
+        }
+
+        return $membership->hasExclusiveProductAccess();
+    }
+
+    /**
+     * Get channel eligibility reasons based on membership tier and status.
+     * Returns human-readable explanations for each channel.
+     *
+     * @return array<string, array{eligible: bool, reason: string}>|null
+     */
+    public function getMembershipChannelEligibilityReasons(): ?array
+    {
+        $membership = $this->membership;
+
+        if ($membership === null) {
+            return null;
+        }
+
+        return $membership->getChannelEligibilityReasons();
+    }
 }
