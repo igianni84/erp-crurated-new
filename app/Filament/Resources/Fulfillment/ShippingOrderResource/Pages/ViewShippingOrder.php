@@ -60,8 +60,7 @@ class ViewShippingOrder extends ViewRecord
                         $this->getVouchersAndEligibilityTab(),
                         $this->getPlanningTab(),
                         $this->getPickingAndBindingTab(),
-                        // Future tabs will be added in subsequent stories:
-                        // US-C028: Audit & Timeline tab
+                        $this->getAuditAndTimelineTab(),
                     ])
                     ->persistTabInQueryString()
                     ->columnSpanFull(),
@@ -1749,6 +1748,507 @@ class ViewShippingOrder extends ViewRecord
     }
 
     /**
+     * Tab 5: Audit & Timeline
+     * Chronological timeline of all events.
+     */
+    protected function getAuditAndTimelineTab(): Tab
+    {
+        return Tab::make('Audit & Timeline')
+            ->icon('heroicon-o-clock')
+            ->badge(function (ShippingOrder $record): ?string {
+                $count = $record->shippingOrderAuditLogs()->count();
+
+                return $count > 0 ? (string) $count : null;
+            })
+            ->badgeColor('gray')
+            ->schema([
+                $this->getAuditTimelineBannerSection(),
+                $this->getAuditTimelineSection(),
+                $this->getAuditExportSection(),
+            ]);
+    }
+
+    /**
+     * Banner showing audit information.
+     */
+    protected function getAuditTimelineBannerSection(): Section
+    {
+        return Section::make()
+            ->schema([
+                TextEntry::make('audit_banner')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'This is an immutable audit trail of all events for this Shipping Order. '
+                        .'Records cannot be modified or deleted.')
+                    ->icon('heroicon-o-lock-closed')
+                    ->color('info')
+                    ->columnSpanFull(),
+            ])
+            ->extraAttributes([
+                'class' => 'bg-info-50 dark:bg-info-900/20 border-info-200 dark:border-info-800',
+            ])
+            ->columnSpanFull();
+    }
+
+    /**
+     * Section showing the audit timeline.
+     */
+    protected function getAuditTimelineSection(): Section
+    {
+        return Section::make('Event Timeline')
+            ->description('Chronological log of all shipping order events')
+            ->icon('heroicon-o-queue-list')
+            ->schema([
+                Grid::make(4)
+                    ->schema([
+                        TextEntry::make('total_events')
+                            ->label('Total Events')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $record->shippingOrderAuditLogs()->count())
+                            ->badge()
+                            ->color('info'),
+                        TextEntry::make('status_changes')
+                            ->label('Status Changes')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->countAuditEventsByType($record, 'status_change'))
+                            ->badge()
+                            ->color('primary'),
+                        TextEntry::make('wms_events')
+                            ->label('WMS Events')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->countWmsEvents($record))
+                            ->badge()
+                            ->color('warning'),
+                        TextEntry::make('binding_events')
+                            ->label('Binding Events')
+                            ->getStateUsing(fn (ShippingOrder $record): int => $this->countBindingEvents($record))
+                            ->badge()
+                            ->color('success'),
+                    ]),
+                TextEntry::make('audit_timeline')
+                    ->label('')
+                    ->getStateUsing(fn (ShippingOrder $record): string => $this->formatAuditTimeline($record))
+                    ->html()
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
+     * Count audit events by type.
+     */
+    protected function countAuditEventsByType(ShippingOrder $record, string $eventType): int
+    {
+        return $record->shippingOrderAuditLogs()->where('event_type', $eventType)->count();
+    }
+
+    /**
+     * Count WMS-related events.
+     */
+    protected function countWmsEvents(ShippingOrder $record): int
+    {
+        return $record->shippingOrderAuditLogs()
+            ->whereIn('event_type', [
+                'wms_instructions_sent',
+                'wms_feedback_received',
+                'wms_serial_validated',
+                'wms_serial_invalid',
+                'wms_shipment_confirmed',
+                'wms_discrepancy',
+                'wms_re_pick_requested',
+            ])
+            ->count();
+    }
+
+    /**
+     * Count binding-related events.
+     */
+    protected function countBindingEvents(ShippingOrder $record): int
+    {
+        return $record->shippingOrderAuditLogs()
+            ->whereIn('event_type', [
+                'binding_requested',
+                'binding_executed',
+                'binding_validated',
+                'binding_failed',
+                'early_binding_validated',
+                'early_binding_failed',
+                'unbind_executed',
+            ])
+            ->count();
+    }
+
+    /**
+     * Format the audit timeline as HTML.
+     */
+    protected function formatAuditTimeline(ShippingOrder $record): string
+    {
+        $auditLogs = $record->shippingOrderAuditLogs()
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        if ($auditLogs->isEmpty()) {
+            return '<div class="text-gray-400 italic py-4">No audit events recorded yet.</div>';
+        }
+
+        $html = '<div class="relative">';
+        // Timeline line
+        $html .= '<div class="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700"></div>';
+
+        foreach ($auditLogs as $index => $log) {
+            $eventInfo = $this->getEventTypeInfo($log->event_type);
+            $isFirst = $index === 0;
+
+            $html .= '<div class="relative pl-10 pb-6 '.($isFirst ? '' : '').'">';
+
+            // Timeline dot
+            $html .= '<div class="absolute left-2 w-4 h-4 rounded-full '.$eventInfo['dotClass'].' border-2 border-white dark:border-gray-900 flex items-center justify-center">';
+            $html .= '<span class="text-xs">'.$eventInfo['icon'].'</span>';
+            $html .= '</div>';
+
+            // Event card
+            $html .= '<div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 shadow-sm">';
+
+            // Event header
+            $html .= '<div class="flex items-start justify-between gap-4">';
+            $html .= '<div class="flex items-center gap-2">';
+            $html .= '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium '.$eventInfo['badgeClass'].'">';
+            $html .= e($eventInfo['label']);
+            $html .= '</span>';
+            $html .= '</div>';
+            $html .= '<span class="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">';
+            $html .= e($log->created_at->format('Y-m-d H:i:s'));
+            $html .= '</span>';
+            $html .= '</div>';
+
+            // Event description
+            $html .= '<div class="mt-2 text-sm text-gray-700 dark:text-gray-300">';
+            $html .= e($log->description);
+            $html .= '</div>';
+
+            // User info
+            if ($log->user !== null) {
+                $html .= '<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">';
+                $html .= '<span class="inline-flex items-center gap-1">';
+                $html .= '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>';
+                $html .= 'by '.e($log->user->name);
+                $html .= '</span>';
+                $html .= '</div>';
+            } else {
+                $html .= '<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">';
+                $html .= '<span class="inline-flex items-center gap-1 italic">';
+                $html .= '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>';
+                $html .= 'System';
+                $html .= '</span>';
+                $html .= '</div>';
+            }
+
+            // Change tracking details (if available)
+            if ($log->hasChangeTracking()) {
+                $html .= $this->formatChangeTracking($log);
+            }
+
+            $html .= '</div>'; // End event card
+            $html .= '</div>'; // End timeline item
+        }
+
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Get visual info for an event type.
+     *
+     * @return array{label: string, icon: string, dotClass: string, badgeClass: string}
+     */
+    protected function getEventTypeInfo(string $eventType): array
+    {
+        return match ($eventType) {
+            // Creation and lifecycle
+            'created' => [
+                'label' => 'SO Created',
+                'icon' => '✨',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'status_change' => [
+                'label' => 'Status Change',
+                'icon' => '🔄',
+                'dotClass' => 'bg-primary-500',
+                'badgeClass' => 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400',
+            ],
+            'cancelled' => [
+                'label' => 'Cancelled',
+                'icon' => '❌',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+
+            // Voucher events
+            'voucher_added' => [
+                'label' => 'Voucher Added',
+                'icon' => '➕',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'voucher_removed' => [
+                'label' => 'Voucher Removed',
+                'icon' => '➖',
+                'dotClass' => 'bg-warning-500',
+                'badgeClass' => 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-400',
+            ],
+            'vouchers_locked' => [
+                'label' => 'Vouchers Locked',
+                'icon' => '🔒',
+                'dotClass' => 'bg-primary-500',
+                'badgeClass' => 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400',
+            ],
+            'vouchers_unlocked' => [
+                'label' => 'Vouchers Unlocked',
+                'icon' => '🔓',
+                'dotClass' => 'bg-gray-500',
+                'badgeClass' => 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+            ],
+            'voucher_locked' => [
+                'label' => 'Voucher Locked',
+                'icon' => '🔒',
+                'dotClass' => 'bg-primary-500',
+                'badgeClass' => 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400',
+            ],
+            'voucher_unlocked' => [
+                'label' => 'Voucher Unlocked',
+                'icon' => '🔓',
+                'dotClass' => 'bg-gray-500',
+                'badgeClass' => 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+            ],
+            'lock_failed' => [
+                'label' => 'Lock Failed',
+                'icon' => '⚠️',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+            'unlock_failed' => [
+                'label' => 'Unlock Failed',
+                'icon' => '⚠️',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+
+            // Validation events
+            'validation_passed' => [
+                'label' => 'Validation Passed',
+                'icon' => '✓',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'validation_failed' => [
+                'label' => 'Validation Failed',
+                'icon' => '✗',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+
+            // WMS events
+            'wms_instructions_sent' => [
+                'label' => 'WMS Instructions Sent',
+                'icon' => '📤',
+                'dotClass' => 'bg-info-500',
+                'badgeClass' => 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-400',
+            ],
+            'wms_feedback_received' => [
+                'label' => 'WMS Feedback Received',
+                'icon' => '📥',
+                'dotClass' => 'bg-info-500',
+                'badgeClass' => 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-400',
+            ],
+            'wms_serial_validated' => [
+                'label' => 'Serial Validated',
+                'icon' => '✓',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'wms_serial_invalid' => [
+                'label' => 'Serial Invalid',
+                'icon' => '✗',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+            'wms_shipment_confirmed' => [
+                'label' => 'WMS Shipment Confirmed',
+                'icon' => '📦',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'wms_discrepancy' => [
+                'label' => 'WMS Discrepancy',
+                'icon' => '⚠️',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+            'wms_re_pick_requested' => [
+                'label' => 'Re-pick Requested',
+                'icon' => '🔄',
+                'dotClass' => 'bg-warning-500',
+                'badgeClass' => 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-400',
+            ],
+
+            // Binding events
+            'binding_requested' => [
+                'label' => 'Binding Requested',
+                'icon' => '🔗',
+                'dotClass' => 'bg-info-500',
+                'badgeClass' => 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-400',
+            ],
+            'binding_executed' => [
+                'label' => 'Binding Executed',
+                'icon' => '🔗',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'binding_validated' => [
+                'label' => 'Binding Validated',
+                'icon' => '✓',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'binding_failed' => [
+                'label' => 'Binding Failed',
+                'icon' => '✗',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+            'early_binding_validated' => [
+                'label' => 'Early Binding Validated',
+                'icon' => '⭐',
+                'dotClass' => 'bg-primary-500',
+                'badgeClass' => 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400',
+            ],
+            'early_binding_failed' => [
+                'label' => 'Early Binding Failed',
+                'icon' => '✗',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+            'unbind_executed' => [
+                'label' => 'Unbind Executed',
+                'icon' => '🔓',
+                'dotClass' => 'bg-warning-500',
+                'badgeClass' => 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-400',
+            ],
+
+            // Shipment events
+            'shipment_created' => [
+                'label' => 'Shipment Created',
+                'icon' => '📦',
+                'dotClass' => 'bg-info-500',
+                'badgeClass' => 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-400',
+            ],
+            'shipment_confirmed' => [
+                'label' => 'Shipment Confirmed',
+                'icon' => '✓',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'voucher_redeemed' => [
+                'label' => 'Voucher Redeemed',
+                'icon' => '🎫',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'ownership_transferred' => [
+                'label' => 'Ownership Transferred',
+                'icon' => '🔑',
+                'dotClass' => 'bg-primary-500',
+                'badgeClass' => 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400',
+            ],
+            'tracking_updated' => [
+                'label' => 'Tracking Updated',
+                'icon' => '📍',
+                'dotClass' => 'bg-info-500',
+                'badgeClass' => 'bg-info-100 text-info-800 dark:bg-info-900/30 dark:text-info-400',
+            ],
+            'shipment_delivered' => [
+                'label' => 'Delivered',
+                'icon' => '🏁',
+                'dotClass' => 'bg-success-500',
+                'badgeClass' => 'bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-400',
+            ],
+            'shipment_failed' => [
+                'label' => 'Shipment Failed',
+                'icon' => '❌',
+                'dotClass' => 'bg-danger-500',
+                'badgeClass' => 'bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-400',
+            ],
+
+            // Default
+            default => [
+                'label' => ucfirst(str_replace('_', ' ', $eventType)),
+                'icon' => '•',
+                'dotClass' => 'bg-gray-500',
+                'badgeClass' => 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+            ],
+        };
+    }
+
+    /**
+     * Format change tracking details for an audit log entry.
+     *
+     * @param  \App\Models\Fulfillment\ShippingOrderAuditLog  $log
+     */
+    protected function formatChangeTracking($log): string
+    {
+        $html = '<div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">';
+        $html .= '<div class="text-xs text-gray-500 dark:text-gray-400 font-medium mb-2">Change Details</div>';
+
+        $html .= '<div class="grid grid-cols-2 gap-4 text-xs">';
+
+        // Old values
+        if ($log->old_values !== null && ! empty($log->old_values)) {
+            $html .= '<div>';
+            $html .= '<div class="font-medium text-gray-600 dark:text-gray-400 mb-1">Previous Values</div>';
+            $html .= '<div class="bg-danger-50 dark:bg-danger-900/20 rounded p-2 text-danger-700 dark:text-danger-300">';
+            $html .= '<pre class="whitespace-pre-wrap font-mono text-xs">';
+            $html .= e(json_encode($log->old_values, JSON_PRETTY_PRINT));
+            $html .= '</pre>';
+            $html .= '</div>';
+            $html .= '</div>';
+        }
+
+        // New values
+        if ($log->new_values !== null && ! empty($log->new_values)) {
+            $html .= '<div>';
+            $html .= '<div class="font-medium text-gray-600 dark:text-gray-400 mb-1">New Values</div>';
+            $html .= '<div class="bg-success-50 dark:bg-success-900/20 rounded p-2 text-success-700 dark:text-success-300">';
+            $html .= '<pre class="whitespace-pre-wrap font-mono text-xs">';
+            $html .= e(json_encode($log->new_values, JSON_PRETTY_PRINT));
+            $html .= '</pre>';
+            $html .= '</div>';
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Section for audit export functionality.
+     */
+    protected function getAuditExportSection(): Section
+    {
+        return Section::make('Export Audit Trail')
+            ->description('Download the complete audit trail for compliance and reporting')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->collapsed()
+            ->schema([
+                TextEntry::make('export_info')
+                    ->label('')
+                    ->getStateUsing(fn (): string => 'Use the "Export Audit CSV" action above to download a complete CSV export of all audit events for this Shipping Order.')
+                    ->color('gray')
+                    ->icon('heroicon-o-information-circle')
+                    ->columnSpanFull(),
+            ]);
+    }
+
+    /**
      * Status banner at the top of the page.
      */
     protected function getStatusBanner(): Section
@@ -1792,6 +2292,7 @@ class ViewShippingOrder extends ViewRecord
             $this->getSelectWarehouseAction(),
             $this->getPlanOrderAction(),
             $this->getRequestRePickAction(),
+            $this->getExportAuditCsvAction(),
             Actions\EditAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
             Actions\DeleteAction::make()
@@ -1800,6 +2301,61 @@ class ViewShippingOrder extends ViewRecord
                 ->modalHeading('Delete Shipping Order')
                 ->modalDescription('Are you sure you want to delete this shipping order? This action cannot be undone.'),
         ];
+    }
+
+    /**
+     * Action to export the audit trail as CSV.
+     */
+    protected function getExportAuditCsvAction(): Actions\Action
+    {
+        return Actions\Action::make('exportAuditCsv')
+            ->label('Export Audit CSV')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('gray')
+            ->action(function (ShippingOrder $record) {
+                $auditLogs = $record->shippingOrderAuditLogs()
+                    ->with('user')
+                    ->orderBy('created_at', 'asc')
+                    ->get();
+
+                $filename = "shipping_order_{$record->id}_audit_trail_".date('Y-m-d_His').'.csv';
+
+                return response()->streamDownload(function () use ($auditLogs): void {
+                    $handle = fopen('php://output', 'w');
+
+                    if ($handle === false) {
+                        return;
+                    }
+
+                    // CSV header
+                    fputcsv($handle, [
+                        'Timestamp',
+                        'Event Type',
+                        'Description',
+                        'User',
+                        'User ID',
+                        'Old Values',
+                        'New Values',
+                    ]);
+
+                    // CSV data rows
+                    foreach ($auditLogs as $log) {
+                        fputcsv($handle, [
+                            $log->created_at->format('Y-m-d H:i:s'),
+                            $log->event_type,
+                            $log->description,
+                            $log->user !== null ? $log->user->name : 'System',
+                            $log->user_id ?? '',
+                            $log->old_values !== null ? json_encode($log->old_values) : '',
+                            $log->new_values !== null ? json_encode($log->new_values) : '',
+                        ]);
+                    }
+
+                    fclose($handle);
+                }, $filename, [
+                    'Content-Type' => 'text/csv',
+                ]);
+            });
     }
 
     /**
