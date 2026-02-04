@@ -56,7 +56,8 @@ class ShippingOrderService
     public const EVENT_VOUCHER_INELIGIBLE = 'voucher_ineligible';
 
     public function __construct(
-        protected VoucherService $voucherService
+        protected VoucherService $voucherService,
+        protected LateBindingService $lateBindingService
     ) {}
 
     /**
@@ -267,6 +268,11 @@ class ShippingOrderService
                 ]
             );
 
+            // If SO was in picking, unbind all bound lines to restore bottle state to Stored
+            if ($previousStatus === ShippingOrderStatus::Picking) {
+                $this->unbindAllLines($shippingOrder);
+            }
+
             // Unlock vouchers if they were locked
             if ($previousStatus->requiresVoucherLock()) {
                 $this->unlockVouchers($shippingOrder);
@@ -399,6 +405,55 @@ class ShippingOrderService
                 [
                     'unlocked_voucher_ids' => $unlockedVouchers,
                     'count' => count($unlockedVouchers),
+                ]
+            );
+        }
+    }
+
+    /**
+     * Unbind all bound lines for a Shipping Order.
+     *
+     * Called when SO is cancelled during picking. Restores bottle state to Stored.
+     *
+     * @param  ShippingOrder  $shippingOrder  The shipping order
+     */
+    protected function unbindAllLines(ShippingOrder $shippingOrder): void
+    {
+        $shippingOrder->load('lines');
+
+        $unboundSerials = [];
+
+        foreach ($shippingOrder->lines as $line) {
+            if (! $line->isBound()) {
+                continue;
+            }
+
+            $serial = $line->bound_bottle_serial;
+
+            try {
+                $this->lateBindingService->unbindLine($line);
+                $unboundSerials[] = $serial;
+            } catch (\Throwable $e) {
+                // Log but continue - best effort unbind
+                $this->logEvent(
+                    $shippingOrder,
+                    'unbind_failed',
+                    "Failed to unbind line {$line->id} (serial {$serial}): {$e->getMessage()}",
+                    null,
+                    ['line_id' => $line->id, 'serial' => $serial, 'error' => $e->getMessage()]
+                );
+            }
+        }
+
+        if ($unboundSerials !== []) {
+            $this->logEvent(
+                $shippingOrder,
+                'lines_unbound',
+                'Lines unbound due to SO cancellation during picking',
+                null,
+                [
+                    'unbound_serials' => $unboundSerials,
+                    'count' => count($unboundSerials),
                 ]
             );
         }

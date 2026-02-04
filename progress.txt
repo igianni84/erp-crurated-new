@@ -679,3 +679,21 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - US-C054 (Binding Audit) implemented in US-C012 with EVENT_BINDING_EXECUTED logging
   - Query bindings by allocation: ShippingOrderLine.where('allocation_id', $allocationId)->whereNotNull('bound_bottle_serial')
 ---
+
+## 2026-02-04 - US-C059 to US-C062
+- **What was implemented:** Validation stories - verified existing constraints and added unbinding on cancellation
+- **Files changed:**
+  - `app/Services/Fulfillment/ShippingOrderService.php` (added unbindAllLines() method and LateBindingService dependency)
+- **Files verified (no changes needed):**
+  - `app/Filament/Resources/Fulfillment/CustomerResource/RelationManagers/ShippingOrdersRelationManager.php` (concurrent SO prevention)
+  - `app/Models/Fulfillment/Shipment.php` (shipping_order_id required, no standalone shipments)
+  - `app/Services/Fulfillment/ShipmentService.php` (redemption only called from confirmShipment)
+- **Learnings for future iterations:**
+  - US-C059 (Concurrent SO prevention): Already implemented via canCreateShippingOrder() which checks for active SOs
+  - US-C060 (Unbinding on cancellation): Added unbindAllLines() method called from cancel() when SO was in Picking status
+  - US-C061 (Shipment without SO prevention): Enforced at DB level - Shipment.shipping_order_id is NOT NULL with FK constraint
+  - US-C062 (Redemption timing): Enforced by code flow - triggerRedemption() only called from confirmShipment() which requires Shipped status
+  - unbindAllLines() uses best-effort approach - logs errors but continues unbinding remaining lines
+  - LateBindingService injected via constructor for unbindLine() calls
+  - Binding status tracked via isBound() method which checks bound_bottle_serial presence
+---

@@ -945,8 +945,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 59,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C011. checkVoucherEligibility() checks for vouchers in other active SOs. Error message matches exactly: 'Voucher is already assigned to Shipping Order {SO-ID}'. Lock released via unlockVouchers() on cancel/complete."
     },
     {
       "id": "US-C060",
@@ -959,8 +959,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 60,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "cancel() calls unlockVouchers() which uses VoucherService.unlock() to transition back to Issued. Added unbindAllLines() to cancel() for SO in Picking status - unbinds all lines and restores bottle.state to Stored. Audit events logged for each unlock/unbind."
     },
     {
       "id": "US-C061",
@@ -974,8 +974,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 61,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Database enforced: shipping_order_id column is NOT NULL with FK constraint. ShipmentResource.canCreate() returns false. createFromOrder() is the only way to create Shipment. WMS confirmShipment() validates SO exists."
     },
     {
       "id": "US-C062",
@@ -989,8 +989,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 62,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "triggerRedemption() only called from confirmShipment(). Vouchers are Locked during planning/picking via lockForFulfillment(). Redemption only happens after shipment confirmed - enforced by code flow."
     }
   ]
 }
