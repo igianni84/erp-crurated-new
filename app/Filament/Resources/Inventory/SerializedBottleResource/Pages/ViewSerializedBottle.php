@@ -7,8 +7,12 @@ use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
 use App\Enums\Inventory\OwnershipType;
 use App\Filament\Resources\Inventory\SerializedBottleResource;
+use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\MovementItem;
 use App\Models\Inventory\SerializedBottle;
+use App\Services\Inventory\MovementService;
+use Filament\Actions;
+use Filament\Forms;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section;
@@ -16,9 +20,11 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
 
 class ViewSerializedBottle extends ViewRecord
 {
@@ -825,7 +831,148 @@ class ViewSerializedBottle extends ViewRecord
 
     protected function getHeaderActions(): array
     {
-        // Actions will be implemented in US-B027, US-B028, US-B029
-        return [];
+        return [
+            $this->getMarkAsDamagedAction(),
+        ];
+    }
+
+    /**
+     * Action to mark a bottle as damaged/destroyed.
+     *
+     * US-B027: Mark Bottle as Damaged/Destroyed
+     *
+     * - Requires confirmation of physical destruction
+     * - Captures reason (breakage/leakage/contamination)
+     * - Optional evidence field
+     * - Changes state to DESTROYED
+     * - Creates audit trail via movement record
+     * - Bottle remains visible for audit (never deleted)
+     * - Destroyed bottles cannot be selected by Module C
+     */
+    protected function getMarkAsDamagedAction(): Actions\Action
+    {
+        return Actions\Action::make('markAsDamaged')
+            ->label('Mark as Damaged')
+            ->icon('heroicon-o-x-circle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Mark Bottle as Damaged/Destroyed')
+            ->modalDescription(fn (SerializedBottle $record): string => "You are about to mark bottle {$record->serial_number} as destroyed. This action is IRREVERSIBLE.")
+            ->modalIcon('heroicon-o-exclamation-triangle')
+            ->modalIconColor('danger')
+            ->visible(fn (SerializedBottle $record): bool => ! $record->isInTerminalState())
+            ->form([
+                Forms\Components\Section::make('Destruction Confirmation')
+                    ->description('This action permanently changes the bottle state to DESTROYED')
+                    ->schema([
+                        Forms\Components\Placeholder::make('warning')
+                            ->label('')
+                            ->content(new HtmlString('
+                                <div class="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0">
+                                            <svg class="w-6 h-6 text-danger-600 dark:text-danger-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-danger-700 dark:text-danger-300">Irreversible Action</h4>
+                                            <ul class="mt-2 text-sm text-danger-600 dark:text-danger-400 list-disc list-inside space-y-1">
+                                                <li>The bottle will be marked as <strong>DESTROYED</strong></li>
+                                                <li>It will no longer be available for fulfillment</li>
+                                                <li>Physical inventory count will be reduced</li>
+                                                <li>The bottle record will remain visible for audit purposes</li>
+                                                <li>Provenance and history will be preserved</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            ')),
+                        Forms\Components\Checkbox::make('confirm_destruction')
+                            ->label('I confirm that this bottle has been physically destroyed or is no longer usable')
+                            ->required()
+                            ->accepted()
+                            ->validationMessages([
+                                'accepted' => 'You must confirm the physical destruction to proceed.',
+                            ]),
+                    ])
+                    ->extraAttributes(['class' => 'bg-danger-50/50 dark:bg-danger-900/10']),
+                Forms\Components\Section::make('Destruction Details')
+                    ->description('Provide details about the damage/destruction')
+                    ->schema([
+                        Forms\Components\Select::make('reason')
+                            ->label('Reason for Destruction')
+                            ->options([
+                                'breakage' => 'Breakage - Physical damage to the bottle',
+                                'leakage' => 'Leakage - Cork failure or seal compromise',
+                                'contamination' => 'Contamination - Wine quality issues',
+                                'other' => 'Other - Please specify in evidence',
+                            ])
+                            ->required()
+                            ->native(false)
+                            ->helperText('Select the primary reason for destruction'),
+                        Forms\Components\Textarea::make('evidence')
+                            ->label('Evidence / Additional Notes')
+                            ->placeholder('Describe the damage, circumstances, or any relevant details...')
+                            ->rows(3)
+                            ->maxLength(1000)
+                            ->helperText('Optional: Provide any evidence or additional context'),
+                    ]),
+            ])
+            ->action(function (array $data, SerializedBottle $record): void {
+                try {
+                    /** @var MovementService $movementService */
+                    $movementService = app(MovementService::class);
+
+                    // Get the reason label
+                    $reasonLabels = [
+                        'breakage' => 'Breakage',
+                        'leakage' => 'Leakage',
+                        'contamination' => 'Contamination',
+                        'other' => 'Other',
+                    ];
+                    /** @var string $reasonKey */
+                    $reasonKey = $data['reason'];
+                    $reason = $reasonLabels[$reasonKey] ?? 'Unknown';
+                    /** @var string|null $evidence */
+                    $evidence = $data['evidence'] ?? null;
+
+                    // Record the destruction via MovementService
+                    $movementService->recordDestruction(
+                        bottle: $record,
+                        reason: $reason,
+                        executor: auth()->user(),
+                        evidence: $evidence
+                    );
+
+                    // Create an inventory exception for audit trail
+                    InventoryException::create([
+                        'exception_type' => 'bottle_destroyed',
+                        'serialized_bottle_id' => $record->id,
+                        'reason' => "Bottle destroyed: {$reason}".($evidence !== null && $evidence !== '' ? ". Evidence: {$evidence}" : ''),
+                        'created_by' => auth()->id(),
+                        'resolution' => 'Bottle marked as destroyed',
+                        'resolved_at' => now(),
+                        'resolved_by' => auth()->id(),
+                    ]);
+
+                    Notification::make()
+                        ->success()
+                        ->title('Bottle Marked as Destroyed')
+                        ->body("Bottle {$record->serial_number} has been marked as destroyed. The record remains visible for audit purposes.")
+                        ->persistent()
+                        ->send();
+
+                    // Refresh the record to show updated state
+                    $this->refreshFormData(['state']);
+
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Error')
+                        ->body($e->getMessage())
+                        ->send();
+                }
+            });
     }
 }

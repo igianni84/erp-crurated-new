@@ -242,6 +242,67 @@ class MovementService
     }
 
     /**
+     * Record destruction of a serialized bottle.
+     *
+     * Creates a destruction event and updates the bottle state to destroyed.
+     * Used when a bottle is physically damaged, leaking, or contaminated.
+     *
+     * @param  SerializedBottle  $bottle  The bottle to mark as destroyed
+     * @param  string  $reason  The reason for destruction (breakage, leakage, contamination)
+     * @param  User|null  $executor  The user performing the destruction
+     * @param  string|null  $evidence  Optional evidence notes
+     * @return InventoryMovement The created movement
+     *
+     * @throws \InvalidArgumentException If destruction is not allowed
+     */
+    public function recordDestruction(
+        SerializedBottle $bottle,
+        string $reason,
+        ?User $executor = null,
+        ?string $evidence = null
+    ): InventoryMovement {
+        // Validate bottle can be destroyed
+        if ($bottle->isInTerminalState()) {
+            throw new \InvalidArgumentException(
+                'Cannot destroy bottle already in terminal state: '.$bottle->state->label()
+            );
+        }
+
+        // Get the bottle's current location
+        $location = $bottle->currentLocation;
+
+        // Build reason text
+        $reasonText = "Destroyed - {$reason}";
+        if ($evidence !== null && $evidence !== '') {
+            $reasonText .= ". Evidence: {$evidence}";
+        }
+
+        return DB::transaction(function () use ($bottle, $executor, $reasonText, $location) {
+            // Create the movement (consumption movement type with destruction reason)
+            $movement = $this->createMovement([
+                'movement_type' => MovementType::EventConsumption,
+                'trigger' => MovementTrigger::ErpOperator,
+                'source_location_id' => $location?->id,
+                'destination_location_id' => null, // Destruction has no destination
+                'custody_changed' => false,
+                'reason' => $reasonText,
+                'executed_by' => $executor?->id,
+                'items' => [
+                    [
+                        'serialized_bottle_id' => $bottle->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ]);
+
+            // Update bottle state to destroyed
+            $bottle->update(['state' => BottleState::Destroyed]);
+
+            return $movement;
+        });
+    }
+
+    /**
      * Record consumption of a serialized bottle.
      *
      * Creates a consumption movement and updates the bottle state to consumed.
