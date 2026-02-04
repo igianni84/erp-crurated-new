@@ -474,3 +474,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - mutateFormDataBeforeCreate() runs before validation passes through to model
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B019
+- **Implemented**: Serialization Queue page for operators to manage serialization workflow
+- **Files created**:
+  - app/Filament/Pages/SerializationQueue.php (Filament Table Page with HasTable trait)
+  - resources/views/filament/pages/serialization-queue.blade.php (Blade view with stats cards)
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 3)
+  - Statistics cards: Total batches in queue, Pending count, Partially done count, Total bottles to serialize
+  - Table columns: batch_id, product, quantity_remaining_unserialized, receiving_location, allocation_lineage, serialization_status, ownership_type, received_date
+  - Filters: Location (only serialization-authorized locations), Date range (received_from/received_until), Serialization status
+  - Actions: "Serialize" button with modal form to start serialization, "View" link to InboundBatch detail page
+  - Base query filters: Only pending_serialization or partially_serialized batches, only at locations with serialization_authorized = true
+  - Auto-refresh every 30 seconds (poll)
+  - Empty state with check-circle icon when queue is empty
+- **Key patterns used**:
+  - Filament Page with HasTable trait for table-based pages (not Resource)
+  - getTableQuery() for base query with relationship constraints
+  - Tables\Actions\Action with form() for inline serialization from queue
+  - Statistics computed in getQueueStats() method and passed to blade view
+  - Tables\Columns\TextColumn with getStateUsing() for computed columns
+- **Learnings for future iterations**:
+  - Use `Filament\Pages\Page implements HasTable` with `InteractsWithTable` trait for standalone table pages
+  - For PHPStan with Collection->sum(), use explicit foreach loop instead of callback to avoid type issues
+  - Location filter should only show serialization-authorized locations to match the base query filter
+  - poll('30s') adds auto-refresh to keep queue updated
+  - emptyStateHeading/Description/Icon customize the empty state display
+  - Browser verification requirement noted - manual testing needed
+---
