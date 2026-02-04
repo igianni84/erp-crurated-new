@@ -117,3 +117,23 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Helper methods like `isLinked()`, `isUnlinked()`, `hasOwnershipClarity()` are useful for business rule enforcement
   - The `canHandOffToModuleB()` method consolidates multiple preconditions (status, ownership clarity, not already handed off)
 ---
+
+## 2026-02-04 - US-006
+- What was implemented:
+  - Migration `2026_02_04_400006_create_producer_supplier_configs_table.php` with all required fields
+  - ProducerSupplierConfig model with one-to-one relationship to Party
+  - All required fields: party_id (unique FK), default_bottling_deadline_days (int nullable), allowed_formats (JSON nullable), serialization_constraints (JSON nullable), notes (text nullable)
+  - Unique constraint on party_id enforces one-to-one relationship
+  - Added `supplierConfig()` hasOne relationship to Party model
+  - Added `hasSupplierConfig()` helper method to Party model
+  - Soft deletes enabled
+- Files changed:
+  - database/migrations/2026_02_04_400006_create_producer_supplier_configs_table.php (new)
+  - app/Models/Procurement/ProducerSupplierConfig.php (new)
+  - app/Models/Customer/Party.php (modified - added supplierConfig relationship)
+- **Learnings for future iterations:**
+  - One-to-one relationships use `$table->foreignUuid()->unique()` in migration
+  - Optional one-to-one configs don't need invariants - they're simply created when needed
+  - Helper methods for checking constraint satisfaction (isFormatAllowed, isSerializationLocationAuthorized) are useful for service layer
+  - JSON fields with specific structures should document expected format in docblock
+---
