@@ -267,6 +267,126 @@ class EventConsumption extends Page implements HasForms
                                         ->helperText('Showing up to 100 consumable bottles (Crurated-owned, stored, not committed).'),
                                 ]),
 
+                            // Show committed bottles with warning (blocked from selection)
+                            Section::make('Committed Bottles (BLOCKED)')
+                                ->description('These bottles are reserved for customer fulfillment and cannot be consumed.')
+                                ->collapsible()
+                                ->collapsed()
+                                ->extraAttributes(['class' => 'bg-warning-50 dark:bg-warning-900/20 border-warning-300 dark:border-warning-700'])
+                                ->visible(function (Get $get): bool {
+                                    $locationId = $get('event_location_id');
+                                    if (! $locationId) {
+                                        return false;
+                                    }
+
+                                    $inventoryService = app(InventoryService::class);
+                                    $location = Location::find($locationId);
+                                    if (! $location) {
+                                        return false;
+                                    }
+
+                                    return $inventoryService->getCommittedBottlesAtLocation($location)->count() > 0;
+                                })
+                                ->schema([
+                                    Forms\Components\Placeholder::make('committed_warning')
+                                        ->label('')
+                                        ->content(new HtmlString(<<<'HTML'
+                                            <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-300 dark:border-warning-700">
+                                                <div class="flex">
+                                                    <div class="flex-shrink-0">
+                                                        <svg class="h-5 w-5 text-warning-600 dark:text-warning-400" viewBox="0 0 20 20" fill="currentColor">
+                                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                                        </svg>
+                                                    </div>
+                                                    <div class="ml-3">
+                                                        <p class="text-sm text-warning-700 dark:text-warning-300">
+                                                            <strong>⚠️ Committed Inventory</strong> - The bottles listed below are <strong>reserved for customer fulfillment</strong> and cannot be consumed through the standard flow.
+                                                            <br><br>
+                                                            If you need to consume committed inventory for an exceptional reason, please use the <strong>Committed Inventory Override</strong> flow which requires administrator permission and explicit justification.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        HTML)),
+
+                                    Forms\Components\Placeholder::make('committed_bottles_list')
+                                        ->label('Committed Bottles at this Location')
+                                        ->content(function (Get $get): HtmlString {
+                                            $locationId = $get('event_location_id');
+                                            if (! $locationId) {
+                                                return new HtmlString('<p class="text-gray-500">No location selected.</p>');
+                                            }
+
+                                            $inventoryService = app(InventoryService::class);
+                                            $location = Location::find($locationId);
+                                            if (! $location) {
+                                                return new HtmlString('<p class="text-gray-500">Location not found.</p>');
+                                            }
+
+                                            $committedBottles = $inventoryService->getCommittedBottlesAtLocation($location)
+                                                ->load(['wineVariant.wineMaster', 'format', 'allocation']);
+
+                                            if ($committedBottles->isEmpty()) {
+                                                return new HtmlString('<p class="text-success-600 dark:text-success-400">No committed bottles at this location.</p>');
+                                            }
+
+                                            $rows = $committedBottles->take(50)->map(function (SerializedBottle $bottle): string {
+                                                $wineName = 'Unknown Wine';
+                                                $wineVariant = $bottle->wineVariant;
+                                                if ($wineVariant !== null) {
+                                                    $wineMaster = $wineVariant->wineMaster;
+                                                    if ($wineMaster !== null) {
+                                                        $wineName = "{$wineMaster->name} {$wineVariant->vintage_year}";
+                                                    }
+                                                }
+                                                $format = $bottle->format;
+                                                $formatName = $format !== null ? $format->name : '';
+                                                $allocation = $bottle->allocation;
+                                                $allocationName = $allocation !== null ? substr($allocation->id, 0, 8).'...' : 'N/A';
+
+                                                return <<<HTML
+                                                    <tr class="border-b border-warning-200 dark:border-warning-700">
+                                                        <td class="py-2 px-3 text-sm font-mono">{$bottle->serial_number}</td>
+                                                        <td class="py-2 px-3 text-sm">{$wineName}</td>
+                                                        <td class="py-2 px-3 text-sm">{$formatName}</td>
+                                                        <td class="py-2 px-3 text-sm text-warning-600 dark:text-warning-400">
+                                                            <span class="inline-flex items-center gap-1">
+                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                                </svg>
+                                                                Reserved
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-3 text-xs text-gray-500 dark:text-gray-400">{$allocationName}</td>
+                                                    </tr>
+                                                HTML;
+                                            })->join('');
+
+                                            $count = $committedBottles->count();
+                                            $showingNote = $count > 50 ? "<p class=\"text-sm text-gray-500 mt-2\">Showing first 50 of {$count} committed bottles.</p>" : '';
+
+                                            return new HtmlString(<<<HTML
+                                                <div class="overflow-x-auto">
+                                                    <table class="min-w-full divide-y divide-warning-200 dark:divide-warning-700">
+                                                        <thead class="bg-warning-100 dark:bg-warning-800/30">
+                                                            <tr>
+                                                                <th class="py-2 px-3 text-left text-xs font-medium text-warning-700 dark:text-warning-300 uppercase tracking-wider">Serial Number</th>
+                                                                <th class="py-2 px-3 text-left text-xs font-medium text-warning-700 dark:text-warning-300 uppercase tracking-wider">Wine</th>
+                                                                <th class="py-2 px-3 text-left text-xs font-medium text-warning-700 dark:text-warning-300 uppercase tracking-wider">Format</th>
+                                                                <th class="py-2 px-3 text-left text-xs font-medium text-warning-700 dark:text-warning-300 uppercase tracking-wider">Status</th>
+                                                                <th class="py-2 px-3 text-left text-xs font-medium text-warning-700 dark:text-warning-300 uppercase tracking-wider">Allocation</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="bg-white dark:bg-gray-900 divide-y divide-warning-200 dark:divide-warning-700">
+                                                            {$rows}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                {$showingNote}
+                                            HTML);
+                                        }),
+                                ]),
+
                             Section::make('Select Cases')
                                 ->description('Choose intact cases to consume. All bottles in selected cases will be consumed and the case will be marked as broken.')
                                 ->collapsible()
@@ -541,9 +661,10 @@ class EventConsumption extends Page implements HasForms
                     try {
                         $bottle = SerializedBottle::find($bottleId);
                         if ($bottle) {
-                            // Double-check the bottle can still be consumed
+                            // Double-check the bottle can still be consumed (using InventoryService.canConsume())
                             if (! $inventoryService->canConsume($bottle)) {
-                                $errors[] = "Bottle {$bottle->serial_number}: Cannot consume - may be committed for fulfillment";
+                                $reason = $inventoryService->getCannotConsumeReason($bottle);
+                                $errors[] = "Bottle {$bottle->serial_number}: {$reason}";
 
                                 continue;
                             }

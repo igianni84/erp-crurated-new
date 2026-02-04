@@ -179,6 +179,92 @@ class InventoryService
     }
 
     /**
+     * Check if a bottle is committed for voucher fulfillment.
+     *
+     * A bottle is considered committed if:
+     * - It is in 'stored' state (available for fulfillment)
+     * - Its allocation has no free quantity (all physical bottles are committed)
+     *
+     * This is used to show warnings in the UI when committed bottles cannot be consumed.
+     *
+     * @return bool True if the bottle is committed (reserved for customer fulfillment)
+     */
+    public function isCommittedForFulfillment(SerializedBottle $bottle): bool
+    {
+        // If bottle is not in stored state, it's not "committed" in the traditional sense
+        // (it may be shipped, consumed, etc.)
+        if ($bottle->state !== BottleState::Stored) {
+            return false;
+        }
+
+        $allocation = $bottle->allocation;
+        if ($allocation === null) {
+            return false;
+        }
+
+        // If free quantity is 0 or negative, the bottle is committed
+        return $this->getFreeQuantity($allocation) <= 0;
+    }
+
+    /**
+     * Get the reason why a bottle cannot be consumed.
+     *
+     * Returns a human-readable explanation of why canConsume() returns false.
+     *
+     * @return string|null The reason, or null if the bottle can be consumed
+     */
+    public function getCannotConsumeReason(SerializedBottle $bottle): ?string
+    {
+        // Check state first
+        if ($bottle->state !== BottleState::Stored) {
+            return "Bottle is in '{$bottle->state->label()}' state and cannot be consumed";
+        }
+
+        // Check ownership
+        if (! $bottle->ownership_type->canConsumeForEvents()) {
+            return "Bottle ownership type '{$bottle->ownership_type->label()}' does not allow event consumption";
+        }
+
+        // Check allocation
+        $allocation = $bottle->allocation;
+        if ($allocation === null) {
+            return 'Bottle must have an allocation to be consumed';
+        }
+
+        // Check free quantity
+        $freeQuantity = $this->getFreeQuantity($allocation);
+        if ($freeQuantity <= 0) {
+            return 'This bottle is reserved for customer fulfillment';
+        }
+
+        return null;
+    }
+
+    /**
+     * Get committed bottles at a location.
+     *
+     * Returns bottles that are stored and owned by Crurated but cannot be consumed
+     * because they are committed to vouchers.
+     *
+     * @return Collection<int, SerializedBottle>
+     */
+    public function getCommittedBottlesAtLocation(Location $location): Collection
+    {
+        // Get all stored, Crurated-owned bottles at this location
+        $bottles = SerializedBottle::query()
+            ->with(['allocation'])
+            ->where('current_location_id', $location->id)
+            ->where('state', BottleState::Stored)
+            ->where('ownership_type', \App\Enums\Inventory\OwnershipType::CururatedOwned->value)
+            ->get();
+
+        // Filter to only committed bottles
+        return $bottles->filter(function (SerializedBottle $bottle): bool {
+            return $this->isCommittedForFulfillment($bottle);
+        });
+    }
+
+    /**
      * Get detailed pending serialization statistics.
      *
      * Returns an array with:
