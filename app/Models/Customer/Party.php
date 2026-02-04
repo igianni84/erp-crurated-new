@@ -2,6 +2,7 @@
 
 namespace App\Models\Customer;
 
+use App\Enums\Customer\PartyRoleType;
 use App\Enums\Customer\PartyStatus;
 use App\Enums\Customer\PartyType;
 use App\Traits\Auditable;
@@ -128,9 +129,63 @@ class Party extends Model
     /**
      * Check if the party has a specific role.
      */
-    public function hasRole(string $role): bool
+    public function hasRole(PartyRoleType|string $role): bool
     {
-        return $this->roles()->where('role', $role)->exists();
+        $roleValue = $role instanceof PartyRoleType ? $role->value : $role;
+
+        return $this->roles()->where('role', $roleValue)->exists();
+    }
+
+    /**
+     * Add a role to this party.
+     *
+     * @throws \Illuminate\Database\QueryException if role already exists (unique constraint)
+     */
+    public function addRole(PartyRoleType $role): PartyRole
+    {
+        return $this->roles()->create([
+            'role' => $role,
+        ]);
+    }
+
+    /**
+     * Remove a role from this party.
+     */
+    public function removeRole(PartyRoleType $role): bool
+    {
+        return $this->roles()->where('role', $role->value)->delete() > 0;
+    }
+
+    /**
+     * Check if the party is a customer.
+     */
+    public function isCustomer(): bool
+    {
+        return $this->hasRole(PartyRoleType::Customer);
+    }
+
+    /**
+     * Check if the party is a supplier.
+     */
+    public function isSupplier(): bool
+    {
+        return $this->hasRole(PartyRoleType::Supplier);
+    }
+
+    /**
+     * Check if the party is a producer.
+     */
+    public function isProducer(): bool
+    {
+        return $this->hasRole(PartyRoleType::Producer);
+    }
+
+    /**
+     * Check if the party is a partner.
+     */
+    public function isPartner(): bool
+    {
+        return $this->hasRole(PartyRoleType::Partner);
     }
 
     /**
