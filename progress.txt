@@ -205,3 +205,27 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Status filters with multiple() and default() can hide terminal states by default
   - Visual indicators for "needs attention" use IconColumn with boolean state and custom trueIcon/falseIcon
 ---
+
+## 2026-02-04 - US-010
+- What was implemented:
+  - CreateProcurementIntent wizard page with 4 steps (Product, Source & Model, Delivery, Review)
+  - Step 1 (Product): Radio selection for product type (Bottle SKU vs Liquid Product)
+  - Bottle SKU selection: Wine (searchable autocomplete) + Vintage (dependent select) + Format (dependent select)
+  - Liquid Product selection: Wine (searchable autocomplete) + Vintage (dependent select)
+  - Product preview showing selected product label
+  - Existing allocations count display (queries Allocation table by wine_variant_id + format_id)
+  - Informational message about Procurement Intent purpose
+  - Warning when no matching SellableSku or LiquidProduct exists (auto-created on save)
+  - Steps 2-4 (Source & Model, Delivery, Review) implemented ahead for complete wizard flow
+  - mutateFormDataBeforeCreate() handles product reference resolution and auto-creates missing SKUs
+- Files changed:
+  - app/Filament/Resources/Procurement/ProcurementIntentResource/Pages/CreateProcurementIntent.php (new)
+  - app/Filament/Resources/Procurement/ProcurementIntentResource.php (modified - registered create route)
+- **Learnings for future iterations:**
+  - Filament wizards use `CreateRecord\Concerns\HasWizard` trait
+  - Live fields with `afterStateUpdated()` can cascade state resets when parent changes
+  - Use `Get $get` for reading form state and `Set $set` for updating it
+  - Hidden fields can store intermediate state (sellable_sku_id, liquid_product_id) for use in mutateFormDataBeforeCreate
+  - When auto-creating SellableSku, need to provide a default CaseConfiguration
+  - HtmlString allows rich HTML content in Placeholder components
+---
