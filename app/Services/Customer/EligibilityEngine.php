@@ -21,9 +21,9 @@ use App\Models\Customer\Customer;
  * Factors evaluated:
  * - Membership tier and status
  * - Customer type (for B2B channel)
- * - Credit approval (for B2B channel, placeholder for US-018)
+ * - Credit approval (for B2B channel) - via PaymentPermission.credit_limit
  * - Operational blocks (placeholder for US-027)
- * - Payment permissions (placeholder for US-018)
+ * - Payment permissions - via PaymentPermission.card_allowed
  * - Club affiliations (placeholder for US-022)
  *
  * The result is computed at runtime, not stored, ensuring real-time accuracy.
@@ -268,14 +268,11 @@ class EligibilityEngine
     /**
      * Check credit approval for B2B channel access.
      * B2B channel requires credit_limit to be set (not null).
-     * Placeholder for US-018 - returns positive until PaymentPermission model exists.
      *
      * @return array{positive: bool, reason: string}
      */
     private function checkCreditApproval(Customer $customer): array
     {
-        // Placeholder implementation until US-018 creates PaymentPermission model
-        // Once implemented, will check: $customer->paymentPermission->credit_limit !== null
         $hasCreditApproved = $this->customerHasCreditApproved($customer);
 
         if (! $hasCreditApproved) {
@@ -285,23 +282,23 @@ class EligibilityEngine
             ];
         }
 
+        $creditLimit = $customer->getCreditLimit();
+        $formattedLimit = $creditLimit !== null ? number_format($creditLimit, 2) : 'N/A';
+
         return [
             'positive' => true,
-            'reason' => 'Credit is approved for B2B transactions.',
+            'reason' => "Credit is approved for B2B transactions (limit: €{$formattedLimit}).",
         ];
     }
 
     /**
      * Check payment permissions for channel access.
-     * B2C and B2B channels are affected by payment blocks.
-     * Placeholder for US-018 - returns positive until PaymentPermission model exists.
+     * B2C and B2B channels are affected by payment blocks (card_allowed = false).
      *
      * @return array{positive: bool, reason: string}
      */
     private function checkPaymentPermissions(Customer $customer, ChannelScope $channel): array
     {
-        // Placeholder implementation until US-018 creates PaymentPermission model
-        // Once implemented, will check: card_allowed for all channels
         $hasPaymentBlock = $this->customerHasPaymentBlock($customer);
 
         if ($hasPaymentBlock) {
@@ -309,13 +306,13 @@ class EligibilityEngine
 
             return [
                 'positive' => false,
-                'reason' => "Payment permissions are blocking {$channelLabel} channel access.",
+                'reason' => "Card payments are blocked. {$channelLabel} channel requires card payment capability.",
             ];
         }
 
         return [
             'positive' => true,
-            'reason' => 'No payment restrictions affecting this channel.',
+            'reason' => 'Card payments are allowed.',
         ];
     }
 
@@ -390,27 +387,21 @@ class EligibilityEngine
     }
 
     /**
-     * Placeholder: Check if customer has payment block.
-     * Will be implemented in US-018 when PaymentPermission model exists.
+     * Check if customer has payment block.
+     * Payment block exists when card payments are not allowed.
      */
     private function customerHasPaymentBlock(Customer $customer): bool
     {
-        // TODO: Implement when PaymentPermission model exists (US-018)
-        // Check if card_allowed = false when needed
-        return false;
+        return $customer->hasPaymentBlock();
     }
 
     /**
-     * Placeholder: Check if customer has credit approved.
-     * Will be implemented in US-018 when PaymentPermission model exists.
+     * Check if customer has credit approved.
      * Credit is approved when credit_limit is set (not null).
      */
     private function customerHasCreditApproved(Customer $customer): bool
     {
-        // TODO: Implement when PaymentPermission model exists (US-018)
-        // return $customer->paymentPermission?->credit_limit !== null;
-        // For now, return true to not block B2B access until US-018 is implemented
-        return true;
+        return $customer->hasCreditApproved();
     }
 
     /**

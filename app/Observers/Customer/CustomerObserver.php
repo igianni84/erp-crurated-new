@@ -4,11 +4,13 @@ namespace App\Observers\Customer;
 
 use App\Enums\Customer\CustomerStatus;
 use App\Models\Customer\Customer;
+use App\Models\Customer\PaymentPermission;
 
 /**
  * Observer for Customer model.
  *
  * Handles validation rules when Customer status changes.
+ * Also handles auto-creation of related records when status changes.
  */
 class CustomerObserver
 {
@@ -38,6 +40,34 @@ class CustomerObserver
                         ],
                     ], 422)
                 );
+            }
+        }
+    }
+
+    /**
+     * Handle the Customer "updated" event.
+     *
+     * Creates PaymentPermission with defaults when Customer becomes active.
+     */
+    public function updated(Customer $customer): void
+    {
+        // Check if status was changed to Active
+        if (! $customer->wasChanged('status')) {
+            return;
+        }
+
+        $newStatus = $customer->status;
+
+        // If just became active, create PaymentPermission with defaults
+        if ($newStatus === CustomerStatus::Active) {
+            // Only create if doesn't already exist
+            if (! $customer->hasPaymentPermission()) {
+                PaymentPermission::create([
+                    'customer_id' => $customer->id,
+                    'card_allowed' => true,
+                    'bank_transfer_allowed' => false,
+                    'credit_limit' => null,
+                ]);
             }
         }
     }

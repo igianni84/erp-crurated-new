@@ -428,4 +428,91 @@ class Customer extends Model
 
         return $membership->getChannelEligibilityReasons();
     }
+
+    /**
+     * Get the payment permission for this customer.
+     *
+     * @return HasOne<PaymentPermission, $this>
+     */
+    public function paymentPermission(): HasOne
+    {
+        return $this->hasOne(PaymentPermission::class);
+    }
+
+    /**
+     * Check if the customer has a payment permission record.
+     */
+    public function hasPaymentPermission(): bool
+    {
+        return $this->paymentPermission()->exists();
+    }
+
+    /**
+     * Check if the customer has any payment restrictions.
+     * Returns true if card payments are blocked.
+     */
+    public function hasPaymentBlock(): bool
+    {
+        $permission = $this->paymentPermission;
+
+        if ($permission === null) {
+            // No permission record means default permissions (no block)
+            return false;
+        }
+
+        return $permission->hasPaymentBlock();
+    }
+
+    /**
+     * Check if the customer has approved credit (credit_limit is set).
+     */
+    public function hasCreditApproved(): bool
+    {
+        $permission = $this->paymentPermission;
+
+        if ($permission === null) {
+            // No permission record means no credit approved
+            return false;
+        }
+
+        return $permission->hasCreditApproved();
+    }
+
+    /**
+     * Get the customer's credit limit, or null if not set.
+     */
+    public function getCreditLimit(): ?float
+    {
+        return $this->paymentPermission?->getCreditLimitAmount();
+    }
+
+    /**
+     * Check if card payments are allowed for this customer.
+     */
+    public function isCardAllowed(): bool
+    {
+        $permission = $this->paymentPermission;
+
+        if ($permission === null) {
+            // Default: card payments allowed
+            return true;
+        }
+
+        return $permission->isCardAllowed();
+    }
+
+    /**
+     * Check if bank transfer payments are allowed for this customer.
+     */
+    public function isBankTransferAllowed(): bool
+    {
+        $permission = $this->paymentPermission;
+
+        if ($permission === null) {
+            // Default: bank transfer not allowed
+            return false;
+        }
+
+        return $permission->isBankTransferAllowed();
+    }
 }
