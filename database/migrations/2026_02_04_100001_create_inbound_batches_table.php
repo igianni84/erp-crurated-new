@@ -88,7 +88,7 @@ return new class extends Migration
             $table->index(['allocation_id']);
             $table->index(['ownership_type']);
             $table->index(['received_date']);
-            $table->index(['product_reference_type', 'product_reference_id']);
+            $table->index(['product_reference_type', 'product_reference_id'], 'inbound_batches_product_ref_idx');
         });
     }
 
