@@ -921,3 +921,39 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - HtmlString used for rich warning content in modal forms
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B033
+- **Implemented**: InventoryMovementResource in Filament - Movement List as physical ledger
+- **Files created**:
+  - app/Filament/Resources/Inventory/InventoryMovementResource.php
+  - app/Filament/Resources/Inventory/InventoryMovementResource/Pages/ListInventoryMovements.php
+  - app/Filament/Resources/Inventory/InventoryMovementResource/Pages/ViewInventoryMovement.php (placeholder for US-B034)
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 6)
+  - List columns: movement_id (copyable), movement_type (badge with icon), source_location, destination_location, items_count (badge), trigger (badge), custody_changed (icon), wms_event_id, executed_at, executed_by
+  - Filters: movement_type (multi-select), trigger (multi-select), source_location, destination_location, date range (executed_from/until), custody_changed (ternary), has_wms_event (ternary)
+  - Search: movement_id, wms_event_id, location names, executor name
+  - Read-only enforcement: canCreate(), canEdit(), canDelete() all return false
+  - Auto-refresh: poll('30s') for live updates
+  - ViewInventoryMovement page with basic summary (full detail in US-B034)
+- **Key patterns used**:
+  - MovementType and MovementTrigger enums for badge formatting (label, color, icon methods)
+  - Filter::make() with form() for date range filters
+  - TernaryFilter with custom queries() for nullable field filtering
+  - withCount on movementItems for sortable items_count column
+  - Eager loading sourceLocation, destinationLocation, executor for performance
+- **Acceptance criteria verification**:
+  - ✅ InventoryMovementResource in Filament with navigation group Inventory
+  - ✅ List columns: movement_id, movement_type, source_location, destination_location, items_count, trigger (badge), executed_at, executed_by
+  - ✅ Filters: movement_type, trigger, date range, location
+  - ✅ Search by movement_id, wms_event_id
+  - ✅ Movements read-only (no edit, no delete via canEdit/canDelete returning false)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - InventoryMovement has NO soft deletes (immutable by design) - no TrashedFilter needed
+  - canEdit() and canDelete() need to be static methods in Resource class for proper enforcement
+  - poll('30s') adds live refresh to show new movements as they're created
+  - Items count uses accessor getItemsCountAttribute() which queries relationship
+  - ViewInventoryMovement is a placeholder - full MovementItem list will be in US-B034
+  - Browser verification requirement noted - manual testing needed
+---
