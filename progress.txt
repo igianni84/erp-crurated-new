@@ -427,3 +427,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - isBaseCurrency() helper checks if invoice is in EUR (base currency)
   - hasFxRate() and getFxRateDescription() helpers for UI display logic
 ---
+
+## 2026-02-04 - US-E023
+- What was implemented: Invoice due date management - enforced immutability after issuance and added helper methods
+- Files changed:
+  - app/Models/Finance/Invoice.php (added due_date to immutable fields, added helper methods)
+- **Acceptance criteria verification:**
+  - ✅ Due date required for non-immediate invoices (INV0, INV3): Already enforced in InvoiceType.requiresDueDate() and InvoiceService.issue()
+  - ✅ Due date optional for INV1, INV2, INV4 (immediate payment): Already defined in InvoiceType.requiresDueDate()
+  - ✅ Default due date: +30 days from issuance (configurable per type): Already implemented in InvoiceType.defaultDueDateDays() and InvoiceService.issue()
+  - ✅ Due date modifiable only in draft: Added due_date to immutableAfterIssuance list in Invoice boot() hook
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Much of due date management was already implemented in prior stories (US-E001, US-E012, US-E018)
+  - Due date immutability should be enforced alongside other amounts in the boot() updating hook
+  - Helper methods like canModifyDueDate(), requiresDueDate(), expectsImmediatePayment() provide clean API for UI/service use
+  - InvoiceType enum contains the business rules; Invoice model delegates to enum for due date requirements
+---
