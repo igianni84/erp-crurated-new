@@ -124,10 +124,12 @@ class ShippingOrderResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('sourceWarehouse.name')
-                    ->label('Source Warehouse')
-                    ->sortable()
-                    ->toggleable(),
+                // Destination country placeholder - will be populated when Module K addresses implemented
+                Tables\Columns\TextColumn::make('destination_country')
+                    ->label('Destination')
+                    ->getStateUsing(fn (ShippingOrder $record): string => $record->shipments->first()?->destination_address ? 'See shipment' : '-')
+                    ->toggleable()
+                    ->placeholder('-'),
 
                 Tables\Columns\TextColumn::make('lines_count')
                     ->label('Vouchers')
@@ -136,18 +138,24 @@ class ShippingOrderResource extends Resource
                     ->badge()
                     ->color('info'),
 
+                Tables\Columns\TextColumn::make('sourceWarehouse.name')
+                    ->label('Source Warehouse')
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
                     ->badge()
+                    ->size(Tables\Columns\TextColumn\TextColumnSize::Large)
                     ->formatStateUsing(fn (ShippingOrderStatus $state): string => $state->label())
                     ->color(fn (ShippingOrderStatus $state): string => $state->color())
                     ->icon(fn (ShippingOrderStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('carrier')
-                    ->label('Carrier')
-                    ->sortable()
-                    ->toggleable(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Created')
+                    ->dateTime()
+                    ->sortable(),
 
                 Tables\Columns\TextColumn::make('requested_ship_date')
                     ->label('Requested Ship Date')
@@ -155,11 +163,10 @@ class ShippingOrderResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Created')
-                    ->dateTime()
+                Tables\Columns\TextColumn::make('carrier')
+                    ->label('Carrier')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('status')
@@ -188,24 +195,44 @@ class ShippingOrderResource extends Resource
                     ->preload()
                     ->label('Source Warehouse'),
 
-                Tables\Filters\Filter::make('requested_ship_date_range')
+                Tables\Filters\Filter::make('date_range')
                     ->form([
-                        Forms\Components\DatePicker::make('requested_from')
-                            ->label('Requested From'),
-                        Forms\Components\DatePicker::make('requested_until')
-                            ->label('Requested Until'),
+                        Forms\Components\DatePicker::make('created_from')
+                            ->label('Created From'),
+                        Forms\Components\DatePicker::make('created_until')
+                            ->label('Created Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
                             ->when(
-                                $data['requested_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('requested_ship_date', '>=', $date),
+                                $data['created_from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
                             )
                             ->when(
-                                $data['requested_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('requested_ship_date', '<=', $date),
+                                $data['created_until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
                             );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['created_from'] ?? null) {
+                            $indicators['created_from'] = 'Created from '.$data['created_from'];
+                        }
+                        if ($data['created_until'] ?? null) {
+                            $indicators['created_until'] = 'Created until '.$data['created_until'];
+                        }
+
+                        return $indicators;
                     }),
+
+                Tables\Filters\SelectFilter::make('carrier')
+                    ->options(fn (): array => ShippingOrder::query()
+                        ->whereNotNull('carrier')
+                        ->distinct()
+                        ->pluck('carrier', 'carrier')
+                        ->toArray())
+                    ->searchable()
+                    ->label('Carrier'),
 
                 Tables\Filters\TrashedFilter::make(),
             ])
@@ -222,9 +249,34 @@ class ShippingOrderResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc')
+            ->searchPlaceholder('Search by SO ID, customer name, or tracking number...')
             ->modifyQueryUsing(fn (Builder $query) => $query
-                ->with(['customer', 'sourceWarehouse'])
+                ->with(['customer', 'sourceWarehouse', 'shipments'])
                 ->withCount('lines'));
+    }
+
+    /**
+     * Get the global search result details.
+     *
+     * @return array<string, string>
+     */
+    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    {
+        /** @var ShippingOrder $record */
+        return [
+            'Customer' => $record->customer?->name ?: '-',
+            'Status' => $record->status->label(),
+        ];
+    }
+
+    /**
+     * Get the globally searchable attributes.
+     *
+     * @return list<string>
+     */
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'customer.name', 'shipments.tracking_number'];
     }
 
     public static function getRelations(): array
