@@ -448,9 +448,18 @@ class ViewSerializedBottle extends ViewRecord
                                     return 'NFT not yet minted. Blockchain link will be available after minting.';
                                 }
 
-                                // Placeholder for actual blockchain explorer link
-                                return "View on blockchain explorer: {$record->nft_reference}";
+                                return 'View on blockchain explorer';
                             })
+                            ->url(function (SerializedBottle $record): ?string {
+                                if (! $record->hasNft() || $record->nft_reference === null) {
+                                    return null;
+                                }
+
+                                // Placeholder blockchain explorer URL
+                                // In production, this would be configured per blockchain network
+                                return "https://explorer.example.com/token/{$record->nft_reference}";
+                            })
+                            ->openUrlInNewTab()
                             ->icon(fn (SerializedBottle $record): string => $record->hasNft()
                                 ? 'heroicon-o-arrow-top-right-on-square'
                                 : 'heroicon-o-clock')
