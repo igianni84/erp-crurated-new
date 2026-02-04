@@ -120,4 +120,14 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
     }
+
+    /**
+     * Check if the user can manage payment permissions.
+     * This includes modifying credit limits and authorizing bank transfers.
+     * Requires at least Manager role (Finance function).
+     */
+    public function canManagePaymentPermissions(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
 }

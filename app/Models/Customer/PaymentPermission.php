@@ -15,6 +15,18 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * Created automatically with defaults when Customer becomes active.
  * A Customer has one PaymentPermission record (unique FK).
  *
+ * Credit Limit Rules:
+ *   - credit_limit = null: No credit allowed (cash/card only)
+ *   - credit_limit = value: Maximum credit amount the customer can use
+ *   - Credit is required for B2B channel eligibility
+ *
+ * Bank Transfer Authorization:
+ *   - bank_transfer_allowed requires Finance approval (Manager role or higher)
+ *   - Defaults to false until explicitly authorized
+ *
+ * All modifications are logged via the Auditable trait.
+ * Only users with canManagePaymentPermissions() can modify these settings.
+ *
  * @property string $id
  * @property string $customer_id
  * @property bool $card_allowed
@@ -206,5 +218,92 @@ class PaymentPermission extends Model
             'has_credit_approved' => $this->hasCreditApproved(),
             'has_payment_block' => $this->hasPaymentBlock(),
         ];
+    }
+
+    /**
+     * Check if a user can modify payment permissions.
+     * Requires Finance role (Manager or higher).
+     */
+    public static function canBeModifiedBy(?\App\Models\User $user): bool
+    {
+        return $user?->canManagePaymentPermissions() ?? false;
+    }
+
+    /**
+     * Update payment permissions with authorization check.
+     * Throws an exception if the user is not authorized.
+     *
+     * @param  array<string, mixed>  $attributes
+     *
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function updateWithAuthorization(array $attributes, ?\App\Models\User $user = null): bool
+    {
+        $user = $user ?? \Illuminate\Support\Facades\Auth::user();
+
+        if (! self::canBeModifiedBy($user)) {
+            throw new \Illuminate\Auth\Access\AuthorizationException(
+                'Only Finance roles (Manager or higher) can modify payment permissions.'
+            );
+        }
+
+        return $this->update($attributes);
+    }
+
+    /**
+     * Enable bank transfer payments with authorization check.
+     * Bank transfers require Finance approval.
+     *
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function authorizeBankTransfer(?\App\Models\User $user = null): void
+    {
+        $this->updateWithAuthorization(['bank_transfer_allowed' => true], $user);
+    }
+
+    /**
+     * Revoke bank transfer authorization.
+     *
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function revokeBankTransfer(?\App\Models\User $user = null): void
+    {
+        $this->updateWithAuthorization(['bank_transfer_allowed' => false], $user);
+    }
+
+    /**
+     * Set or update the credit limit with authorization check.
+     *
+     * @param  float|string|null  $limit  The credit limit (null to remove credit)
+     *
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function setCreditLimitWithAuthorization(float|string|null $limit, ?\App\Models\User $user = null): void
+    {
+        $this->updateWithAuthorization(['credit_limit' => $limit], $user);
+    }
+
+    /**
+     * Get a human-readable explanation of the credit limit status.
+     */
+    public function getCreditLimitExplanation(): string
+    {
+        if ($this->credit_limit === null) {
+            return 'No credit approved. Customer must pay by card or cash.';
+        }
+
+        return 'Credit approved up to '.number_format((float) $this->credit_limit, 2).' EUR.';
+    }
+
+    /**
+     * Get a human-readable explanation of bank transfer status.
+     */
+    public function getBankTransferExplanation(): string
+    {
+        if ($this->bank_transfer_allowed) {
+            return 'Bank transfers authorized by Finance.';
+        }
+
+        return 'Bank transfers not authorized. Requires Finance approval.';
     }
 }
