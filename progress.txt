@@ -405,3 +405,38 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - HTML in TextEntry using heredoc syntax for complex layouts
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B017
+- **Implemented**: Discrepancy Resolution flow with immutable correction events
+- **Files modified**:
+  - app/Models/Inventory/InboundBatch.php (added relationships)
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ViewInboundBatch.php (added Discrepancy Resolution tab, enhanced action)
+- **Features implemented**:
+  - Dedicated Discrepancy Resolution tab (visible only when quantity_expected != quantity_received)
+  - Side-by-side comparison: Expected Quantity vs Received Quantity with source info
+  - Discrepancy Analysis section with type (OVERAGE/SHORTAGE), amount, and serialization blocked status
+  - Resolution History section displaying InventoryException records
+  - Original Values Preserved section (collapsible) showing immutable baseline
+  - Enhanced Resolve Discrepancy action:
+    - Uses DiscrepancyResolution enum for resolution types (shortage, overage, damage, other)
+    - Creates immutable InventoryException record (correction event) instead of appending to condition_notes
+    - Preserves original values (delta record approach)
+    - Audit confirmation checkbox required
+    - Full context in reason (delta, expected, received)
+  - Resolution history with visual indicators per type
+- **Model changes**:
+  - Added inventoryExceptions() HasMany relationship to InboundBatch
+  - Added discrepancyResolutions() filtered HasMany for discrepancy-specific exceptions
+- **Key patterns used**:
+  - Tab visibility controlled by record state (hasDiscrepancy())
+  - InventoryException as immutable correction event (not modifying original values)
+  - discrepancyResolutions() filters by exception_type prefix 'discrepancy_'
+  - HTML generation for resolution history with color-coded badges
+  - Checkbox confirmation for audit trail awareness
+- **Learnings for future iterations**:
+  - InventoryException model is used for various exception types (not just discrepancies)
+  - exception_type string field allows flexible categorization (e.g., 'discrepancy_shortage', 'discrepancy_overage')
+  - Original values (quantity_expected, quantity_received) are NEVER modified - only serialization_status changes
+  - Resolution creates both exception record AND updates batch status atomically
+  - Browser verification requirement noted - manual testing needed
+---
