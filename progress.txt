@@ -1369,3 +1369,29 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - PHPStan requires explicit instanceof checks for Model::find() return types
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B047
+- **Implemented**: Committed inventory consumption override (exceptional) flow
+- **Files created**:
+  - app/Services/Inventory/CommittedInventoryOverrideService.php (service for override logic)
+  - app/Filament/Pages/CommittedInventoryOverride.php (dedicated Filament page)
+  - resources/views/filament/pages/committed-inventory-override.blade.php (Blade view)
+- **Files modified**:
+  - app/Enums/UserRole.php (added canConsumeCommittedInventory() method)
+  - app/Models/User.php (added canConsumeCommittedInventory() method)
+  - app/Filament/Pages/EventConsumption.php (added link to override page for authorized users)
+- **Key features**:
+  - Permission-gated: Only Admin+ roles can access the override flow
+  - 5-step wizard with intentionally painful multiple confirmations
+  - Mandatory justification (minimum 20 characters) with full context
+  - Creates InventoryException record for each consumed bottle (exception_type = 'committed_consumption_override')
+  - Full audit trail with allocation quantities at time of override
+  - Final confirmation requires typing "OVERRIDE COMMITTED INVENTORY"
+  - EventConsumption page shows link to override page if user has permission
+- **Learnings for future iterations**:
+  - CommittedInventoryOverrideService.EXCEPTION_TYPE constant for consistent exception_type value
+  - InventoryException records created by override are flagged for Finance & Ops review (pending resolution)
+  - Use getPendingOverrideExceptions() to list exceptions awaiting review
+  - User.canConsumeCommittedInventory() checks role permission
+  - Static canAccess() in Filament pages controls navigation visibility
+---
