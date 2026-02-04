@@ -1313,68 +1313,308 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 5: Eligibility - Channel eligibility computed read-only (placeholder).
+     * Tab 5: Eligibility - Channel eligibility computed read-only with full explanation.
      */
     protected function getEligibilityTab(): Tab
     {
+        /** @var Customer $record */
+        $record = $this->record;
+
+        $eligibilityEngine = new \App\Services\Customer\EligibilityEngine;
+        $detailedEligibility = $eligibilityEngine->getDetailedEligibility($record);
+
+        // Count how many channels are eligible
+        $eligibleCount = count(array_filter($detailedEligibility, fn ($data) => $data['eligible']));
+        $totalCount = count($detailedEligibility);
+
         return Tab::make('Eligibility')
             ->icon('heroicon-o-check-badge')
+            ->badge("{$eligibleCount}/{$totalCount}")
+            ->badgeColor($eligibleCount === $totalCount ? 'success' : ($eligibleCount > 0 ? 'warning' : 'danger'))
             ->schema([
                 Section::make('Channel Eligibility')
-                    ->description('Computed eligibility for each sales channel based on membership, blocks, and permissions')
+                    ->description('Real-time computed eligibility for each sales channel. This is read-only and reflects current state.')
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('refresh_eligibility')
+                            ->label('Refresh')
+                            ->icon('heroicon-o-arrow-path')
+                            ->color('gray')
+                            ->action(function (): void {
+                                Notification::make()
+                                    ->title('Eligibility recalculated')
+                                    ->body('The eligibility status has been refreshed.')
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData([]);
+                            }),
+                    ])
                     ->schema([
                         Grid::make(3)
                             ->schema([
-                                Group::make([
-                                    TextEntry::make('b2c_eligibility')
-                                        ->label('B2C Channel')
-                                        ->getStateUsing(fn (): string => 'Unknown')
-                                        ->badge()
-                                        ->color('gray')
-                                        ->icon('heroicon-o-question-mark-circle'),
-                                    TextEntry::make('b2c_reasons')
-                                        ->label('Factors')
-                                        ->getStateUsing(fn (): string => 'Eligibility engine not yet implemented')
-                                        ->color('gray'),
-                                ])->columnSpan(1),
-                                Group::make([
-                                    TextEntry::make('b2b_eligibility')
-                                        ->label('B2B Channel')
-                                        ->getStateUsing(fn (): string => 'Unknown')
-                                        ->badge()
-                                        ->color('gray')
-                                        ->icon('heroicon-o-question-mark-circle'),
-                                    TextEntry::make('b2b_reasons')
-                                        ->label('Factors')
-                                        ->getStateUsing(fn (): string => 'Eligibility engine not yet implemented')
-                                        ->color('gray'),
-                                ])->columnSpan(1),
-                                Group::make([
-                                    TextEntry::make('club_eligibility')
-                                        ->label('Club Channel')
-                                        ->getStateUsing(fn (): string => 'Unknown')
-                                        ->badge()
-                                        ->color('gray')
-                                        ->icon('heroicon-o-question-mark-circle'),
-                                    TextEntry::make('club_reasons')
-                                        ->label('Factors')
-                                        ->getStateUsing(fn (): string => 'Eligibility engine not yet implemented')
-                                        ->color('gray'),
-                                ])->columnSpan(1),
+                                $this->getChannelEligibilityCard(ChannelScope::B2C, $detailedEligibility['b2c']),
+                                $this->getChannelEligibilityCard(ChannelScope::B2B, $detailedEligibility['b2b']),
+                                $this->getChannelEligibilityCard(ChannelScope::Club, $detailedEligibility['club']),
                             ]),
                     ]),
-                Section::make('Eligibility Information')
-                    ->description('How eligibility is computed')
+                Section::make('Channel Requirements')
+                    ->description('The rules that determine eligibility for each channel')
                     ->collapsed()
                     ->collapsible()
                     ->schema([
-                        TextEntry::make('eligibility_info_placeholder')
+                        Grid::make(3)
+                            ->schema([
+                                $this->getChannelRequirementsCard(ChannelScope::B2C),
+                                $this->getChannelRequirementsCard(ChannelScope::B2B),
+                                $this->getChannelRequirementsCard(ChannelScope::Club),
+                            ]),
+                    ]),
+                Section::make('How to Resolve Issues')
+                    ->description('Quick links to resolve eligibility problems')
+                    ->collapsed()
+                    ->collapsible()
+                    ->schema([
+                        TextEntry::make('resolve_issues_info')
                             ->label('')
-                            ->getStateUsing(fn (): string => 'Eligibility is computed based on: membership tier & status, operational blocks, payment permissions, and club affiliations. The eligibility engine will be implemented in US-015 through US-017.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                            ->getStateUsing(fn (): string => $this->getResolveIssuesHtml($detailedEligibility))
+                            ->html()
+                            ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    /**
+     * Get a card displaying eligibility status and factors for a channel.
+     */
+    protected function getChannelEligibilityCard(ChannelScope $channel, array $eligibilityData): Group
+    {
+        $isEligible = $eligibilityData['eligible'];
+        $positiveReasons = $eligibilityData['reasons']['positive'];
+        $negativeReasons = $eligibilityData['reasons']['negative'];
+
+        return Group::make([
+            TextEntry::make("{$channel->value}_eligibility_status")
+                ->label($channel->label().' Channel')
+                ->getStateUsing(fn (): string => $isEligible ? 'Eligible' : 'Not Eligible')
+                ->badge()
+                ->color($isEligible ? 'success' : 'danger')
+                ->icon($isEligible ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
+            TextEntry::make("{$channel->value}_description")
+                ->label('')
+                ->getStateUsing(fn (): string => $channel->description())
+                ->color('gray')
+                ->size(TextEntry\TextEntrySize::Small),
+            TextEntry::make("{$channel->value}_factors")
+                ->label('Factors')
+                ->getStateUsing(fn (): string => $this->renderFactorsHtml($positiveReasons, $negativeReasons))
+                ->html(),
+        ])->columnSpan(1);
+    }
+
+    /**
+     * Render HTML for eligibility factors.
+     *
+     * @param  array<string>  $positiveReasons
+     * @param  array<string>  $negativeReasons
+     */
+    protected function renderFactorsHtml(array $positiveReasons, array $negativeReasons): string
+    {
+        $html = '<div class="space-y-2">';
+
+        // Negative factors first (more important to show what's blocking)
+        foreach ($negativeReasons as $reason) {
+            $escapedReason = htmlspecialchars($reason);
+            $html .= '<div class="flex items-start gap-2 text-sm">';
+            $html .= '<span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 flex-shrink-0">';
+            $html .= '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+            $html .= '</span>';
+            $html .= "<span class=\"text-red-700 dark:text-red-300\">{$escapedReason}</span>";
+            $html .= '</div>';
+        }
+
+        // Positive factors
+        foreach ($positiveReasons as $reason) {
+            $escapedReason = htmlspecialchars($reason);
+            $html .= '<div class="flex items-start gap-2 text-sm">';
+            $html .= '<span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 flex-shrink-0">';
+            $html .= '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+            $html .= '</span>';
+            $html .= "<span class=\"text-green-700 dark:text-green-300\">{$escapedReason}</span>";
+            $html .= '</div>';
+        }
+
+        if (empty($positiveReasons) && empty($negativeReasons)) {
+            $html .= '<div class="text-gray-500 text-sm">No factors evaluated</div>';
+        }
+
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Get a card displaying requirements for a channel.
+     */
+    protected function getChannelRequirementsCard(ChannelScope $channel): Group
+    {
+        $requirements = $channel->getEligibilityRequirements();
+
+        return Group::make([
+            TextEntry::make("{$channel->value}_requirements_title")
+                ->label($channel->label().' Requirements')
+                ->getStateUsing(fn (): string => '')
+                ->badge()
+                ->color($channel->color())
+                ->icon($channel->icon())
+                ->formatStateUsing(fn (): string => $channel->label()),
+            TextEntry::make("{$channel->value}_requirements_list")
+                ->label('')
+                ->getStateUsing(fn (): string => $this->renderRequirementsHtml($requirements))
+                ->html(),
+        ])->columnSpan(1);
+    }
+
+    /**
+     * Render HTML for channel requirements.
+     *
+     * @param  array<string>  $requirements
+     */
+    protected function renderRequirementsHtml(array $requirements): string
+    {
+        $html = '<ul class="list-disc list-inside space-y-1 text-sm text-gray-600 dark:text-gray-400">';
+
+        foreach ($requirements as $requirement) {
+            $escapedReq = htmlspecialchars($requirement);
+            $html .= "<li>{$escapedReq}</li>";
+        }
+
+        $html .= '</ul>';
+
+        return $html;
+    }
+
+    /**
+     * Get HTML for resolve issues section with links to relevant tabs.
+     *
+     * @param  array<string, array{eligible: bool, reasons: array{positive: array<string>, negative: array<string>}}>  $eligibilityData
+     */
+    protected function getResolveIssuesHtml(array $eligibilityData): string
+    {
+        $issues = [];
+
+        foreach ($eligibilityData as $channelValue => $data) {
+            if (! $data['eligible']) {
+                foreach ($data['reasons']['negative'] as $reason) {
+                    $issues[] = [
+                        'channel' => ChannelScope::from($channelValue)->label(),
+                        'reason' => $reason,
+                        'tab' => $this->getRelevantTabForIssue($reason),
+                    ];
+                }
+            }
+        }
+
+        if (empty($issues)) {
+            return '<div class="flex items-center gap-2 text-green-600 dark:text-green-400">'.
+                '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'.
+                '<span>All channels are fully eligible! No issues to resolve.</span>'.
+                '</div>';
+        }
+
+        $html = '<div class="space-y-3">';
+
+        foreach ($issues as $issue) {
+            $channelEscaped = htmlspecialchars($issue['channel']);
+            $reasonEscaped = htmlspecialchars($issue['reason']);
+            $tabInfo = $issue['tab'];
+
+            $html .= '<div class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">';
+            $html .= '<div class="flex-shrink-0">';
+            $html .= '<span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400">';
+            $html .= '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>';
+            $html .= '</span>';
+            $html .= '</div>';
+            $html .= '<div class="flex-1">';
+            $html .= "<div class=\"font-medium text-gray-900 dark:text-gray-100\">{$channelEscaped} Channel</div>";
+            $html .= "<div class=\"text-sm text-gray-600 dark:text-gray-400\">{$reasonEscaped}</div>";
+
+            if ($tabInfo) {
+                $tabNameEscaped = htmlspecialchars($tabInfo['name']);
+                $tabDescEscaped = htmlspecialchars($tabInfo['description']);
+                $html .= '<div class="mt-2">';
+                $html .= "<span class=\"text-xs text-primary-600 dark:text-primary-400 font-medium\">→ Go to {$tabNameEscaped} tab: {$tabDescEscaped}</span>";
+                $html .= '</div>';
+            }
+
+            $html .= '</div>';
+            $html .= '</div>';
+        }
+
+        $html .= '</div>';
+
+        return $html;
+    }
+
+    /**
+     * Get the relevant tab information for resolving an issue.
+     *
+     * @return array{name: string, description: string}|null
+     */
+    protected function getRelevantTabForIssue(string $reason): ?array
+    {
+        // Map issue keywords to tabs
+        $lowerReason = strtolower($reason);
+
+        if (str_contains($lowerReason, 'membership') || str_contains($lowerReason, 'tier') || str_contains($lowerReason, 'approved')) {
+            return [
+                'name' => 'Membership',
+                'description' => 'Apply for or update membership status',
+            ];
+        }
+
+        if (str_contains($lowerReason, 'payment') || str_contains($lowerReason, 'card')) {
+            return [
+                'name' => 'Payment & Credit',
+                'description' => 'Review payment permissions',
+            ];
+        }
+
+        if (str_contains($lowerReason, 'credit')) {
+            return [
+                'name' => 'Payment & Credit',
+                'description' => 'Request credit approval',
+            ];
+        }
+
+        if (str_contains($lowerReason, 'block')) {
+            return [
+                'name' => 'Operational Blocks',
+                'description' => 'Review and remove active blocks',
+            ];
+        }
+
+        if (str_contains($lowerReason, 'club') || str_contains($lowerReason, 'affiliation')) {
+            return [
+                'name' => 'Clubs',
+                'description' => 'Join a club to enable Club channel access',
+            ];
+        }
+
+        if (str_contains($lowerReason, 'customer type') || str_contains($lowerReason, 'b2b')) {
+            return [
+                'name' => 'Overview',
+                'description' => 'Customer type cannot be changed directly',
+            ];
+        }
+
+        if (str_contains($lowerReason, 'account')) {
+            return [
+                'name' => 'Accounts',
+                'description' => 'Review account status and settings',
+            ];
+        }
+
+        return null;
     }
 
     /**
