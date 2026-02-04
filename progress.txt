@@ -1196,3 +1196,28 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Progress bars use transition-all for smooth animation when percentage changes
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-053
+- What was implemented:
+  - Widget C: Inbound Status added to Procurement Dashboard
+  - Four metrics tracked with color-coded health status:
+    1. Expected next 30 days (count) - informational metric for incoming PO deliveries
+    2. Delayed (count) - POs with delivery window passed but not closed
+    3. Awaiting serialization routing (count) - Inbounds in Recorded status needing routing
+    4. Awaiting hand-off (count) - Completed inbounds ready for Module B
+  - Health status helper method with thresholds: green (healthy), yellow (attention), red (critical)
+  - Click navigation: Each metric links to its filtered list in InboundResource or PurchaseOrderResource
+  - Visual design: 4-column grid layout with consistent card styling
+  - Delayed alert box: Prominent warning when any deliveries are overdue
+  - Legend showing color meanings and click hint
+- Files changed:
+  - app/Filament/Pages/ProcurementDashboard.php (modified - added getInboundStatusMetrics, getInboundStatusHealthStatus, and URL helper methods)
+  - resources/views/filament/pages/procurement-dashboard.blade.php (modified - added Widget C section between Widget B and Status Distributions)
+- **Learnings for future iterations:**
+  - Dashboard widgets follow pattern: PHP data method + Blade view with Tailwind styling
+  - Inbound status metrics combine data from both Inbound and PurchaseOrder models
+  - "Expected" metric uses PO expected_delivery_end dates, "Awaiting" metrics use Inbound status
+  - Use 'info' color for informational metrics that don't indicate health (expected count)
+  - Alert boxes with border-2 and exclamation-triangle icon draw attention to overdue items
+  - Browser verification should be done manually as dev-browser skill is not available
+---
