@@ -745,3 +745,37 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Preference collection progress is a placeholder - actual voucher preferences would come from Module A integration
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-034
+- What was implemented:
+  - Customer Preference Collection tracking widget in Bottling Instruction Detail
+  - Visual progress bar showing collected/total vouchers percentage with color-coded status
+  - Voucher list with preference status (collected/pending) and customer information
+  - Customer portal link section for external preference collection
+  - Helper methods added to BottlingInstruction model:
+    - getLinkedVouchers(): fetches vouchers via source allocation linkage
+    - getPreferenceProgress(): returns {collected, pending, total} counts
+    - getPreferenceProgressPercentage(): returns collection percentage as float
+    - getVoucherPreferenceList(): returns vouchers with preference status details
+    - getCustomerPortalUrl(): returns external portal URL for preference collection
+  - Created CustomerPreferenceCollectionWidget Filament widget (app/Filament/Widgets/Procurement/)
+  - Created Blade view for widget with Tailwind CSS styling
+  - Integrated widget into ViewBottlingInstruction Customer Preferences tab with:
+    - Enhanced progress bar with color coding (success/warning/info based on percentage)
+    - Stats grid showing collected/pending/total counts as badges
+    - Collapsible voucher list section with status icons
+    - Customer portal link with CTA button
+- Files changed:
+  - app/Models/Procurement/BottlingInstruction.php (modified - added preference collection helper methods)
+  - app/Filament/Resources/Procurement/BottlingInstructionResource/Pages/ViewBottlingInstruction.php (modified - added widget integration and HTML rendering methods)
+  - app/Filament/Widgets/Procurement/CustomerPreferenceCollectionWidget.php (new)
+  - resources/views/filament/widgets/procurement/customer-preference-collection-widget.blade.php (new)
+- **Learnings for future iterations:**
+  - Vouchers are linked via ProcurementIntent.source_allocation_id relationship to Allocation
+  - Preference status is simulated from BottlingPreferenceStatus enum - real implementation would query Module A
+  - HTML rendering in Filament Infolist TextEntry uses getStateUsing() + ->html() for custom widgets
+  - Progress bar color coding: success (100%), warning (>=50%), info (>0%), gray (0%)
+  - For complex UI widgets, use helper methods that return HTML strings with Tailwind classes
+  - Customer portal URL is configured via config('app.customer_portal_url') with fallback
+  - Browser verification should be done manually as dev-browser skill is not available
+---
