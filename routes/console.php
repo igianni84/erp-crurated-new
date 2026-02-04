@@ -3,6 +3,7 @@
 use App\Jobs\Allocation\ExpireReservationsJob;
 use App\Jobs\Allocation\ExpireTransfersJob;
 use App\Jobs\Finance\IdentifyOverdueInvoicesJob;
+use App\Jobs\Finance\ProcessSubscriptionBillingJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -19,3 +20,6 @@ Schedule::job(new ExpireTransfersJob)->everyMinute();
 
 // Schedule the job to identify overdue invoices daily at 8:00 AM
 Schedule::job(new IdentifyOverdueInvoicesJob)->dailyAt('08:00');
+
+// Schedule the job to process subscription billing daily at 6:00 AM (before overdue check)
+Schedule::job(new ProcessSubscriptionBillingJob(autoIssue: true))->dailyAt('06:00');
