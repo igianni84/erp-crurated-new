@@ -140,3 +140,23 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Migration sequence continues: 390003 for accounts table
   - Account inherits restrictions from Customer but can add its own (to be implemented in later stories)
 ---
+
+## 2026-02-04 - US-007
+- What was implemented:
+  - Updated CustomerResource to be the primary operational screen for customer management
+  - Columns: display_name (via Party/legacy), customer_type (badge), membership_tier (placeholder), status (badge), accounts_count, has_active_blocks indicator, email, tax_id (via Party), updated_at
+  - Filters: customer_type, status, membership_tier (placeholder), has_blocks (placeholder), TrashedFilter
+  - Search on: name, party.legal_name, email, party.tax_id
+  - Quick actions: view, suspend (visible when active), activate (visible when suspended/prospect)
+  - Bulk actions: suspend, activate, delete, restore
+  - Eager loads party and accounts relationships for performance
+  - Updated form to use CustomerType and CustomerStatus enums
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource.php (updated - complete rewrite of table() method)
+- **Learnings for future iterations:**
+  - Use `->state()` callback for computed columns like display_name that don't map to database fields
+  - For searchable computed columns, use `->searchable(query: fn())` to define custom search logic
+  - membership_tier and has_active_blocks are placeholders until US-011 and US-027 are implemented
+  - Use `->visible(fn())` on actions for conditional display based on record state
+  - Eager load with `->with(['party', 'accounts'])` and `->withCount('accounts')` in getEloquentQuery()
+---
