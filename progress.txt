@@ -666,3 +666,61 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - "Create and Activate" option uses Hidden field with wire:click to set flag before submit
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-030
+- What was implemented:
+  - Step 2 (Bottling Rules) was already implemented in US-029 iteration
+  - Verified all acceptance criteria are met:
+    - allowed_formats (multi-select) with common formats (375ml, 750ml, 1500ml, 3000ml, 6000ml)
+    - allowed_case_configurations (multi-select) with options (1, 3, 6, 12 bottles/case)
+    - default_bottling_rule (textarea) with explanation helper text
+    - Format suggestion placeholder with tip about producer constraints
+    - Rule preview showing plain-language formula of selected options and default rule
+  - Typecheck and lint pass for all Procurement module files
+- Files changed:
+  - No new files (implementation was done ahead in US-029)
+  - prd.json (marked US-030 as passes: true)
+- **Learnings for future iterations:**
+  - Wizard steps implemented together in US-029 for complete testing flow
+  - Rule preview uses live() fields to reactively update the formula display
+  - Browser verification should be done manually as dev-browser skill is not available
+---
+
+## 2026-02-04 - US-031
+- What was implemented:
+  - Step 3 (Personalisation) was already implemented in US-029 iteration
+  - Verified all acceptance criteria are met:
+    - bottling_deadline (date required) with minDate validation
+    - delivery_location (select) with warehouse options
+    - personalised_bottling_required (toggle) with explanation when enabled
+    - early_binding_required (toggle) with explanation: "voucher-bottle binding happens before bottling"
+    - Prominent warning: "After deadline, defaults will be applied automatically"
+  - Typecheck and lint pass for all Procurement module files
+- Files changed:
+  - No new files (implementation was done ahead in US-029)
+  - prd.json (marked US-031 as passes: true)
+- **Learnings for future iterations:**
+  - Personalisation toggles use live() with hidden() on explanation placeholders
+  - Toggle explanations provide context-specific guidance when options are enabled
+  - Browser verification should be done manually as dev-browser skill is not available
+---
+
+## 2026-02-04 - US-032
+- What was implemented:
+  - Step 4 (Review) was already implemented in US-029 iteration
+  - Verified all acceptance criteria are met:
+    - Read-only summary of all data (Intent, Bottling Rules, Personalisation sections)
+    - Visual countdown to deadline with color coding (red < 14 days, amber < 30 days, green otherwise)
+    - Warning shown when deadline < 30 days
+    - BottlingInstruction created in status draft via mutateFormDataBeforeCreate()
+    - CTAs: "Create as Draft" and "Create and Activate" buttons
+  - Typecheck and lint pass for all Procurement module files
+- Files changed:
+  - No new files (implementation was done ahead in US-029)
+  - prd.json (marked US-032 as passes: true)
+- **Learnings for future iterations:**
+  - Review step follows pattern: Section per domain area with read-only Placeholder fields
+  - Deadline countdown uses Carbon::diffInDays() with false parameter for signed difference
+  - "Create and Activate" sets status to Active instead of Draft in mutateFormDataBeforeCreate
+  - Browser verification should be done manually as dev-browser skill is not available
+---
