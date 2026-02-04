@@ -384,3 +384,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - canSendEmail() checks: status, invoice_number presence, customer email presence
   - Audit logging uses 'email_sent' or 'email_queued' events with recipient info
 ---
+
+## 2026-02-04 - US-E021
+- What was implemented: Overdue invoice detection system
+- Files changed:
+  - app/Jobs/Finance/IdentifyOverdueInvoicesJob.php (new scheduled job to identify and log overdue invoices)
+  - app/Models/Finance/Invoice.php (added is_overdue attribute, getDaysOverdue(), scopeOverdue(), scopeNotOverdue())
+  - app/Filament/Resources/Finance/InvoiceResource.php (added Overdue Status ternary filter)
+  - routes/console.php (scheduled IdentifyOverdueInvoicesJob to run daily at 8:00 AM)
+- **Learnings for future iterations:**
+  - Finance jobs go in app/Jobs/Finance/ directory
+  - Schedule jobs in routes/console.php using Schedule::job()->dailyAt() for daily jobs
+  - Overdue detection already had partial implementation from US-E013 (Overdue tab, due_date color, Flags column)
+  - Add query scopes to models for reusable query logic (scopeOverdue(), scopeNotOverdue())
+  - PHPStan doesn't auto-recognize Laravel scopes - add @method docblocks or use inline queries
+  - TernaryFilter::make() with queries() is useful for boolean-like filtering
+  - Log channel 'finance' should be used for financial logging (ensure config/logging.php defines it)
+  - Use getIsOverdueAttribute() to create computed properties accessible as $model->is_overdue
+---
