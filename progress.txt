@@ -1379,3 +1379,42 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Use checkSerializationLocationAuthorization() for UI validation, validateSerializationRouting() for blocking
   - Filament forms can show live validation with afterStateUpdated and Hidden fields for state
 ---
+
+## 2026-02-04 - US-061, US-062, US-063, US-064, US-065, US-066, US-067
+- What was verified:
+  - US-061: Bottling deadline auto-default was already implemented in US-035 (ApplyBottlingDefaultsJob)
+  - US-062: PO-Inbound variance handling was already implemented in US-027 (variance methods in PurchaseOrder model)
+  - US-063: Intent closure validation already implemented with canClose() in ProcurementIntentService
+  - US-064: Audit log for ProcurementIntent - Auditable trait applied, logCreation/logStatusTransition methods
+  - US-065: Audit log for PurchaseOrder - Auditable trait applied, Audit tab in ViewPurchaseOrder
+  - US-066: Audit log for BottlingInstruction - Auditable trait applied, Audit tab in ViewBottlingInstruction
+  - US-067: Audit log for Inbound - Auditable trait applied, Audit tab in ViewInbound
+- Files changed:
+  - prd.json (marked all as passes: true with verification notes)
+- **Learnings for future iterations:**
+  - All entity-level audit tabs follow same pattern: event type filter, date range filter, timeline view
+  - Auditable trait provides automatic audit logging
+  - Closure validation pattern: canClose() returns {can_close: bool, pending_items: array}
+---
+
+## 2026-02-04 - US-068
+- What was implemented:
+  - Created ProcurementAudit.php page - global audit view for Module D
+  - Features:
+    - Unified list of all audit events from ProcurementIntent, PurchaseOrder, BottlingInstruction, Inbound
+    - Filters: entity_type (multi-select), event_type (multi-select), date_range, user
+    - Search by entity_id
+    - Export CSV for compliance
+    - Statistics cards: total events, today's events, entities tracked, active users
+    - View Details modal and View Entity link to original record
+  - Created procurement-audit.blade.php view template
+- Files changed:
+  - app/Filament/Pages/ProcurementAudit.php (new)
+  - resources/views/filament/pages/procurement-audit.blade.php (new)
+  - prd.json (marked US-068 as passes: true)
+- **Learnings for future iterations:**
+  - Global audit pages follow CommercialAudit.php pattern
+  - Use ENTITY_TYPES constant for filtering audit_type
+  - Export uses streamDownload with current filter state
+  - Entity-specific labels use model methods like getProductLabel()
+---
