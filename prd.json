@@ -759,8 +759,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 47,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added handleShipmentConfirmationFailure() in WmsIntegrationService. When WMS reports shipment but ERP validation fails: marks shipment as Failed via markFailed(), creates critical WmsDiscrepancy exception with [CRITICAL] prefix, logs EVENT_WMS_CONFIRMATION_FAILED with redemption_executed=false. Resolution paths: retry, manual reconciliation, cancel SO."
     },
     {
       "id": "US-C048",

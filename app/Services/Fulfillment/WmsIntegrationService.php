@@ -2,6 +2,7 @@
 
 namespace App\Services\Fulfillment;
 
+use App\Enums\Fulfillment\ShipmentStatus;
 use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
 use App\Enums\Fulfillment\ShippingOrderExceptionType;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
@@ -49,6 +50,8 @@ class WmsIntegrationService
     public const EVENT_WMS_DISCREPANCY = 'wms_discrepancy';
 
     public const EVENT_WMS_RE_PICK_REQUESTED = 'wms_re_pick_requested';
+
+    public const EVENT_WMS_CONFIRMATION_FAILED = 'wms_confirmation_failed';
 
     public function __construct(
         protected LateBindingService $lateBindingService,
@@ -405,16 +408,15 @@ class WmsIntegrationService
         // Check for missing serials (partial shipment not supported in MVP)
         $missingSerials = array_diff($expectedSerials, $shippedSerials);
         if (! empty($missingSerials)) {
-            // Create exception for partial shipment
-            ShippingOrderException::create([
-                'shipping_order_id' => $so->id,
-                'exception_type' => ShippingOrderExceptionType::WmsDiscrepancy,
-                'description' => 'Partial shipment detected. Expected serials not included in WMS confirmation: '
+            // Mark shipment as failed - redemption NOT executed
+            $this->handleShipmentConfirmationFailure(
+                $shipment,
+                $so,
+                'Partial shipment detected. Expected serials not included in WMS confirmation: '
                     .implode(', ', $missingSerials)
                     .'. Partial shipments are not supported in MVP.',
-                'status' => ShippingOrderExceptionStatus::Active,
-                'created_by' => Auth::id(),
-            ]);
+                'partial_shipment'
+            );
 
             throw new \InvalidArgumentException(
                 'Cannot confirm shipment: partial shipment detected. Expected '
@@ -436,6 +438,15 @@ class WmsIntegrationService
                 $validationResult['results'],
                 fn ($r) => ! $r['valid']
             ));
+
+            // Mark shipment as failed - redemption NOT executed
+            $this->handleShipmentConfirmationFailure(
+                $shipment,
+                $so,
+                'WMS reports shipment but ERP validation failed. Invalid serials: '
+                    .implode(', ', $invalidSerials),
+                'validation_failed'
+            );
 
             throw new \InvalidArgumentException(
                 'Cannot confirm shipment: some shipped serials failed validation: '
@@ -535,6 +546,63 @@ class WmsIntegrationService
         );
 
         return $exception;
+    }
+
+    /**
+     * Handle shipment confirmation failure.
+     *
+     * When WMS reports a shipment but ERP validation fails:
+     * - Mark shipment as failed
+     * - Redemption is NOT executed
+     * - Create critical alert exception
+     * - Full audit trail preserved
+     * - Recovery requires admin intervention
+     *
+     * @param  Shipment  $shipment  The shipment that failed
+     * @param  ShippingOrder  $so  The shipping order
+     * @param  string  $reason  The reason for failure
+     * @param  string  $failureType  The type of failure (partial_shipment, validation_failed, etc.)
+     */
+    protected function handleShipmentConfirmationFailure(
+        Shipment $shipment,
+        ShippingOrder $so,
+        string $reason,
+        string $failureType
+    ): void {
+        // Mark shipment as failed - this BLOCKS redemption and ownership transfer
+        $this->shipmentService->markFailed($shipment, $reason);
+
+        // Create critical exception for admin review
+        ShippingOrderException::create([
+            'shipping_order_id' => $so->id,
+            'exception_type' => ShippingOrderExceptionType::WmsDiscrepancy,
+            'description' => "[CRITICAL] WMS shipment confirmation failed: {$reason}. "
+                .'Shipment has been marked as FAILED. Redemption was NOT executed. '
+                .'Admin intervention required for recovery.',
+            'resolution_path' => implode("\n", [
+                'Retry confirmation after resolving the validation issue',
+                'Manual reconciliation by admin',
+                'Cancel Shipping Order and create new SO',
+            ]),
+            'status' => ShippingOrderExceptionStatus::Active,
+            'created_by' => Auth::id(),
+        ]);
+
+        // Log the confirmation failure
+        $this->logEvent(
+            $so,
+            self::EVENT_WMS_CONFIRMATION_FAILED,
+            "[CRITICAL] WMS shipment confirmation failed: {$reason}",
+            null,
+            [
+                'shipment_id' => $shipment->id,
+                'failure_type' => $failureType,
+                'reason' => $reason,
+                'shipment_status' => ShipmentStatus::Failed->value,
+                'redemption_executed' => false,
+                'admin_intervention_required' => true,
+            ]
+        );
     }
 
     /**

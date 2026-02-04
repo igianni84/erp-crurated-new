@@ -644,3 +644,18 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Banner "One or more vouchers are not eligible" already implemented in Vouchers & Eligibility tab
   - Cross-allocation substitution blocked at: ShippingOrderLine boot() guard, LateBindingService, WmsIntegrationService
 ---
+
+## 2026-02-04 - US-C047
+- **What was implemented:** Shipment Failure Recovery handling
+- **Files changed:**
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (added handleShipmentConfirmationFailure method and EVENT_WMS_CONFIRMATION_FAILED constant)
+- **Learnings for future iterations:**
+  - Added ShipmentStatus import for Failed enum value
+  - handleShipmentConfirmationFailure() is called when WMS reports shipment but ERP validation fails
+  - Flow: markFailed() to set shipment status to Failed, create critical exception with [CRITICAL] prefix, log EVENT_WMS_CONFIRMATION_FAILED
+  - Redemption is NOT executed because confirmShipment() throws exception before reaching redemption code
+  - Exception marked as CRITICAL in description to highlight urgency for admin review
+  - Resolution paths: Retry confirmation, Manual reconciliation, Cancel SO
+  - Audit log includes: shipment_id, failure_type, reason, shipment_status=failed, redemption_executed=false, admin_intervention_required=true
+  - Two failure scenarios handled: partial_shipment (missing serials), validation_failed (invalid serials)
+---
