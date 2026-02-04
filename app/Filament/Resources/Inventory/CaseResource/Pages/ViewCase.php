@@ -25,6 +25,16 @@ use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\HtmlString;
 
+/**
+ * ViewCase Page - Comprehensive view of case details with 5 tabs (US-B031, US-B056).
+ *
+ * Tabs:
+ * 1. Summary: configuration, is_original, is_breakable, allocation_lineage, integrity status
+ * 2. Contained Bottles: list of SerializedBottles in this case
+ * 3. Integrity & Handling: broken_at, broken_by, broken_reason
+ * 4. Movements: movement history for this case
+ * 5. Audit: immutable log of all case modifications (US-B056)
+ */
 class ViewCase extends ViewRecord
 {
     protected static string $resource = CaseResource::class;
@@ -48,6 +58,7 @@ class ViewCase extends ViewRecord
                         $this->getContainedBottlesTab(),
                         $this->getIntegrityHandlingTab(),
                         $this->getMovementsTab(),
+                        $this->getAuditTab(),
                     ])
                     ->persistTabInQueryString()
                     ->columnSpanFull(),
@@ -616,6 +627,152 @@ class ViewCase extends ViewRecord
                             ->columnSpanFull(),
                     ]),
             ]);
+    }
+
+    /**
+     * Tab 5: Audit - immutable log of all case modifications (US-B056).
+     *
+     * Events logged: creation, location_change, breaking, bottle_added, bottle_removed
+     */
+    protected function getAuditTab(): Tab
+    {
+        return Tab::make('Audit')
+            ->icon('heroicon-o-clipboard-document-list')
+            ->badge(function (InventoryCase $record): ?string {
+                $count = $record->auditLogs()->count();
+
+                return $count > 0 ? (string) $count : null;
+            })
+            ->badgeColor('gray')
+            ->schema([
+                Section::make('Audit Log')
+                    ->description('Immutable record of all changes to this case')
+                    ->schema([
+                        TextEntry::make('audit_immutability_notice')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Audit logs are immutable and cannot be modified or deleted. They provide a complete history of all changes for compliance purposes.')
+                            ->icon('heroicon-o-shield-check')
+                            ->iconColor('success')
+                            ->color('gray'),
+                        TextEntry::make('audit_timeline')
+                            ->label('')
+                            ->getStateUsing(function (InventoryCase $record): string {
+                                $auditLogs = $record->auditLogs()
+                                    ->with('user')
+                                    ->orderBy('created_at', 'desc')
+                                    ->get();
+
+                                if ($auditLogs->isEmpty()) {
+                                    return '<div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center">
+                                        <p class="text-gray-500">No audit logs recorded for this case.</p>
+                                    </div>';
+                                }
+
+                                $html = '<div class="space-y-3">';
+
+                                foreach ($auditLogs as $log) {
+                                    /** @var \App\Models\AuditLog $log */
+                                    $eventLabel = $log->getEventLabel();
+                                    $eventIcon = $log->getEventIcon();
+                                    $eventColor = $log->getEventColor();
+
+                                    $user = $log->user;
+                                    $userName = $user !== null ? e($user->name) : 'System';
+                                    $timestamp = $log->created_at->format('M d, Y H:i:s');
+
+                                    $oldValues = $log->old_values ?? [];
+                                    $newValues = $log->new_values ?? [];
+
+                                    $colorClass = match ($eventColor) {
+                                        'success' => 'border-success-200 dark:border-success-800 bg-success-50/50 dark:bg-success-900/10',
+                                        'info' => 'border-info-200 dark:border-info-800 bg-info-50/50 dark:bg-info-900/10',
+                                        'warning' => 'border-warning-200 dark:border-warning-800 bg-warning-50/50 dark:bg-warning-900/10',
+                                        'danger' => 'border-danger-200 dark:border-danger-800 bg-danger-50/50 dark:bg-danger-900/10',
+                                        default => 'border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50',
+                                    };
+
+                                    $badgeClass = match ($eventColor) {
+                                        'success' => 'bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300',
+                                        'info' => 'bg-info-100 dark:bg-info-900/30 text-info-700 dark:text-info-300',
+                                        'warning' => 'bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300',
+                                        'danger' => 'bg-danger-100 dark:bg-danger-900/30 text-danger-700 dark:text-danger-300',
+                                        default => 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300',
+                                    };
+
+                                    // Build changes display
+                                    $changesHtml = '';
+                                    if (! empty($oldValues) || ! empty($newValues)) {
+                                        $changesHtml = '<div class="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-sm">';
+                                        $changesHtml .= '<div class="font-medium text-gray-500 mb-1">Changes:</div>';
+                                        $changesHtml .= '<div class="grid grid-cols-2 gap-2">';
+
+                                        $allKeys = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+                                        foreach ($allKeys as $key) {
+                                            /** @var mixed $oldValRaw */
+                                            $oldValRaw = $oldValues[$key] ?? null;
+                                            /** @var mixed $newValRaw */
+                                            $newValRaw = $newValues[$key] ?? null;
+
+                                            // Format values for display (handle arrays, objects, etc.)
+                                            $oldValStr = $this->formatAuditValue($oldValRaw);
+                                            $newValStr = $this->formatAuditValue($newValRaw);
+
+                                            $changesHtml .= "<div class='col-span-2 flex items-center gap-2'>";
+                                            $changesHtml .= "<span class='text-gray-400'>".e($key).':</span>';
+                                            $changesHtml .= "<span class='text-danger-500 line-through'>{$oldValStr}</span>";
+                                            $changesHtml .= "<span class='text-gray-400'>→</span>";
+                                            $changesHtml .= "<span class='text-success-500'>{$newValStr}</span>";
+                                            $changesHtml .= '</div>';
+                                        }
+
+                                        $changesHtml .= '</div></div>';
+                                    }
+
+                                    $html .= <<<HTML
+                                    <div class="p-4 rounded-lg border {$colorClass}">
+                                        <div class="flex items-start justify-between mb-2">
+                                            <div class="flex items-center gap-2">
+                                                <span class="px-2 py-1 text-sm font-medium rounded {$badgeClass}">{$eventLabel}</span>
+                                            </div>
+                                            <span class="text-sm text-gray-500">{$timestamp}</span>
+                                        </div>
+                                        <div class="text-sm">
+                                            <span class="text-gray-500">By:</span>
+                                            <span class="ml-1">{$userName}</span>
+                                        </div>
+                                        {$changesHtml}
+                                    </div>
+                                    HTML;
+                                }
+
+                                $html .= '</div>';
+
+                                return $html;
+                            })
+                            ->html()
+                            ->columnSpanFull(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Format a value from audit log for display.
+     */
+    protected function formatAuditValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '<em>null</em>';
+        }
+
+        if (is_array($value)) {
+            return e(json_encode($value) ?: '[]');
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return e((string) $value);
     }
 
     protected function getHeaderActions(): array
