@@ -186,3 +186,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Header actions pattern: Suspend visible when Active, Activate visible when Prospect or Suspended
   - Customer.getName() method handles both Party-linked and legacy customers gracefully
 ---
+
+## 2026-02-04 - US-009
+- What was implemented:
+  - Full Account management CRUD within the Customer Detail Accounts tab
+  - Create Account: modal form with name (required, max 255 chars) and channel_scope (select from ChannelScope enum)
+  - Edit Account: modal form pre-populated with current values, updates name and channel_scope
+  - Suspend Account: confirmation modal, changes status to Suspended, only visible when Active
+  - Activate Account: confirmation modal, changes status to Active, only visible when Suspended
+  - Delete Account: confirmation modal with soft delete, available regardless of status (no transactions constraint yet - to be implemented when transactions are added)
+  - Updated grid from 5 to 6 columns to accommodate action buttons
+  - Actions aligned to end of row using `->alignEnd()`
+  - All actions use proper Notification feedback pattern
+  - Uses `$this->refreshFormData(['accounts'])` to refresh the accounts list after any action
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full CRUD in Accounts tab)
+- **Learnings for future iterations:**
+  - For inline actions on RepeatableEntry items, use `\Filament\Infolists\Components\Actions::make([...])` with `->alignEnd()` in the Grid
+  - Modal forms in infolist actions use standard Filament form components (TextInput, Select, etc.)
+  - Use `fn (Model $model): array => [...]` syntax to pre-populate form defaults from the current record
+  - Use `fn (Model $model): string => "..."` for dynamic modal descriptions
+  - The `->visible(fn (Model $model): bool => ...)` pattern controls conditional action visibility based on record state
+  - Account.delete() uses soft deletes via SoftDeletes trait - no hard delete needed
+  - Delete constraint "only if no transactions" is a placeholder until transactions are implemented in future stories
+---
