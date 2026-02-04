@@ -1435,3 +1435,23 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Mis-serialization correction flow (US-B029) is the only valid way to handle serial number errors
   - The $immutableFields array and boot guard already existed from US-B004; this adds the mutator layer
 ---
+
+## 2026-02-04 - US-B050
+- **Implemented**: Allocation lineage immutability enforcement for SerializedBottle
+- **Files modified**:
+  - app/Models/Inventory/SerializedBottle.php
+- **Changes made**:
+  - Added `setAllocationIdAttribute()` mutator that blocks modification on existing records (mirrors setSerialNumberAttribute pattern)
+  - Added `isImmutableField(string $field)` static helper method to check if a field is immutable
+  - Added `getImmutableFields()` static helper method to get all immutable fields list
+  - Enhanced docblock for `$immutableFields` to document dual enforcement strategy
+- **Immutability enforcement**:
+  - DUAL enforcement: (1) Attribute mutator blocks assignment, (2) Boot guard blocks dirty updates
+  - allocation_id is already NOT NULL in database schema (migration)
+  - Propagation from InboundBatch already implemented in SerializationService.serializeBatch()
+- **Learnings for future iterations**:
+  - Serial number and allocation_id use the same immutability pattern (mutator + boot guard)
+  - Static helper methods allow other code to check immutability without accessing private array
+  - Eloquent boot guard catches updates even if mutator is bypassed (e.g., via $model->forceFill())
+  - The existing boot guard in static::updating() was already functional for allocation_id
+---
