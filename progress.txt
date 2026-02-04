@@ -717,3 +717,30 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - OperationalBlock.remove() method handles status change, removed_at, removed_by, and removal_reason atomically
   - Use `->limit(50)->tooltip()` pattern for long text fields to show full content on hover
 ---
+
+## 2026-02-04 - US-030
+- What was implemented:
+  - Created `OperationalBlockResource` Filament resource in `App\Filament\Resources\Customer` namespace
+  - List view for Compliance Officers showing all operational blocks system-wide
+  - Columns: customer/account name (with polymorphic handling), entity type badge (Customer/Account), block_type (badge with color/icon), reason (limited with tooltip), status (badge), applied_by, applied_at, removed_at, removed_by
+  - Filters: block_type (5 types), status (defaults to Active), date range (applied from/until), entity type (Customer/Account)
+  - Search: customer name, party legal_name, account name (via polymorphic whereHasMorph)
+  - Export CSV: header action and bulk action using `OperationalBlockExporter` class
+  - Export includes: ID, entity type, customer/account name, block type, reason, status, applied by, applied at, removed at, removed by, removal reason
+  - Link to Customer Detail: view_customer action navigates to CustomerResource (handles both Customer and Account blocks)
+  - No create action (blocks created from Customer/Account detail pages)
+  - Navigation sort: 4 (after Clubs in Customers group)
+- Files changed:
+  - app/Filament/Resources/Customer/OperationalBlockResource.php (new)
+  - app/Filament/Resources/Customer/OperationalBlockResource/Pages/ListOperationalBlocks.php (new)
+  - app/Filament/Exports/Customer/OperationalBlockExporter.php (new)
+- **Learnings for future iterations:**
+  - Filament Exporters go in `App\Filament\Exports\` namespace (with subdirectories for modules)
+  - Use `ExportAction::make()->exporter(ExporterClass::class)` for header CSV export
+  - Use `ExportBulkAction::make()->exporter(ExporterClass::class)` for bulk export of selected rows
+  - For polymorphic search, use `whereHasMorph('relation', [Model1::class, Model2::class], fn () => ...)` 
+  - `ExportColumn::make()->state(fn (Model $record) => ...)` for computed export columns
+  - OperationalBlock does not use SoftDeletes, so no TrashedFilter needed
+  - Default filter value: `->default(BlockStatus::Active->value)` shows Active blocks by default
+  - For date range filters, use `Filter::make()->form([DatePicker, DatePicker])` with `->query()` and `->indicateUsing()` 
+---
