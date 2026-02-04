@@ -772,3 +772,26 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Invitation workflow uses `invited_at` and `accepted_at` - accepted_at being non-null indicates acceptance
   - Owner role cannot be removed (enforced in US-032 UI)
 ---
+
+## 2026-02-04 - US-032
+- What was implemented:
+  - Created Users & Access Tab in Customer Detail showing user access across all accounts
+  - Tab displays total users count with badge, pending invitations shown in warning color
+  - Account-by-account view with collapsible sections showing account name, channel scope, and status
+  - Invite User action: modal form with email lookup and role selection (Owner excluded from selection)
+  - User list per account showing: email (copyable), name, role (badge with color/icon), status (Active/Pending), invited_at
+  - Change Role action: dropdown with Admin, Operator, Viewer options (not available for Owner role)
+  - Remove User action: confirmation modal with delete, not available for Owner role (cannot be removed)
+  - Role Reference section (collapsible): shows all 4 roles with descriptions and color-coded badges
+  - User validation: checks if user exists in system before creating invitation
+  - Duplicate access prevention: checks if user already has access before inviting
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - added getUsersAccessTab and helper methods)
+- **Learnings for future iterations:**
+  - Tab badges can use conditional coloring (warning for pending invitations, info otherwise)
+  - Use nested RepeatableEntry inside Section for per-account user display
+  - Filter role options to exclude Owner when changing roles: `->filter(fn ($role): bool => $role !== AccountUserRole::Owner)`
+  - AccountUser `isPending()` method checks invited_at not null AND accepted_at null
+  - Use `->visible(fn ($accountUser): bool => !$accountUser->isOwner())` to hide actions for owners
+  - Email lookup with `User::where('email', $data['email'])->first()` validates user exists before invite
+---
