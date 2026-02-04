@@ -1019,8 +1019,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 61,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-035 (ApplyBottlingDefaultsJob, BottlingDefaultsAppliedNotification, scheduler in routes/console.php)"
     },
     {
       "id": "US-062",
@@ -1035,8 +1035,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 62,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-027 (variance methods in PurchaseOrder model, variance column/filter/tabs in PurchaseOrderResource). Finance report via filtered list view."
     },
     {
       "id": "US-063",
@@ -1052,8 +1052,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 63,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented: ProcurementIntentService.canClose() validates all linked POs closed, all Bottling Instructions executed, all Inbounds completed. ViewProcurementIntent shows Closure Readiness indicator and Close button disabled with pending items list in modal."
     },
     {
       "id": "US-064",
@@ -1068,8 +1068,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 64,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented: Auditable trait on ProcurementIntent, logCreation and logStatusTransition methods in ProcurementIntentService. ViewProcurementIntent has Audit tab with timeline, event type filter, and date range filter."
     },
     {
       "id": "US-065",
@@ -1084,8 +1084,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 65,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented: Auditable trait on PurchaseOrder, ViewPurchaseOrder has Audit tab with timeline, event type filter (Created, Updated, Status Change, Flag Change), and date range filter."
     },
     {
       "id": "US-066",
@@ -1100,8 +1100,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 66,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented: Auditable trait on BottlingInstruction, ViewBottlingInstruction has Audit tab with timeline, event type filter, date range filter. Events include creation, activation, status changes."
     },
     {
       "id": "US-067",
@@ -1116,8 +1116,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 67,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented: Auditable trait on Inbound, ViewInbound has Audit tab with timeline, event type filter, date range filter. Events include recording, routing, ownership update, completion, hand-off."
     },
     {
       "id": "US-068",
@@ -1133,8 +1133,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 68,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented ProcurementAudit.php page with unified list of all Module D audit events. Filters: entity_type, event_type, date_range, user. Search by entity_id. Export CSV for compliance."
     }
   ]
 }
