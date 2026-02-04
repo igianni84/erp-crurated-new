@@ -98,3 +98,120 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Unique constraint on (invoice_id, payment_id) prevents duplicate applications
   - applied_by field tracks who applied the payment (nullable for automated reconciliation)
 ---
+
+## 2026-02-04 - US-E006
+- What was implemented: Created CreditNote model with migration for credit notes issued against invoices
+- Files changed:
+  - database/migrations/2026_02_04_300004_create_credit_notes_table.php (credit_notes table with all required fields)
+  - app/Models/Finance/CreditNote.php (full model replacing stub, with relationships and status helpers)
+  - app/Models/Finance/Refund.php (stub for relationship to pass typecheck)
+- **Learnings for future iterations:**
+  - CreditNote uses HasUuid, Auditable, SoftDeletes traits like other Finance models
+  - CreditNote preserves invoice_type of original invoice via helper methods (getOriginalInvoiceType())
+  - reason field is required (NOT NULL in migration) - business rule for audit trail
+  - CreditNote has relationships to Invoice, Customer, and forward reference to Refund (hasMany)
+  - Status flow: draft → issued → applied (terminal state)
+  - issuedByUser() relationship tracks who issued the credit note
+  - Create stub models for forward-referenced relationships (Refund) to allow typecheck to pass
+---
+
+## 2026-02-04 - US-E007
+- What was implemented: Created Refund model with migration for refunds linked to invoices and payments
+- Files changed:
+  - database/migrations/2026_02_04_300005_create_refunds_table.php (refunds table with all required fields including FKs)
+  - app/Models/Finance/Refund.php (full model replacing stub, with relationships, validation, and status helpers)
+- **Learnings for future iterations:**
+  - Refund uses HasUuid, Auditable, SoftDeletes traits like other Finance models
+  - Refund requires both invoice_id and payment_id that MUST be linked via InvoicePayment
+  - Validation in boot() creating hook ensures invoice-payment link exists
+  - Validation also checks refund amount does not exceed payment applied amount
+  - invoice_id and payment_id are immutable after creation (enforced in updating hook)
+  - stripe_refund_id has unique constraint for idempotency with Stripe
+  - reason field is required (NOT NULL) - business rule for audit trail
+  - RefundMethod enum has supportsAutoProcess() for Stripe vs manual bank tracking
+---
+
+## 2026-02-04 - US-E008
+- What was implemented: Created Subscription model with migration for customer subscriptions
+- Files changed:
+  - database/migrations/2026_02_04_300006_create_subscriptions_table.php (subscriptions table with all required fields)
+  - app/Models/Finance/Subscription.php (full model with relationships, status transitions, and billing helpers)
+- **Learnings for future iterations:**
+  - Subscription uses HasUuid, Auditable, SoftDeletes traits like other Finance models
+  - Subscription belongsTo Customer and hasMany Invoice (via source polymorphic - source_type='subscription')
+  - Status transitions (active→suspended→cancelled) are validated in boot() updating hook
+  - cancelled_at is auto-set when transitioning to Cancelled status
+  - Billing helpers: isDueForBilling(), isOverdueForBilling(), calculateNextBillingDate()
+  - BillingCycle enum's months() method is used for date calculations
+  - stripe_subscription_id has unique constraint for Stripe integration
+  - Plan type (membership/service) determines which invoice type is generated (INV0)
+---
+
+## 2026-02-04 - US-E009
+- What was implemented: Created StorageBillingPeriod model with migration for storage billing periods
+- Files changed:
+  - database/migrations/2026_02_04_300007_create_storage_billing_periods_table.php (storage_billing_periods table with all required fields)
+  - app/Models/Finance/StorageBillingPeriod.php (full model with relationships, status validation, and helper methods)
+- **Learnings for future iterations:**
+  - StorageBillingPeriod uses HasUuid, Auditable, SoftDeletes traits like other Finance models
+  - StorageBillingPeriod belongsTo Customer, Location (nullable), and Invoice (nullable)
+  - bottle_days represents sum(bottles * days_stored) during the period
+  - unit_rate uses decimal(10,4) for precision in rate calculations
+  - Status transitions (pending→invoiced→paid/blocked) are validated in boot() updating hook
+  - Helper methods: getPeriodDays(), getAverageBottlesPerDay(), recalculateAmount()
+  - Carbon's diffInDays() returns float, cast to int when needed for return type
+  - Location relationship is nullable - can aggregate all locations or be specific
+---
+
+## 2026-02-04 - US-E010
+- What was implemented: Created StripeWebhook model with migration for logging all received Stripe webhooks
+- Files changed:
+  - database/migrations/2026_02_04_300008_create_stripe_webhooks_table.php (stripe_webhooks table with all required fields)
+  - app/Models/Finance/StripeWebhook.php (full model with immutability enforcement and helper methods)
+- **Learnings for future iterations:**
+  - StripeWebhook does NOT use HasUuid, Auditable, or SoftDeletes traits - it's an immutable log model
+  - Uses standard auto-increment id (not UUID) since it's a log table
+  - Sets UPDATED_AT = null to disable updated_at timestamp (logs are immutable)
+  - event_id has unique constraint for idempotency when receiving Stripe webhooks
+  - Immutability enforced in boot(): deleting throws exception, updating only allows processing status fields
+  - Helper methods for payload extraction: getPaymentIntentId(), getChargeId(), getAmount(), getCurrency()
+  - Static methods for idempotency: hasEvent(), findByEventId(), createFromStripeEvent()
+  - Query scopes: processed(), pending(), failed(), ofType() for filtering
+  - Status is inferred from processed boolean + error_message presence (not a separate enum)
+---
+
+## 2026-02-04 - US-E011
+- What was implemented: Created XeroSyncLog model with migration for logging all Xero synchronization attempts
+- Files changed:
+  - database/migrations/2026_02_04_300009_create_xero_sync_logs_table.php (xero_sync_logs table with all required fields)
+  - app/Models/Finance/XeroSyncLog.php (full model with polymorphic relation, immutability enforcement, and helper methods)
+- **Learnings for future iterations:**
+  - XeroSyncLog does NOT use HasUuid, Auditable, or SoftDeletes traits - it's an immutable log model
+  - Uses standard auto-increment id (not UUID) and sets UPDATED_AT = null (logs are immutable)
+  - Polymorphic relation via morphTo() to syncable (Invoice, CreditNote, Payment)
+  - Uses XeroSyncType and XeroSyncStatus enums from US-E001
+  - Status transitions are validated in boot() updating hook using XeroSyncStatus::canTransitionTo()
+  - Helper methods: markSynced(), markFailed(), resetForRetry()
+  - Static methods: createForEntity(), getLatestForEntity(), hasSuccessfulSync(), getXeroIdForEntity()
+  - Query scopes: pending(), synced(), failed(), ofType(), forSyncable(), retryable()
+  - PHPStan: Use `isset($model->attributes['field'])` instead of `$model->field === null` for checking if attribute was set before cast
+  - PHPStan: For MorphTo return type use `@return MorphTo<Model, $this>` not specific class names
+---
+
+## 2026-02-04 - US-E012
+- What was implemented: Created InvoiceService for centralized invoice management
+- Files changed:
+  - app/Services/Finance/InvoiceService.php (service class with full invoice lifecycle management)
+- **Learnings for future iterations:**
+  - Finance services go in app/Services/Finance/ directory
+  - InvoiceService follows same patterns as VoucherService - methods for lifecycle transitions
+  - createDraft() validates source reference requirements based on InvoiceType enum helper methods
+  - Idempotency: findBySource() checks for existing invoice before creating duplicate
+  - issue() generates sequential invoice_number with format INV-YYYY-NNNNNN
+  - applyPayment() creates InvoicePayment and auto-updates invoice status (issued → partially_paid → paid)
+  - All methods use DB::transaction() for atomicity
+  - Use bcadd(), bcsub(), bccomp() for all decimal calculations
+  - Log events to audit trail using model's auditLogs() morphMany relationship
+  - Validation throws InvalidArgumentException with descriptive messages
+  - TODO comments mark where events should be emitted for downstream modules (Xero sync, InvoicePaid event)
+---
