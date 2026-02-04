@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Fulfillment\Carrier;
+use App\Enums\Fulfillment\Incoterms;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\Voucher;
@@ -82,8 +84,8 @@ class CreateShippingOrder extends CreateRecord
         return [
             $this->getCustomerAndDestinationStep(),
             $this->getVoucherSelectionStep(),
+            $this->getShippingMethodStep(),
             // Future steps will be added in subsequent US stories:
-            // US-C020: getShippingMethodStep()
             // US-C021: getPackagingPreferencesStep()
             // US-C022: getReviewAndSubmitStep()
         ];
@@ -491,6 +493,169 @@ class CreateShippingOrder extends CreateRecord
                         ->send();
 
                     throw new \Filament\Support\Exceptions\Halt;
+                }
+            });
+    }
+
+    /**
+     * Step 3: Shipping Method (US-C020)
+     * Allows configuration of carrier, shipping method, incoterms, and requested ship date.
+     */
+    protected function getShippingMethodStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Shipping Method')
+            ->description('Configure shipping details and delivery preferences')
+            ->icon('heroicon-o-truck')
+            ->schema([
+                Forms\Components\Section::make('Carrier & Method')
+                    ->description('Select the carrier and shipping method')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('carrier')
+                                    ->label('Carrier')
+                                    ->placeholder('Select a carrier...')
+                                    ->options(
+                                        collect(Carrier::cases())
+                                            ->mapWithKeys(fn (Carrier $carrier) => [$carrier->value => $carrier->label()])
+                                            ->toArray()
+                                    )
+                                    ->helperText(function (Get $get): string {
+                                        $carrierValue = $get('carrier');
+                                        if (! $carrierValue) {
+                                            return 'Choose from available shipping carriers';
+                                        }
+
+                                        $carrier = Carrier::tryFrom($carrierValue);
+
+                                        return $carrier ? $carrier->description() : '';
+                                    })
+                                    ->live()
+                                    ->required(),
+
+                                Forms\Components\TextInput::make('shipping_method')
+                                    ->label('Shipping Method')
+                                    ->placeholder('e.g., Express, Standard, Economy...')
+                                    ->helperText('Specify the shipping service tier or method')
+                                    ->maxLength(255),
+                            ]),
+
+                        // Carrier info note for "Other"
+                        Forms\Components\Placeholder::make('other_carrier_note')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('carrier') === Carrier::Other->value)
+                            ->content(new HtmlString(<<<'HTML'
+                                <div class="p-3 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800">
+                                    <p class="text-sm text-info-700 dark:text-info-300">
+                                        <strong>Note:</strong> When using "Other" carrier, please specify the carrier name in the Shipping Method field above.
+                                    </p>
+                                </div>
+                            HTML))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
+
+                Forms\Components\Section::make('Terms & Schedule')
+                    ->description('Set delivery terms and requested ship date')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('incoterms')
+                                    ->label('Incoterms')
+                                    ->placeholder('Select incoterms...')
+                                    ->options(
+                                        collect(Incoterms::cases())
+                                            ->mapWithKeys(fn (Incoterms $term) => [$term->value => $term->label()])
+                                            ->toArray()
+                                    )
+                                    ->helperText(function (Get $get): string {
+                                        $termsValue = $get('incoterms');
+                                        if (! $termsValue) {
+                                            return 'International Commercial Terms defining buyer/seller responsibilities';
+                                        }
+
+                                        $terms = Incoterms::tryFrom($termsValue);
+
+                                        return $terms ? $terms->description() : '';
+                                    })
+                                    ->live(),
+
+                                Forms\Components\DatePicker::make('requested_ship_date')
+                                    ->label('Requested Ship Date')
+                                    ->placeholder('Select date...')
+                                    ->minDate(now()->startOfDay())
+                                    ->helperText('Date must be today or in the future')
+                                    ->displayFormat('d M Y')
+                                    ->native(false),
+                            ]),
+
+                        // Incoterms explanation
+                        Forms\Components\Placeholder::make('incoterms_explanation')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('incoterms') !== null)
+                            ->content(function (Get $get): HtmlString {
+                                $termsValue = $get('incoterms');
+                                if (! $termsValue) {
+                                    return new HtmlString('');
+                                }
+
+                                $terms = Incoterms::tryFrom($termsValue);
+                                if (! $terms) {
+                                    return new HtmlString('');
+                                }
+
+                                $dutiesInfo = $terms->sellerPaysImportDuties()
+                                    ? '<span class="text-success-600 dark:text-success-400">✓ Seller pays import duties</span>'
+                                    : '<span class="text-gray-500 dark:text-gray-400">✗ Buyer pays import duties</span>';
+
+                                $insuranceInfo = $terms->sellerPaysInsurance()
+                                    ? '<span class="text-success-600 dark:text-success-400">✓ Seller arranges insurance</span>'
+                                    : '<span class="text-gray-500 dark:text-gray-400">✗ Buyer arranges insurance</span>';
+
+                                return new HtmlString(<<<HTML
+                                    <div class="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                                        <div class="text-sm space-y-1">
+                                            <p class="font-medium text-gray-700 dark:text-gray-300">Responsibilities:</p>
+                                            <div class="ml-2">
+                                                <p>{$dutiesInfo}</p>
+                                                <p>{$insuranceInfo}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                HTML);
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
+
+                Forms\Components\Section::make('Special Instructions')
+                    ->description('Additional notes or requirements for this shipment')
+                    ->schema([
+                        Forms\Components\Textarea::make('special_instructions')
+                            ->label('Special Instructions')
+                            ->placeholder("Enter any special handling instructions, delivery notes, or requirements...\n\nExamples:\n- Fragile wine, handle with care\n- Temperature controlled storage required\n- Delivery appointment required")
+                            ->rows(4)
+                            ->maxLength(2000)
+                            ->helperText('Optional. Include any special handling or delivery requirements.')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->collapsed(false),
+            ])
+            ->afterValidation(function (Get $get): void {
+                // Validate requested_ship_date is not in the past
+                $requestedShipDate = $get('requested_ship_date');
+                if ($requestedShipDate) {
+                    $date = \Carbon\Carbon::parse($requestedShipDate);
+                    if ($date->isBefore(now()->startOfDay())) {
+                        Notification::make()
+                            ->title('Invalid Ship Date')
+                            ->body('Requested ship date cannot be in the past.')
+                            ->danger()
+                            ->send();
+
+                        throw new \Filament\Support\Exceptions\Halt;
+                    }
                 }
             });
     }
