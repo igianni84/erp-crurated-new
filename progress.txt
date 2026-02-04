@@ -5,8 +5,9 @@ Started: Wed Feb  4 14:00:43 CET 2026
 - Use `$table->uuid('id')->primary()` for model primary keys with HasUuid trait
 - Models use Auditable trait with created_by/updated_by foreign keys to users
 - Enums follow pattern: value cases with label(), color(), icon() methods
-- Inventory module: app/Models/Inventory/, app/Enums/Inventory/
+- Inventory module: app/Models/Inventory/, app/Enums/Inventory/, app/Services/Inventory/
 - Module B branch is based on ralph/module-a-allocations branch
+- Services throw InvalidArgumentException for validation errors
 
 ---
 
@@ -193,4 +194,25 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - The exception_type field is a string (not enum) for flexibility in exception types
   - Both creator and resolver relationships point to User model
   - Uses Auditable trait for created_by/updated_by audit trail
+---
+
+## 2026-02-04 - US-B009
+- **Implemented**: InventoryService for centralized inventory logic
+- **Files created**:
+  - app/Services/Inventory/InventoryService.php
+- **Methods implemented**:
+  - getCommittedQuantity(Allocation): count unredeemed vouchers (Issued + Locked states)
+  - getFreeQuantity(Allocation): physical bottles (stored state) - committed quantity
+  - canConsume(SerializedBottle): checks if bottle can be consumed for events
+  - getBottlesAtLocation(Location): returns stored bottles at a location
+  - getBottlesByAllocationLineage(Allocation): returns all bottles for an allocation
+- **Key logic**:
+  - Committed = Vouchers in Issued or Locked lifecycle_state (NOT redeemed/cancelled)
+  - Physical bottles = SerializedBottles in 'stored' state
+  - canConsume checks: stored state, ownership_type.canConsumeForEvents(), free quantity > 0
+- **Learnings for future iterations**:
+  - Services go in app/Services/Inventory/ directory for inventory module
+  - VoucherLifecycleState.Issued and .Locked are the unredeemed states
+  - BottleState.Stored is the only state considered for physical availability
+  - Bottle-to-voucher binding doesn't exist yet, so canConsume checks at allocation level
 ---
