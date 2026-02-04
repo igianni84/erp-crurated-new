@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -188,6 +189,71 @@ class Customer extends Model
     public function hasShippingAddress(): bool
     {
         return $this->shippingAddresses()->exists();
+    }
+
+    /**
+     * Get all memberships for this customer (historical and current).
+     *
+     * @return HasMany<Membership, $this>
+     */
+    public function memberships(): HasMany
+    {
+        return $this->hasMany(Membership::class);
+    }
+
+    /**
+     * Get the current/active membership for this customer.
+     * Returns the most recent membership record.
+     *
+     * @return HasOne<Membership, $this>
+     */
+    public function membership(): HasOne
+    {
+        return $this->hasOne(Membership::class)->latestOfMany();
+    }
+
+    /**
+     * Get the active membership for this customer (approved and within effective dates).
+     *
+     * @return HasOne<Membership, $this>
+     */
+    public function activeMembership(): HasOne
+    {
+        return $this->hasOne(Membership::class)
+            ->where('status', \App\Enums\Customer\MembershipStatus::Approved)
+            ->where(function ($query) {
+                $query->whereNull('effective_from')
+                    ->orWhere('effective_from', '<=', now());
+            })
+            ->where(function ($query) {
+                $query->whereNull('effective_to')
+                    ->orWhere('effective_to', '>=', now());
+            })
+            ->latestOfMany();
+    }
+
+    /**
+     * Check if the customer has an active membership.
+     */
+    public function hasActiveMembership(): bool
+    {
+        return $this->activeMembership()->exists();
+    }
+
+    /**
+     * Get the current membership tier, or null if no membership exists.
+     */
+    public function getMembershipTier(): ?\App\Enums\Customer\MembershipTier
+    {
+        return $this->membership?->tier;
+    }
+
+    /**
+     * Get the current membership status, or null if no membership exists.
+     */
+    public function getMembershipStatus(): ?\App\Enums\Customer\MembershipStatus
+    {
+        return $this->membership?->status;
     }
 
     /**
