@@ -797,8 +797,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 47,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented as part of US-046 with EditSupplierConfig page"
     },
     {
       "id": "US-048",
