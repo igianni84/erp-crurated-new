@@ -532,3 +532,27 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - When checking nullable relations, use explicit null check (`$location !== null`) instead of nullsafe + null coalescing for PHPStan
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B021
+- **Verified**: Serialization execution creates SerializedBottle records correctly
+- **Implementation already complete in US-B010** - SerializationService.serializeBatch() handles all requirements
+- **Acceptance criteria verification**:
+  - ✅ Serial number generation: `generateSerialNumber()` creates CRU-YYYYMMDD-XXXXXXXX format with uniqueness retry
+  - ✅ SerializedBottle creation: All required fields populated in `serializeBatch()` loop
+  - ✅ allocation_id propagation: Copied from `$batch->allocation_id`, enforced immutable via `$immutableFields` in model
+  - ✅ state = stored: `BottleState::Stored` set on creation
+  - ✅ current_location_id: Set to batch's receiving location
+  - ✅ serialized_at/serialized_by: Recorded at creation time
+  - ✅ Status update: `updateBatchSerializationStatus()` transitions to pending/partial/fully_serialized
+  - ✅ NFT dispatch: `MintProvenanceNftJob::dispatch()` called for each bottle
+  - ✅ Audit log: SerializedBottle uses Auditable trait
+- **Files involved**:
+  - app/Services/Inventory/SerializationService.php (serializeBatch method)
+  - app/Jobs/Inventory/MintProvenanceNftJob.php (NFT minting job)
+  - app/Models/Inventory/SerializedBottle.php (model with immutability guards)
+- **Learnings for future iterations**:
+  - US-B021 is a documentation/verification story - the implementation was done in US-B010
+  - Serial number format: CRU-{YYYYMMDD}-{8 random chars} with collision retry (max 10 attempts)
+  - Immutable fields enforced at both model level (boot guard) and DB level (unique constraint on serial_number)
+  - NFT minting is async (queued job) with exponential backoff retry (10s, 60s, 300s)
+---
