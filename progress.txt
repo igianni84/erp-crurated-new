@@ -64,3 +64,30 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - hasDiscrepancy() compares expected vs received quantities
   - procurement_intent_id FK is nullable since ProcurementIntent model doesn't exist yet (Module D)
 ---
+
+## 2026-02-04 - US-B004
+- **Implemented**: SerializedBottle model as first-class object with unique identity
+- **Files created**:
+  - app/Models/Inventory/SerializedBottle.php (HasUuid, Auditable, SoftDeletes)
+  - database/migrations/2026_02_04_100002_create_serialized_bottles_table.php
+- **Files modified**:
+  - app/Models/Inventory/InboundBatch.php (added serializedBottles relationship, updated getRemainingUnserializedAttribute)
+  - app/Models/Inventory/Location.php (added serializedBottles and inboundBatches relationships)
+- **Relationships**:
+  - belongsTo WineVariant (wine_variant_id)
+  - belongsTo Format (format_id)
+  - belongsTo Allocation (allocation_id) - IMMUTABLE
+  - belongsTo InboundBatch (inbound_batch_id)
+  - belongsTo Location (current_location_id)
+  - belongsTo InventoryCase (case_id) - nullable, model created in US-B005
+- **Key immutability enforcement**:
+  - serial_number: unique, cannot be changed after creation (DB constraint + model boot guard)
+  - allocation_id: cannot be changed after creation (model boot guard)
+  - Immutable fields throw InvalidArgumentException on modification attempt
+- **Learnings for future iterations**:
+  - InventoryCase model doesn't exist yet (US-B005), used @phpstan-ignore for case() relationship
+  - Foreign key to cases table will be added when cases migration is created
+  - InboundBatch.getRemainingUnserializedAttribute() now correctly counts serialized bottles
+  - SerializedBottle.canConsumeForEvents() checks ownership_type.canConsumeForEvents() AND isStored()
+  - All state-checking helper methods (isStored, isShipped, etc.) delegate to BottleState enum
+---
