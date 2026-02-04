@@ -7,10 +7,13 @@ use App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 use App\Models\Fulfillment\ShippingOrder;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\App;
 
 class ShippingOrderResource extends Resource
 {
@@ -248,10 +251,116 @@ class ShippingOrderResource extends Resource
                     ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
             ])
             ->bulkActions([
-                // Limited bulk actions as per US-C023
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn (): bool => false), // Disabled for safety
+                    // Export CSV - always available
+                    Tables\Actions\BulkAction::make('export_csv')
+                        ->label('Export CSV')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->action(function (Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                            return response()->streamDownload(function () use ($records): void {
+                                $handle = fopen('php://output', 'w');
+                                if ($handle === false) {
+                                    return;
+                                }
+
+                                // CSV header
+                                fputcsv($handle, [
+                                    'SO ID',
+                                    'Customer',
+                                    'Status',
+                                    'Voucher Count',
+                                    'Source Warehouse',
+                                    'Carrier',
+                                    'Shipping Method',
+                                    'Incoterms',
+                                    'Requested Ship Date',
+                                    'Packaging Preference',
+                                    'Created At',
+                                    'Destination Address',
+                                    'Special Instructions',
+                                ]);
+
+                                // CSV rows
+                                foreach ($records as $record) {
+                                    /** @var ShippingOrder $record */
+                                    $customerName = $record->customer !== null ? $record->customer->name : '-';
+                                    $warehouseName = $record->sourceWarehouse !== null ? $record->sourceWarehouse->name : '-';
+
+                                    fputcsv($handle, [
+                                        $record->id,
+                                        $customerName,
+                                        $record->status->label(),
+                                        $record->lines()->count(),
+                                        $warehouseName,
+                                        $record->carrier ?? '-',
+                                        $record->shipping_method ?? '-',
+                                        $record->incoterms ?? '-',
+                                        $record->requested_ship_date?->format('Y-m-d') ?? '-',
+                                        $record->packaging_preference->label(),
+                                        $record->created_at?->format('Y-m-d H:i:s'),
+                                        $record->destination_address ?? '-',
+                                        $record->special_instructions ?? '-',
+                                    ]);
+                                }
+
+                                fclose($handle);
+                            }, 'shipping-orders-'.now()->format('Y-m-d-His').'.csv');
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    // Cancel - only on draft/planned, requires confirmation
+                    Tables\Actions\BulkAction::make('cancel')
+                        ->label('Cancel Orders')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Cancel Selected Shipping Orders')
+                        ->modalDescription('Are you sure you want to cancel these shipping orders? This action cannot be undone. Only draft and planned orders will be cancelled.')
+                        ->modalIcon('heroicon-o-exclamation-triangle')
+                        ->form([
+                            Forms\Components\Textarea::make('cancellation_reason')
+                                ->label('Cancellation Reason')
+                                ->required()
+                                ->placeholder('Enter the reason for cancelling these orders...')
+                                ->rows(3),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $shippingOrderService = App::make(\App\Services\Fulfillment\ShippingOrderService::class);
+                            $cancelled = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                /** @var ShippingOrder $record */
+                                // Only cancel draft or planned orders
+                                if ($record->isDraft() || $record->isPlanned()) {
+                                    try {
+                                        $shippingOrderService->cancel($record, $data['cancellation_reason']);
+                                        $cancelled++;
+                                    } catch (\Throwable) {
+                                        $skipped++;
+                                    }
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            if ($cancelled > 0) {
+                                Notification::make()
+                                    ->title('Orders Cancelled')
+                                    ->body("{$cancelled} order(s) have been cancelled successfully.")
+                                    ->success()
+                                    ->send();
+                            }
+
+                            if ($skipped > 0) {
+                                Notification::make()
+                                    ->title('Some Orders Skipped')
+                                    ->body("{$skipped} order(s) could not be cancelled (only draft/planned orders can be cancelled).")
+                                    ->warning()
+                                    ->send();
+                            }
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')
