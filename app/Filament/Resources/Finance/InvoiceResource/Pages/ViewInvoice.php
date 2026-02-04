@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
+use App\Services\Finance\InvoicePdfService;
 use App\Services\Finance\InvoiceService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -561,11 +562,43 @@ class ViewInvoice extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            $this->getDownloadPdfAction(),
             $this->getIssueAction(),
             $this->getRecordBankPaymentAction(),
             $this->getCreateCreditNoteAction(),
             $this->getCancelAction(),
         ];
+    }
+
+    /**
+     * Download PDF action - visible for issued/paid invoices.
+     */
+    protected function getDownloadPdfAction(): Action
+    {
+        return Action::make('downloadPdf')
+            ->label('Download PDF')
+            ->icon('heroicon-o-document-arrow-down')
+            ->color('gray')
+            ->visible(function (): bool {
+                $pdfService = app(InvoicePdfService::class);
+
+                return $pdfService->canGeneratePdf($this->getInvoice());
+            })
+            ->action(function () {
+                $pdfService = app(InvoicePdfService::class);
+
+                try {
+                    return $pdfService->download($this->getInvoice());
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Generate PDF')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+
+                    return null;
+                }
+            });
     }
 
     /**
