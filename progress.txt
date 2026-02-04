@@ -210,3 +210,37 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Account.delete() uses soft deletes via SoftDeletes trait - no hard delete needed
   - Delete constraint "only if no transactions" is a placeholder until transactions are implemented in future stories
 ---
+
+## 2026-02-04 - US-010
+- What was implemented:
+  - Created `AddressType` enum (billing, shipping) with label/color/icon methods for Filament compatibility
+  - Created `Address` model with HasUuid, Auditable, SoftDeletes traits
+  - Created polymorphic migration for `addresses` table with FK to users for created_by/updated_by
+  - Added `addresses()`, `billingAddresses()`, `shippingAddresses()` relationships to Customer model
+  - Added helper methods: `getDefaultBillingAddress()`, `getDefaultShippingAddress()`, `hasBillingAddress()`, `hasShippingAddress()`
+  - Implemented full Addresses tab CRUD in Customer Detail with two sections (Billing and Shipping)
+  - Create Address: modal form with line_1, line_2, city, state, postal_code, country, is_default toggle
+  - Edit Address: modal form pre-populated with current values
+  - Set Default: action that unsets other defaults of same type and sets selected as default
+  - Delete Address: confirmation modal with soft delete
+  - First address of each type automatically becomes default
+  - Created `CustomerObserver` to validate billing address requirement when activating a Customer
+  - Updated Activate Customer action to check billing address and show appropriate message
+- Files changed:
+  - app/Enums/Customer/AddressType.php (new)
+  - app/Models/Customer/Address.php (new)
+  - app/Models/Customer/Customer.php (updated - added address relationships and helpers)
+  - app/Observers/Customer/CustomerObserver.php (new)
+  - app/Providers/AppServiceProvider.php (updated - registered CustomerObserver)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full CRUD in Addresses tab)
+  - database/migrations/2026_02_04_390004_create_addresses_table.php (new)
+- **Learnings for future iterations:**
+  - Polymorphic relationships use `addressable_type` and `addressable_id` columns (using UUID for id)
+  - Use `MorphTo` for the parent relationship and `MorphMany` for child collections
+  - Split addresses into separate sections (Billing/Shipping) for clarity
+  - Use `getFormattedAddress()` and `getOneLine()` helpers for display
+  - `setAsDefault()` method handles unsetting other defaults atomically
+  - Observer pattern works well for enforcing business rules on status changes
+  - Pint requires `concat_space` - use `.` without spaces for string concatenation
+  - Migration sequence continues: 390004 for addresses table
+---
