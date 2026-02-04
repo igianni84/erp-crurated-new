@@ -1147,6 +1147,12 @@ class ViewInboundBatch extends ViewRecord
 
     /**
      * Action: Start Serialization (if eligible).
+     *
+     * Pre-checks (hard blockers):
+     * - location.serialization_authorized = true
+     * - batch.serialization_status != discrepancy
+     *
+     * @see US-B020
      */
     protected function getStartSerializationAction(): Actions\Action
     {
@@ -1159,10 +1165,39 @@ class ViewInboundBatch extends ViewRecord
             ->modalHeading('Start Serialization')
             ->modalDescription(function (InboundBatch $record): string {
                 $remaining = $record->remaining_unserialized;
+                $location = $record->receivingLocation;
+                $locationName = $location !== null ? $location->name : 'Unknown';
+                $allocationId = $record->allocation_id ?? 'None';
 
-                return "You are about to serialize bottles from this inbound batch. {$remaining} bottles are available for serialization.";
+                return "You are about to serialize bottles from this inbound batch at location '{$locationName}'. {$remaining} bottles are available for serialization. All serialized bottles will inherit allocation lineage #{$allocationId}.";
             })
+            ->modalIcon('heroicon-o-exclamation-triangle')
+            ->modalIconColor('warning')
             ->form([
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('serialization_warning')
+                            ->label('')
+                            ->content(fn (): \Illuminate\Contracts\Support\Htmlable => new \Illuminate\Support\HtmlString(
+                                '<div class="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800">
+                                    <div class="flex items-start gap-3">
+                                        <svg class="w-6 h-6 text-warning-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="font-semibold text-warning-700 dark:text-warning-300">Warning: This action creates permanent records</p>
+                                            <ul class="mt-2 text-sm text-warning-600 dark:text-warning-400 list-disc list-inside space-y-1">
+                                                <li>Each bottle will receive a <strong>unique serial number</strong> that cannot be changed</li>
+                                                <li>Allocation lineage will be <strong>permanently assigned</strong> and is immutable</li>
+                                                <li>NFT provenance minting will be <strong>automatically queued</strong></li>
+                                                <li>This operation <strong>cannot be undone</strong></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>'
+                            )),
+                    ])
+                    ->columnSpanFull(),
                 Forms\Components\TextInput::make('quantity')
                     ->label('Quantity to Serialize')
                     ->helperText(fn (InboundBatch $record): string => "Maximum: {$record->remaining_unserialized} bottles")
@@ -1170,7 +1205,12 @@ class ViewInboundBatch extends ViewRecord
                     ->numeric()
                     ->minValue(1)
                     ->maxValue(fn (InboundBatch $record): int => $record->remaining_unserialized)
-                    ->default(fn (InboundBatch $record): int => $record->remaining_unserialized),
+                    ->default(fn (InboundBatch $record): int => $record->remaining_unserialized)
+                    ->suffix('bottles'),
+                Forms\Components\Checkbox::make('confirm_serialization')
+                    ->label('I understand that serialization creates permanent, immutable records and cannot be undone')
+                    ->required()
+                    ->accepted(),
             ])
             ->action(function (InboundBatch $record, array $data): void {
                 $quantity = (int) $data['quantity'];
