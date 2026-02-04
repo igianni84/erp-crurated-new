@@ -405,3 +405,28 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Tab badges use closures for dynamic counts: `->badge(fn () => $this->getCount())`
   - SQL CONCAT with COALESCE handles NULL values in joined columns
 ---
+
+## 2026-02-04 - US-019
+- What was implemented:
+  - PurchaseOrderResource in Filament under navigation group "Procurement"
+  - List columns: po_id (copyable, limited), supplier (legal_name), product (via getProductLabel()), quantity (badge), unit_cost (money with currency), currency (badge), ownership_transfer (icon badge), delivery_window, is_overdue (icon indicator), status (badge with icon/color), updated_at
+  - Filters: status (with closed hidden by default), supplier_party_id (searchable select with preload), ownership_transfer (ternary), delivery_period (date range with indicators), overdue (toggle), trashed
+  - Search: po_id searchable directly, supplier name via supplier.legal_name relationship, product searchable via complex multi-table query (sellable_skus, liquid_products, wine_masters)
+  - Closed POs hidden by default via status filter defaulting to [draft, sent, confirmed]
+  - Visual indicator (exclamation icon) for POs with delivery window passed
+  - ListPurchaseOrders page with tabs (Active, Draft, Sent, Confirmed, Overdue, Closed, All) with badge counts
+  - ViewPurchaseOrder page (placeholder for US-025 detail tabs)
+  - Added purchaseOrdersAsSupplier relationship to Party model for supplier filtering
+- Files changed:
+  - app/Filament/Resources/Procurement/PurchaseOrderResource.php (new)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/ListPurchaseOrders.php (new)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/ViewPurchaseOrder.php (new)
+  - app/Models/Customer/Party.php (modified - added purchaseOrdersAsSupplier relationship)
+- **Learnings for future iterations:**
+  - Party model uses `legal_name` field, not `name` - always use legal_name for display
+  - PO List follows same pattern as Intent List: tabs by status, status filter with multiple() and default(), overdue indicator
+  - Use `->money()` column with currency parameter from record field for dynamic currency display
+  - TernaryFilter provides boolean filtering with "All/Yes/No" options
+  - Date range filters use indicateUsing() to show active filter chips
+  - Overdue tab useful for quickly identifying POs needing attention
+---
