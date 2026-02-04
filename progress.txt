@@ -42,3 +42,25 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - CaseIntegrityStatus.canHandleAsUnit() will prevent operations on broken cases
   - OwnershipType.canConsumeForEvents() enforces only crurated_owned items can be consumed
 ---
+
+## 2026-02-04 - US-B003
+- **Implemented**: InboundBatch model as physical receipt record bridging procurement to serialized inventory
+- **Files created**:
+  - app/Models/Inventory/InboundBatch.php (HasUuid, Auditable, SoftDeletes)
+  - database/migrations/2026_02_04_100001_create_inbound_batches_table.php
+- **Relationships**:
+  - belongsTo Location (receiving_location_id) - where batch is received
+  - belongsTo Allocation (allocation_id) - preserves allocation lineage
+  - morphTo productReference - polymorphic reference to wine product
+- **Key fields**:
+  - source_type (producer/supplier/transfer)
+  - quantity_expected vs quantity_received for discrepancy tracking
+  - serialization_status (uses InboundBatchStatus enum)
+  - ownership_type (uses OwnershipType enum)
+- **Learnings for future iterations**:
+  - InboundBatch.allocation_id is the source of allocation lineage for all SerializedBottles created from it
+  - getRemainingUnserializedAttribute() will need to count SerializedBottles when that model exists
+  - canStartSerialization() checks both status and location.canSerialize()
+  - hasDiscrepancy() compares expected vs received quantities
+  - procurement_intent_id FK is nullable since ProcurementIntent model doesn't exist yet (Module D)
+---
