@@ -877,3 +877,47 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Break Case action placeholder shows action visibility works correctly; full implementation in US-B032
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B032
+- **Implemented**: Break Case action in Case Detail page - full functionality to open/break cases
+- **Files modified**:
+  - app/Services/Inventory/MovementService.php (added breakCase method)
+  - app/Filament/Resources/Inventory/CaseResource/Pages/ViewCase.php (full Break Case action implementation)
+- **Features implemented**:
+  - "Break Case" action visible only when case.canBreak() returns true (intact AND breakable)
+  - Confirmation modal with prominent IRREVERSIBLE warning
+  - Form fields: reason for breaking (required, min 5 chars), confirmation checkbox
+  - Pre-checks: integrity_status = intact, is_breakable = true (enforced at service level)
+  - Effects on confirmation:
+    - integrity_status → BROKEN
+    - broken_at → now
+    - broken_by → current user
+    - broken_reason → provided reason
+  - Movement record created via MovementService.breakCase() for audit trail
+  - InventoryException record created with type 'case_broken' for additional audit
+  - Success notification with persistent reminder about bottles being loose stock
+- **Service changes**:
+  - MovementService.breakCase(case, reason, executor): Validates canBreak(), updates integrity status, creates movement record, returns refreshed case
+  - Uses InternalTransfer movement type with same source/destination (status change, not physical movement)
+  - Transaction ensures atomicity of case update + movement creation
+- **Acceptance criteria verification**:
+  - ✅ Action Break Case in Case Detail
+  - ✅ Pre-check: integrity_status = intact (via canBreak())
+  - ✅ Pre-check: is_breakable = true (via canBreak())
+  - ✅ Form: reason for breaking
+  - ✅ Effects: integrity_status becomes BROKEN, broken_at/by/reason populated
+  - ✅ Bottles remain individually tracked (case_id FK preserved on bottles)
+  - ✅ Case no longer eligible for case-based handling (canHandleAsUnit returns false)
+  - ✅ Case disappears from intact case filters (CaseResource filters by integrity_status)
+  - ✅ Bottles immediately appear as loose stock (they have case_id but case is broken)
+  - ✅ Breaking is IRREVERSIBLE (model boot guard prevents BROKEN → INTACT transition)
+  - ✅ Audit log complete (InventoryMovement + InventoryException + Auditable trait)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - MovementService.breakCase() uses same location for source/destination to record status change events
+  - InventoryException with type 'case_broken' provides additional audit context separate from movement record
+  - The action pattern follows US-B027/US-B028: service method + exception record + notification
+  - Breaking creates immediate effect - action visibility disappears after page refresh
+  - HtmlString used for rich warning content in modal forms
+  - Browser verification requirement noted - manual testing needed
+---
