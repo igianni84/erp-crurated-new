@@ -724,3 +724,24 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - "Create and Activate" sets status to Active instead of Draft in mutateFormDataBeforeCreate
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-033
+- What was implemented:
+  - ViewBottlingInstruction page with 5 tabbed infolist sections
+  - Tab 1 (Bottling Rules): status & identity, product info (liquid product, bottle equivalents), allowed formats and case configurations, default bottling rule with explanation, delivery location comparison
+  - Tab 2 (Customer Preferences): deadline countdown with urgency coloring (critical/warning/normal), preference collection progress (voucher count, collected, missing), collection status explanation, customer portal guidance, defaults application info
+  - Tab 3 (Allocation & Voucher Linkage): source procurement intent with clickable link, allocation info (read-only from Module A), voucher batch info (read-only), Module A integration explanation
+  - Tab 4 (Personalisation Flags): personalised_bottling_required flag with explanation, early_binding_required flag with explanation, binding instruction preview (markdown), process flow description
+  - Tab 5 (Audit): immutable timeline with filter actions (event type, date range), formatted audit log entries with color-coded badges, key events section, audit info explanation
+  - Header actions: Activate (Draft→Active) with confirmation, Mark Executed (Active→Executed) with preference status warning, View Intent link, Delete/Restore
+  - All actions create AuditLog entries with user_id and timestamp
+- Files changed:
+  - app/Filament/Resources/Procurement/BottlingInstructionResource/Pages/ViewBottlingInstruction.php (completely rewritten with 946 lines)
+- **Learnings for future iterations:**
+  - BottlingInstruction has two status systems: BottlingInstructionStatus (lifecycle: draft→active→executed) and BottlingPreferenceStatus (preference collection: pending→partial→complete/defaulted)
+  - AuditLog uses `event`, `old_values`, `new_values` fields (not `event_type`, `changes`, `notes` as seen in some older code)
+  - Markdown content in TextEntry uses `->markdown()` method for proper rendering
+  - Tab badge can show "!" with badgeColor for attention indicators
+  - Preference collection progress is a placeholder - actual voucher preferences would come from Module A integration
+  - Browser verification should be done manually as dev-browser skill is not available
+---
