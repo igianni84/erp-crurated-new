@@ -11,9 +11,17 @@ use App\Models\Customer\Customer;
 /**
  * EligibilityEngine
  *
- * Computes channel eligibility for a Customer or Account based on multiple factors:
+ * Computes channel eligibility for a Customer or Account based on multiple factors.
+ *
+ * Channel Eligibility Rules (US-016):
+ * - B2C: Membership approved + no payment blocks
+ * - B2B: Membership approved + customer_type = B2B + credit approved + no payment blocks
+ * - Club: Membership approved + (automatic tier access OR active club affiliation)
+ *
+ * Factors evaluated:
  * - Membership tier and status
  * - Customer type (for B2B channel)
+ * - Credit approval (for B2B channel, placeholder for US-018)
  * - Operational blocks (placeholder for US-027)
  * - Payment permissions (placeholder for US-018)
  * - Club affiliations (placeholder for US-022)
@@ -61,20 +69,25 @@ class EligibilityEngine
             $factors['customer_type'] = $this->checkCustomerTypeForB2B($customer);
         }
 
-        // Factor 4: Club affiliation (for Club channel, if Member tier)
+        // Factor 4: Credit approval (for B2B channel)
+        if ($channel === ChannelScope::B2B) {
+            $factors['credit_approval'] = $this->checkCreditApproval($customer);
+        }
+
+        // Factor 5: Club affiliation (for Club channel, if Member tier)
         if ($channel === ChannelScope::Club) {
             $factors['club_affiliation'] = $this->checkClubAffiliation($customer);
         }
 
-        // Factor 5: Operational blocks (placeholder for US-027)
+        // Factor 6: Operational blocks (placeholder for US-027)
         $factors['operational_blocks'] = $this->checkOperationalBlocks($customer, $account, $channel);
 
-        // Factor 6: Payment permissions (placeholder for US-018, affects B2C and B2B)
+        // Factor 7: Payment permissions (placeholder for US-018, affects B2C and B2B)
         if ($channel === ChannelScope::B2C || $channel === ChannelScope::B2B) {
-            $factors['payment_permissions'] = $this->checkPaymentPermissions($customer);
+            $factors['payment_permissions'] = $this->checkPaymentPermissions($customer, $channel);
         }
 
-        // Factor 7: Account-level restrictions (if computing for an Account)
+        // Factor 8: Account-level restrictions (if computing for an Account)
         if ($account !== null) {
             $factors['account_status'] = $this->checkAccountStatus($account, $channel);
         }
@@ -253,27 +266,56 @@ class EligibilityEngine
     }
 
     /**
-     * Check payment permissions for channel access.
+     * Check credit approval for B2B channel access.
+     * B2B channel requires credit_limit to be set (not null).
      * Placeholder for US-018 - returns positive until PaymentPermission model exists.
      *
      * @return array{positive: bool, reason: string}
      */
-    private function checkPaymentPermissions(Customer $customer): array
+    private function checkCreditApproval(Customer $customer): array
     {
         // Placeholder implementation until US-018 creates PaymentPermission model
-        // Once implemented, will check: card_allowed, bank_transfer_allowed based on channel requirements
-        $hasPaymentBlock = $this->customerHasPaymentBlock($customer);
+        // Once implemented, will check: $customer->paymentPermission->credit_limit !== null
+        $hasCreditApproved = $this->customerHasCreditApproved($customer);
 
-        if ($hasPaymentBlock) {
+        if (! $hasCreditApproved) {
             return [
                 'positive' => false,
-                'reason' => 'Payment permissions are restricting channel access.',
+                'reason' => 'B2B channel requires approved credit limit. Contact finance to request credit approval.',
             ];
         }
 
         return [
             'positive' => true,
-            'reason' => 'Payment permissions allow channel access.',
+            'reason' => 'Credit is approved for B2B transactions.',
+        ];
+    }
+
+    /**
+     * Check payment permissions for channel access.
+     * B2C and B2B channels are affected by payment blocks.
+     * Placeholder for US-018 - returns positive until PaymentPermission model exists.
+     *
+     * @return array{positive: bool, reason: string}
+     */
+    private function checkPaymentPermissions(Customer $customer, ChannelScope $channel): array
+    {
+        // Placeholder implementation until US-018 creates PaymentPermission model
+        // Once implemented, will check: card_allowed for all channels
+        $hasPaymentBlock = $this->customerHasPaymentBlock($customer);
+
+        if ($hasPaymentBlock) {
+            $channelLabel = $channel->label();
+
+            return [
+                'positive' => false,
+                'reason' => "Payment permissions are blocking {$channelLabel} channel access.",
+            ];
+        }
+
+        return [
+            'positive' => true,
+            'reason' => 'No payment restrictions affecting this channel.',
         ];
     }
 
@@ -359,6 +401,19 @@ class EligibilityEngine
     }
 
     /**
+     * Placeholder: Check if customer has credit approved.
+     * Will be implemented in US-018 when PaymentPermission model exists.
+     * Credit is approved when credit_limit is set (not null).
+     */
+    private function customerHasCreditApproved(Customer $customer): bool
+    {
+        // TODO: Implement when PaymentPermission model exists (US-018)
+        // return $customer->paymentPermission?->credit_limit !== null;
+        // For now, return true to not block B2B access until US-018 is implemented
+        return true;
+    }
+
+    /**
      * Get a human-readable summary of eligibility for a Customer.
      *
      * @return array<string, string>
@@ -381,5 +436,84 @@ class EligibilityEngine
         }
 
         return $summary;
+    }
+
+    /**
+     * Get channel eligibility details with reasons separated into positive and negative.
+     *
+     * @return array<string, array{eligible: bool, reasons: array{positive: array<string>, negative: array<string>}}>
+     */
+    public function getDetailedEligibility(Customer|Account $entity): array
+    {
+        $eligibility = $this->compute($entity);
+        $detailed = [];
+
+        foreach ($eligibility as $channelValue => $data) {
+            $channel = ChannelScope::from($channelValue);
+            $positiveReasons = [];
+            $negativeReasons = [];
+
+            foreach ($data['factors'] as $factor) {
+                if ($factor['positive']) {
+                    $positiveReasons[] = $factor['reason'];
+                } else {
+                    $negativeReasons[] = $factor['reason'];
+                }
+            }
+
+            $detailed[$channelValue] = [
+                'eligible' => $data['eligible'],
+                'channel_label' => $channel->label(),
+                'channel_description' => $channel->description(),
+                'reasons' => [
+                    'positive' => $positiveReasons,
+                    'negative' => $negativeReasons,
+                ],
+            ];
+        }
+
+        return $detailed;
+    }
+
+    /**
+     * Get the eligibility requirements for a channel.
+     * Returns the rules that apply to determine eligibility.
+     *
+     * @return array<string>
+     */
+    public function getChannelRequirements(ChannelScope $channel): array
+    {
+        return $channel->getEligibilityRequirements();
+    }
+
+    /**
+     * Check if a specific channel is eligible for an entity.
+     */
+    public function isEligibleForChannel(Customer|Account $entity, ChannelScope $channel): bool
+    {
+        $eligibility = $this->compute($entity);
+
+        return $eligibility[$channel->value]['eligible'] ?? false;
+    }
+
+    /**
+     * Get the factors preventing eligibility for a channel.
+     * Returns empty array if the entity is eligible.
+     *
+     * @return array<string>
+     */
+    public function getBlockingFactors(Customer|Account $entity, ChannelScope $channel): array
+    {
+        $eligibility = $this->compute($entity);
+        $channelData = $eligibility[$channel->value] ?? null;
+
+        if ($channelData === null || $channelData['eligible']) {
+            return [];
+        }
+
+        return array_values(array_map(
+            fn ($f) => $f['reason'],
+            array_filter($channelData['factors'], fn ($f) => ! $f['positive'])
+        ));
     }
 }
