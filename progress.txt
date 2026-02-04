@@ -95,3 +95,28 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - For modal forms in infolist actions, use standard Filament form components in the `form()` method
   - Tab badges show counts using `badge()` method, e.g., `->badge($count > 0 ? (string) $count : null)`
 ---
+
+## 2026-02-04 - US-005
+- What was implemented:
+  - Created `CustomerType` enum (b2c, b2b, partner) with label/color/icon methods
+  - Created `CustomerStatus` enum (prospect, active, suspended, closed) with label/color/icon methods
+  - Enhanced existing `Customer` model with Party relationship, Auditable trait, and Module K fields
+  - Created migration to add Module K fields to existing customers table (party_id FK, customer_type, default_billing_address_id, created_by, updated_by)
+  - Created `PartyRoleObserver` to auto-create Customer when Party receives customer role
+  - Added backward-compatible STATUS_* constants to Customer model for existing code compatibility
+  - Updated ViewCustomer page to use CustomerStatus enum for badge colors/icons
+- Files changed:
+  - app/Enums/Customer/CustomerType.php (new)
+  - app/Enums/Customer/CustomerStatus.php (new)
+  - app/Models/Customer/Customer.php (updated - added Party relationship, enum casts, backward-compat constants)
+  - app/Observers/Customer/PartyRoleObserver.php (new)
+  - app/Providers/AppServiceProvider.php (updated - registered PartyRoleObserver)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - use CustomerStatus enum)
+  - database/migrations/2026_02_04_390002_add_module_k_fields_to_customers_table.php (new)
+- **Learnings for future iterations:**
+  - When enhancing existing models with enum status, keep backward-compatible constants for existing code (deprecated)
+  - Module K migrations alter existing tables: use `Schema::table()` with `after()` to position new columns
+  - Observer pattern is clean way to auto-create related models when roles are assigned
+  - Observers are registered in AppServiceProvider's `boot()` method using `Model::observe(Observer::class)`
+  - Migration sequence continues: 390002 for customers table enhancement
+---
