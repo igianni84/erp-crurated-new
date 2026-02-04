@@ -1,3 +1,24 @@
 # Ralph Progress Log
 Started: Wed Feb  4 14:00:43 CET 2026
+
+## Codebase Patterns
+- Use `$table->uuid('id')->primary()` for model primary keys with HasUuid trait
+- Models use Auditable trait with created_by/updated_by foreign keys to users
+- Enums follow pattern: value cases with label(), color(), icon() methods
+- Inventory module: app/Models/Inventory/, app/Enums/Inventory/
+- Module B branch is based on ralph/module-a-allocations branch
+
+---
+
+## 2026-02-04 - US-B001
+- **Implemented**: Location model as base for physical storage management
+- **Files created**:
+  - app/Enums/Inventory/LocationType.php (5 location types with label/color/icon methods)
+  - app/Enums/Inventory/LocationStatus.php (3 statuses with operational methods)
+  - app/Models/Inventory/Location.php (HasUuid, Auditable, SoftDeletes)
+  - database/migrations/2026_02_04_100000_create_locations_table.php
+- **Learnings for future iterations**:
+  - Location model relationships to InboundBatch, SerializedBottle, InventoryCase were deferred as those models don't exist yet
+  - The serialization_authorized flag is key for US-B022 (serialization location blocker)
+  - LocationStatus.canReceiveInventory() and canDispatchInventory() will be used by movement validation
 ---
