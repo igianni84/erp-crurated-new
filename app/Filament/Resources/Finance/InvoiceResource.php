@@ -76,7 +76,10 @@ class InvoiceResource extends Resource
                     ->label('Amount')
                     ->money(fn (Invoice $record): string => $record->currency)
                     ->sortable()
-                    ->alignEnd(),
+                    ->alignEnd()
+                    ->description(fn (Invoice $record): string => $record->currency !== 'EUR'
+                        ? $record->currency.' ('.$record->getCurrencySymbol().')'
+                        : ''),
 
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
@@ -182,11 +185,7 @@ class InvoiceResource extends Resource
                     }),
 
                 Tables\Filters\SelectFilter::make('currency')
-                    ->options([
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                        'USD' => 'USD',
-                    ])
+                    ->options(Invoice::getSupportedCurrencies())
                     ->label('Currency'),
 
                 Tables\Filters\TernaryFilter::make('overdue')

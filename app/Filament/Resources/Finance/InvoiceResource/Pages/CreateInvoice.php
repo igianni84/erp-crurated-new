@@ -231,14 +231,18 @@ class CreateInvoice extends CreateRecord
 
                                 Forms\Components\Select::make('currency')
                                     ->label('Currency')
-                                    ->options([
-                                        'EUR' => 'EUR - Euro',
-                                        'GBP' => 'GBP - British Pound',
-                                        'USD' => 'USD - US Dollar',
-                                    ])
+                                    ->options(Invoice::getSupportedCurrencies())
                                     ->default('EUR')
                                     ->required()
-                                    ->helperText('Currency cannot be changed after issuance'),
+                                    ->live()
+                                    ->helperText(function (Get $get): string {
+                                        $currency = $get('currency');
+                                        if ($currency === null || $currency === 'EUR') {
+                                            return 'Base currency (EUR). Currency cannot be changed after issuance.';
+                                        }
+
+                                        return 'Foreign currency. FX rate will be captured at issuance. Currency cannot be changed after issuance.';
+                                    }),
                             ]),
 
                         Forms\Components\Grid::make(2)

@@ -56,6 +56,9 @@ class InvoiceService
         // Validate source reference requirements
         $this->validateSourceReference($invoiceType, $sourceType, $sourceId);
 
+        // Validate currency is supported
+        $this->validateCurrency($currency);
+
         // Check for duplicate invoice for same source (idempotency)
         if ($sourceType !== null && $sourceId !== null) {
             $existing = $this->findBySource($sourceType, $sourceId);
@@ -149,6 +152,11 @@ class InvoiceService
             $invoice->invoice_number = $invoiceNumber;
             $invoice->status = InvoiceStatus::Issued;
             $invoice->issued_at = now();
+
+            // Capture FX rate at issuance for non-EUR currencies
+            if ($invoice->currency !== 'EUR') {
+                $invoice->fx_rate_at_issuance = $this->getFxRateForCurrency($invoice->currency);
+            }
 
             // Set default due date if not set and applicable
             if ($invoice->due_date === null) {
@@ -533,5 +541,49 @@ class InvoiceService
             'new_values' => $newValues,
             'user_id' => Auth::id(),
         ]);
+    }
+
+    /**
+     * Get the FX rate for a given currency to EUR (base currency).
+     *
+     * Returns the rate to convert 1 unit of the currency to EUR.
+     * For example, if 1 GBP = 1.17 EUR, this returns '1.170000'.
+     *
+     * Note: This is a stub implementation. In production, this should
+     * integrate with an external FX rate provider (e.g., ECB, XE, etc.).
+     *
+     * @param  string  $currency  The currency code (e.g., 'GBP', 'USD')
+     * @return string The FX rate as a decimal string with 6 decimal places
+     */
+    protected function getFxRateForCurrency(string $currency): string
+    {
+        // TODO: In production, integrate with an FX rate provider
+        // This stub provides approximate rates for development/testing
+        // These rates should be fetched from a reliable source in production
+
+        $stubRates = [
+            'GBP' => '1.170000',  // 1 GBP ≈ 1.17 EUR
+            'USD' => '0.920000',  // 1 USD ≈ 0.92 EUR
+            'CHF' => '1.040000',  // 1 CHF ≈ 1.04 EUR
+            'JPY' => '0.006100',  // 1 JPY ≈ 0.0061 EUR
+        ];
+
+        return $stubRates[$currency] ?? '1.000000';
+    }
+
+    /**
+     * Validate that the currency is supported.
+     *
+     * @throws InvalidArgumentException If currency is not supported
+     */
+    public function validateCurrency(string $currency): void
+    {
+        $supportedCurrencies = array_keys(Invoice::getSupportedCurrencies());
+
+        if (! in_array($currency, $supportedCurrencies, true)) {
+            throw new InvalidArgumentException(
+                "Currency '{$currency}' is not supported. Supported currencies: ".implode(', ', $supportedCurrencies)
+            );
+        }
     }
 }

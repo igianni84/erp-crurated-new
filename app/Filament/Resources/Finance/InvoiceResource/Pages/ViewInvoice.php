@@ -104,6 +104,7 @@ class ViewInvoice extends ViewRecord
                             TextEntry::make('currency')
                                 ->label('Currency')
                                 ->badge()
+                                ->formatStateUsing(fn (Invoice $record): string => $record->currency.' ('.$record->getCurrencySymbol().')')
                                 ->color('gray'),
                             TextEntry::make('issued_at')
                                 ->label('Issue Date')
@@ -366,7 +367,7 @@ class ViewInvoice extends ViewRecord
                 Section::make('Statutory Information')
                     ->description('Official invoice identification and tax details')
                     ->schema([
-                        Grid::make(2)
+                        Grid::make(3)
                             ->schema([
                                 TextEntry::make('invoice_number')
                                     ->label('Statutory Invoice Number')
@@ -375,7 +376,15 @@ class ViewInvoice extends ViewRecord
                                 TextEntry::make('currency')
                                     ->label('Invoice Currency')
                                     ->badge()
-                                    ->color('gray'),
+                                    ->formatStateUsing(fn (Invoice $record): string => $record->currency.' ('.$record->getCurrencySymbol().')')
+                                    ->color('gray')
+                                    ->helperText(fn (Invoice $record): string => $record->isBaseCurrency() ? 'Base currency' : 'Foreign currency'),
+                                TextEntry::make('fx_rate_info')
+                                    ->label('FX Rate')
+                                    ->getStateUsing(fn (Invoice $record): string => $record->isBaseCurrency()
+                                        ? 'N/A (Base currency)'
+                                        : ($record->hasFxRate() ? $record->getFxRateDescription() ?? 'N/A' : 'Pending (Draft)'))
+                                    ->helperText('Exchange rate snapshot at issuance'),
                             ]),
                     ]),
                 Section::make('General Ledger')
@@ -396,16 +405,24 @@ class ViewInvoice extends ViewRecord
                 Section::make('Foreign Exchange')
                     ->description('Exchange rate information for multi-currency invoices')
                     ->collapsed()
-                    ->visible(fn (Invoice $record): bool => $record->currency !== 'EUR')
+                    ->visible(fn (Invoice $record): bool => ! $record->isBaseCurrency())
                     ->schema([
-                        Grid::make(2)
+                        Grid::make(3)
                             ->schema([
                                 TextEntry::make('currency')
-                                    ->label('Invoice Currency'),
-                                TextEntry::make('fx_rate')
+                                    ->label('Invoice Currency')
+                                    ->formatStateUsing(fn (Invoice $record): string => $record->currency.' ('.$record->getCurrencySymbol().')'),
+                                TextEntry::make('fx_rate_at_issuance')
                                     ->label('FX Rate at Issuance')
-                                    ->getStateUsing(fn (): string => 'Rate snapshot not yet implemented')
-                                    ->helperText('Exchange rate to EUR at time of issuance'),
+                                    ->formatStateUsing(fn (Invoice $record): string => $record->hasFxRate()
+                                        ? $record->fx_rate_at_issuance
+                                        : 'Not captured (draft)')
+                                    ->helperText(fn (Invoice $record): ?string => $record->getFxRateDescription()),
+                                TextEntry::make('total_in_eur')
+                                    ->label('Total in EUR')
+                                    ->getStateUsing(fn (Invoice $record): string => $record->getTotalInBaseCurrency() ?? 'N/A')
+                                    ->formatStateUsing(fn (string $state): string => $state === 'N/A' ? $state : '€ '.$state)
+                                    ->helperText('Calculated using FX rate at issuance'),
                             ]),
                     ]),
             ]);

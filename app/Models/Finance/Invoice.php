@@ -26,12 +26,14 @@ use InvalidArgumentException;
  * - invoice_lines (managed by InvoiceLine model)
  * - subtotal, tax_amount, total_amount
  * - currency
+ * - fx_rate_at_issuance
  *
  * @property string $id
  * @property string|null $invoice_number
  * @property InvoiceType $invoice_type
  * @property string $customer_id
  * @property string $currency
+ * @property string|null $fx_rate_at_issuance
  * @property string $subtotal
  * @property string $tax_amount
  * @property string $total_amount
@@ -68,6 +70,7 @@ class Invoice extends Model
         'invoice_type',
         'customer_id',
         'currency',
+        'fx_rate_at_issuance',
         'subtotal',
         'tax_amount',
         'total_amount',
@@ -108,6 +111,7 @@ class Invoice extends Model
             'tax_amount' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'amount_paid' => 'decimal:2',
+            'fx_rate_at_issuance' => 'decimal:6',
             'issued_at' => 'datetime',
             'due_date' => 'date',
             'xero_synced_at' => 'datetime',
@@ -127,9 +131,9 @@ class Invoice extends Model
                 );
             }
 
-            // After issuance, amounts and currency become immutable
+            // After issuance, amounts, currency, and FX rate become immutable
             if ($invoice->getOriginal('status') !== InvoiceStatus::Draft->value) {
-                $immutableAfterIssuance = ['subtotal', 'tax_amount', 'total_amount', 'currency'];
+                $immutableAfterIssuance = ['subtotal', 'tax_amount', 'total_amount', 'currency', 'fx_rate_at_issuance'];
 
                 foreach ($immutableAfterIssuance as $field) {
                     if ($invoice->isDirty($field)) {
@@ -463,5 +467,100 @@ class Invoice extends Model
     public function getFormattedOutstanding(): string
     {
         return $this->currency.' '.number_format((float) $this->getOutstandingAmount(), 2);
+    }
+
+    // =========================================================================
+    // Currency Methods
+    // =========================================================================
+
+    /**
+     * Get the currency symbol for display.
+     */
+    public function getCurrencySymbol(): string
+    {
+        return match ($this->currency) {
+            'EUR' => '€',
+            'GBP' => '£',
+            'USD' => '$',
+            'CHF' => 'CHF',
+            'JPY' => '¥',
+            default => $this->currency,
+        };
+    }
+
+    /**
+     * Get formatted amount with currency symbol.
+     */
+    public function formatAmount(string $amount): string
+    {
+        return $this->getCurrencySymbol().' '.number_format((float) $amount, 2);
+    }
+
+    /**
+     * Check if the invoice is in the base currency (EUR).
+     */
+    public function isBaseCurrency(): bool
+    {
+        return $this->currency === 'EUR';
+    }
+
+    /**
+     * Check if the invoice has an FX rate (foreign currency at issuance).
+     */
+    public function hasFxRate(): bool
+    {
+        return $this->fx_rate_at_issuance !== null;
+    }
+
+    /**
+     * Get the FX rate description for display.
+     */
+    public function getFxRateDescription(): ?string
+    {
+        if ($this->fx_rate_at_issuance === null) {
+            return null;
+        }
+
+        return "1 {$this->currency} = {$this->fx_rate_at_issuance} EUR";
+    }
+
+    /**
+     * Calculate amount in base currency (EUR) using FX rate.
+     * Returns null if no FX rate is available.
+     */
+    public function getAmountInBaseCurrency(string $amount): ?string
+    {
+        if ($this->isBaseCurrency()) {
+            return $amount;
+        }
+
+        if ($this->fx_rate_at_issuance === null) {
+            return null;
+        }
+
+        return bcmul($amount, $this->fx_rate_at_issuance, 2);
+    }
+
+    /**
+     * Get total amount in base currency (EUR).
+     */
+    public function getTotalInBaseCurrency(): ?string
+    {
+        return $this->getAmountInBaseCurrency($this->total_amount);
+    }
+
+    /**
+     * Get list of supported currencies.
+     *
+     * @return array<string, string>
+     */
+    public static function getSupportedCurrencies(): array
+    {
+        return [
+            'EUR' => 'EUR - Euro',
+            'GBP' => 'GBP - British Pound',
+            'USD' => 'USD - US Dollar',
+            'CHF' => 'CHF - Swiss Franc',
+        ];
     }
 }
