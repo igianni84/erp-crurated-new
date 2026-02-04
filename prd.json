@@ -930,7 +930,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 55,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

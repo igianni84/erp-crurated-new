@@ -1581,3 +1581,36 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Movement color coding: success=transfer, info=internal, warning=consignment, danger=consumption, primary=shipment
   - Timeline always has at least the serialization event (never empty)
 ---
+
+## 2026-02-04 - US-B055
+- **Implemented**: Audit log per SerializedBottle with Tab Audit in Bottle Detail
+- **Files modified**:
+  - app/Models/AuditLog.php (added 18 inventory event types with labels, icons, colors)
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (added Tab Audit)
+- **AuditLog enhancements**:
+  - Added bottle event types: bottle_serialized, bottle_state_change, bottle_location_change, bottle_custody_change, bottle_destroyed, bottle_missing, bottle_mis_serialized
+  - Added case event types: case_created, case_location_change, case_broken, case_bottle_added, case_bottle_removed
+  - Added batch event types: batch_created, batch_quantity_update, batch_discrepancy_flagged, batch_discrepancy_resolved, batch_serialization_started, batch_serialization_completed
+  - Added getEventLabel(), getEventIcon(), getEventColor() support for all new events
+  - Added isInventoryEvent() helper method
+  - Added getInventoryEventTypes() static method for filtering
+- **ViewSerializedBottle Tab Audit**:
+  - Tab 6 with clipboard icon and badge showing log count
+  - Immutability notice explaining audit logs cannot be modified
+  - Timeline view showing all audit logs in reverse chronological order
+  - Each log shows: event type badge, timestamp, user name, changes (old → new values)
+  - Changes display with color coding (red for old, green for new)
+  - formatAuditValue() helper handles null, array, bool, string values
+- **Acceptance criteria verification**:
+  - ✅ Trait Auditable applied to SerializedBottle: Already applied in US-B004
+  - ✅ Events logged: All specified events have constants and display support
+  - ✅ Tab Audit in Bottle Detail with timeline: getAuditTab() method added
+  - ✅ Audit logs are immutable: AuditLog uses UPDATED_AT = null, created_at only
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - AuditLog model uses polymorphic relationship (auditable_type, auditable_id)
+  - Audit events should use event constants for consistency
+  - Mixed value handling requires explicit type checking (use formatAuditValue helper)
+  - Audit tab follows same pattern as other tabs (Section with TextEntry.html())
+  - PHPStan requires @var mixed annotation for values from arrays cast to array type
+---
