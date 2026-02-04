@@ -1381,3 +1381,30 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - PricingPolicy had Auditable trait but was missing the migration columns - combined fix in one migration
   - ViewDiscountRule was originally a simple infolist - converted to tabs for consistency with other Commercial views
 ---
+
+## 2026-02-04 - US-061
+- What was implemented:
+  - Created CommercialAudit Filament Page for global audit trail view
+  - Page uses HasTable interface with InteractsWithTable trait for table functionality
+  - Unified list of all Commercial audit events across 9 entity types
+  - Statistics dashboard showing: total events, today's events, entities tracked, active users
+  - Table columns: date/time, event (with badge/icon/color), entity type, entity ID, entity name, user, changes summary
+  - Filters: entity_type (multi-select), event_type (multi-select), date range (from/until), user (searchable)
+  - Search: entity_id (searchable, copyable), user name (searchable)
+  - View Details modal action showing full change breakdown with old/new value comparison
+  - Export CSV header action with filtered data export for compliance
+  - CSV includes: date/time, event, entity type, entity ID, entity name, user, changed fields, old values JSON, new values JSON
+  - Compliance notice explaining immutability of audit logs
+  - Navigation: Commercial group, sort position 10 (at bottom of Commercial nav)
+- Files changed:
+  - app/Filament/Pages/CommercialAudit.php (created)
+  - resources/views/filament/pages/commercial-audit.blade.php (created)
+  - resources/views/filament/components/audit-detail.blade.php (created)
+- **Learnings for future iterations:**
+  - COMMERCIAL_ENTITY_TYPES constant maps fully qualified class names to display labels
+  - AuditLog model's old_values/new_values are cast to 'array' but PHPStan thinks they're strings - use @var PHPDoc to fix
+  - getTableFiltersForm()->getState() retrieves current filter values for export
+  - streamDownload() with fputcsv() creates efficient CSV exports
+  - Modal content can use custom Blade views via view() helper
+  - AuditLog has getEventLabel(), getEventIcon(), getEventColor() methods for consistent UI
+---
