@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $uuid
  * @property string $customer_id
  * @property string|null $destination_address_id
+ * @property string|null $destination_address
  * @property string|null $source_warehouse_id
  * @property ShippingOrderStatus $status
  * @property PackagingPreference $packaging_preference
@@ -67,6 +68,7 @@ class ShippingOrder extends Model
     protected $fillable = [
         'customer_id',
         'destination_address_id',
+        'destination_address',
         'source_warehouse_id',
         'status',
         'packaging_preference',

@@ -50,6 +50,12 @@ class ShippingOrderResource extends Resource
                             ->searchable()
                             ->preload()
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Forms\Components\Textarea::make('destination_address')
+                            ->label('Destination Address')
+                            ->rows(4)
+                            ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft())
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
 
