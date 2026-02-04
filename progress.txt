@@ -543,3 +543,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice line metadata contains billing period details set during invoice creation
   - PHPStan: Carbon date fields are non-nullable in Subscription model - use -> not ?-> for format()
 ---
+
+## 2026-02-04 - US-E029
+- What was implemented: Created SubscriptionBillingService with pro-rata calculation support
+- Files changed:
+  - app/Services/Finance/SubscriptionBillingService.php (new service with pro-rata calculation methods)
+- **Methods implemented:**
+  - calculateProRata(Subscription, startDate, endDate): Core pro-rata calculation returning amount, days, daily rate, description, metadata
+  - calculateProRataForNewSignup(): Pro-rata from signup date to end of billing period
+  - calculateProRataForCancellation(): Pro-rata from period start to cancellation date
+  - calculateProRataForUpgrade(): Returns both credit for old plan and charge for new plan with net amount
+  - calculateCancellationRefund(): Calculates unused portion for refund
+  - createProRataInvoiceForNewSignup(): Creates INV0 draft with pro-rata details
+  - Helper methods: getBillingPeriodStart(), getBillingPeriodEnd(), buildProRataDescription()
+- **Learnings for future iterations:**
+  - Finance services go in app/Services/Finance/ directory
+  - SubscriptionBillingService depends on InvoiceService for invoice creation
+  - Pro-rata calculation uses daily rate = subscription_amount / total_days in period
+  - Invoice line descriptions include format: "Plan Name (Billing Cycle) - Pro-rata: start to end (X of Y days)"
+  - Metadata tracks: pro_rata=true, pro_rata_type (new_signup/cancellation/upgrade_credit/upgrade_charge), period details
+  - Carbon::diffInDays() returns float - cast to int for return type
+  - Upgrade pro-rata returns both credit (for old plan) and charge (for new plan) with net_amount
+  - Use bcdiv() with 6 decimal places for daily rate precision, bcmul() with 2 for final amounts
+---
