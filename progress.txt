@@ -658,3 +658,34 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - SerializedBottles should never have bulk delete actions - they are audit records
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B026
+- **Implemented**: Bottle Detail Page with 5 comprehensive tabs (audit-grade, read-only)
+- **Files modified**:
+  - app/Models/Inventory/SerializedBottle.php (added movementItems() and movements() relationships)
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (complete rewrite)
+- **Features implemented**:
+  - Tab 1 - Overview: Serial number, wine/format, state badge, allocation lineage (prominent, immutable), physical attributes (capacity, case status), serialization info with inbound batch link
+  - Tab 2 - Location & Custody: Current location details, custody holder status, ownership type with explanation, event consumption eligibility
+  - Tab 3 - Provenance: Origin (inbound batch link, source type), NFT reference with blockchain explorer placeholder, complete provenance timeline (serialization → movements → NFT minting)
+  - Tab 4 - Movements: Full movement history as immutable ledger, each movement shows type, trigger, source/destination, executor, reason, WMS event ID
+  - Tab 5 - Fulfillment Status: Availability badge, state explanation, fulfillment constraints (allocation, ownership), privacy notice (no customer identity shown)
+  - Immutability notice banner at top of page
+  - No edit capability (header actions empty - to be implemented in US-B027, US-B028, US-B029)
+- **Model changes**:
+  - Added movementItems() HasMany relationship to SerializedBottle
+  - Added movements() HasManyThrough relationship to get movements via MovementItem
+- **Key patterns used**:
+  - Tabs with persistTabInQueryString() for URL-based tab persistence
+  - TextEntry.getStateUsing() with HTML for complex timeline displays
+  - Section.extraAttributes() for conditional styling (NFT minted vs pending)
+  - MovementItem query to fetch movements associated with a bottle
+  - Privacy-conscious display (no customer identity in fulfillment tab)
+- **Learnings for future iterations**:
+  - MovementItem->InventoryMovement is the path to get movements for a bottle
+  - PHPStan exhaustive match warns about unreachable default cases when all enum cases are covered
+  - For timeline arrays that always have elements, use count() === 0 check or remove the check entirely
+  - Provenance timeline should show: serialization event, all movements, NFT minting event
+  - Fulfillment tab must NOT show customer identity - privacy compliance requirement
+  - Browser verification requirement noted - manual testing needed
+---
