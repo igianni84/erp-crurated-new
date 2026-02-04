@@ -628,3 +628,33 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - The failed() method is called after all retry attempts exhausted
   - Blockchain integration point is isolated in mintNft() method for future replacement
 ---
+
+## 2026-02-04 - US-B025
+- **Implemented**: SerializedBottleResource in Filament - canonical list of all serialized bottles
+- **Files created**:
+  - app/Filament/Resources/Inventory/SerializedBottleResource.php
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ListSerializedBottles.php
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 4)
+  - List columns: serial_number (copyable with QR icon), wine+format (computed from relations), allocation_lineage (with ID preview), current_location, custody_holder, state (badge), ownership_type (badge), nft_status (icon), serialized_at
+  - Visual indicators: state-based row highlighting (missing=danger, reserved=warning, consumed/destroyed=opacity)
+  - Filters: allocation_id (searchable select), location (searchable), state (multi-select), ownership_type (multi-select), has_nft (ternary), TrashedFilter
+  - Search: serial_number (direct), wine name (via relation query)
+  - State badges: stored=green/success, reserved=yellow/warning, shipped=blue/info, consumed/destroyed=gray
+  - ViewSerializedBottle page with basic info (full detail in US-B026)
+  - No create action (bottles created via serialization process only)
+  - No bulk actions (immutable audit records)
+- **Key patterns used**:
+  - Eager loading with(['wineVariant.wineMaster', 'format', 'allocation', 'currentLocation']) for performance
+  - state() callback on TextColumn for computed columns from relations
+  - searchable(query:) for searching through nested relations
+  - recordClasses() for row-level visual indicators based on state
+  - TernaryFilter with custom queries() for nullable field filtering (has_nft)
+- **Learnings for future iterations**:
+  - inbound_batch_id is NOT nullable - PHPStan caught the unnecessary null check
+  - ViewRecord pages use infolist() method (not form()) for display-only views
+  - Use description() on TextColumn for secondary info display (e.g., allocation ID preview)
+  - SerializedBottles should never have bulk delete actions - they are audit records
+  - Browser verification requirement noted - manual testing needed
+---
