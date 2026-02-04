@@ -430,3 +430,28 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Date range filters use indicateUsing() to show active filter chips
   - Overdue tab useful for quickly identifying POs needing attention
 ---
+
+## 2026-02-04 - US-020
+- What was implemented:
+  - CreatePurchaseOrder wizard page with 5 steps following CreateProcurementIntent pattern
+  - Step 1 (Intent): Procurement Intent selection with searchable autocomplete
+  - Only shows intents in Approved or Executed status
+  - Intent preview showing product label, quantity, sourcing model, status
+  - Prominent warning message: "A PO cannot exist without a Procurement Intent"
+  - Pre-fills quantity and destination_warehouse from intent
+  - Pre-fills ownership_transfer based on sourcing model (true for Purchase)
+  - Visual warnings for sourcing model implications on ownership transfer
+  - Steps 2-5 scaffolded (Supplier, Commercial Terms, Delivery, Review) - will be verified in subsequent stories
+  - Registered create route in PurchaseOrderResource
+- Files changed:
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/CreatePurchaseOrder.php (new)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource.php (modified - registered create route)
+- **Learnings for future iterations:**
+  - Party model doesn't have `trade_name` or `role` fields - use `roles` relationship instead
+  - Party.roles returns HasMany<PartyRole> with `role` attribute - use `pluck('role')` to get role values
+  - Use `party_type->label()` for party type display, not a direct role field
+  - Follow CreateProcurementIntent pattern: HasWizard trait, getSteps() returning Wizard\Step array
+  - Use hidden fields to store preview data for display in review step
+  - Pre-fill downstream fields in afterStateUpdated() to provide good UX defaults
+  - Browser verification should be done manually as dev-browser skill is not available
+---
