@@ -376,3 +376,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - quantity_received column uses color() callback to show green/red based on discrepancy
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B016
+- **Implemented**: ViewInboundBatch page with 5 comprehensive tabs
+- **Files modified**:
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ViewInboundBatch.php (complete rewrite)
+- **Features implemented**:
+  - Tab 1 - Summary: Batch identity, source type, packaging, received date, sourcing context (procurement intent), allocation lineage (immutable, prominent), ownership type, receiving location
+  - Tab 2 - Quantities: Expected vs received, serialized count, remaining unserialized, delta analysis with explanation, serialization progress
+  - Tab 3 - Serialization: Eligibility check with detailed blocking reasons, serialization history grouped by date, serialized bottles list with state/location/NFT status
+  - Tab 4 - Linked Physical Objects: Bottles by state breakdown, full SerializedBottles list, Cases list
+  - Tab 5 - Audit Log: WMS events status, operator actions timeline, discrepancy resolutions section
+  - Contextual actions: Start Serialization (visible when eligible), Resolve Discrepancy (visible when discrepancy exists)
+  - Warning banners for discrepancy status and serialization-not-authorized locations
+- **Key patterns used**:
+  - getTitle() override for dynamic page title
+  - infolist() with Tabs component and persistTabInQueryString()
+  - Multiple Section components with conditional visibility via visible()
+  - RepeatableEntry for displaying related models (bottles, cases)
+  - TextEntry with getStateUsing() and html() for custom HTML content
+  - Actions\Action with requiresConfirmation() and form() for modal actions
+  - SerializationService integration for Start Serialization action
+- **Learnings for future iterations**:
+  - Use getAttribute() with explicit PHPDoc type annotation when PHPStan has issues with cast types
+  - Actions in getHeaderActions() can use visible() callback based on record state
+  - Resolve Discrepancy action updates status and appends resolution to condition_notes (preserves original data)
+  - refreshFormData() can be used to update specific fields after action completes
+  - HTML in TextEntry using heredoc syntax for complex layouts
+  - Browser verification requirement noted - manual testing needed
+---
