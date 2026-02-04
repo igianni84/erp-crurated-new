@@ -76,3 +76,22 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Role filter needs custom query using `whereHas()` to filter by relationship
   - Navigation groups must be defined in AdminPanelProvider's `navigationGroups()` array
 ---
+
+## 2026-02-04 - US-004
+- What was implemented:
+  - Extended `ViewParty` page with tabs using Filament Infolists Tabs component
+  - Tab Overview: identity summary with Party ID, legal name, party type, status, created/updated dates, and assigned roles
+  - Tab Roles: list of assigned roles with add role (modal form) and remove role (confirmation) actions
+  - Tab Legal: tax_id, vat_number, jurisdiction fields with compliance notes section (placeholder)
+  - Tab Audit: full audit trail timeline with filters (event type, date range), shows user, timestamp, and changes
+  - Header actions: Activate/Deactivate contextual actions that show/hide based on party status
+- Files changed:
+  - app/Filament/Resources/Customer/PartyResource/Pages/ViewParty.php (updated - complete rewrite with tabs)
+- **Learnings for future iterations:**
+  - Use `Tabs::make()->tabs([...])` with `persistTabInQueryString()` for persistent tab state
+  - For repeatable entries with actions, use `RepeatableEntry` with `\Filament\Infolists\Components\Actions\Action` inside
+  - Audit trail pattern: use `getStateUsing()` with HTML output for custom timeline rendering
+  - Header section actions use `\Filament\Infolists\Components\Actions\Action` (different from `Filament\Actions\Action`)
+  - For modal forms in infolist actions, use standard Filament form components in the `form()` method
+  - Tab badges show counts using `badge()` method, e.g., `->badge($count > 0 ? (string) $count : null)`
+---
