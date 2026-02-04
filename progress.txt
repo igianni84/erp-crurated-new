@@ -475,3 +475,30 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - `AuthorizationException` is the standard Laravel exception for unauthorized access
   - Human-readable explanation methods help UI display and debugging
 ---
+
+## 2026-02-04 - US-020
+- What was implemented:
+  - Full implementation of Payment & Credit Tab in Customer Detail (replaced placeholder)
+  - Payment Permissions section showing: card_allowed (badge), bank_transfer_allowed (badge), credit_limit (badge with EUR formatting)
+  - Edit Permissions modal (only visible for users with canManagePaymentPermissions):
+    - Toggle for card_allowed with enable/disable
+    - Toggle for bank_transfer_allowed with enable/disable
+    - TextInput for credit_limit with numeric validation >= 0, EUR prefix, step 0.01
+  - Permission Details collapsible section showing:
+    - Impact on Eligibility (explains how permissions affect channel access)
+    - Last Modified (date + user from updater relationship)
+    - Created (date + user from creator relationship)
+  - Modification History collapsible section with full audit log:
+    - Uses AuditLog model to query changes to PaymentPermission
+    - Displays event type, date, user, and specific field changes
+    - Shows old → new value transitions for each field
+  - Tab badge shows "!" danger indicator when card payments are blocked
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Payment & Credit tab implementation with helper methods)
+- **Learnings for future iterations:**
+  - Use `creator()` and `updater()` relationships from Auditable trait (not createdBy/updatedBy)
+  - PHPStan prefers ternary `$x !== null ? $x->prop : default` over `$x?->prop ?? default` when both null checks
+  - For audit log history sections, query AuditLog by `auditable_type` and `auditable_id` to get model-specific logs
+  - Format payment permission changes using helper method that builds human-readable diff strings
+  - Tab badges can use functions to conditionally show alerts (e.g., `fn (): ?string => !$cardAllowed ? '!' : null`)
+---
