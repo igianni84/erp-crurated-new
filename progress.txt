@@ -542,3 +542,25 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Total calculations in review step provide value-add for operator validation
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-025
+- What was implemented:
+  - ViewPurchaseOrder page with 5 tabbed infolist sections
+  - Tab 1 (Commercial Terms): Status & Identity, Supplier info, Product info, Pricing (unit cost, total cost, currency, incoterms), Ownership transfer
+  - Tab 2 (Linked Intent): Source intent ID with link, intent status, quantity coverage vs intent (percentage, status badge), sourcing context
+  - Tab 3 (Delivery Expectations): Delivery window with status indicator (overdue, due soon), destination warehouse, serialization routing note
+  - Tab 4 (Inbound Matching): Variance summary (PO qty vs received qty, variance badge), linked inbound batches with RepeatableEntry, over/short delivery status
+  - Tab 5 (Audit): Immutable timeline with filter actions, formatted audit log entries with color-coded badges
+  - Header actions: Mark as Sent (Draft→Sent), Confirm (Sent→Confirmed), Close (Confirmed→Closed with variance notes), Link Inbound
+  - All actions create audit log entries with user_id and timestamp
+  - Close action includes optional variance_notes textarea
+- Files changed:
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/ViewPurchaseOrder.php (completely rewritten with 880 lines)
+- **Learnings for future iterations:**
+  - PurchaseOrder.procurementIntent relationship is required (NOT NULL FK), use `->` not `?->` for property access
+  - Inbound Matching tab badge shows count of linked inbounds using Tab badge property
+  - Variance calculations: variance = inbound_qty - po_qty, with >10% threshold for danger color
+  - Close action allows variance_notes to be recorded in audit log
+  - Link Inbound action passes purchase_order_id as query param to pre-fill create form
+  - Browser verification should be done manually as dev-browser skill is not available
+---
