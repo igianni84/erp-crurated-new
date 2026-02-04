@@ -1330,3 +1330,42 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Each location item links to filtered bottle list (not location detail) matching acceptance criteria
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B046
+- **Implemented**: Widget Alerts & Exceptions - enhanced alerts widget with expandable details and links
+- **Files modified**:
+  - app/Services/Inventory/InventoryService.php (added getAtRiskAllocations, getBottlesFromAtRiskAllocations, getAtRiskAllocationIds methods)
+  - app/Filament/Pages/InventoryOverview.php (added getAtRiskBottlesUrl, getAtRiskAllocationDetails, getWmsSyncErrors methods)
+  - resources/views/filament/pages/inventory-overview.blade.php (enhanced Alerts widget with expandable details)
+- **Features implemented**:
+  - Widget C: Alerts & Exceptions with all 4 metrics:
+    - Serialization pending (count) - links to SerializationQueue
+    - Batches with discrepancy (count) - links to InboundBatchResource filtered
+    - Committed at risk (count) - expandable details showing at-risk allocations
+    - WMS sync errors (count) - expandable details showing recent errors
+  - Red styling (danger colors) for all alerts when count > 0
+  - Expandable panels using Alpine.js x-data and x-collapse
+  - Committed at Risk shows allocation names with free/committed quantities
+  - WMS Sync Errors shows exception type, reason snippet, and timestamp
+  - Up to 5 items shown per expandable section with "more" indicator
+- **InventoryService new methods**:
+  - getAtRiskAllocations(): Returns allocations where free < 10% of committed with full details
+  - getBottlesFromAtRiskAllocations(): Returns all stored bottles from at-risk allocations
+  - getAtRiskAllocationIds(): Returns just the IDs for filtering
+- **Acceptance criteria verification**:
+  - ✅ Widget C: Alerts & Exceptions - implemented as expandable panel widget
+  - ✅ Serialization pending (count) - via InventoryService.getPendingSerializationCount()
+  - ✅ Batches with discrepancy (count) - via InboundBatch query with Discrepancy status
+  - ✅ Committed at risk (free < 10% of committed) - via InventoryService.getAtRiskAllocations()
+  - ✅ WMS sync errors (count) - via InventoryException query for WMS types
+  - ✅ All alerts in red when count > 0 - using bg-danger-50/100, text-danger-600/800 classes
+  - ✅ Direct links to problematic items - Serialization/Discrepancy have URLs, others have expandable details
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Alpine.js x-collapse directive provides smooth expand/collapse animations
+  - Expandable panels are better than modal links when no dedicated resource exists for the alert type
+  - At-risk allocations calculation: free < committed * 0.1 (10% threshold)
+  - WMS sync errors filter by exception_type: wms_serialization_blocked, wms_event_duplicate_ignored
+  - PHPStan requires explicit instanceof checks for Model::find() return types
+  - Browser verification requirement noted - manual testing needed
+---
