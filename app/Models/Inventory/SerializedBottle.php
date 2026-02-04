@@ -204,6 +204,33 @@ class SerializedBottle extends Model
     }
 
     /**
+     * Get the movement items associated with this bottle.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<MovementItem, $this>
+     */
+    public function movementItems(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(MovementItem::class, 'serialized_bottle_id');
+    }
+
+    /**
+     * Get the inventory movements that involve this bottle.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<InventoryMovement, MovementItem, $this>
+     */
+    public function movements(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            InventoryMovement::class,
+            MovementItem::class,
+            'serialized_bottle_id', // Foreign key on movement_items table
+            'id', // Foreign key on inventory_movements table
+            'id', // Local key on serialized_bottles table
+            'inventory_movement_id' // Local key on movement_items table
+        );
+    }
+
+    /**
      * Check if the bottle is available for fulfillment.
      */
     public function isAvailableForFulfillment(): bool
