@@ -478,3 +478,30 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Filament BulkAction::make() provides checkbox selection automatically
   - Use ->deselectRecordsAfterCompletion() to clear selection after bulk action completes
 ---
+
+## 2026-02-04 - US-E026
+- What was implemented: INV0 auto-generation from subscription billing events
+- Files changed:
+  - app/Events/Finance/SubscriptionBillingDue.php (new event class for subscription billing triggers)
+  - app/Listeners/Finance/GenerateSubscriptionInvoice.php (new listener to create INV0 draft invoices)
+  - app/Providers/EventServiceProvider.php (new provider to register Finance events/listeners)
+  - bootstrap/providers.php (registered EventServiceProvider)
+  - app/Models/Finance/Invoice.php (updated source_id type from int to string for UUID support)
+  - app/Services/Finance/InvoiceService.php (updated sourceId parameter type to string|int|null)
+  - database/migrations/2026_02_04_300011_change_source_id_to_string_on_invoices.php (migration to change source_id column)
+- **Acceptance criteria verification:**
+  - ✅ Listener for SubscriptionBillingDue event: GenerateSubscriptionInvoice listener
+  - ✅ Creates Invoice draft with type = INV0: Uses InvoiceType::MembershipService
+  - ✅ Source reference: subscription_id: source_type='subscription', source_id=subscription.id
+  - ✅ Invoice lines from subscription plan details: buildInvoiceLines() includes plan_name, billing_cycle, period dates
+  - ✅ Auto-issue if configured: autoIssue parameter on event triggers issue() after creation
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Finance events go in app/Events/Finance/, listeners in app/Listeners/Finance/
+  - EventServiceProvider registers event/listener mappings using Event::listen()
+  - Subscription.id is UUID (string), not int - source_id must support both types
+  - GenerateSubscriptionInvoice implements ShouldQueue for async processing
+  - Idempotency check uses isRecentBillingPeriod() to prevent duplicates within billing cycle
+  - Invoice lines include metadata with subscription details for audit trail
+  - Log channel 'finance' used for financial operation logging
+---
