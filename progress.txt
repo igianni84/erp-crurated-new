@@ -1288,3 +1288,25 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Dashboard metrics can be computationally expensive - consider caching for production
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B044
+- **Verified**: Widget Global KPIs (already implemented in US-B043)
+- **Implementation already complete in US-B043** - InventoryOverview.php includes all Global KPIs functionality
+- **Acceptance criteria verification**:
+  - ✅ Widget A: Global Inventory KPIs - Implemented as "Bottles by State" widget in dashboard
+  - ✅ Total serialized bottles (count): `$globalKpis['total_serialized_bottles']` displayed in top summary card
+  - ✅ Unserialized inbound quantities (sum): `$globalKpis['unserialized_inbound']` via InventoryService.getPendingSerializationCount()
+  - ✅ Bottles by state breakdown: stored/reserved/shipped/consumed/destroyed/missing with progress bars in Widget A
+  - ✅ Committed vs free quantities: `$globalKpis['committed_quantity']` and `$globalKpis['free_quantity']` in top cards
+  - ✅ Color coding per criticità: Each state uses its enum color (success/warning/info/gray/danger) for visual distinction
+  - ✅ Typecheck and lint pass
+- **Files involved**:
+  - app/Filament/Pages/InventoryOverview.php (getGlobalKpis, getBottleStateMeta methods)
+  - resources/views/filament/pages/inventory-overview.blade.php (Widget A: Bottles by State section)
+- **Learnings for future iterations**:
+  - US-B044 was a verification story - Widget A was implemented as part of US-B043 comprehensive dashboard
+  - getGlobalKpis() provides all metrics in a single array for efficient data fetching
+  - Bottle states beyond acceptance criteria (consumed, destroyed, missing) are included for completeness
+  - Color mapping in Blade uses match() expression to convert enum colors to Tailwind classes
+  - Browser verification requirement noted - manual testing needed
+---
