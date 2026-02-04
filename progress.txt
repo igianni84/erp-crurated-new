@@ -248,3 +248,21 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - US-010 implemented ahead to provide complete wizard flow
   - Enum-based selects with Placeholder guidance provide excellent UX for domain-specific options
 ---
+
+## 2026-02-04 - US-012
+- What was implemented:
+  - Step 3 (Delivery) was already implemented in US-010 iteration
+  - Verified all acceptance criteria are met:
+    - preferred_inbound_location (select) with authorized warehouse options
+    - rationale (textarea) with "optional but recommended" helper text
+    - Location options: main_warehouse, secondary_warehouse, bonded_warehouse, third_party_storage
+    - Serialization constraints preview via location_preview placeholder
+  - Typecheck and lint pass for all Procurement module files
+- Files changed:
+  - No new files (implementation was done ahead in US-010)
+  - prd.json (marked US-012 as passes: true)
+- **Learnings for future iterations:**
+  - All 4 wizard steps (Product, Source & Model, Delivery, Review) were implemented together in US-010
+  - Location-based serialization constraints are currently hardcoded - future enhancement could pull from ProducerSupplierConfig
+  - Browser verification should be done manually as dev-browser skill is not available
+---
