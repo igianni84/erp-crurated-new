@@ -521,3 +521,31 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Migration sequence continues: 390007 for clubs table
   - Customer-Club relationship (US-022) will use a pivot table, not direct FK on Club
 ---
+
+## 2026-02-04 - US-022
+- What was implemented:
+  - Created `AffiliationStatus` enum (active, suspended) with label/color/icon methods
+  - Created `CustomerClub` pivot model with HasUuid, Auditable traits
+  - Created migration for `customer_clubs` pivot table with unique constraint on (customer_id, club_id)
+  - Added `clubs()` belongsToMany relationship to Customer model
+  - Added `clubAffiliations()`, `activeClubAffiliations()`, `effectiveClubAffiliations()` HasMany relationships to Customer
+  - Added helper methods on Customer: `hasActiveClubAffiliation()`, `hasEffectiveClubAffiliation()`, `isAffiliatedWith()`, `hasEffectiveAffiliationWith()`
+  - Added `customers()` belongsToMany relationship to Club model
+  - Added `customerAffiliations()`, `activeCustomerAffiliations()` HasMany relationships to Club
+  - Added helper methods on Club: `getActiveMembersCount()`, `hasCustomer()`
+  - Added `isEffective()` method on CustomerClub to check active + started + not ended
+  - Added scopes on CustomerClub: `scopeActive()`, `scopeEffective()`
+- Files changed:
+  - app/Enums/Customer/AffiliationStatus.php (new)
+  - app/Models/Customer/CustomerClub.php (new)
+  - app/Models/Customer/Customer.php (updated - added club relationships and helpers)
+  - app/Models/Customer/Club.php (updated - added customer relationships and helpers)
+  - database/migrations/2026_02_04_390008_create_customer_clubs_table.php (new)
+- **Learnings for future iterations:**
+  - For pivot tables with UUID primary key and extra columns, use standalone Model with HasUuid trait (not Pivot class)
+  - Don't use `using()` method with standard Model - it expects Pivot subclass; use separate HasMany relationships instead
+  - `belongsToMany` with `withPivot()` provides access to pivot data, while `HasMany` to pivot model allows direct queries
+  - Affiliation status is independent of Club status - a customer affiliation can be suspended even if Club is active
+  - `effectiveClubAffiliations()` filters for: affiliation_status = active AND start_date <= now AND (end_date IS NULL OR end_date >= now)
+  - Migration sequence continues: 390008 for customer_clubs table
+---
