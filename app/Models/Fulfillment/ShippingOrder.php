@@ -206,6 +206,16 @@ class ShippingOrder extends Model
     }
 
     /**
+     * Get the shipping order lines for this shipping order.
+     *
+     * @return HasMany<ShippingOrderLine, $this>
+     */
+    public function lines(): HasMany
+    {
+        return $this->hasMany(ShippingOrderLine::class);
+    }
+
+    /**
      * Check if the shipping order is in draft status.
      */
     public function isDraft(): bool
