@@ -15,6 +15,7 @@ enum BottleState: string
     case Consumed = 'consumed';
     case Destroyed = 'destroyed';
     case Missing = 'missing';
+    case MisSerialized = 'mis_serialized';
 
     /**
      * Get the human-readable label for this state.
@@ -28,6 +29,7 @@ enum BottleState: string
             self::Consumed => 'Consumed',
             self::Destroyed => 'Destroyed',
             self::Missing => 'Missing',
+            self::MisSerialized => 'Mis-serialized',
         };
     }
 
@@ -42,6 +44,7 @@ enum BottleState: string
             self::Shipped => 'info',
             self::Consumed, self::Destroyed => 'gray',
             self::Missing => 'danger',
+            self::MisSerialized => 'danger',
         };
     }
 
@@ -57,6 +60,7 @@ enum BottleState: string
             self::Consumed => 'heroicon-o-check',
             self::Destroyed => 'heroicon-o-x-circle',
             self::Missing => 'heroicon-o-question-mark-circle',
+            self::MisSerialized => 'heroicon-o-exclamation-triangle',
         };
     }
 
@@ -75,7 +79,7 @@ enum BottleState: string
     {
         return match ($this) {
             self::Stored, self::ReservedForPicking => true,
-            self::Shipped, self::Consumed, self::Destroyed, self::Missing => false,
+            self::Shipped, self::Consumed, self::Destroyed, self::Missing, self::MisSerialized => false,
         };
     }
 
@@ -85,7 +89,7 @@ enum BottleState: string
     public function isTerminal(): bool
     {
         return match ($this) {
-            self::Consumed, self::Destroyed, self::Missing => true,
+            self::Consumed, self::Destroyed, self::Missing, self::MisSerialized => true,
             self::Stored, self::ReservedForPicking, self::Shipped => false,
         };
     }

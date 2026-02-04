@@ -10,7 +10,10 @@ use App\Filament\Resources\Inventory\SerializedBottleResource;
 use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\MovementItem;
 use App\Models\Inventory\SerializedBottle;
+use App\Models\Pim\Format;
+use App\Models\Pim\WineVariant;
 use App\Services\Inventory\MovementService;
+use App\Services\Inventory\SerializationService;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists\Components\Grid;
@@ -24,6 +27,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
 class ViewSerializedBottle extends ViewRecord
@@ -69,6 +73,30 @@ class ViewSerializedBottle extends ViewRecord
                     ->icon('heroicon-o-lock-closed')
                     ->iconColor('info')
                     ->color('gray'),
+                TextEntry::make('mis_serialization_notice')
+                    ->label('')
+                    ->visible(fn (SerializedBottle $record): bool => $record->isMisSerialized())
+                    ->getStateUsing(function (SerializedBottle $record): string {
+                        $linkedBottle = $record->linkedBottle;
+                        $linkedSerial = $linkedBottle !== null ? $linkedBottle->serial_number : 'Unknown';
+
+                        return "⚠️ MIS-SERIALIZED: This record has been flagged as mis-serialized and is LOCKED. A corrective record ({$linkedSerial}) has been created with the correct data.";
+                    })
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->iconColor('danger')
+                    ->color('danger'),
+                TextEntry::make('correction_origin_notice')
+                    ->label('')
+                    ->visible(fn (SerializedBottle $record): bool => $record->hasCorrectionReference() && ! $record->isMisSerialized())
+                    ->getStateUsing(function (SerializedBottle $record): string {
+                        $linkedBottle = $record->linkedBottle;
+                        $linkedSerial = $linkedBottle !== null ? $linkedBottle->serial_number : 'Unknown';
+
+                        return "ℹ️ CORRECTIVE RECORD: This bottle was created to correct a mis-serialization error in bottle {$linkedSerial}.";
+                    })
+                    ->icon('heroicon-o-arrow-path')
+                    ->iconColor('info')
+                    ->color('info'),
             ])
             ->columnSpanFull();
     }
@@ -783,6 +811,7 @@ class ViewSerializedBottle extends ViewRecord
                                     BottleState::Consumed => 'This bottle was consumed (e.g., at an event). It is no longer available for fulfillment.',
                                     BottleState::Destroyed => 'This bottle was destroyed (damage, leakage, etc.). It is no longer available for fulfillment.',
                                     BottleState::Missing => 'This bottle is marked as missing. It cannot be used for fulfillment until located.',
+                                    BottleState::MisSerialized => 'This bottle was flagged as mis-serialized. A corrective record has been created. This record is locked for audit purposes.',
                                 };
                             })
                             ->icon('heroicon-o-information-circle')
@@ -834,6 +863,7 @@ class ViewSerializedBottle extends ViewRecord
         return [
             $this->getMarkAsDamagedAction(),
             $this->getMarkAsMissingAction(),
+            $this->getFlagAsMisSerializedAction(),
         ];
     }
 
@@ -1115,6 +1145,214 @@ class ViewSerializedBottle extends ViewRecord
                         ->danger()
                         ->title('Error')
                         ->body($e->getMessage())
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to flag a bottle as mis-serialized and create a corrective record.
+     *
+     * US-B029: Mis-serialization correction flow (admin-only)
+     *
+     * - Admin-only action
+     * - Original bottle record flagged as MIS_SERIALIZED
+     * - Original record locked (no further changes)
+     * - Corrective record created with correct data
+     * - Both records linked via correction_reference
+     * - Original error remains visible
+     * - Provenance integrity preserved (additive corrections)
+     * - Full audit trail
+     */
+    protected function getFlagAsMisSerializedAction(): Actions\Action
+    {
+        return Actions\Action::make('flagAsMisSerialized')
+            ->label('Flag as Mis-serialized')
+            ->icon('heroicon-o-exclamation-triangle')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalHeading('Flag Bottle as Mis-serialized')
+            ->modalDescription(fn (SerializedBottle $record): string => "You are about to flag bottle {$record->serial_number} as mis-serialized. This will lock the original record and create a new corrective record with the correct data.")
+            ->modalIcon('heroicon-o-exclamation-triangle')
+            ->modalIconColor('danger')
+            ->visible(function (SerializedBottle $record): bool {
+                // Admin-only action
+                /** @var \App\Models\User|null $user */
+                $user = auth()->user();
+                if ($user === null || ! $user->isAdmin()) {
+                    return false;
+                }
+
+                // Cannot flag if already in terminal state
+                return $record->canFlagAsMisSerialized();
+            })
+            ->form([
+                Forms\Components\Section::make('Mis-serialization Confirmation')
+                    ->description('This action is for correcting bottles serialized with incorrect data')
+                    ->schema([
+                        Forms\Components\Placeholder::make('warning')
+                            ->label('')
+                            ->content(new HtmlString('
+                                <div class="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0">
+                                            <svg class="w-6 h-6 text-danger-600 dark:text-danger-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-danger-700 dark:text-danger-300">Admin-Only Correction Flow</h4>
+                                            <ul class="mt-2 text-sm text-danger-600 dark:text-danger-400 list-disc list-inside space-y-1">
+                                                <li>The <strong>original bottle record</strong> will be flagged as <strong>MIS_SERIALIZED</strong></li>
+                                                <li>The original record will be <strong>locked</strong> (no further changes allowed)</li>
+                                                <li>A <strong>new corrective record</strong> will be created with the correct data you provide</li>
+                                                <li>Both records will be <strong>linked via correction_reference</strong></li>
+                                                <li>The original error <strong>remains visible</strong> for audit purposes</li>
+                                                <li><strong>Provenance integrity is preserved</strong> (additive correction, not overwrite)</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            ')),
+                        Forms\Components\Checkbox::make('confirm_mis_serialization')
+                            ->label('I confirm this bottle was serialized with incorrect data and requires correction')
+                            ->required()
+                            ->accepted()
+                            ->validationMessages([
+                                'accepted' => 'You must confirm the mis-serialization to proceed.',
+                            ]),
+                    ])
+                    ->extraAttributes(['class' => 'bg-danger-50/50 dark:bg-danger-900/10']),
+                Forms\Components\Section::make('Correction Reason')
+                    ->description('Document why this bottle was mis-serialized')
+                    ->schema([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Mis-serialization Reason')
+                            ->placeholder('Explain what was incorrect about the original serialization (e.g., wrong wine variant, wrong format, etc.)...')
+                            ->rows(3)
+                            ->required()
+                            ->minLength(20)
+                            ->maxLength(1000)
+                            ->helperText('Minimum 20 characters. This will be recorded in the audit trail.'),
+                    ]),
+                Forms\Components\Section::make('Corrective Record Data')
+                    ->description('Provide the CORRECT data for the new bottle record')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('correct_wine_variant_id')
+                                    ->label('Correct Wine Variant')
+                                    ->options(fn () => WineVariant::query()
+                                        ->with('wineMaster')
+                                        ->get()
+                                        ->mapWithKeys(fn (WineVariant $variant): array => [
+                                            $variant->id => ($variant->wineMaster !== null ? $variant->wineMaster->name : 'Unknown Wine').' '.$variant->vintage_year,
+                                        ]))
+                                    ->searchable()
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('Select the correct wine variant for this bottle'),
+                                Forms\Components\Select::make('correct_format_id')
+                                    ->label('Correct Format')
+                                    ->options(fn () => Format::query()
+                                        ->get()
+                                        ->mapWithKeys(fn (Format $format): array => [
+                                            $format->id => $format->name.' ('.($format->capacity_ml ?? '750').'ml)',
+                                        ]))
+                                    ->searchable()
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('Select the correct format for this bottle'),
+                            ]),
+                        Forms\Components\Placeholder::make('note')
+                            ->label('')
+                            ->content(new HtmlString('
+                                <div class="p-3 bg-info-50 dark:bg-info-900/20 rounded-lg border border-info-200 dark:border-info-800 text-info-700 dark:text-info-300 text-sm">
+                                    <strong>Note:</strong> The corrective record will inherit the allocation lineage, inbound batch, ownership type, and location from the original record. Only the wine variant and format can be corrected.
+                                </div>
+                            ')),
+                    ]),
+            ])
+            ->action(function (array $data, SerializedBottle $record): void {
+                try {
+                    DB::transaction(function () use ($data, $record): void {
+                        /** @var string $reason */
+                        $reason = $data['reason'];
+                        /** @var string $correctWineVariantId */
+                        $correctWineVariantId = $data['correct_wine_variant_id'];
+                        /** @var string $correctFormatId */
+                        $correctFormatId = $data['correct_format_id'];
+
+                        // 1. Generate a new serial number for the corrective record
+                        /** @var SerializationService $serializationService */
+                        $serializationService = app(SerializationService::class);
+                        $newSerialNumber = $serializationService->generateSerialNumber();
+
+                        // 2. Create the corrective record with correct data
+                        $correctiveBottle = SerializedBottle::create([
+                            'serial_number' => $newSerialNumber,
+                            'wine_variant_id' => $correctWineVariantId,
+                            'format_id' => $correctFormatId,
+                            'allocation_id' => $record->allocation_id, // Inherited - immutable
+                            'inbound_batch_id' => $record->inbound_batch_id, // Inherited
+                            'current_location_id' => $record->current_location_id, // Inherited
+                            'case_id' => $record->case_id, // Inherited
+                            'ownership_type' => $record->ownership_type, // Inherited
+                            'custody_holder' => $record->custody_holder, // Inherited
+                            'state' => BottleState::Stored, // New corrective bottle is stored
+                            'serialized_at' => now(),
+                            'serialized_by' => auth()->id(),
+                            'correction_reference' => $record->id, // Link to original
+                        ]);
+
+                        // 3. Flag the original record as MIS_SERIALIZED and link to corrective
+                        // We need to bypass the immutability guard for this specific update
+                        // Use a direct DB update since the state field is not immutable
+                        $record->state = BottleState::MisSerialized;
+                        $record->correction_reference = $correctiveBottle->id;
+                        $record->saveQuietly(); // Skip events to avoid issues
+
+                        // 4. Create inventory exception for audit trail
+                        InventoryException::create([
+                            'exception_type' => 'mis_serialization_correction',
+                            'serialized_bottle_id' => $record->id,
+                            'reason' => "Mis-serialization flagged: {$reason}. Original serial: {$record->serial_number}. Corrective record created with serial: {$newSerialNumber}",
+                            'created_by' => auth()->id(),
+                            'resolution' => "Corrective record created: {$newSerialNumber} (ID: {$correctiveBottle->id})",
+                            'resolved_at' => now(),
+                            'resolved_by' => auth()->id(),
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Mis-serialization Correction Completed')
+                            ->body("Original bottle {$record->serial_number} has been flagged as mis-serialized. Corrective record created with serial number: {$newSerialNumber}")
+                            ->persistent()
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('view_corrective')
+                                    ->label('View Corrective Record')
+                                    ->url(SerializedBottleResource::getUrl('view', ['record' => $correctiveBottle->id]))
+                                    ->openUrlInNewTab(),
+                            ])
+                            ->send();
+                    });
+
+                    // Refresh the page to show updated state
+                    /** @var SerializedBottle $currentRecord */
+                    $currentRecord = $this->record;
+                    $this->redirect(SerializedBottleResource::getUrl('view', ['record' => $currentRecord->id]));
+
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Error')
+                        ->body($e->getMessage())
+                        ->send();
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Error')
+                        ->body('An unexpected error occurred: '.$e->getMessage())
                         ->send();
                 }
             });

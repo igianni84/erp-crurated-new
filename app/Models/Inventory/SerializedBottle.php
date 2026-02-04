@@ -42,6 +42,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $serialized_by
  * @property string|null $nft_reference
  * @property \Carbon\Carbon|null $nft_minted_at
+ * @property string|null $correction_reference
  */
 class SerializedBottle extends Model
 {
@@ -77,6 +78,7 @@ class SerializedBottle extends Model
         'serialized_by',
         'nft_reference',
         'nft_minted_at',
+        'correction_reference',
     ];
 
     /**
@@ -340,5 +342,41 @@ class SerializedBottle extends Model
     public function getDisplayLabelAttribute(): string
     {
         return $this->serial_number;
+    }
+
+    /**
+     * Check if the bottle has been marked as mis-serialized.
+     */
+    public function isMisSerialized(): bool
+    {
+        return $this->state === BottleState::MisSerialized;
+    }
+
+    /**
+     * Check if this bottle has a correction reference.
+     */
+    public function hasCorrectionReference(): bool
+    {
+        return $this->correction_reference !== null;
+    }
+
+    /**
+     * Get the linked bottle (either original or corrective).
+     *
+     * @return BelongsTo<SerializedBottle, $this>
+     */
+    public function linkedBottle(): BelongsTo
+    {
+        return $this->belongsTo(SerializedBottle::class, 'correction_reference');
+    }
+
+    /**
+     * Check if this bottle can be flagged as mis-serialized.
+     * Only admin can flag, and bottle must not already be in a terminal state.
+     */
+    public function canFlagAsMisSerialized(): bool
+    {
+        // Cannot flag if already in terminal state (includes mis_serialized)
+        return ! $this->isInTerminalState();
     }
 }
