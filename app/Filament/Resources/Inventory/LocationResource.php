@@ -2,15 +2,18 @@
 
 namespace App\Filament\Resources\Inventory;
 
+use App\Enums\Inventory\InboundBatchStatus;
 use App\Enums\Inventory\LocationStatus;
 use App\Enums\Inventory\LocationType;
 use App\Filament\Resources\Inventory\LocationResource\Pages;
 use App\Models\Inventory\Location;
+use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rules\Unique;
 
 class LocationResource extends Resource
 {
@@ -32,7 +35,109 @@ class LocationResource extends Resource
     {
         return $form
             ->schema([
-                // Form schema will be implemented in US-B014
+                // Warning banner for pending serialization when disabling serialization_authorized
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('serialization_warning')
+                            ->label('')
+                            ->content('⚠️ WARNING: This location has inbound batches pending serialization. Disabling serialization authorization will prevent these batches from being serialized at this location.')
+                            ->extraAttributes(['class' => 'text-danger-600 font-semibold']),
+                    ])
+                    ->extraAttributes(['class' => 'bg-danger-50 border-danger-300'])
+                    ->visible(function (?Location $record, Forms\Get $get): bool {
+                        // Only show warning in edit mode when:
+                        // 1. Location currently has serialization_authorized = true
+                        // 2. User is trying to set it to false
+                        // 3. There are pending serialization batches
+                        if ($record === null) {
+                            return false;
+                        }
+
+                        $currentValue = $get('serialization_authorized');
+                        $hasPendingBatches = $record->inboundBatches()
+                            ->whereIn('serialization_status', [
+                                InboundBatchStatus::PendingSerialization->value,
+                                InboundBatchStatus::PartiallySerialized->value,
+                            ])
+                            ->exists();
+
+                        return $record->serialization_authorized
+                            && $currentValue === false
+                            && $hasPendingBatches;
+                    }),
+
+                Forms\Components\Section::make('Location Details')
+                    ->schema([
+                        Forms\Components\TextInput::make('name')
+                            ->label('Location Name')
+                            ->required()
+                            ->maxLength(255)
+                            ->placeholder('e.g., Main Warehouse Italy, London Consignment')
+                            ->unique(
+                                table: Location::class,
+                                column: 'name',
+                                ignoreRecord: true,
+                                modifyRuleUsing: fn (Unique $rule) => $rule->withoutTrashed()
+                            ),
+
+                        Forms\Components\Select::make('location_type')
+                            ->label('Location Type')
+                            ->required()
+                            ->options(collect(LocationType::cases())
+                                ->mapWithKeys(fn (LocationType $type) => [$type->value => $type->label()])
+                                ->toArray())
+                            ->native(false),
+
+                        Forms\Components\TextInput::make('country')
+                            ->label('Country')
+                            ->required()
+                            ->maxLength(100)
+                            ->placeholder('e.g., Italy, United Kingdom, France'),
+
+                        Forms\Components\Textarea::make('address')
+                            ->label('Address')
+                            ->nullable()
+                            ->rows(3)
+                            ->placeholder('Full postal address'),
+                    ])
+                    ->columns(2),
+
+                Forms\Components\Section::make('Settings')
+                    ->schema([
+                        Forms\Components\Toggle::make('serialization_authorized')
+                            ->label('Serialization Authorized')
+                            ->helperText('Allow serialization of bottles at this location. Only authorized locations can perform serialization.')
+                            ->default(false)
+                            ->live(),
+
+                        Forms\Components\TextInput::make('linked_wms_id')
+                            ->label('WMS ID')
+                            ->nullable()
+                            ->maxLength(255)
+                            ->placeholder('External WMS system identifier')
+                            ->helperText('Link to external Warehouse Management System'),
+
+                        Forms\Components\Select::make('status')
+                            ->label('Status')
+                            ->required()
+                            ->options(collect(LocationStatus::cases())
+                                ->mapWithKeys(fn (LocationStatus $status) => [$status->value => $status->label()])
+                                ->toArray())
+                            ->default(LocationStatus::Active->value)
+                            ->native(false),
+                    ])
+                    ->columns(3),
+
+                Forms\Components\Section::make('Notes')
+                    ->schema([
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Notes')
+                            ->nullable()
+                            ->rows(4)
+                            ->placeholder('Additional notes about this location'),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 
