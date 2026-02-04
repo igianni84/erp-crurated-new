@@ -1310,3 +1310,23 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Color mapping in Blade uses match() expression to convert enum colors to Tailwind classes
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B045
+- **Verified**: Widget Inventory by Location (already implemented in US-B043)
+- **Implementation already complete in US-B043** - InventoryOverview.php includes Widget B with full location functionality
+- **Acceptance criteria verification**:
+  - ✅ Widget B: Inventory by Location - Implemented as "Top Locations by Stock" widget (lines 129-176 of blade template)
+  - ✅ Top locations by bottle count: `getTopLocationsByBottleCount(8)` returns top 8 locations ordered by stored_bottle_count
+  - ✅ Warehouse vs consignee breakdown: `getLocationTypeBreakdown()` shows warehouse_bottles, consignee_bottles with location counts (lines 180-238)
+  - ✅ Click su location apre filtered bottle list: Each location links via `getBottlesByLocationUrl($item['location'])` to SerializedBottleResource with current_location_id filter
+  - ✅ Typecheck and lint pass
+- **Files involved**:
+  - app/Filament/Pages/InventoryOverview.php (getTopLocationsByBottleCount, getLocationTypeBreakdown, getBottlesByLocationUrl methods)
+  - resources/views/filament/pages/inventory-overview.blade.php (Widget B section + Location Type Breakdown Row)
+- **Learnings for future iterations**:
+  - US-B045 was a verification story - Widget B was implemented as part of US-B043 comprehensive dashboard
+  - Top locations widget shows name, location_type.label(), and bottle_count with links to filtered lists
+  - Location Type Breakdown Row provides warehouse vs consignee summary with active location counts
+  - Each location item links to filtered bottle list (not location detail) matching acceptance criteria
+  - Browser verification requirement noted - manual testing needed
+---
