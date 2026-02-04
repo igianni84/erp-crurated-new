@@ -18,6 +18,7 @@ use App\Models\Fulfillment\ShippingOrderException;
 use App\Models\Fulfillment\ShippingOrderLine;
 use App\Models\Inventory\Location;
 use App\Services\Fulfillment\LateBindingService;
+use App\Services\Fulfillment\ShipmentService;
 use App\Services\Fulfillment\ShippingOrderService;
 use App\Services\Fulfillment\WmsIntegrationService;
 use Filament\Actions;
@@ -2289,12 +2290,28 @@ class ViewShippingOrder extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            // Draft status actions
             $this->getSelectWarehouseAction(),
             $this->getPlanOrderAction(),
-            $this->getRequestRePickAction(),
-            $this->getExportAuditCsvAction(),
             Actions\EditAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
+
+            // Planned status actions
+            $this->getSendToPickingAction(),
+
+            // Picking status actions
+            $this->getConfirmShipmentAction(),
+            $this->getRequestRePickAction(),
+
+            // On Hold actions
+            $this->getResumeAction(),
+
+            // Common actions
+            $this->getPutOnHoldAction(),
+            $this->getCancelAction(),
+            $this->getExportAuditCsvAction(),
+
+            // Delete (draft only)
             Actions\DeleteAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft())
                 ->requiresConfirmation()
@@ -2598,6 +2615,331 @@ class ViewShippingOrder extends ViewRecord
                 } catch (\Exception $e) {
                     Notification::make()
                         ->title('Re-pick Request Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to send the shipping order to picking (transition from Planned to Picking).
+     */
+    protected function getSendToPickingAction(): Actions\Action
+    {
+        return Actions\Action::make('sendToPicking')
+            ->label('Send to Picking')
+            ->icon('heroicon-o-hand-raised')
+            ->color('primary')
+            ->visible(fn (ShippingOrder $record): bool => $record->isPlanned())
+            ->requiresConfirmation()
+            ->modalHeading('Send to Picking')
+            ->modalDescription(function (ShippingOrder $record): string {
+                $voucherCount = $record->lines()->count();
+
+                return "Are you sure you want to send this Shipping Order to picking?\n\n"
+                    ."This will:\n"
+                    ."• Send picking instructions to WMS for {$voucherCount} item(s)\n"
+                    ."• Begin the late binding process\n"
+                    ."• Voucher line statuses will be updated to Validated\n\n"
+                    .'Once in picking, items will be assigned to specific bottles.';
+            })
+            ->modalSubmitActionLabel('Send to Picking')
+            ->action(function (ShippingOrder $record): void {
+                try {
+                    /** @var ShippingOrderService $shippingOrderService */
+                    $shippingOrderService = app(ShippingOrderService::class);
+                    $shippingOrderService->transitionTo($record, ShippingOrderStatus::Picking);
+
+                    /** @var WmsIntegrationService $wmsService */
+                    $wmsService = app(WmsIntegrationService::class);
+                    $result = $wmsService->sendPickingInstructions($record);
+
+                    Notification::make()
+                        ->title('Sent to Picking')
+                        ->body("Shipping Order is now in picking status. WMS instructions sent (Message ID: {$result['message_id']}).")
+                        ->success()
+                        ->send();
+
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Send to Picking Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to confirm shipment (transition from Picking to Shipped).
+     * Only enabled when all bindings are complete.
+     */
+    protected function getConfirmShipmentAction(): Actions\Action
+    {
+        return Actions\Action::make('confirmShipment')
+            ->label('Confirm Shipment')
+            ->icon('heroicon-o-truck')
+            ->color('success')
+            ->visible(fn (ShippingOrder $record): bool => $record->isPicking())
+            ->disabled(function (ShippingOrder $record): bool {
+                $completion = $this->getBindingCompletion($record);
+
+                return ! $completion['all_bound'];
+            })
+            ->requiresConfirmation()
+            ->modalHeading('Confirm Shipment')
+            ->modalDescription(function (ShippingOrder $record): string {
+                $completion = $this->getBindingCompletion($record);
+                $voucherCount = $record->lines()->count();
+
+                return "Are you sure you want to confirm this shipment?\n\n"
+                    ."Summary:\n"
+                    ."• {$voucherCount} item(s) bound to bottles\n"
+                    ."• Early bindings: {$completion['early_binding_count']}\n"
+                    ."• Late bindings: {$completion['late_binding_count']}\n\n"
+                    ."⚠️ WARNING: This is the POINT OF NO RETURN.\n\n"
+                    ."Confirming will:\n"
+                    ."• Create the shipment record\n"
+                    ."• REDEEM all vouchers (irreversible)\n"
+                    ."• Transfer bottle ownership to customer\n"
+                    ."• Update provenance records\n\n"
+                    .'This action cannot be undone.';
+            })
+            ->modalSubmitActionLabel('Confirm Shipment')
+            ->action(function (ShippingOrder $record): void {
+                $completion = $this->getBindingCompletion($record);
+                if (! $completion['all_bound']) {
+                    Notification::make()
+                        ->title('Cannot Confirm Shipment')
+                        ->body('Not all items are bound to bottles. Complete the picking process first.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                try {
+                    // Create shipment from order
+                    /** @var ShipmentService $shipmentService */
+                    $shipmentService = app(ShipmentService::class);
+                    $shipment = $shipmentService->createFromOrder($record);
+
+                    // Confirm shipment with tracking (using carrier from SO or placeholder)
+                    $trackingNumber = 'PENDING-'.strtoupper(substr(md5((string) $shipment->id), 0, 8));
+                    $shipmentService->confirmShipment($shipment, $trackingNumber);
+
+                    // Transition SO to Shipped
+                    /** @var ShippingOrderService $shippingOrderService */
+                    $shippingOrderService = app(ShippingOrderService::class);
+                    $shippingOrderService->transitionTo($record, ShippingOrderStatus::Shipped);
+
+                    Notification::make()
+                        ->title('Shipment Confirmed')
+                        ->body("Shipment has been confirmed. Tracking: {$trackingNumber}. All vouchers have been redeemed.")
+                        ->success()
+                        ->send();
+
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Shipment Confirmation Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to put the shipping order on hold.
+     * Available from Draft, Planned, Picking, and Shipped statuses.
+     */
+    protected function getPutOnHoldAction(): Actions\Action
+    {
+        return Actions\Action::make('putOnHold')
+            ->label('Put on Hold')
+            ->icon('heroicon-o-pause-circle')
+            ->color('warning')
+            ->visible(fn (ShippingOrder $record): bool => in_array($record->status, [
+                ShippingOrderStatus::Draft,
+                ShippingOrderStatus::Planned,
+                ShippingOrderStatus::Picking,
+                ShippingOrderStatus::Shipped,
+            ], true))
+            ->requiresConfirmation()
+            ->modalHeading('Put Shipping Order on Hold')
+            ->form([
+                Textarea::make('reason')
+                    ->label('Reason for Hold')
+                    ->placeholder('Enter the reason for putting this order on hold...')
+                    ->required()
+                    ->maxLength(1000)
+                    ->rows(3),
+            ])
+            ->modalDescription(function (ShippingOrder $record): string {
+                return "Are you sure you want to put this Shipping Order on hold?\n\n"
+                    ."Current status: {$record->status->label()}\n\n"
+                    .'The order can be resumed later from the hold status.';
+            })
+            ->modalSubmitActionLabel('Put on Hold')
+            ->action(function (ShippingOrder $record, array $data): void {
+                $reason = $data['reason'] ?? 'No reason provided';
+
+                try {
+                    // Store the current status before transition for audit logging
+                    $currentStatus = $record->status;
+
+                    // Store the previous status for resume functionality
+                    $record->previous_status = $currentStatus;
+                    $record->save();
+
+                    /** @var ShippingOrderService $shippingOrderService */
+                    $shippingOrderService = app(ShippingOrderService::class);
+                    $shippingOrderService->transitionTo($record, ShippingOrderStatus::OnHold);
+
+                    // Log the hold reason
+                    \App\Models\Fulfillment\ShippingOrderAuditLog::create([
+                        'shipping_order_id' => $record->id,
+                        'event_type' => 'put_on_hold',
+                        'description' => "Order put on hold: {$reason}",
+                        'old_values' => ['status' => $currentStatus->value],
+                        'new_values' => ['status' => ShippingOrderStatus::OnHold->value, 'hold_reason' => $reason],
+                        'user_id' => Auth::id(),
+                    ]);
+
+                    Notification::make()
+                        ->title('Order On Hold')
+                        ->body('Shipping Order has been put on hold. Use "Resume" to continue processing.')
+                        ->warning()
+                        ->send();
+
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Put on Hold Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to resume the shipping order from on hold status.
+     */
+    protected function getResumeAction(): Actions\Action
+    {
+        return Actions\Action::make('resume')
+            ->label('Resume')
+            ->icon('heroicon-o-play-circle')
+            ->color('success')
+            ->visible(fn (ShippingOrder $record): bool => $record->status === ShippingOrderStatus::OnHold)
+            ->requiresConfirmation()
+            ->modalHeading('Resume Shipping Order')
+            ->modalDescription(function (ShippingOrder $record): string {
+                $previousStatus = $record->previous_status?->label() ?? 'Draft';
+
+                return "Are you sure you want to resume this Shipping Order?\n\n"
+                    ."The order will return to its previous status: {$previousStatus}\n\n"
+                    .'Processing will continue from where it was paused.';
+            })
+            ->modalSubmitActionLabel('Resume Order')
+            ->action(function (ShippingOrder $record): void {
+                $previousStatus = $record->previous_status ?? ShippingOrderStatus::Draft;
+
+                try {
+                    /** @var ShippingOrderService $shippingOrderService */
+                    $shippingOrderService = app(ShippingOrderService::class);
+                    $shippingOrderService->transitionTo($record, $previousStatus);
+
+                    // Log the resume
+                    \App\Models\Fulfillment\ShippingOrderAuditLog::create([
+                        'shipping_order_id' => $record->id,
+                        'event_type' => 'resumed_from_hold',
+                        'description' => "Order resumed from hold to {$previousStatus->label()}",
+                        'old_values' => ['status' => ShippingOrderStatus::OnHold->value],
+                        'new_values' => ['status' => $previousStatus->value],
+                        'user_id' => Auth::id(),
+                    ]);
+
+                    Notification::make()
+                        ->title('Order Resumed')
+                        ->body("Shipping Order has been resumed to {$previousStatus->label()} status.")
+                        ->success()
+                        ->send();
+
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Resume Failed')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to cancel the shipping order.
+     * Available from Draft, Planned, Picking, and On Hold statuses.
+     */
+    protected function getCancelAction(): Actions\Action
+    {
+        return Actions\Action::make('cancel')
+            ->label('Cancel')
+            ->icon('heroicon-o-x-circle')
+            ->color('danger')
+            ->visible(fn (ShippingOrder $record): bool => $record->canBeCancelled())
+            ->requiresConfirmation()
+            ->modalHeading('Cancel Shipping Order')
+            ->form([
+                Textarea::make('reason')
+                    ->label('Cancellation Reason')
+                    ->placeholder('Enter the reason for cancelling this order...')
+                    ->required()
+                    ->maxLength(1000)
+                    ->rows(3),
+            ])
+            ->modalDescription(function (ShippingOrder $record): string {
+                $status = $record->status->label();
+                $voucherCount = $record->lines()->count();
+                $warnings = [];
+
+                if ($record->status->requiresVoucherLock()) {
+                    $warnings[] = "• {$voucherCount} voucher(s) will be unlocked and available for new orders";
+                }
+                if ($record->isPicking()) {
+                    $warnings[] = '• Any bottle bindings will be removed';
+                    $warnings[] = '• Bound bottles will be returned to available inventory';
+                }
+
+                $warningText = $warnings !== [] ? "\n\n".implode("\n", $warnings) : '';
+
+                return "Are you sure you want to CANCEL this Shipping Order?\n\n"
+                    ."Current status: {$status}{$warningText}\n\n"
+                    .'⚠️ This action cannot be undone.';
+            })
+            ->modalSubmitActionLabel('Cancel Order')
+            ->action(function (ShippingOrder $record, array $data): void {
+                $reason = $data['reason'] ?? 'No reason provided';
+
+                try {
+                    /** @var ShippingOrderService $shippingOrderService */
+                    $shippingOrderService = app(ShippingOrderService::class);
+                    $shippingOrderService->cancel($record, $reason);
+
+                    Notification::make()
+                        ->title('Order Cancelled')
+                        ->body('Shipping Order has been cancelled. Vouchers have been unlocked.')
+                        ->success()
+                        ->send();
+
+                    $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
+                } catch (\Exception $e) {
+                    Notification::make()
+                        ->title('Cancellation Failed')
                         ->body($e->getMessage())
                         ->danger()
                         ->send();
