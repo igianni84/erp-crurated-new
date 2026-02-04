@@ -6,8 +6,11 @@ use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Enums\Inventory\MovementTrigger;
 use App\Filament\Resources\Inventory\CaseResource;
 use App\Models\Inventory\InventoryCase;
+use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\MovementItem;
+use App\Services\Inventory\MovementService;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -16,9 +19,11 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
 
 class ViewCase extends ViewRecord
 {
@@ -608,9 +613,22 @@ class ViewCase extends ViewRecord
     }
 
     /**
-     * Break Case action - visible if integrity_status = intact.
+     * Break Case action - opens/breaks a case for individual bottle access.
      *
-     * Full implementation in US-B032, here we just show the action placeholder.
+     * Pre-checks:
+     * - integrity_status = intact (hard blocker)
+     * - is_breakable = true (hard blocker)
+     *
+     * Effects:
+     * - integrity_status becomes BROKEN
+     * - broken_at = now
+     * - broken_by = current user
+     * - broken_reason = provided reason
+     * - Bottles remain individually tracked
+     * - Case no longer eligible for case-based handling
+     * - Case disappears from intact case filters
+     * - Bottles immediately appear as loose stock
+     * - Breaking is IRREVERSIBLE
      */
     protected function getBreakCaseAction(): Actions\Action
     {
@@ -620,12 +638,105 @@ class ViewCase extends ViewRecord
             ->color('danger')
             ->visible(fn (InventoryCase $record): bool => $record->canBreak())
             ->requiresConfirmation()
-            ->modalHeading('Break Case - Action Coming Soon')
-            ->modalDescription('The Break Case action will be fully implemented in US-B032. This placeholder confirms the action is visible for intact, breakable cases.')
-            ->modalIcon('heroicon-o-scissors')
+            ->modalHeading(fn (InventoryCase $record): string => "Break Case #{$record->id}")
+            ->modalDescription(function (InventoryCase $record): string {
+                $bottleCount = $record->bottle_count;
+                $config = $record->caseConfiguration;
+                $configName = $config !== null ? $config->name : 'Unknown';
+
+                return "You are about to break this case ({$configName}) containing {$bottleCount} bottles. This action is IRREVERSIBLE.";
+            })
+            ->modalIcon('heroicon-o-exclamation-triangle')
             ->modalIconColor('danger')
-            ->action(function (): void {
-                // Placeholder - full implementation in US-B032
+            ->form([
+                Forms\Components\Section::make()
+                    ->schema([
+                        Forms\Components\Placeholder::make('warning_content')
+                            ->label('')
+                            ->content(new HtmlString(
+                                '<div class="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0">
+                                            <svg class="h-6 w-6 text-danger-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                                            </svg>
+                                        </div>
+                                        <div class="text-sm">
+                                            <h4 class="font-bold text-danger-700 dark:text-danger-400 mb-2">⚠️ IRREVERSIBLE ACTION</h4>
+                                            <ul class="list-disc list-inside space-y-1 text-danger-600 dark:text-danger-300">
+                                                <li><strong>Permanent:</strong> Once broken, the case CANNOT be resealed</li>
+                                                <li><strong>Unit handling ends:</strong> Case can no longer be moved, tracked, or fulfilled as a unit</li>
+                                                <li><strong>Bottles become loose stock:</strong> Individual bottles must be managed separately</li>
+                                                <li><strong>Audit trail:</strong> This action will be permanently recorded</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>'
+                            )),
+                    ]),
+                Forms\Components\Textarea::make('reason')
+                    ->label('Reason for Breaking')
+                    ->helperText('Explain why this case needs to be opened (e.g., inspection, sampling, event preparation)')
+                    ->required()
+                    ->minLength(5)
+                    ->maxLength(500)
+                    ->rows(3)
+                    ->placeholder('Enter the reason for opening this case...'),
+                Forms\Components\Checkbox::make('confirm_irreversible')
+                    ->label('I understand that breaking this case is IRREVERSIBLE and the case can never be handled as a unit again')
+                    ->required()
+                    ->accepted()
+                    ->validationMessages([
+                        'accepted' => 'You must acknowledge that this action is irreversible.',
+                    ]),
+            ])
+            ->action(function (InventoryCase $record, array $data, MovementService $movementService): void {
+                try {
+                    $user = auth()->user();
+                    if ($user === null) {
+                        throw new \RuntimeException('No authenticated user');
+                    }
+
+                    /** @var string $reason */
+                    $reason = $data['reason'];
+
+                    // Break the case using the service
+                    $movementService->breakCase($record, $reason, $user);
+
+                    // Create an InventoryException record for audit trail
+                    InventoryException::create([
+                        'exception_type' => 'case_broken',
+                        'case_id' => $record->id,
+                        'reason' => "Case broken: {$reason}",
+                        'created_by' => $user->id,
+                        'resolution' => 'Case broken as per operator request. Bottles now managed individually.',
+                        'resolved_at' => now(),
+                        'resolved_by' => $user->id,
+                    ]);
+
+                    Notification::make()
+                        ->title('Case Broken Successfully')
+                        ->body("Case #{$record->id} has been broken. The {$record->bottle_count} contained bottles are now managed as loose stock.")
+                        ->success()
+                        ->persistent()
+                        ->send();
+
+                    // Refresh the page to show updated status
+                    $this->refreshFormData(['integrity_status', 'broken_at', 'broken_by', 'broken_reason']);
+
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Break Case')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                } catch (\Throwable $e) {
+                    Notification::make()
+                        ->title('Error Breaking Case')
+                        ->body('An unexpected error occurred: '.$e->getMessage())
+                        ->danger()
+                        ->send();
+                }
             });
     }
 }

@@ -371,6 +371,74 @@ class MovementService
     }
 
     /**
+     * Break a case (open it for individual bottle access).
+     *
+     * Marks the case as broken and records the action in the audit trail.
+     * Breaking is IRREVERSIBLE - the case can never be handled as a unit again.
+     * The contained bottles immediately become "loose stock" and are managed individually.
+     *
+     * @param  InventoryCase  $case  The case to break
+     * @param  string  $reason  The reason for breaking the case
+     * @param  User  $executor  The user breaking the case
+     * @return InventoryCase The broken case
+     *
+     * @throws \InvalidArgumentException If breaking is not allowed
+     */
+    public function breakCase(
+        InventoryCase $case,
+        string $reason,
+        User $executor
+    ): InventoryCase {
+        // Validate case can be broken
+        if (! $case->canBreak()) {
+            if ($case->isBroken()) {
+                throw new \InvalidArgumentException(
+                    'Case is already broken. Breaking is irreversible.'
+                );
+            }
+            if (! $case->is_breakable) {
+                throw new \InvalidArgumentException(
+                    'This case is not breakable. It must remain sealed.'
+                );
+            }
+            throw new \InvalidArgumentException(
+                'Case cannot be broken in its current state.'
+            );
+        }
+
+        return DB::transaction(function () use ($case, $reason, $executor) {
+            // Update case integrity status and breaking details
+            $case->update([
+                'integrity_status' => \App\Enums\Inventory\CaseIntegrityStatus::Broken,
+                'broken_at' => now(),
+                'broken_by' => $executor->id,
+                'broken_reason' => $reason,
+            ]);
+
+            // Create a movement record to log the breaking action
+            // Using InternalTransfer type to record this physical event
+            $this->createMovement([
+                'movement_type' => MovementType::InternalTransfer,
+                'trigger' => MovementTrigger::ErpOperator,
+                'source_location_id' => $case->current_location_id,
+                'destination_location_id' => $case->current_location_id, // Same location - just a status change
+                'custody_changed' => false,
+                'reason' => "Case broken: {$reason}",
+                'executed_by' => $executor->id,
+                'items' => [
+                    [
+                        'case_id' => $case->id,
+                        'quantity' => 1,
+                        'notes' => 'Case opened - bottles now managed individually',
+                    ],
+                ],
+            ]);
+
+            return $case->fresh();
+        });
+    }
+
+    /**
      * Record consumption of a serialized bottle.
      *
      * Creates a consumption movement and updates the bottle state to consumed.
