@@ -175,15 +175,12 @@ class SerializedBottle extends Model
 
     /**
      * Get the case this bottle belongs to (nullable).
-     * Note: InventoryCase model will be created in US-B005.
      *
-     * @return BelongsTo<\Illuminate\Database\Eloquent\Model, $this>
+     * @return BelongsTo<InventoryCase, $this>
      */
     public function case(): BelongsTo
     {
-        // Using string class reference - Case model will be created in US-B005
-        /** @phpstan-ignore argument.type (InventoryCase model created in US-B005) */
-        return $this->belongsTo('App\Models\Inventory\InventoryCase', 'case_id');
+        return $this->belongsTo(InventoryCase::class, 'case_id');
     }
 
     /**

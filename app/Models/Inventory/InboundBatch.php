@@ -158,6 +158,16 @@ class InboundBatch extends Model
     }
 
     /**
+     * Get the cases created from this batch.
+     *
+     * @return HasMany<InventoryCase, $this>
+     */
+    public function cases(): HasMany
+    {
+        return $this->hasMany(InventoryCase::class);
+    }
+
+    /**
      * Check if serialization can be started on this batch.
      */
     public function canStartSerialization(): bool

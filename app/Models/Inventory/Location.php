@@ -104,6 +104,16 @@ class Location extends Model
     }
 
     /**
+     * Get the cases currently at this location.
+     *
+     * @return HasMany<InventoryCase, $this>
+     */
+    public function cases(): HasMany
+    {
+        return $this->hasMany(InventoryCase::class, 'current_location_id');
+    }
+
+    /**
      * Check if serialization can be performed at this location.
      */
     public function canSerialize(): bool
