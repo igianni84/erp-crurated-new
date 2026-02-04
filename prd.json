@@ -971,8 +971,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 58,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-005 (model), US-038 (CreateInbound), US-042 (ViewInbound), US-037 (InboundResource list), US-054 (Dashboard exceptions)"
     },
     {
       "id": "US-059",

@@ -1319,3 +1319,23 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - PHPStan's "unused ignored pattern" error is a config issue, not a code error
   - Test RefreshDatabase trait with full model setup works well for constraint verification
 ---
+
+## 2026-02-04 - US-058
+- What was implemented:
+  - Verified all acceptance criteria were already implemented in previous stories:
+  - procurement_intent_id is nullable in Inbound model and migration (US-005)
+  - isUnlinked() helper method in Inbound model marks unlinked inbounds
+  - CreateInbound wizard shows prominent unlinked_warning placeholders
+  - InboundResource list has is_unlinked IconColumn and unlinked filter
+  - ListInbounds has "Unlinked" tab with badge count
+  - ProcurementDashboard exceptions widget counts unlinked_inbounds
+  - ViewInbound hand-off modal warns about unlinked inbounds
+  - ViewInbound has dedicated "Unlinked Inbound" warning section
+- Files changed:
+  - prd.json (marked US-058 as passes: true)
+  - progress.txt (this entry)
+- **Learnings for future iterations:**
+  - US-058 was already fully implemented across US-005, US-037, US-038, US-042, US-045, US-054
+  - Unlinked inbound handling is a cross-cutting concern implemented in multiple places
+  - No new code needed - just verification that existing implementation meets criteria
+---
