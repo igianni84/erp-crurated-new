@@ -524,3 +524,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - The job dispatches events rather than directly creating invoices - keeps separation between scheduling and business logic
   - autoIssue parameter controls whether invoices are auto-issued (default true for automated billing)
 ---
+
+## 2026-02-04 - US-E028
+- What was implemented: INV0 membership types support - display subscription details in invoice view
+- Files changed:
+  - app/Models/Finance/Invoice.php (added subscription() relationship, getSourceSubscription(), isSubscriptionInvoice() helpers, removed source_id integer cast)
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added getSubscriptionDetailsSection(), getSubscriptionField(), formatSubscriptionMetadata() for Linked ERP Events tab)
+- **Acceptance criteria verification:**
+  - ✅ Invoice lines description includes plan_name: Already implemented in US-E026 GenerateSubscriptionInvoice listener
+  - ✅ Metadata JSON includes membership tier details: Already implemented in US-E026 with plan_type, plan_name, billing_cycle, billing period dates
+  - ✅ Linked ERP Events tab shows subscription details: New Subscription Details section with plan name, type, status, billing cycle, amount, Stripe ID, and metadata
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Invoice.source_id should not have integer cast because subscriptions use UUIDs
+  - Use getSourceSubscription() helper method to load subscription when needed (not eager-loaded by default)
+  - isSubscriptionInvoice() helper combines invoice_type, source_type, and source_id checks
+  - Display subscription metadata in collapsible section to keep UI clean
+  - Invoice line metadata contains billing period details set during invoice creation
+  - PHPStan: Carbon date fields are non-nullable in Subscription model - use -> not ?-> for format()
+---
