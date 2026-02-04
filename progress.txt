@@ -71,3 +71,18 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Transitions: pending→validated→picked→shipped, any→cancelled
   - Also marked US-C004 and US-C006 as passing - they were already implemented in US-C001
 ---
+
+## 2026-02-04 - US-C008 + US-C009
+- **What was implemented:** ShippingOrderException model, migration, and ShippingOrderExceptionType enum
+- **Files changed:**
+  - `database/migrations/2026_02_04_230000_create_shipping_order_exceptions_table.php` (new)
+  - `app/Models/Fulfillment/ShippingOrderException.php` (new)
+  - `app/Enums/Fulfillment/ShippingOrderExceptionType.php` (new)
+  - `app/Enums/Fulfillment/ShippingOrderExceptionStatus.php` (new)
+  - `app/Models/Fulfillment/ShippingOrder.php` (added exceptions() HasMany relationship)
+- **Learnings for future iterations:**
+  - Created additional ShippingOrderExceptionStatus enum for active/resolved status (not in original PRD but needed)
+  - Exception types have `isBlocking()` method to determine if they block SO progression
+  - Exception can be order-level or line-level (nullable shipping_order_line_id)
+  - All exceptions require manual review (canAutoResolve() returns false)
+---

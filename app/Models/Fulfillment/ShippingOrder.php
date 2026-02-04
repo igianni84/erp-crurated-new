@@ -216,6 +216,16 @@ class ShippingOrder extends Model
     }
 
     /**
+     * Get the exceptions for this shipping order.
+     *
+     * @return HasMany<ShippingOrderException, $this>
+     */
+    public function exceptions(): HasMany
+    {
+        return $this->hasMany(ShippingOrderException::class);
+    }
+
+    /**
      * Check if the shipping order is in draft status.
      */
     public function isDraft(): bool
