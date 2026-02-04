@@ -1169,3 +1169,30 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Color coding: 'success' for healthy (0), 'warning' for attention (low count), 'danger' for critical (high count)
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-052
+- What was implemented:
+  - Widget B: Bottling Risk added to Procurement Dashboard
+  - Six metrics tracked with color-coded health status:
+    1. Upcoming deadlines next 30 days (count) with click navigation to filtered list
+    2. Upcoming deadlines next 60 days (count) with click navigation
+    3. Upcoming deadlines next 90 days (count) with click navigation
+    4. % Preferences Collected (progress bar) with collected/total counts
+    5. Default Fallback Count (instructions where defaults were applied)
+    6. Urgent highlight for deadlines < 14 days (prominent alert box)
+  - Progress bar for preference collection with percentage display
+  - Health status helper method with thresholds: green (healthy), yellow (attention), red (critical)
+  - Click navigation: Each metric links to its filtered list in BottlingInstructionResource
+  - Visual design: Two-column layout with deadline horizons on left, preference tracking on right
+  - Legend showing color meanings and click hint
+- Files changed:
+  - app/Filament/Pages/ProcurementDashboard.php (modified - added getBottlingRiskMetrics, getBottlingRiskHealthStatus, and URL helper methods)
+  - resources/views/filament/pages/procurement-dashboard.blade.php (modified - added Widget B section)
+- **Learnings for future iterations:**
+  - Dashboard widgets follow pattern: PHP data method + Blade view with Tailwind styling
+  - BottlingInstruction.getPreferenceProgress() returns {collected, pending, total} for preference tracking
+  - Cumulative deadline counts (60d includes 30d) useful for showing pipeline depth
+  - Use prominent alert boxes with border-2 and fire icon for urgent items (< 14 days)
+  - Progress bars use transition-all for smooth animation when percentage changes
+  - Browser verification should be done manually as dev-browser skill is not available
+---
