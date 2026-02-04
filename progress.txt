@@ -769,3 +769,46 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Missing state is different from Destroyed - missing implies potential to be found later
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B029
+- **Implemented**: Mis-serialization correction flow (admin-only)
+- **Files created**:
+  - database/migrations/2026_02_04_100007_add_mis_serialization_fields_to_serialized_bottles_table.php
+- **Files modified**:
+  - app/Enums/Inventory/BottleState.php (added MisSerialized case)
+  - app/Models/Inventory/SerializedBottle.php (added correction_reference field, helper methods)
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (added Flag as Mis-serialized action, notices)
+- **Features implemented**:
+  - MIS_SERIALIZED state added to BottleState enum (terminal state, danger color)
+  - correction_reference field added to SerializedBottle model (nullable UUID FK to self)
+  - Migration adds mis_serialized to state enum and correction_reference column
+  - "Flag as Mis-serialized" action in Bottle Detail (admin-only via User.isAdmin())
+  - Form requires: confirmation checkbox, detailed reason (min 20 chars), correct wine variant, correct format
+  - Action flow:
+    1. Generates new serial number for corrective record
+    2. Creates corrective SerializedBottle with correct wine variant/format
+    3. Corrective record inherits allocation_id, inbound_batch_id, location, ownership from original
+    4. Original record flagged as MIS_SERIALIZED (state), linked to corrective via correction_reference
+    5. Both records linked bidirectionally via correction_reference
+    6. InventoryException created with type 'mis_serialization_correction'
+  - Notices displayed for mis-serialized bottles and corrective records
+  - Notification with link to view corrective record after action
+- **Acceptance criteria verification**:
+  - ✅ Action in Bottle Detail (admin only) via visible() callback checking User.isAdmin()
+  - ✅ Original record flagged as MIS_SERIALIZED
+  - ✅ Original record locked (MisSerialized is terminal state - isTerminal() returns true)
+  - ✅ Corrective record created with correct data (wine_variant_id, format_id)
+  - ✅ Both records linked via correction_reference (bidirectional)
+  - ✅ Original error remains visible (MIS_SERIALIZED bottles visible with warning banner)
+  - ✅ Provenance integrity preserved (additive correction, original unchanged except state)
+  - ✅ Audit log complete (InventoryException + Auditable trait on SerializedBottle)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - MIS_SERIALIZED is a terminal state - cannot be changed, cannot flag as damaged/missing
+  - correction_reference is bidirectional - original points to corrective, corrective points to original
+  - Only wine_variant_id and format_id can be corrected; allocation_id is immutable and inherited
+  - saveQuietly() used to avoid triggering events when updating the original record
+  - ViewRecord pages use $this->record which needs explicit type casting for PHPStan
+  - Use Forms\Components\Select with options callback for WineVariant and Format selection
+  - Browser verification requirement noted - manual testing needed
+---
