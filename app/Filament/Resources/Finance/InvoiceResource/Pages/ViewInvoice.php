@@ -10,6 +10,12 @@ use App\Models\AuditLog;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
+use App\Services\Finance\InvoiceService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -18,9 +24,11 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewInvoice extends ViewRecord
 {
@@ -548,12 +556,224 @@ class ViewInvoice extends ViewRecord
     }
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
         return [
-            // Actions will be implemented in US-E015
+            $this->getIssueAction(),
+            $this->getRecordBankPaymentAction(),
+            $this->getCreateCreditNoteAction(),
+            $this->getCancelAction(),
         ];
+    }
+
+    /**
+     * Issue action - visible only if status = draft.
+     */
+    protected function getIssueAction(): Action
+    {
+        return Action::make('issue')
+            ->label('Issue Invoice')
+            ->icon('heroicon-o-document-check')
+            ->color('success')
+            ->visible(fn (): bool => $this->getInvoice()->isDraft())
+            ->requiresConfirmation()
+            ->modalHeading('Issue Invoice')
+            ->modalDescription(function (): string {
+                $invoice = $this->getInvoice();
+
+                return "Are you sure you want to issue this invoice?\n\n".
+                    "Invoice Total: {$invoice->currency} {$invoice->total_amount}\n".
+                    'Customer: '.($invoice->customer !== null ? $invoice->customer->name : 'Unknown')."\n\n".
+                    "Once issued:\n".
+                    "• A sequential invoice number will be generated\n".
+                    "• Invoice lines become immutable\n".
+                    '• The invoice will be synced to Xero';
+            })
+            ->modalSubmitActionLabel('Issue Invoice')
+            ->action(function (): void {
+                $invoiceService = app(InvoiceService::class);
+
+                try {
+                    $invoice = $invoiceService->issue($this->getInvoice());
+
+                    Notification::make()
+                        ->title('Invoice Issued')
+                        ->body("Invoice number {$invoice->invoice_number} has been issued successfully.")
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['status', 'invoice_number', 'issued_at']);
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Issue Invoice')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Record Bank Payment action - visible only if status = issued or partially_paid.
+     */
+    protected function getRecordBankPaymentAction(): Action
+    {
+        return Action::make('recordBankPayment')
+            ->label('Record Bank Payment')
+            ->icon('heroicon-o-banknotes')
+            ->color('info')
+            ->visible(fn (): bool => $this->getInvoice()->canReceivePayment())
+            ->form([
+                Placeholder::make('invoice_info')
+                    ->label('Invoice Details')
+                    ->content(function (): string {
+                        $invoice = $this->getInvoice();
+
+                        return 'Invoice: '.($invoice->invoice_number ?? 'N/A')."\n".
+                            "Outstanding: {$invoice->currency} {$invoice->getOutstandingAmount()}";
+                    }),
+                TextInput::make('amount')
+                    ->label('Payment Amount')
+                    ->required()
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->maxValue(fn (): float => (float) $this->getInvoice()->getOutstandingAmount())
+                    ->default(fn (): string => $this->getInvoice()->getOutstandingAmount())
+                    ->prefix(fn (): string => $this->getInvoice()->currency)
+                    ->helperText(fn (): string => "Maximum: {$this->getInvoice()->currency} {$this->getInvoice()->getOutstandingAmount()}"),
+                TextInput::make('bank_reference')
+                    ->label('Bank Reference')
+                    ->required()
+                    ->maxLength(255)
+                    ->placeholder('e.g., TRN-2026-001234')
+                    ->helperText('The bank transaction reference for this payment'),
+                DatePicker::make('received_at')
+                    ->label('Date Received')
+                    ->required()
+                    ->default(now())
+                    ->maxDate(now())
+                    ->helperText('The date the payment was received'),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Record Bank Payment')
+            ->modalDescription('Record a bank transfer payment for this invoice.')
+            ->modalSubmitActionLabel('Record Payment')
+            ->action(function (array $data): void {
+                // This action will be fully implemented in US-E056 with PaymentService
+                // For now, create a simple placeholder that shows the pattern
+                Notification::make()
+                    ->title('Bank Payment Recorded')
+                    ->body("Payment of {$this->getInvoice()->currency} {$data['amount']} with reference {$data['bank_reference']} will be recorded. Full implementation in US-E056.")
+                    ->warning()
+                    ->send();
+            });
+    }
+
+    /**
+     * Create Credit Note action - visible only if status = issued, paid, partially_paid.
+     */
+    protected function getCreateCreditNoteAction(): Action
+    {
+        return Action::make('createCreditNote')
+            ->label('Create Credit Note')
+            ->icon('heroicon-o-receipt-refund')
+            ->color('warning')
+            ->visible(fn (): bool => $this->getInvoice()->canHaveCreditNote())
+            ->form([
+                Placeholder::make('invoice_info')
+                    ->label('Original Invoice')
+                    ->content(function (): string {
+                        $invoice = $this->getInvoice();
+
+                        return 'Invoice: '.($invoice->invoice_number ?? 'N/A')."\n".
+                            "Total Amount: {$invoice->currency} {$invoice->total_amount}\n".
+                            "Outstanding: {$invoice->currency} {$invoice->getOutstandingAmount()}";
+                    }),
+                TextInput::make('amount')
+                    ->label('Credit Note Amount')
+                    ->required()
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->maxValue(fn (): float => (float) $this->getInvoice()->total_amount)
+                    ->prefix(fn (): string => $this->getInvoice()->currency)
+                    ->helperText(fn (): string => "Maximum: {$this->getInvoice()->currency} {$this->getInvoice()->total_amount}"),
+                Textarea::make('reason')
+                    ->label('Reason for Credit Note')
+                    ->required()
+                    ->rows(3)
+                    ->maxLength(1000)
+                    ->placeholder('Please provide a detailed reason for this credit note...')
+                    ->helperText('A reason is required for audit purposes'),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Create Credit Note')
+            ->modalDescription('Create a credit note against this invoice. The credit note will be created as a draft and must be issued separately.')
+            ->modalSubmitActionLabel('Create Credit Note')
+            ->action(function (array $data): void {
+                // This action will be fully implemented in US-E065 with CreditNoteService
+                // For now, create a simple placeholder that shows the pattern
+                Notification::make()
+                    ->title('Credit Note Created')
+                    ->body("Credit note for {$this->getInvoice()->currency} {$data['amount']} will be created as draft. Full implementation in US-E065.")
+                    ->warning()
+                    ->send();
+            });
+    }
+
+    /**
+     * Cancel action - visible only if status = draft.
+     */
+    protected function getCancelAction(): Action
+    {
+        return Action::make('cancel')
+            ->label('Cancel Invoice')
+            ->icon('heroicon-o-x-circle')
+            ->color('danger')
+            ->visible(fn (): bool => $this->getInvoice()->canBeCancelled())
+            ->requiresConfirmation()
+            ->modalHeading('Cancel Invoice')
+            ->modalDescription(function (): string {
+                $invoice = $this->getInvoice();
+
+                return "Are you sure you want to cancel this draft invoice?\n\n".
+                    "Invoice Total: {$invoice->currency} {$invoice->total_amount}\n".
+                    'Customer: '.($invoice->customer !== null ? $invoice->customer->name : 'Unknown')."\n\n".
+                    'This action cannot be undone.';
+            })
+            ->modalSubmitActionLabel('Cancel Invoice')
+            ->action(function (): void {
+                $invoiceService = app(InvoiceService::class);
+
+                try {
+                    $invoiceService->cancel($this->getInvoice());
+
+                    Notification::make()
+                        ->title('Invoice Cancelled')
+                        ->body('The invoice has been cancelled successfully.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['status']);
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Cancel Invoice')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Get the current invoice record.
+     */
+    protected function getInvoice(): Invoice
+    {
+        /** @var Invoice $record */
+        $record = $this->record;
+
+        return $record;
     }
 }
