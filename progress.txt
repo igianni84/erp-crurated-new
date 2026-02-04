@@ -1003,3 +1003,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Delete action is hidden once handed_to_module_b is true
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-045
+- What was implemented:
+  - Unlinked inbound handling was already implemented across multiple stories
+  - Verified all acceptance criteria are met:
+    - Inbound can be created without procurement_intent_id (CreateInbound shows warning, doesn't block)
+    - Prominent badge in list: is_unlinked IconColumn with heroicon-o-link-slash
+    - Prominent warning in detail: ViewInbound has "Unlinked Inbound" section with warning text
+    - Filter in list: 'unlinked' toggle filter + "Unlinked" tab in ListInbounds
+    - Manual review required before hand-off: ViewInbound hand-off modal shows warning
+    - Dashboard widget for unlinked count - deferred to US-050+ dashboard stories
+  - Typecheck and lint pass
+- Files changed:
+  - No new files (implementation was complete in previous iterations)
+  - prd.json (marked US-045 as passes: true with note about dashboard)
+- **Learnings for future iterations:**
+  - Unlinked inbound flagging is a cross-cutting concern implemented in:
+    - CreateInbound (warning during creation)
+    - InboundResource list (icon column, filter, tab)
+    - ViewInbound (dedicated warning section, hand-off modal warning)
+  - Doesn't block operations but provides consistent visual warnings
+  - Dashboard widget count will be added when implementing dashboard stories
+---

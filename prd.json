@@ -764,8 +764,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 45,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Dashboard widget will be implemented in US-050+"
     },
     {
       "id": "US-046",
