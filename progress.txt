@@ -137,3 +137,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Helper methods for checking constraint satisfaction (isFormatAllowed, isSerializationLocationAuthorized) are useful for service layer
   - JSON fields with specific structures should document expected format in docblock
 ---
+
+## 2026-02-04 - US-007
+- What was implemented:
+  - ProcurementIntentService class in app/Services/Procurement/
+  - createFromVoucherSale(Voucher $voucher): Creates draft intent from voucher with voucher_driven trigger type
+  - createFromAllocation(Allocation $allocation, int $quantity): Creates draft intent from allocation with allocation_driven trigger type
+  - createManual(array $data): Creates draft intent manually with strategic trigger type
+  - approve(ProcurementIntent $intent): Transitions draft → approved with approval timestamp and user
+  - markExecuted(ProcurementIntent $intent): Transitions approved → executed
+  - close(ProcurementIntent $intent): Transitions executed → closed with linked objects validation
+  - canClose(ProcurementIntent $intent): Returns array with can_close flag and list of pending items
+  - inferSourcingModelFromAllocation(): Helper to map AllocationSourceType to SourcingModel
+  - All methods use explicit exceptions for validation errors
+  - Audit logging for creation and status transitions
+- Files changed:
+  - app/Services/Procurement/ProcurementIntentService.php (new)
+- **Learnings for future iterations:**
+  - Services follow AllocationService pattern: methods return the modified model, throw InvalidArgumentException for errors
+  - Use `getAttribute()` for nullable FK fields to avoid PHPStan type issues
+  - AllocationSourceType enum values: producer_allocation, owned_stock, passive_consignment, third_party_custody
+  - Match on enum cases directly instead of ->value when PHPStan has full type info
+  - canClose() returns a structured array for UI to show pending items before closure attempt
+---
