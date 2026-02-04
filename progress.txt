@@ -1522,3 +1522,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Broken cases stay in system indefinitely for audit and provenance tracking
   - Correction guidance points operators to create InventoryException records for error documentation
 ---
+
+## 2026-02-04 - US-B053
+- **Verified and Enhanced**: NFT reference display in Bottle Detail page
+- **Files modified**:
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (blockchain explorer link enhancement)
+- **Pre-existing implementation verified** (from US-B026):
+  - Tab Provenance already shows NFT reference with badge (lines 425-437)
+  - nft_minted_at timestamp already displayed (lines 438-442)
+  - NFT Provenance section with conditional styling (minted=success, pending=warning)
+  - "Pending minting..." badge shown when NFT not yet minted
+- **Enhancement added**:
+  - Changed blockchain_explorer TextEntry from plain text to clickable URL
+  - Added url() callback generating: `https://explorer.example.com/token/{nft_reference}`
+  - Added openUrlInNewTab() for external link behavior
+  - Link only appears when NFT is minted (disabled when pending)
+- **Acceptance criteria verification**:
+  - ✅ Tab Provenance shows NFT reference (if minted): nft_reference displayed with copyable badge
+  - ✅ Tab Provenance shows NFT minted_at timestamp: DateTime displayed with icon
+  - ✅ Tab Provenance shows link to blockchain explorer: Clickable URL opening in new tab
+  - ✅ NFT not yet minted shows Pending badge: "Pending minting..." with warning color
+  - ✅ Typecheck and lint pass
+- **Browser verification**:
+  - Manual browser verification needed to confirm clickable link behavior
+- **Learnings for future iterations**:
+  - Most NFT display was already implemented in US-B026
+  - Blockchain explorer URL is a placeholder - will need configuration for production
+  - TextEntry can have both url() and openUrlInNewTab() for external links
+  - Section.extraAttributes() provides conditional styling based on record state
+---
