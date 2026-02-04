@@ -256,6 +256,7 @@ class InboundResource extends Resource
     {
         return [
             'index' => Pages\ListInbounds::route('/'),
+            'create' => Pages\CreateInbound::route('/create'),
             'view' => Pages\ViewInbound::route('/{record}'),
         ];
     }
