@@ -4,9 +4,12 @@ namespace App\Filament\Resources\BundleResource\Pages;
 
 use App\Enums\Commercial\BundleStatus;
 use App\Filament\Resources\BundleResource;
+use App\Models\AuditLog;
 use App\Models\Commercial\Bundle;
 use App\Models\Commercial\PriceBook;
 use Filament\Actions;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\Tabs;
@@ -22,6 +25,21 @@ class ViewBundle extends ViewRecord
 {
     protected static string $resource = BundleResource::class;
 
+    /**
+     * Filter for audit log event type.
+     */
+    public ?string $auditEventFilter = null;
+
+    /**
+     * Filter for audit log date from.
+     */
+    public ?string $auditDateFrom = null;
+
+    /**
+     * Filter for audit log date until.
+     */
+    public ?string $auditDateUntil = null;
+
     public function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -31,6 +49,7 @@ class ViewBundle extends ViewRecord
                         $this->getOverviewTab(),
                         $this->getPricingTab(),
                         $this->getComponentsTab(),
+                        $this->getAuditTab(),
                     ])
                     ->persistTabInQueryString('tab')
                     ->columnSpanFull(),
@@ -536,5 +555,235 @@ class ViewBundle extends ViewRecord
             Actions\DeleteAction::make()
                 ->visible($record->isDraft()),
         ];
+    }
+
+    /**
+     * Tab: Audit - Immutable timeline of events.
+     */
+    protected function getAuditTab(): Tab
+    {
+        return Tab::make('Audit')
+            ->icon('heroicon-o-document-text')
+            ->schema([
+                Section::make('Audit History')
+                    ->description(fn (): string => $this->getAuditFilterDescription())
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                            ->label('Filter')
+                            ->icon('heroicon-o-funnel')
+                            ->form([
+                                Select::make('event_type')
+                                    ->label('Event Type')
+                                    ->placeholder('All events')
+                                    ->options([
+                                        AuditLog::EVENT_CREATED => 'Created',
+                                        AuditLog::EVENT_UPDATED => 'Updated',
+                                        AuditLog::EVENT_DELETED => 'Deleted',
+                                        AuditLog::EVENT_STATUS_CHANGE => 'Status Changed',
+                                    ])
+                                    ->default($this->auditEventFilter),
+                                DatePicker::make('date_from')
+                                    ->label('From Date')
+                                    ->default($this->auditDateFrom),
+                                DatePicker::make('date_until')
+                                    ->label('Until Date')
+                                    ->default($this->auditDateUntil),
+                            ])
+                            ->action(function (array $data): void {
+                                $this->auditEventFilter = $data['event_type'] ?? null;
+                                $this->auditDateFrom = $data['date_from'] ?? null;
+                                $this->auditDateUntil = $data['date_until'] ?? null;
+                            }),
+                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                            ->label('Clear Filters')
+                            ->icon('heroicon-o-x-mark')
+                            ->color('gray')
+                            ->visible(fn (): bool => $this->auditEventFilter !== null || $this->auditDateFrom !== null || $this->auditDateUntil !== null)
+                            ->action(function (): void {
+                                $this->auditEventFilter = null;
+                                $this->auditDateFrom = null;
+                                $this->auditDateUntil = null;
+                            }),
+                    ])
+                    ->schema([
+                        TextEntry::make('audit_logs_list')
+                            ->label('')
+                            ->getStateUsing(function (Bundle $record): string {
+                                $query = $record->auditLogs()->orderBy('created_at', 'desc');
+
+                                // Apply event type filter
+                                if ($this->auditEventFilter) {
+                                    $query->where('event', $this->auditEventFilter);
+                                }
+
+                                // Apply date from filter
+                                if ($this->auditDateFrom) {
+                                    $query->whereDate('created_at', '>=', $this->auditDateFrom);
+                                }
+
+                                // Apply date until filter
+                                if ($this->auditDateUntil) {
+                                    $query->whereDate('created_at', '<=', $this->auditDateUntil);
+                                }
+
+                                $logs = $query->get();
+
+                                if ($logs->isEmpty()) {
+                                    return '<div class="text-gray-500 text-sm py-4">No audit logs found matching the current filters.</div>';
+                                }
+
+                                $html = '<div class="space-y-3">';
+                                foreach ($logs as $log) {
+                                    /** @var AuditLog $log */
+                                    $eventColor = $log->getEventColor();
+                                    $eventLabel = $log->getEventLabel();
+                                    $user = $log->user;
+                                    $userName = $user !== null ? $user->name : 'System';
+                                    $timestamp = $log->created_at?->format('M d, Y H:i:s') ?? 'Unknown';
+                                    $changes = self::formatAuditChanges($log);
+
+                                    $colorClass = match ($eventColor) {
+                                        'success' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                                        'danger' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+                                        'warning' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                                        'info' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+                                        default => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+                                    };
+
+                                    $html .= <<<HTML
+                                    <div class="flex items-start gap-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                                        <div class="flex-shrink-0">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {$colorClass}">
+                                                {$eventLabel}
+                                            </span>
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-1">
+                                                <span class="flex items-center gap-1">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                                                    {$userName}
+                                                </span>
+                                                <span class="flex items-center gap-1">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                                                    {$timestamp}
+                                                </span>
+                                            </div>
+                                            <div class="text-sm">{$changes}</div>
+                                        </div>
+                                    </div>
+                                    HTML;
+                                }
+                                $html .= '</div>';
+
+                                return $html;
+                            })
+                            ->html()
+                            ->columnSpanFull(),
+                    ]),
+                Section::make('Audit Information')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        TextEntry::make('audit_info')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Audit logs are immutable and cannot be modified or deleted. They provide a complete history of all changes to this bundle for compliance and traceability purposes. Events include creation, updates, and status changes.')
+                            ->html(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Get the filter description for the audit section.
+     */
+    protected function getAuditFilterDescription(): string
+    {
+        $parts = ['Immutable timeline of all changes made to this bundle'];
+
+        $filters = [];
+        if ($this->auditEventFilter) {
+            $eventLabel = match ($this->auditEventFilter) {
+                AuditLog::EVENT_CREATED => 'Created',
+                AuditLog::EVENT_UPDATED => 'Updated',
+                AuditLog::EVENT_DELETED => 'Deleted',
+                AuditLog::EVENT_STATUS_CHANGE => 'Status Changed',
+                default => $this->auditEventFilter,
+            };
+            $filters[] = "Event: {$eventLabel}";
+        }
+        if ($this->auditDateFrom) {
+            $filters[] = "From: {$this->auditDateFrom}";
+        }
+        if ($this->auditDateUntil) {
+            $filters[] = "Until: {$this->auditDateUntil}";
+        }
+
+        if (! empty($filters)) {
+            $parts[] = 'Filters: '.implode(', ', $filters);
+        }
+
+        return implode(' | ', $parts);
+    }
+
+    /**
+     * Format audit log changes for display.
+     */
+    protected static function formatAuditChanges(AuditLog $log): string
+    {
+        $oldValues = $log->old_values ?? [];
+        $newValues = $log->new_values ?? [];
+
+        if ($log->event === AuditLog::EVENT_CREATED) {
+            $fieldCount = count($newValues);
+
+            return "<span class='text-sm text-gray-500'>{$fieldCount} field(s) set</span>";
+        }
+
+        if ($log->event === AuditLog::EVENT_DELETED) {
+            return "<span class='text-sm text-gray-500'>Record deleted</span>";
+        }
+
+        $changes = [];
+        $allFields = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+
+        foreach ($allFields as $field) {
+            $oldValue = $oldValues[$field] ?? null;
+            $newValue = $newValues[$field] ?? null;
+
+            if ($oldValue !== $newValue) {
+                $fieldLabel = ucfirst(str_replace('_', ' ', $field));
+                $oldDisplay = self::formatValue($oldValue);
+                $newDisplay = self::formatValue($newValue);
+                $changes[] = "<strong>{$fieldLabel}</strong>: {$oldDisplay} → {$newDisplay}";
+            }
+        }
+
+        return count($changes) > 0
+            ? '<span class="text-sm">'.implode('<br>', $changes).'</span>'
+            : '<span class="text-sm text-gray-500">No field changes</span>';
+    }
+
+    /**
+     * Format a value for display in audit logs.
+     */
+    protected static function formatValue(mixed $value): string
+    {
+        if ($value === null) {
+            return '<em class="text-gray-400">empty</em>';
+        }
+
+        if (is_array($value)) {
+            return '<em class="text-gray-500">['.count($value).' items]</em>';
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        $stringValue = (string) $value;
+        if (strlen($stringValue) > 50) {
+            return htmlspecialchars(substr($stringValue, 0, 47)).'...';
+        }
+
+        return htmlspecialchars($stringValue);
     }
 }

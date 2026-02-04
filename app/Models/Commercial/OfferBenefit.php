@@ -3,10 +3,12 @@
 namespace App\Models\Commercial;
 
 use App\Enums\Commercial\BenefitType;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * OfferBenefit Model
@@ -33,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class OfferBenefit extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
 
@@ -86,6 +89,16 @@ class OfferBenefit extends Model
     public function discountRule(): BelongsTo
     {
         return $this->belongsTo(DiscountRule::class);
+    }
+
+    /**
+     * Get the audit logs for this offer benefit.
+     *
+     * @return MorphMany<\App\Models\AuditLog, $this>
+     */
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
     }
 
     // =========================================================================

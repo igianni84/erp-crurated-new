@@ -4,11 +4,13 @@ namespace App\Models\Commercial;
 
 use App\Enums\Commercial\BundlePricingLogic;
 use App\Enums\Commercial\BundleStatus;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -39,6 +41,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Bundle extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
     use SoftDeletes;
@@ -91,6 +94,16 @@ class Bundle extends Model
     public function components(): HasMany
     {
         return $this->hasMany(BundleComponent::class, 'bundle_id');
+    }
+
+    /**
+     * Get the audit logs for this bundle.
+     *
+     * @return MorphMany<\App\Models\AuditLog, $this>
+     */
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
     }
 
     // =========================================================================

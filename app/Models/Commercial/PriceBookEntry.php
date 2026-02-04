@@ -4,10 +4,12 @@ namespace App\Models\Commercial;
 
 use App\Enums\Commercial\PriceSource;
 use App\Models\Pim\SellableSku;
+use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 /**
  * PriceBookEntry Model
@@ -24,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class PriceBookEntry extends Model
 {
+    use Auditable;
     use HasFactory;
     use HasUuid;
 
@@ -88,6 +91,16 @@ class PriceBookEntry extends Model
     public function pricingPolicy(): BelongsTo
     {
         return $this->belongsTo(PricingPolicy::class, 'policy_id');
+    }
+
+    /**
+     * Get the audit logs for this price book entry.
+     *
+     * @return MorphMany<\App\Models\AuditLog, $this>
+     */
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
     }
 
     /**
