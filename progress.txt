@@ -1162,3 +1162,27 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - The page follows the same wizard pattern as CreateInternalTransfer and CreateConsignmentPlacement
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B040
+- **Verified**: Event Consumption execution (already implemented in US-B039)
+- **Implementation already complete in US-B039** - EventConsumption.php and MovementService handle all requirements
+- **Acceptance criteria verification**:
+  - ✅ Bottles marked as CONSUMED at confirmation: MovementService.recordConsumption() updates bottle state to BottleState::Consumed
+  - ✅ Cases opened for events marked as BROKEN: EventConsumption.php calls MovementService.breakCase() before consuming contained bottles
+  - ✅ Movement created with type = event_consumption: recordConsumption() uses MovementType::EventConsumption
+  - ✅ Physical inventory reduced: State change to Consumed excludes from isPhysicallyPresent() and isAvailableForFulfillment()
+  - ✅ Immutable consumption record created: InventoryMovement model prevents update/delete operations
+  - ✅ Consumed bottles never reappear in available inventory: BottleState::isAvailableForFulfillment() returns false for Consumed
+  - ✅ Consumed bottles never bind to vouchers: Module C uses isAvailableForFulfillment() which excludes Consumed state
+  - ✅ Consumed bottles remain visible for audit: Bottles are never deleted, just state changed to Consumed
+  - ✅ Typecheck and lint pass
+- **Files involved**:
+  - app/Filament/Pages/EventConsumption.php (line 593 updates state)
+  - app/Services/Inventory/MovementService.php (recordConsumption method)
+  - app/Enums/Inventory/BottleState.php (isAvailableForFulfillment, isTerminal)
+- **Learnings for future iterations**:
+  - US-B040 is a verification story - all implementation was done in US-B039
+  - BottleState::Consumed is a terminal state (isTerminal() returns true)
+  - isAvailableForFulfillment() only returns true for Stored state
+  - Movement immutability is enforced at model level via boot guards
+---
