@@ -559,8 +559,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 34,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C012. validateEarlyBinding() checks: serial exists, bottle.state = stored, allocation match. Creates EarlyBindingFailed exception (isBlocking=true) on failure with NO fallback to late binding."
     },
     {
       "id": "US-C035",
