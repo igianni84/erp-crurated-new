@@ -289,3 +289,24 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Add PHPDoc `@var Type|null` annotations before Eloquent `find()` calls to help PHPStan
   - Filament wizard form state values from `$get()` are always mixed type - type check before use
 ---
+
+## 2026-02-04 - US-014
+- What was implemented:
+  - ViewProcurementIntent page with 4 tabbed infolist sections
+  - Tab 1 (Summary): status & identity, product info, demand source with trigger type explanations, sourcing model with explanations, delivery preferences, approval information
+  - Tab 2 (Downstream Execution): linked Purchase Orders list with RepeatableEntry, linked Bottling Instructions list, linked Inbound batches list, execution summary with closure readiness indicator
+  - Tab 3 (Allocation & Voucher Context): source context explanation based on trigger type, allocation/voucher info extracted from rationale, Module A integration notes
+  - Tab 4 (Audit): immutable timeline with filter actions for event type and date range, formatted audit log entries with color-coded badges
+  - Header actions: Approve (draft→approved), Mark Executed (approved→executed), Close (executed→closed with validation), Create Linked Object dropdown (Create PO, Create Bottling Instruction, Link Inbound)
+  - Used ProcurementIntentService.canClose() for closure validation before showing close action
+- Files changed:
+  - app/Filament/Resources/Procurement/ProcurementIntentResource/Pages/ViewProcurementIntent.php (completely rewritten with 925 new lines)
+  - prd.json (marked US-014 as passes: true)
+- **Learnings for future iterations:**
+  - Filament Infolist Tabs pattern: use `Tabs::make()->tabs([])` with `Tab::make()` for each tab, extract to helper methods for readability
+  - Use `RepeatableEntry::make()` for displaying lists of related records with Grid layouts inside
+  - Header actions can have `visible()`, `disabled()`, and `requiresConfirmation()` for conditional behavior
+  - Section `headerActions` can include infolist Actions for contextual actions within sections
+  - AuditLog created_at is always set (not nullable) so don't use nullsafe operator on Carbon methods
+  - For closure validation, use service method that returns structured array with `can_close` and `pending_items`
+---
