@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Inventory\BottleState;
 use App\Enums\Inventory\InboundBatchStatus;
+use App\Jobs\Inventory\SyncCommittedInventoryJob;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
 use App\Models\Inventory\InboundBatch;
@@ -26,11 +27,34 @@ class InventoryService
      * Committed quantity = count of vouchers that are NOT redeemed.
      * This includes Issued and Locked vouchers (unredeemed vouchers).
      *
+     * This method first checks for a cached value (synced by SyncCommittedInventoryJob)
+     * for performance. If no cached value exists, it falls back to a live query.
+     *
      * @return int The number of unredeemed vouchers for this allocation
      *
      * @throws \InvalidArgumentException If allocation is null
      */
     public function getCommittedQuantity(Allocation $allocation): int
+    {
+        // Try to get cached value first (synced by SyncCommittedInventoryJob)
+        $cachedValue = SyncCommittedInventoryJob::getCachedCommittedQuantity($allocation);
+
+        if ($cachedValue !== null) {
+            return $cachedValue;
+        }
+
+        // Fallback to live query if cache miss
+        return $this->getCommittedQuantityLive($allocation);
+    }
+
+    /**
+     * Get the committed quantity for an allocation (live query, bypasses cache).
+     *
+     * Use this when you need guaranteed fresh data, e.g., after voucher changes.
+     *
+     * @return int The number of unredeemed vouchers for this allocation
+     */
+    public function getCommittedQuantityLive(Allocation $allocation): int
     {
         return Voucher::where('allocation_id', $allocation->id)
             ->whereIn('lifecycle_state', [
