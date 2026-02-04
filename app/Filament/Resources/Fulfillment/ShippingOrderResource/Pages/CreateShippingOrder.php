@@ -87,8 +87,7 @@ class CreateShippingOrder extends CreateRecord
             $this->getVoucherSelectionStep(),
             $this->getShippingMethodStep(),
             $this->getPackagingPreferencesStep(),
-            // Future steps will be added in subsequent US stories:
-            // US-C022: getReviewAndSubmitStep()
+            $this->getReviewAndSubmitStep(),
         ];
     }
 
@@ -761,6 +760,338 @@ class CreateShippingOrder extends CreateRecord
                             ->columnSpanFull(),
                     ])
                     ->columns(1),
+            ]);
+    }
+
+    /**
+     * Step 5: Review & Submit (US-C022)
+     * Read-only summary of all data before creating the Shipping Order.
+     */
+    protected function getReviewAndSubmitStep(): Wizard\Step
+    {
+        return Wizard\Step::make('Review & Submit')
+            ->description('Review all details before creating the shipping order')
+            ->icon('heroicon-o-clipboard-document-check')
+            ->schema([
+                // Draft info banner
+                Forms\Components\Placeholder::make('draft_info_banner')
+                    ->label('')
+                    ->content(new HtmlString(<<<'HTML'
+                        <div class="p-4 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-info-600 dark:text-info-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-info-700 dark:text-info-300">
+                                        <strong>Draft Shipping Orders require planning before execution.</strong><br>
+                                        After creating this order, you'll need to verify inventory availability and plan the shipment.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    HTML))
+                    ->columnSpanFull(),
+
+                // Section 1: Customer & Destination Summary
+                Forms\Components\Section::make('Customer & Destination')
+                    ->description('Shipping destination details')
+                    ->icon('heroicon-o-user')
+                    ->schema([
+                        Forms\Components\Placeholder::make('customer_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $customerId = $get('customer_id');
+                                $destinationAddress = $get('destination_address');
+
+                                if (! $customerId) {
+                                    return new HtmlString('<p class="text-gray-500">No customer selected</p>');
+                                }
+
+                                $customer = Customer::find($customerId);
+                                if (! $customer) {
+                                    return new HtmlString('<p class="text-red-500">Customer not found</p>');
+                                }
+
+                                $customerName = e($customer->name);
+                                $customerEmail = $customer->email ? e($customer->email) : '<span class="text-gray-400">No email</span>';
+                                $addressLines = $destinationAddress
+                                    ? nl2br(e($destinationAddress))
+                                    : '<span class="text-gray-400">No destination address provided</span>';
+
+                                return new HtmlString(<<<HTML
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Customer</h4>
+                                            <p class="text-base font-semibold text-gray-900 dark:text-gray-100">{$customerName}</p>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">{$customerEmail}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Destination Address</h4>
+                                            <p class="text-sm text-gray-900 dark:text-gray-100">{$addressLines}</p>
+                                        </div>
+                                    </div>
+                                HTML);
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->columns(1),
+
+                // Section 2: Vouchers Summary
+                Forms\Components\Section::make('Vouchers')
+                    ->description('Items to be shipped')
+                    ->icon('heroicon-o-ticket')
+                    ->schema([
+                        Forms\Components\Placeholder::make('vouchers_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $selectedVouchers = $get('selected_vouchers') ?? [];
+                                $count = count($selectedVouchers);
+
+                                if ($count === 0) {
+                                    return new HtmlString('<p class="text-gray-500">No vouchers selected</p>');
+                                }
+
+                                $plural = $count === 1 ? 'voucher' : 'vouchers';
+                                $countBadge = <<<HTML
+                                    <div class="mb-4 p-3 rounded-lg bg-success-50 dark:bg-success-900/20 border border-success-200 dark:border-success-800">
+                                        <p class="text-sm text-success-700 dark:text-success-300">
+                                            <strong>{$count}</strong> {$plural} selected for shipping
+                                        </p>
+                                    </div>
+                                HTML;
+
+                                // Get voucher details
+                                $vouchers = Voucher::whereIn('id', $selectedVouchers)
+                                    ->with(['wineVariant.wineMaster', 'format', 'allocation'])
+                                    ->get();
+
+                                $voucherRows = '';
+                                foreach ($vouchers as $voucher) {
+                                    $voucherId = substr($voucher->id, 0, 8);
+                                    $wineVariant = $voucher->wineVariant;
+                                    $format = $voucher->format;
+                                    $allocation = $voucher->allocation;
+
+                                    $wineName = 'Unknown Wine';
+                                    $vintage = 'NV';
+
+                                    if ($wineVariant) {
+                                        $wineMaster = $wineVariant->wineMaster;
+                                        if ($wineMaster) {
+                                            $wineName = e($wineMaster->name);
+                                        }
+                                        $vintage = $wineVariant->vintage_year ?? 'NV';
+                                    }
+
+                                    $formatLabel = $format ? "{$format->volume_ml}ml" : 'Unknown';
+                                    $allocationRef = $allocation ? substr($allocation->id, 0, 8).'...' : 'Unknown';
+
+                                    $voucherRows .= <<<HTML
+                                        <tr class="border-b border-gray-100 dark:border-gray-700">
+                                            <td class="py-2 pr-4 text-sm font-mono text-gray-600 dark:text-gray-400">#{$voucherId}</td>
+                                            <td class="py-2 pr-4 text-sm text-gray-900 dark:text-gray-100">{$wineName} {$vintage}</td>
+                                            <td class="py-2 pr-4 text-sm text-gray-600 dark:text-gray-400">{$formatLabel}</td>
+                                            <td class="py-2 text-sm font-mono text-gray-500 dark:text-gray-500">{$allocationRef}</td>
+                                        </tr>
+                                    HTML;
+                                }
+
+                                return new HtmlString(<<<HTML
+                                    {$countBadge}
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full">
+                                            <thead>
+                                                <tr class="border-b border-gray-200 dark:border-gray-600">
+                                                    <th class="py-2 pr-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Voucher ID</th>
+                                                    <th class="py-2 pr-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Wine</th>
+                                                    <th class="py-2 pr-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Format</th>
+                                                    <th class="py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Allocation</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {$voucherRows}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                HTML);
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->columns(1),
+
+                // Section 3: Shipping Method Summary
+                Forms\Components\Section::make('Shipping Method')
+                    ->description('Carrier and delivery details')
+                    ->icon('heroicon-o-truck')
+                    ->schema([
+                        Forms\Components\Placeholder::make('shipping_method_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $carrierValue = $get('carrier');
+                                $shippingMethod = $get('shipping_method');
+                                $incotermsValue = $get('incoterms');
+                                $requestedShipDate = $get('requested_ship_date');
+                                $specialInstructions = $get('special_instructions');
+
+                                // Build carrier display
+                                $carrierDisplay = '<span class="text-gray-400">Not specified</span>';
+                                if ($carrierValue) {
+                                    $carrier = Carrier::tryFrom($carrierValue);
+                                    if ($carrier) {
+                                        $carrierDisplay = '<span class="font-medium text-gray-900 dark:text-gray-100">'.e($carrier->label()).'</span>';
+                                    }
+                                }
+
+                                // Build shipping method display
+                                $methodDisplay = $shippingMethod
+                                    ? e($shippingMethod)
+                                    : '<span class="text-gray-400">Not specified</span>';
+
+                                // Build incoterms display
+                                $incotermsDisplay = '<span class="text-gray-400">Not specified</span>';
+                                if ($incotermsValue) {
+                                    $incoterms = Incoterms::tryFrom($incotermsValue);
+                                    if ($incoterms) {
+                                        $incotermsDisplay = '<span class="font-medium text-gray-900 dark:text-gray-100">'.e($incoterms->label()).'</span>';
+                                    }
+                                }
+
+                                // Build ship date display
+                                $dateDisplay = '<span class="text-gray-400">Not specified</span>';
+                                if ($requestedShipDate) {
+                                    $formattedDate = \Carbon\Carbon::parse($requestedShipDate)->format('d M Y');
+                                    $dateDisplay = '<span class="font-medium text-gray-900 dark:text-gray-100">'.$formattedDate.'</span>';
+                                }
+
+                                // Build special instructions display
+                                $instructionsDisplay = '';
+                                if ($specialInstructions) {
+                                    $instructionsDisplay = <<<HTML
+                                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Special Instructions</h4>
+                                            <p class="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-line bg-gray-50 dark:bg-gray-800 p-3 rounded">{$specialInstructions}</p>
+                                        </div>
+                                    HTML;
+                                }
+
+                                return new HtmlString(<<<HTML
+                                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        <div>
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Carrier</h4>
+                                            <p class="text-sm">{$carrierDisplay}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Shipping Method</h4>
+                                            <p class="text-sm text-gray-900 dark:text-gray-100">{$methodDisplay}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Incoterms</h4>
+                                            <p class="text-sm">{$incotermsDisplay}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Requested Ship Date</h4>
+                                            <p class="text-sm">{$dateDisplay}</p>
+                                        </div>
+                                    </div>
+                                    {$instructionsDisplay}
+                                HTML);
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->columns(1),
+
+                // Section 4: Packaging Summary
+                Forms\Components\Section::make('Packaging')
+                    ->description('How bottles will be packaged')
+                    ->icon('heroicon-o-archive-box')
+                    ->schema([
+                        Forms\Components\Placeholder::make('packaging_summary')
+                            ->label('')
+                            ->content(function (Get $get): HtmlString {
+                                $packagingValue = $get('packaging_preference');
+
+                                if (! $packagingValue) {
+                                    return new HtmlString('<p class="text-gray-500">No preference selected</p>');
+                                }
+
+                                $packaging = PackagingPreference::tryFrom($packagingValue);
+                                if (! $packaging) {
+                                    return new HtmlString('<p class="text-gray-500">Unknown preference</p>');
+                                }
+
+                                $icon = match ($packaging) {
+                                    PackagingPreference::Loose => '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>',
+                                    PackagingPreference::Cases => '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" /></svg>',
+                                    PackagingPreference::PreserveCases => '<svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>',
+                                };
+
+                                $colorClasses = match ($packaging) {
+                                    PackagingPreference::Loose => 'text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800',
+                                    PackagingPreference::Cases => 'text-info-600 dark:text-info-400 bg-info-100 dark:bg-info-800/20',
+                                    PackagingPreference::PreserveCases => 'text-warning-600 dark:text-warning-400 bg-warning-100 dark:bg-warning-800/20',
+                                };
+
+                                $label = e($packaging->label());
+                                $description = e($packaging->description());
+
+                                // Warning for preserve_cases
+                                $warningHtml = '';
+                                if ($packaging->mayDelayShipment()) {
+                                    $warningMessage = e($packaging->getWarningMessage() ?? '');
+                                    $warningHtml = <<<HTML
+                                        <div class="mt-4 p-3 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
+                                            <div class="flex">
+                                                <div class="flex-shrink-0">
+                                                    <svg class="h-5 w-5 text-warning-600 dark:text-warning-400" viewBox="0 0 20 20" fill="currentColor">
+                                                        <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                                <div class="ml-3">
+                                                    <p class="text-sm text-warning-700 dark:text-warning-300">
+                                                        <strong>Warning:</strong> {$warningMessage}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    HTML;
+                                }
+
+                                return new HtmlString(<<<HTML
+                                    <div class="flex items-start gap-4">
+                                        <div class="p-3 rounded-lg {$colorClasses}">
+                                            {$icon}
+                                        </div>
+                                        <div>
+                                            <p class="text-base font-semibold text-gray-900 dark:text-gray-100">{$label}</p>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">{$description}</p>
+                                        </div>
+                                    </div>
+                                    {$warningHtml}
+                                HTML);
+                            })
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->columns(1),
+
+                // Final confirmation message
+                Forms\Components\Placeholder::make('final_confirmation')
+                    ->label('')
+                    ->content(new HtmlString(<<<'HTML'
+                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                            <p class="text-sm text-gray-600 dark:text-gray-400 text-center">
+                                Click <strong>"Create Draft"</strong> below to create this Shipping Order.<br>
+                                You can review and edit the order details before planning.
+                            </p>
+                        </div>
+                    HTML))
+                    ->columnSpanFull(),
             ]);
     }
 
