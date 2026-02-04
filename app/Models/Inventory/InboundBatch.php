@@ -168,6 +168,27 @@ class InboundBatch extends Model
     }
 
     /**
+     * Get the inventory exceptions for this batch.
+     *
+     * @return HasMany<InventoryException, $this>
+     */
+    public function inventoryExceptions(): HasMany
+    {
+        return $this->hasMany(InventoryException::class);
+    }
+
+    /**
+     * Get discrepancy resolution exceptions (filtered).
+     *
+     * @return HasMany<InventoryException, $this>
+     */
+    public function discrepancyResolutions(): HasMany
+    {
+        return $this->hasMany(InventoryException::class)
+            ->whereIn('exception_type', ['discrepancy_shortage', 'discrepancy_overage', 'discrepancy_damage', 'discrepancy_other']);
+    }
+
+    /**
      * Check if serialization can be started on this batch.
      */
     public function canStartSerialization(): bool

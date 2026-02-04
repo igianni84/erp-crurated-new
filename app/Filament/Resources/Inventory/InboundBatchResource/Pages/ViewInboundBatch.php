@@ -3,12 +3,14 @@
 namespace App\Filament\Resources\Inventory\InboundBatchResource\Pages;
 
 use App\Enums\Inventory\BottleState;
+use App\Enums\Inventory\DiscrepancyResolution;
 use App\Enums\Inventory\InboundBatchStatus;
 use App\Enums\Inventory\OwnershipType;
 use App\Filament\Resources\Inventory\InboundBatchResource;
 use App\Models\AuditLog;
 use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\InventoryCase;
+use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Inventory\SerializationService;
 use Filament\Actions;
@@ -48,6 +50,7 @@ class ViewInboundBatch extends ViewRecord
                     ->tabs([
                         $this->getSummaryTab(),
                         $this->getQuantitiesTab(),
+                        $this->getDiscrepancyResolutionTab(),
                         $this->getSerializationTab(),
                         $this->getLinkedPhysicalObjectsTab(),
                         $this->getAuditLogTab(),
@@ -442,6 +445,274 @@ class ViewInboundBatch extends ViewRecord
                                     ->color(fn (InboundBatch $record): string => $record->serialization_status->color()),
                             ]),
                     ]),
+            ]);
+    }
+
+    /**
+     * Tab: Discrepancy Resolution - visible only when quantity_expected != quantity_received.
+     * Shows side-by-side comparison and resolution history.
+     */
+    protected function getDiscrepancyResolutionTab(): Tab
+    {
+        return Tab::make('Discrepancy Resolution')
+            ->icon('heroicon-o-exclamation-triangle')
+            ->badge(fn (InboundBatch $record): ?string => $record->hasDiscrepancy() ? 'Action Required' : null)
+            ->badgeColor('danger')
+            ->visible(fn (InboundBatch $record): bool => $record->hasDiscrepancy())
+            ->schema([
+                Section::make('Discrepancy Overview')
+                    ->description('Comparison between expected and received quantities')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                // Side-by-side comparison
+                                Section::make('Expected Quantity')
+                                    ->description('What was expected per documentation')
+                                    ->schema([
+                                        TextEntry::make('quantity_expected')
+                                            ->label('Expected')
+                                            ->numeric()
+                                            ->suffix(' bottles')
+                                            ->weight(FontWeight::Bold)
+                                            ->size(TextEntry\TextEntrySize::Large)
+                                            ->color('info'),
+                                        TextEntry::make('expected_source')
+                                            ->label('Source')
+                                            ->getStateUsing(fn (InboundBatch $record): string => $record->wms_reference_id
+                                                ? "WMS Reference: {$record->wms_reference_id}"
+                                                : 'Manual entry / Documentation')
+                                            ->icon('heroicon-o-document-text')
+                                            ->color('gray'),
+                                    ])
+                                    ->columnSpan(1),
+                                Section::make('Received Quantity')
+                                    ->description('Actual quantity received at location')
+                                    ->schema([
+                                        TextEntry::make('quantity_received')
+                                            ->label('Received')
+                                            ->numeric()
+                                            ->suffix(' bottles')
+                                            ->weight(FontWeight::Bold)
+                                            ->size(TextEntry\TextEntrySize::Large)
+                                            ->color(fn (InboundBatch $record): string => $record->hasDiscrepancy() ? 'danger' : 'success'),
+                                        TextEntry::make('received_info')
+                                            ->label('Reported by')
+                                            ->getStateUsing(fn (InboundBatch $record): string => $record->wms_reference_id
+                                                ? 'WMS (Warehouse Management System)'
+                                                : 'Manual count / ERP Operator')
+                                            ->icon('heroicon-o-clipboard-document-check')
+                                            ->color('gray'),
+                                    ])
+                                    ->columnSpan(1),
+                            ]),
+                    ]),
+                Section::make('Discrepancy Analysis')
+                    ->description('Details of the quantity difference')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('discrepancy_type')
+                                    ->label('Discrepancy Type')
+                                    ->getStateUsing(function (InboundBatch $record): string {
+                                        $delta = $record->quantity_delta;
+                                        if ($delta > 0) {
+                                            return 'OVERAGE';
+                                        }
+                                        if ($delta < 0) {
+                                            return 'SHORTAGE';
+                                        }
+
+                                        return 'NONE';
+                                    })
+                                    ->badge()
+                                    ->color(function (InboundBatch $record): string {
+                                        $delta = $record->quantity_delta;
+                                        if ($delta > 0) {
+                                            return 'warning';
+                                        }
+                                        if ($delta < 0) {
+                                            return 'danger';
+                                        }
+
+                                        return 'success';
+                                    })
+                                    ->icon(function (InboundBatch $record): string {
+                                        $delta = $record->quantity_delta;
+                                        if ($delta > 0) {
+                                            return 'heroicon-o-plus-circle';
+                                        }
+                                        if ($delta < 0) {
+                                            return 'heroicon-o-minus-circle';
+                                        }
+
+                                        return 'heroicon-o-check-circle';
+                                    })
+                                    ->size(TextEntry\TextEntrySize::Large),
+                                TextEntry::make('discrepancy_amount')
+                                    ->label('Difference')
+                                    ->getStateUsing(fn (InboundBatch $record): string => abs($record->quantity_delta).' bottles')
+                                    ->weight(FontWeight::Bold)
+                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->color('danger'),
+                                TextEntry::make('serialization_blocked')
+                                    ->label('Serialization Status')
+                                    ->getStateUsing(fn (InboundBatch $record): string => $record->serialization_status === InboundBatchStatus::Discrepancy
+                                        ? 'BLOCKED - Resolution Required'
+                                        : 'Available')
+                                    ->badge()
+                                    ->color(fn (InboundBatch $record): string => $record->serialization_status === InboundBatchStatus::Discrepancy
+                                        ? 'danger'
+                                        : 'success')
+                                    ->icon(fn (InboundBatch $record): string => $record->serialization_status === InboundBatchStatus::Discrepancy
+                                        ? 'heroicon-o-lock-closed'
+                                        : 'heroicon-o-lock-open'),
+                            ]),
+                        TextEntry::make('discrepancy_explanation')
+                            ->label('What This Means')
+                            ->getStateUsing(function (InboundBatch $record): string {
+                                $delta = $record->quantity_delta;
+                                $abs = abs($delta);
+                                if ($delta > 0) {
+                                    return "The warehouse received {$abs} more bottles than expected. This overage needs to be documented and reconciled. Possible causes: supplier sent extra, documentation error, or previous shortage correction.";
+                                }
+                                if ($delta < 0) {
+                                    return "The warehouse received {$abs} fewer bottles than expected. This shortage needs to be documented and investigated. Possible causes: damaged in transit, missing from shipment, counting error, or theft.";
+                                }
+
+                                return 'No discrepancy detected.';
+                            })
+                            ->icon('heroicon-o-information-circle')
+                            ->color('gray')
+                            ->columnSpanFull(),
+                    ])
+                    ->extraAttributes(['class' => 'bg-danger-50 dark:bg-danger-900/10'])
+                    ->visible(fn (InboundBatch $record): bool => $record->serialization_status === InboundBatchStatus::Discrepancy),
+                Section::make('Resolution History')
+                    ->description('Immutable record of all discrepancy resolutions for this batch')
+                    ->schema([
+                        TextEntry::make('resolution_history')
+                            ->label('')
+                            ->getStateUsing(function (InboundBatch $record): string {
+                                $resolutions = $record->discrepancyResolutions()
+                                    ->with(['creator', 'resolver'])
+                                    ->orderBy('created_at', 'desc')
+                                    ->get();
+
+                                if ($resolutions->isEmpty()) {
+                                    if ($record->serialization_status === InboundBatchStatus::Discrepancy) {
+                                        return '<div class="p-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800">
+                                            <div class="flex items-center gap-2 text-warning-700 dark:text-warning-300">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                                </svg>
+                                                <span class="font-semibold">No resolutions recorded yet. Use the "Resolve Discrepancy" action to document the resolution.</span>
+                                            </div>
+                                        </div>';
+                                    }
+
+                                    return '<div class="text-gray-500">No resolution history available.</div>';
+                                }
+
+                                $html = '<div class="space-y-4">';
+                                foreach ($resolutions as $resolution) {
+                                    /** @var InventoryException $resolution */
+                                    $type = str_replace('discrepancy_', '', $resolution->exception_type);
+                                    $typeLabel = ucfirst($type);
+                                    $typeColor = match ($type) {
+                                        'shortage' => 'danger',
+                                        'overage' => 'warning',
+                                        'damage' => 'danger',
+                                        default => 'gray',
+                                    };
+                                    $colorClass = match ($typeColor) {
+                                        'danger' => 'bg-danger-100 dark:bg-danger-900/30 border-danger-200 dark:border-danger-800',
+                                        'warning' => 'bg-warning-100 dark:bg-warning-900/30 border-warning-200 dark:border-warning-800',
+                                        default => 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700',
+                                    };
+                                    $badgeClass = match ($typeColor) {
+                                        'danger' => 'bg-danger-500 text-white',
+                                        'warning' => 'bg-warning-500 text-white',
+                                        default => 'bg-gray-500 text-white',
+                                    };
+
+                                    $creator = $resolution->creator;
+                                    $creatorName = $creator ? $creator->name : 'System';
+                                    $createdAt = $resolution->created_at->format('M d, Y H:i:s');
+                                    $reason = e($resolution->reason);
+
+                                    $resolutionText = '';
+                                    if ($resolution->isResolved()) {
+                                        $resolver = $resolution->resolver;
+                                        $resolverName = $resolver ? $resolver->name : 'System';
+                                        $resolvedAt = $resolution->resolved_at->format('M d, Y H:i:s');
+                                        $resolutionNote = e($resolution->resolution ?? 'No resolution notes');
+                                        $resolutionText = <<<HTML
+                                        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">
+                                            <div class="flex items-center gap-2 text-success-600 dark:text-success-400 mb-1">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                                <span class="font-semibold">Resolved</span>
+                                            </div>
+                                            <div class="text-sm text-gray-600 dark:text-gray-300">{$resolutionNote}</div>
+                                            <div class="text-xs text-gray-400 mt-1">Resolved by {$resolverName} on {$resolvedAt}</div>
+                                        </div>
+                                        HTML;
+                                    }
+
+                                    $html .= <<<HTML
+                                    <div class="p-4 rounded-lg border {$colorClass}">
+                                        <div class="flex items-start justify-between">
+                                            <div class="flex items-center gap-3">
+                                                <span class="px-2 py-1 text-xs font-semibold rounded {$badgeClass}">{$typeLabel}</span>
+                                                <span class="text-sm text-gray-500">Exception #{$resolution->id}</span>
+                                            </div>
+                                            <div class="text-sm text-gray-500">{$createdAt}</div>
+                                        </div>
+                                        <div class="mt-2">
+                                            <div class="text-sm font-medium text-gray-700 dark:text-gray-300">Reason:</div>
+                                            <div class="text-sm text-gray-600 dark:text-gray-400">{$reason}</div>
+                                        </div>
+                                        <div class="text-xs text-gray-400 mt-2">Reported by {$creatorName}</div>
+                                        {$resolutionText}
+                                    </div>
+                                    HTML;
+                                }
+                                $html .= '</div>';
+
+                                return $html;
+                            })
+                            ->html()
+                            ->columnSpanFull(),
+                    ]),
+                Section::make('Original Values Preserved')
+                    ->description('These values are immutable and serve as the audit baseline')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('original_expected')
+                                    ->label('Original Expected Quantity')
+                                    ->getStateUsing(fn (InboundBatch $record): int => $record->quantity_expected)
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->icon('heroicon-o-lock-closed')
+                                    ->color('gray'),
+                                TextEntry::make('original_received')
+                                    ->label('Original Received Quantity')
+                                    ->getStateUsing(fn (InboundBatch $record): int => $record->quantity_received)
+                                    ->numeric()
+                                    ->suffix(' bottles')
+                                    ->icon('heroicon-o-lock-closed')
+                                    ->color('gray'),
+                            ]),
+                        TextEntry::make('immutability_note')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Original values are never overwritten. Discrepancy resolutions are recorded as separate immutable correction events (InventoryException records) to maintain full audit trail.')
+                            ->icon('heroicon-o-shield-check')
+                            ->color('success'),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 
@@ -849,30 +1120,19 @@ class ViewInboundBatch extends ViewRecord
                             ->html()
                             ->columnSpanFull(),
                     ]),
-                Section::make('Discrepancy Resolutions')
-                    ->description('History of discrepancy resolutions for this batch')
-                    ->visible(fn (InboundBatch $record): bool => $record->hasDiscrepancy() || $record->serialization_status === InboundBatchStatus::Discrepancy)
+                Section::make('Discrepancy Resolution Events')
+                    ->description('Correction events for this batch (see Discrepancy Resolution tab for details)')
+                    ->visible(fn (InboundBatch $record): bool => $record->discrepancyResolutions()->count() > 0)
                     ->schema([
-                        TextEntry::make('discrepancy_info')
+                        TextEntry::make('discrepancy_count')
                             ->label('')
                             ->getStateUsing(function (InboundBatch $record): string {
-                                if ($record->serialization_status === InboundBatchStatus::Discrepancy) {
-                                    $delta = $record->quantity_delta;
-                                    $discrepancyType = $delta > 0 ? 'overage' : 'shortage';
+                                $count = $record->discrepancyResolutions()->count();
 
-                                    return "Active discrepancy: {$discrepancyType} of ".abs($delta).' bottles. Resolution required before serialization can proceed.';
-                                }
-
-                                if ($record->hasDiscrepancy()) {
-                                    return 'There is a quantity difference between expected and received. This may have been resolved or is pending resolution.';
-                                }
-
-                                return 'No discrepancy detected for this batch.';
+                                return "{$count} discrepancy resolution event(s) recorded. See the Discrepancy Resolution tab for full details.";
                             })
-                            ->icon('heroicon-o-exclamation-triangle')
-                            ->color(fn (InboundBatch $record): string => $record->serialization_status === InboundBatchStatus::Discrepancy
-                                ? 'danger'
-                                : ($record->hasDiscrepancy() ? 'warning' : 'success')),
+                            ->icon('heroicon-o-document-check')
+                            ->color('info'),
                     ]),
             ]);
     }
@@ -949,6 +1209,8 @@ class ViewInboundBatch extends ViewRecord
 
     /**
      * Action: Resolve Discrepancy.
+     * Creates an immutable InventoryException record (correction event).
+     * Original values are never overwritten - delta record approach.
      */
     protected function getResolveDiscrepancyAction(): Actions\Action
     {
@@ -966,29 +1228,87 @@ class ViewInboundBatch extends ViewRecord
                 $delta = $record->quantity_delta;
                 $type = $delta > 0 ? 'overage' : 'shortage';
 
-                return "Expected: {$expected} bottles, Received: {$received} bottles. This is a {$type} of ".abs($delta).' bottles.';
+                return "Expected: {$expected} bottles, Received: {$received} bottles. This is a {$type} of ".abs($delta).' bottles. An immutable correction event will be created to preserve the full audit trail.';
             })
             ->form([
+                Forms\Components\Section::make('Quantity Comparison')
+                    ->description('Original values will be preserved')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Placeholder::make('expected_display')
+                                    ->label('Expected Quantity')
+                                    ->content(fn (InboundBatch $record): string => "{$record->quantity_expected} bottles"),
+                                Forms\Components\Placeholder::make('received_display')
+                                    ->label('Received Quantity')
+                                    ->content(fn (InboundBatch $record): string => "{$record->quantity_received} bottles"),
+                            ]),
+                    ]),
                 Forms\Components\Select::make('resolution_type')
-                    ->label('Resolution Type')
+                    ->label('Resolution Reason')
                     ->options([
-                        'shortage' => 'Shortage - Accept lower quantity',
-                        'overage' => 'Overage - Accept higher quantity',
-                        'damage' => 'Damage - Bottles damaged in transit',
-                        'other' => 'Other - See notes',
+                        DiscrepancyResolution::Shortage->value => DiscrepancyResolution::Shortage->label().' - Accept lower quantity as final',
+                        DiscrepancyResolution::Overage->value => DiscrepancyResolution::Overage->label().' - Accept higher quantity as final',
+                        DiscrepancyResolution::Damage->value => DiscrepancyResolution::Damage->label().' - Bottles damaged in transit',
+                        DiscrepancyResolution::Other->value => DiscrepancyResolution::Other->label().' - See notes for details',
                     ])
-                    ->required(),
-                Forms\Components\Textarea::make('resolution_notes')
-                    ->label('Resolution Notes')
-                    ->helperText('Provide details about the discrepancy and resolution')
                     ->required()
-                    ->rows(3),
+                    ->native(false)
+                    ->helperText('Select the reason that best describes this discrepancy'),
+                Forms\Components\Textarea::make('reason')
+                    ->label('Detailed Explanation')
+                    ->helperText('Provide a detailed explanation of the discrepancy and how it was investigated')
+                    ->required()
+                    ->rows(4)
+                    ->placeholder('Describe the discrepancy investigation, findings, and justification for the resolution...'),
                 Forms\Components\TextInput::make('document_reference')
-                    ->label('Document Reference (optional)')
-                    ->helperText('Reference to supporting documents (e.g., delivery note, photos)'),
+                    ->label('Evidence / Document Reference')
+                    ->helperText('Reference to supporting documents (e.g., delivery note, photos, incident report)')
+                    ->placeholder('e.g., DN-2024-001, Photo evidence in SharePoint'),
+                Forms\Components\Checkbox::make('confirm_audit')
+                    ->label('I confirm this resolution will be recorded as an immutable audit record')
+                    ->required()
+                    ->accepted(),
             ])
             ->action(function (InboundBatch $record, array $data): void {
+                $user = auth()->user();
+
+                if (! $user) {
+                    Notification::make()
+                        ->title('Authentication required')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                // Create immutable correction event (InventoryException)
+                $exceptionType = 'discrepancy_'.$data['resolution_type'];
+                $reason = $data['reason'];
+                if (! empty($data['document_reference'])) {
+                    $reason .= "\n\nEvidence Reference: ".$data['document_reference'];
+                }
+
+                // Add context about the discrepancy
+                $delta = $record->quantity_delta;
+                $discrepancyContext = $delta > 0
+                    ? "Overage of {$delta} bottles (Expected: {$record->quantity_expected}, Received: {$record->quantity_received})"
+                    : 'Shortage of '.abs($delta)." bottles (Expected: {$record->quantity_expected}, Received: {$record->quantity_received})";
+                $reason = "Discrepancy: {$discrepancyContext}\n\n{$reason}";
+
+                // Create the immutable InventoryException record
+                $exception = InventoryException::create([
+                    'exception_type' => $exceptionType,
+                    'inbound_batch_id' => $record->id,
+                    'reason' => $reason,
+                    'resolution' => 'Discrepancy acknowledged and resolved. Serialization unblocked.',
+                    'resolved_at' => now(),
+                    'resolved_by' => $user->id,
+                    'created_by' => $user->id,
+                ]);
+
                 // Update the batch status to allow serialization
+                // NOTE: Original quantity values are NOT modified - they are preserved for audit
                 $previousStatus = $record->serialization_status;
 
                 // Determine new status based on serialization progress
@@ -1005,21 +1325,15 @@ class ViewInboundBatch extends ViewRecord
 
                 $record->update([
                     'serialization_status' => $newStatus,
-                    'condition_notes' => ($record->condition_notes ? $record->condition_notes."\n\n" : '')
-                        ."[DISCREPANCY RESOLVED]\n"
-                        ."Type: {$data['resolution_type']}\n"
-                        ."Notes: {$data['resolution_notes']}\n"
-                        .($data['document_reference'] ? "Document: {$data['document_reference']}\n" : '')
-                        .'Resolved at: '.now()->format('Y-m-d H:i:s'),
                 ]);
 
                 Notification::make()
                     ->title('Discrepancy Resolved')
-                    ->body("Status updated from {$previousStatus->label()} to {$newStatus->label()}. Serialization is now available.")
+                    ->body("Correction event #{$exception->id} created. Status updated from {$previousStatus->label()} to {$newStatus->label()}. Serialization is now available.")
                     ->success()
                     ->send();
 
-                $this->refreshFormData(['serialization_status', 'condition_notes']);
+                $this->refreshFormData(['serialization_status']);
             });
     }
 }
