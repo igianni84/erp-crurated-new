@@ -390,3 +390,22 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Tab badge shows: ✓ when all bound, count of discrepancies (danger), count of pending (warning)
   - Browser verification pending
 ---
+
+## 2026-02-04 - US-C028
+- **What was implemented:** SO Detail - Tab Audit & Timeline for chronological timeline of all events
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added Audit & Timeline tab)
+- **Learnings for future iterations:**
+  - Audit timeline displays events in reverse chronological order (newest first) using `orderBy('created_at', 'desc')`
+  - Uses ShippingOrderAuditLog model through `shippingOrderAuditLogs()` relationship - no direct import needed
+  - Event type visual info: `getEventTypeInfo()` returns label, icon, dotClass, badgeClass for consistent styling
+  - Event categories: creation/lifecycle, voucher events, validation events, WMS events, binding events, shipment events
+  - Summary statistics: total events, status changes, WMS events (7 types), binding events (7 types)
+  - Change tracking: `formatChangeTracking()` shows old_values/new_values as JSON with color coding
+  - Timeline UI: vertical line with colored dots, event cards with badge/timestamp/description/user
+  - User attribution: shows user name if available, "System" for automated events (null user_id)
+  - Export CSV: `response()->streamDownload()` with fputcsv for columns: Timestamp, Event Type, Description, User, User ID, Old Values, New Values
+  - Immutability emphasized: banner at top explains audit logs cannot be modified
+  - Tab badge shows total event count
+  - Browser verification pending
+---
