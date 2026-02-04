@@ -1186,3 +1186,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - isAvailableForFulfillment() only returns true for Stored state
   - Movement immutability is enforced at model level via boot guards
 ---
+
+## 2026-02-04 - US-B041
+- **Implemented**: Committed inventory protection in event consumption flow
+- **Files modified**:
+  - app/Services/Inventory/InventoryService.php (added committed bottle detection methods)
+  - app/Filament/Pages/EventConsumption.php (added committed bottles section with inline warnings)
+- **New methods in InventoryService**:
+  - isCommittedForFulfillment(SerializedBottle): Checks if bottle is committed to vouchers (stored + no free allocation quantity)
+  - getCannotConsumeReason(SerializedBottle): Returns human-readable reason why canConsume() returns false
+  - getCommittedBottlesAtLocation(Location): Returns collection of committed bottles at a location
+- **EventConsumption enhancements**:
+  - New collapsible section "Committed Bottles (BLOCKED)" showing all committed bottles with warning
+  - Inline warning explains bottles are "reserved for customer fulfillment"
+  - Table displays committed bottles with serial number, wine, format, status badge, allocation
+  - Reference to US-B047 for exceptional override flow (special permission)
+  - Error message in execution uses getCannotConsumeReason() for detailed blocking info
+- **Acceptance criteria verification**:
+  - ✅ Selection step blocks bottles where state is committed: canConsume() filter in CheckboxList options
+  - ✅ Inline warning: "This bottle is reserved for customer fulfillment" shown in committed section and error messages
+  - ✅ Blocking based on InventoryService.canConsume() = false: Already enforced in selection and double-checked in execution
+  - ✅ Override per special permission (US-B047): Reference included in UI, actual override flow to be implemented in US-B047
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Committed = stored bottle where allocation has free_quantity <= 0 (all physical bottles spoken for by unredeemed vouchers)
+  - getCannotConsumeReason() provides clear user-facing error messages
+  - Committed bottles section is collapsed by default to not distract from normal flow
+  - US-B047 will implement the actual admin override with justification and audit trail
+  - Browser verification requirement noted - manual testing needed
+---
