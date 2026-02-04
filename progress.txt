@@ -505,3 +505,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice lines include metadata with subscription details for audit trail
   - Log channel 'finance' used for financial operation logging
 ---
+
+## 2026-02-04 - US-E027
+- What was implemented: INV0 subscription billing cycle - scheduled job to process subscription billing
+- Files changed:
+  - app/Jobs/Finance/ProcessSubscriptionBillingJob.php (new scheduled job for subscription billing)
+  - routes/console.php (registered job to run daily at 6:00 AM)
+- **Acceptance criteria verification:**
+  - ✅ Scheduled job checks subscriptions with next_billing_date = today: getDueSubscriptionsQuery() filters by status=active and next_billing_date<=today
+  - ✅ For each subscription: generates INV0: Dispatches SubscriptionBillingDue event which triggers GenerateSubscriptionInvoice listener
+  - ✅ Updates next_billing_date according to billing_cycle: advanceNextBillingDate() uses calculateNextBillingDate() from Subscription model
+  - ✅ Log billing event: Comprehensive logging at start, per-subscription, and completion with counts
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Schedule subscription billing before overdue check (6:00 AM vs 8:00 AM) to ensure invoices exist first
+  - Use <= instead of = for date comparison to catch any missed billing dates
+  - Static helper methods like getDueSubscriptionsQuery() and getDueSubscriptionsCount() enable reuse in UI/reports
+  - The job dispatches events rather than directly creating invoices - keeps separation between scheduling and business logic
+  - autoIssue parameter controls whether invoices are auto-issued (default true for automated billing)
+---
