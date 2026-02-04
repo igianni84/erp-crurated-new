@@ -426,3 +426,28 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Keywords in reasons can be mapped to relevant tabs for contextual navigation help
   - SVG icons can be embedded directly in HTML strings for consistent styling
 ---
+
+## 2026-02-04 - US-018
+- What was implemented:
+  - Created `PaymentPermission` model with HasUuid, Auditable traits
+  - Created migration for `payment_permissions` table with unique FK to customers
+  - Added `paymentPermission()` hasOne relationship to Customer model
+  - Added helper methods on Customer: `hasPaymentPermission()`, `hasPaymentBlock()`, `hasCreditApproved()`, `getCreditLimit()`, `isCardAllowed()`, `isBankTransferAllowed()`
+  - Updated `CustomerObserver` to auto-create PaymentPermission with defaults when Customer becomes active
+  - Updated `EligibilityEngine` to use real PaymentPermission data instead of placeholder methods
+  - EligibilityEngine now properly checks `card_allowed` for payment blocks and `credit_limit` for B2B credit approval
+- Files changed:
+  - app/Models/Customer/PaymentPermission.php (new)
+  - app/Models/Customer/Customer.php (updated - added paymentPermission relationship and helpers)
+  - app/Observers/Customer/CustomerObserver.php (updated - added updated() method for PaymentPermission creation)
+  - app/Services/Customer/EligibilityEngine.php (updated - real PaymentPermission integration)
+  - database/migrations/2026_02_04_390006_create_payment_permissions_table.php (new)
+- **Learnings for future iterations:**
+  - Use `unique()` constraint on FK when creating one-to-one relationships in migrations
+  - Observer's `updated()` event fires after the model is saved, good for creating related records
+  - Observer's `updating()` event fires before save, good for validation
+  - Use `wasChanged('field')` in `updated()` vs `isDirty('field')` in `updating()` to check for field changes
+  - Default values in migration (`->default(true)`) match model's expected behavior when auto-created
+  - Migration sequence continues: 390006 for payment_permissions table
+  - PaymentPermission defaults: card_allowed=true, bank_transfer_allowed=false, credit_limit=null
+---
