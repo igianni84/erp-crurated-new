@@ -586,3 +586,35 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - AuditLog changes array should include new field values for complete audit trail
   - Status transition actions use canTransitionTo() for validation before attempting change
 ---
+
+## 2026-02-04 - US-027
+- What was implemented:
+  - Added variance helper methods to PurchaseOrder model:
+    - getInboundQuantity(): returns total inbound quantity linked to PO
+    - getVariance(): returns inbound_quantity - po_quantity
+    - getVariancePercentage(): returns variance as percentage of PO quantity
+    - getVarianceStatus(): returns 'Exact Match', 'Over Delivery', or 'Short Delivery'
+    - hasSignificantVariance(): checks if variance exceeds threshold (default 10%)
+    - Helper methods: hasInbounds(), isOverDelivery(), isShortDelivery(), isExactMatch()
+  - Added variance column to PO List:
+    - Shows variance status with badge (Exact Match, Over Delivery, Short Delivery)
+    - Color coding: green (exact), warning (variance <= 10%), danger (variance > 10%)
+    - Icon indicator: check (exact), up-arrow (over), down-arrow (short)
+    - Sortable by variance amount
+    - Tooltip for significant variance warning
+  - Added variance filter in PO List: exact_match, over_delivery, short_delivery, significant_variance, no_inbounds
+  - Added two new tabs to PO List: "With Variance" and "Variance > 10%" with badge counts
+  - Updated close action to show warning when variance > 10% (informative, not blocking)
+  - All variance calculations use raw SQL subqueries for efficiency
+- Files changed:
+  - app/Models/Procurement/PurchaseOrder.php (modified - added variance helper methods)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource.php (modified - added variance column and filter)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/ListPurchaseOrders.php (modified - added variance tabs)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/ViewPurchaseOrder.php (modified - enhanced close action with variance warning)
+- **Learnings for future iterations:**
+  - Use raw SQL subqueries for aggregate calculations on related tables to avoid N+1 issues
+  - Variance tracking is informative - it does NOT block business operations like closure
+  - Use `whereHas('inbounds')` combined with `whereRaw()` for complex variance queries
+  - Close action can show warnings via modalDescription closure without blocking the action
+  - Tab badges with icon property (e.g., `->icon('heroicon-o-exclamation-triangle')`) draw attention to important states
+---
