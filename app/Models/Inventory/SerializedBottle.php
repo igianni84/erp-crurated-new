@@ -84,12 +84,37 @@ class SerializedBottle extends Model
     /**
      * Immutable fields that cannot be changed after creation.
      *
+     * These fields are protected by DUAL enforcement:
+     * 1. Attribute mutators (setXxxAttribute) that block assignment on existing records
+     * 2. Boot guard (static::updating) that blocks dirty field updates
+     *
      * @var list<string>
      */
     protected static array $immutableFields = [
         'serial_number',
         'allocation_id',
     ];
+
+    /**
+     * Check if a field is immutable.
+     *
+     * @param  string  $field  The field name to check
+     * @return bool True if the field is immutable
+     */
+    public static function isImmutableField(string $field): bool
+    {
+        return in_array($field, self::$immutableFields, true);
+    }
+
+    /**
+     * Get the list of immutable fields.
+     *
+     * @return list<string>
+     */
+    public static function getImmutableFields(): array
+    {
+        return self::$immutableFields;
+    }
 
     /**
      * Set the serial_number attribute.
@@ -108,6 +133,26 @@ class SerializedBottle extends Model
         }
 
         $this->attributes['serial_number'] = $value;
+    }
+
+    /**
+     * Set the allocation_id attribute.
+     *
+     * Enforces immutability: allocation_id (allocation lineage) cannot be changed after creation.
+     * The allocation lineage is propagated from InboundBatch at serialization time and is permanent.
+     *
+     * @throws \InvalidArgumentException If attempting to modify an existing allocation_id
+     */
+    public function setAllocationIdAttribute(string $value): void
+    {
+        // If the model exists (not new) and allocation_id is already set, block modification
+        if ($this->exists && $this->getOriginal('allocation_id') !== null) {
+            throw new \InvalidArgumentException(
+                'Allocation lineage is immutable and cannot be changed after creation. Bottles are permanently bound to their original allocation.'
+            );
+        }
+
+        $this->attributes['allocation_id'] = $value;
     }
 
     /**
