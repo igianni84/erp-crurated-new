@@ -1339,3 +1339,20 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Unlinked inbound handling is a cross-cutting concern implemented in multiple places
   - No new code needed - just verification that existing implementation meets criteria
 ---
+
+## 2026-02-04 - US-059
+- What was implemented:
+  - Verified all acceptance criteria were already implemented in previous stories:
+  - InboundService::complete() calls validateOwnershipClarity() - blocks routed→completed if pending
+  - Error message: "Ownership must be clarified (owned or in_custody) before this operation"
+  - ViewInbound has "Update Ownership" action with form to change ownership_flag
+  - InboundService::handOffToModuleB() calls validateOwnershipClarity() - blocks hand-off if pending
+  - Prerequisites checklist in Downstream Hand-off tab shows ownership clarity status
+- Files changed:
+  - prd.json (marked US-059 as passes: true)
+  - progress.txt (this entry)
+- **Learnings for future iterations:**
+  - US-059 was already fully implemented in US-008 (InboundService) and US-042 (ViewInbound)
+  - Ownership clarity is validated in both complete() and handOffToModuleB() methods
+  - No new code needed - just verification that existing implementation meets criteria
+---

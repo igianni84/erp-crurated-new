@@ -986,8 +986,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 59,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-008 (InboundService), US-042 (ViewInbound with Update Ownership action)"
     },
     {
       "id": "US-060",
