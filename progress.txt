@@ -1070,3 +1070,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Consignment placement maintains ownership (Crurated) but changes custody (consignee)
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B037
+- **Implemented**: WMS Event deduplication with audit logging
+- **Files modified**:
+  - app/Services/Inventory/MovementService.php (added processWmsEvent, logIgnoredWmsEvent, getSystemUser methods)
+- **Features implemented**:
+  - processWmsEvent(wmsEventId, callback): Main entry point for WMS events with deduplication
+  - logIgnoredWmsEvent(wmsEventId): Creates audit record when duplicate event is ignored
+  - getSystemUser(): Gets system user for audit attribution (tries system@crurated.com, then admin, then first user)
+  - InventoryException record created with type 'wms_event_duplicate_ignored' for full audit trail
+  - Application logging via Log::info() for monitoring
+- **Pre-existing implementation verified**:
+  - wms_event_id field is unique (nullable) in inventory_movements table
+  - isDuplicateWmsEvent() method checks for existing event
+  - createMovement() throws InvalidArgumentException if duplicate detected
+- **Acceptance criteria verification**:
+  - ✅ InventoryMovement.wms_event_id is unique (nullable) - DB constraint from migration
+  - ✅ When WMS event arrives: Check if wms_event_id exists via isDuplicateWmsEvent()
+  - ✅ If exists: event ignored and logged in audit (InventoryException + Log::info)
+  - ✅ If not exists: process event and create movement via callback
+  - ✅ Operators see clean deduplicated history (duplicates create exception, not movement)
+  - ✅ No double movements (unique constraint on wms_event_id)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - processWmsEvent() uses callback pattern for flexibility in processing different event types
+  - InventoryException is used for various audit needs (discrepancies, blocked events, duplicates)
+  - getSystemUser() provides fallback chain for finding a user to attribute system actions
+  - PHPStan prefers explicit null checks over nullsafe + ?? pattern
+---
