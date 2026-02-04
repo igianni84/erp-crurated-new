@@ -97,6 +97,16 @@ class Party extends Model
     }
 
     /**
+     * Get the purchase orders where this party is the supplier.
+     *
+     * @return HasMany<\App\Models\Procurement\PurchaseOrder, $this>
+     */
+    public function purchaseOrdersAsSupplier(): HasMany
+    {
+        return $this->hasMany(\App\Models\Procurement\PurchaseOrder::class, 'supplier_party_id');
+    }
+
+    /**
      * Check if the party has a supplier/producer config.
      */
     public function hasSupplierConfig(): bool
