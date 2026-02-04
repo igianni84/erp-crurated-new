@@ -115,8 +115,9 @@ class InventoryOverview extends Page
             ->pluck('allocation_id');
 
         foreach ($allocationIds as $allocationId) {
+            /** @var \App\Models\Allocation\Allocation|null $allocation */
             $allocation = \App\Models\Allocation\Allocation::find($allocationId);
-            if ($allocation !== null) {
+            if ($allocation instanceof \App\Models\Allocation\Allocation) {
                 $committed = $inventoryService->getCommittedQuantity($allocation);
                 $free = $inventoryService->getFreeQuantity($allocation);
                 $totalCommitted += $committed;
@@ -176,10 +177,10 @@ class InventoryOverview extends Page
     {
         $locations = Location::query()
             ->withCount([
-                'serializedBottles as stored_bottle_count' => function ($query): void {
+                'serializedBottles as stored_bottle_count' => function (\Illuminate\Database\Eloquent\Builder $query): void {
                     $query->where('state', BottleState::Stored);
                 },
-                'cases as intact_case_count' => function ($query): void {
+                'cases as intact_case_count' => function (\Illuminate\Database\Eloquent\Builder $query): void {
                     $query->where('integrity_status', \App\Enums\Inventory\CaseIntegrityStatus::Intact);
                 },
             ])
@@ -282,8 +283,9 @@ class InventoryOverview extends Page
             ->pluck('allocation_id');
 
         foreach ($allocationIds as $allocationId) {
+            /** @var \App\Models\Allocation\Allocation|null $allocation */
             $allocation = \App\Models\Allocation\Allocation::find($allocationId);
-            if ($allocation !== null) {
+            if ($allocation instanceof \App\Models\Allocation\Allocation) {
                 $committed = $inventoryService->getCommittedQuantity($allocation);
                 $free = $inventoryService->getFreeQuantity($allocation);
 
@@ -509,5 +511,61 @@ class InventoryOverview extends Page
                 'integrity_status' => \App\Enums\Inventory\CaseIntegrityStatus::Intact->value,
             ],
         ]);
+    }
+
+    /**
+     * Get URL to bottles from at-risk allocations.
+     */
+    public function getAtRiskBottlesUrl(): string
+    {
+        $inventoryService = app(InventoryService::class);
+        $atRiskAllocationIds = $inventoryService->getAtRiskAllocationIds();
+
+        if ($atRiskAllocationIds->isEmpty()) {
+            return SerializedBottleResource::getUrl('index');
+        }
+
+        // Return URL to bottles filtered by at-risk allocation IDs
+        // Note: For multiple allocation IDs, we link to the first one or the general list
+        // Since Filament doesn't easily support multi-value filters via URL, we'll link to
+        // the general bottle list. The alert message explains the context.
+        $firstAllocationId = $atRiskAllocationIds->first();
+
+        return SerializedBottleResource::getUrl('index', [
+            'tableFilters' => [
+                'allocation_id' => $firstAllocationId,
+            ],
+        ]);
+    }
+
+    /**
+     * Get at-risk allocation details for display.
+     *
+     * @return \Illuminate\Support\Collection<int, array{allocation: \App\Models\Allocation\Allocation, committed: int, free: int, risk_percentage: float}>
+     */
+    public function getAtRiskAllocationDetails(): \Illuminate\Support\Collection
+    {
+        $inventoryService = app(InventoryService::class);
+
+        return $inventoryService->getAtRiskAllocations();
+    }
+
+    /**
+     * Get WMS sync errors for display.
+     *
+     * @return Collection<int, InventoryException>
+     */
+    public function getWmsSyncErrors(): Collection
+    {
+        return InventoryException::query()
+            ->with(['serializedBottle', 'case', 'inboundBatch', 'creator'])
+            ->whereIn('exception_type', [
+                'wms_serialization_blocked',
+                'wms_event_duplicate_ignored',
+            ])
+            ->where('created_at', '>=', now()->subDays(7))
+            ->orderByDesc('created_at')
+            ->limit(10)
+            ->get();
     }
 }

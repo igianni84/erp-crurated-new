@@ -335,4 +335,81 @@ class InventoryService
             'total_bottles_remaining' => $totalBottlesRemaining,
         ];
     }
+
+    /**
+     * Get allocations that are at risk (free < 10% of committed).
+     *
+     * An allocation is at risk when:
+     * - It has committed vouchers (unredeemed)
+     * - The free quantity is less than 10% of committed quantity
+     *
+     * @return \Illuminate\Support\Collection<int, array{allocation: Allocation, committed: int, free: int, risk_percentage: float}>
+     */
+    public function getAtRiskAllocations(): \Illuminate\Support\Collection
+    {
+        /** @var array<int, array{allocation: Allocation, committed: int, free: int, risk_percentage: float}> $atRiskAllocations */
+        $atRiskAllocations = [];
+
+        // Get distinct allocations with stored bottles
+        $allocationIds = SerializedBottle::distinct()
+            ->whereNotNull('allocation_id')
+            ->where('state', BottleState::Stored)
+            ->pluck('allocation_id');
+
+        foreach ($allocationIds as $allocationId) {
+            /** @var Allocation|null $allocation */
+            $allocation = Allocation::find($allocationId);
+            if (! $allocation instanceof Allocation) {
+                continue;
+            }
+
+            $committed = $this->getCommittedQuantity($allocation);
+            $free = $this->getFreeQuantity($allocation);
+
+            // Alert if committed > 0 and free < 10% of committed
+            if ($committed > 0 && $free < ($committed * 0.1)) {
+                $riskPercentage = round(($free / $committed) * 100, 1);
+                $atRiskAllocations[] = [
+                    'allocation' => $allocation,
+                    'committed' => $committed,
+                    'free' => $free,
+                    'risk_percentage' => $riskPercentage,
+                ];
+            }
+        }
+
+        return collect($atRiskAllocations);
+    }
+
+    /**
+     * Get bottles belonging to at-risk allocations.
+     *
+     * Returns all stored bottles from allocations where free < 10% of committed.
+     *
+     * @return Collection<int, SerializedBottle>
+     */
+    public function getBottlesFromAtRiskAllocations(): Collection
+    {
+        $atRiskAllocations = $this->getAtRiskAllocations();
+        $allocationIds = $atRiskAllocations->pluck('allocation.id');
+
+        if ($allocationIds->isEmpty()) {
+            return new Collection;
+        }
+
+        return SerializedBottle::query()
+            ->whereIn('allocation_id', $allocationIds)
+            ->where('state', BottleState::Stored)
+            ->get();
+    }
+
+    /**
+     * Get allocation IDs that are at risk.
+     *
+     * @return \Illuminate\Support\Collection<int, mixed>
+     */
+    public function getAtRiskAllocationIds(): \Illuminate\Support\Collection
+    {
+        return $this->getAtRiskAllocations()->pluck('allocation.id');
+    }
 }

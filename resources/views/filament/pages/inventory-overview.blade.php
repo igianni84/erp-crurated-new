@@ -10,6 +10,8 @@
         $recentMovements = $this->getRecentMovementsSummary();
         $ownershipBreakdown = $this->getOwnershipBreakdown();
         $ownershipMeta = $this->getOwnershipTypeMeta();
+        $atRiskAllocations = $this->getAtRiskAllocationDetails();
+        $wmsSyncErrors = $this->getWmsSyncErrors();
     @endphp
 
     {{-- Top Summary Cards (Key KPIs) --}}
@@ -276,35 +278,106 @@
                     </a>
 
                     {{-- Committed at Risk --}}
-                    <div class="flex items-center justify-between p-3 rounded-lg {{ $alerts['committed_at_risk'] > 0 ? 'bg-danger-50 dark:bg-danger-900/20' : '' }}">
-                        <div class="flex items-center">
-                            <div class="rounded-full p-2 {{ $alerts['committed_at_risk'] > 0 ? 'bg-danger-100 dark:bg-danger-400/10' : 'bg-gray-100 dark:bg-gray-700' }}">
-                                <x-heroicon-o-shield-exclamation class="h-4 w-4 {{ $alerts['committed_at_risk'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}" />
+                    <div x-data="{ expanded: false }" class="rounded-lg {{ $alerts['committed_at_risk'] > 0 ? 'bg-danger-50 dark:bg-danger-900/20' : '' }}">
+                        <button
+                            type="button"
+                            @click="expanded = !expanded"
+                            class="flex items-center justify-between w-full p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors {{ $alerts['committed_at_risk'] > 0 ? 'hover:bg-danger-100 dark:hover:bg-danger-900/30' : '' }}"
+                        >
+                            <div class="flex items-center">
+                                <div class="rounded-full p-2 {{ $alerts['committed_at_risk'] > 0 ? 'bg-danger-100 dark:bg-danger-400/10' : 'bg-gray-100 dark:bg-gray-700' }}">
+                                    <x-heroicon-o-shield-exclamation class="h-4 w-4 {{ $alerts['committed_at_risk'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}" />
+                                </div>
+                                <div class="ml-3 text-left">
+                                    <span class="text-sm font-medium {{ $alerts['committed_at_risk'] > 0 ? 'text-danger-800 dark:text-danger-200' : 'text-gray-700 dark:text-gray-300' }}">Committed at Risk</span>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Free &lt; 10% of committed</p>
+                                </div>
                             </div>
-                            <div class="ml-3">
-                                <span class="text-sm font-medium {{ $alerts['committed_at_risk'] > 0 ? 'text-danger-800 dark:text-danger-200' : 'text-gray-700 dark:text-gray-300' }}">Committed at Risk</span>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Free &lt; 10% of committed</p>
+                            <div class="flex items-center">
+                                <span class="text-lg font-bold {{ $alerts['committed_at_risk'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500' }} mr-2">
+                                    {{ number_format($alerts['committed_at_risk']) }}
+                                </span>
+                                @if($alerts['committed_at_risk'] > 0)
+                                    <x-heroicon-o-chevron-down class="h-4 w-4 text-danger-500 transition-transform" x-bind:class="{ 'rotate-180': expanded }" />
+                                @endif
                             </div>
-                        </div>
-                        <span class="text-lg font-bold {{ $alerts['committed_at_risk'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500' }}">
-                            {{ number_format($alerts['committed_at_risk']) }}
-                        </span>
+                        </button>
+                        @if($alerts['committed_at_risk'] > 0 && $atRiskAllocations->count() > 0)
+                            <div x-show="expanded" x-collapse class="px-3 pb-3">
+                                <div class="mt-2 space-y-2 border-t border-danger-200 dark:border-danger-700 pt-3">
+                                    <p class="text-xs font-medium text-danger-700 dark:text-danger-300 mb-2">At-Risk Allocations:</p>
+                                    @foreach($atRiskAllocations->take(5) as $item)
+                                        <div class="flex items-center justify-between text-xs bg-white dark:bg-gray-800 rounded p-2">
+                                            <span class="text-gray-700 dark:text-gray-300 truncate flex-1 mr-2">
+                                                {{ $item['allocation']->name ?? 'Allocation #' . $item['allocation']->id }}
+                                            </span>
+                                            <span class="text-danger-600 dark:text-danger-400 font-semibold whitespace-nowrap">
+                                                {{ $item['free'] }} free / {{ $item['committed'] }} committed
+                                            </span>
+                                        </div>
+                                    @endforeach
+                                    @if($atRiskAllocations->count() > 5)
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 italic">
+                                            + {{ $atRiskAllocations->count() - 5 }} more allocations...
+                                        </p>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     {{-- WMS Sync Errors --}}
-                    <div class="flex items-center justify-between p-3 rounded-lg {{ $alerts['wms_sync_errors'] > 0 ? 'bg-danger-50 dark:bg-danger-900/20' : '' }}">
-                        <div class="flex items-center">
-                            <div class="rounded-full p-2 {{ $alerts['wms_sync_errors'] > 0 ? 'bg-danger-100 dark:bg-danger-400/10' : 'bg-gray-100 dark:bg-gray-700' }}">
-                                <x-heroicon-o-arrow-path class="h-4 w-4 {{ $alerts['wms_sync_errors'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}" />
+                    <div x-data="{ expanded: false }" class="rounded-lg {{ $alerts['wms_sync_errors'] > 0 ? 'bg-danger-50 dark:bg-danger-900/20' : '' }}">
+                        <button
+                            type="button"
+                            @click="expanded = !expanded"
+                            class="flex items-center justify-between w-full p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors {{ $alerts['wms_sync_errors'] > 0 ? 'hover:bg-danger-100 dark:hover:bg-danger-900/30' : '' }}"
+                        >
+                            <div class="flex items-center">
+                                <div class="rounded-full p-2 {{ $alerts['wms_sync_errors'] > 0 ? 'bg-danger-100 dark:bg-danger-400/10' : 'bg-gray-100 dark:bg-gray-700' }}">
+                                    <x-heroicon-o-arrow-path class="h-4 w-4 {{ $alerts['wms_sync_errors'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}" />
+                                </div>
+                                <div class="ml-3 text-left">
+                                    <span class="text-sm font-medium {{ $alerts['wms_sync_errors'] > 0 ? 'text-danger-800 dark:text-danger-200' : 'text-gray-700 dark:text-gray-300' }}">WMS Sync Errors</span>
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Last 7 days</p>
+                                </div>
                             </div>
-                            <div class="ml-3">
-                                <span class="text-sm font-medium {{ $alerts['wms_sync_errors'] > 0 ? 'text-danger-800 dark:text-danger-200' : 'text-gray-700 dark:text-gray-300' }}">WMS Sync Errors</span>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Last 7 days</p>
+                            <div class="flex items-center">
+                                <span class="text-lg font-bold {{ $alerts['wms_sync_errors'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500' }} mr-2">
+                                    {{ number_format($alerts['wms_sync_errors']) }}
+                                </span>
+                                @if($alerts['wms_sync_errors'] > 0)
+                                    <x-heroicon-o-chevron-down class="h-4 w-4 text-danger-500 transition-transform" x-bind:class="{ 'rotate-180': expanded }" />
+                                @endif
                             </div>
-                        </div>
-                        <span class="text-lg font-bold {{ $alerts['wms_sync_errors'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500' }}">
-                            {{ number_format($alerts['wms_sync_errors']) }}
-                        </span>
+                        </button>
+                        @if($alerts['wms_sync_errors'] > 0 && $wmsSyncErrors->count() > 0)
+                            <div x-show="expanded" x-collapse class="px-3 pb-3">
+                                <div class="mt-2 space-y-2 border-t border-danger-200 dark:border-danger-700 pt-3">
+                                    <p class="text-xs font-medium text-danger-700 dark:text-danger-300 mb-2">Recent WMS Errors:</p>
+                                    @foreach($wmsSyncErrors->take(5) as $error)
+                                        <div class="text-xs bg-white dark:bg-gray-800 rounded p-2">
+                                            <div class="flex items-center justify-between">
+                                                <span class="font-medium text-gray-700 dark:text-gray-300">
+                                                    {{ ucwords(str_replace('_', ' ', $error->exception_type)) }}
+                                                </span>
+                                                <span class="text-gray-500 dark:text-gray-400">
+                                                    {{ $error->created_at->diffForHumans() }}
+                                                </span>
+                                            </div>
+                                            <p class="text-gray-600 dark:text-gray-400 truncate mt-1">
+                                                {{ Str::limit($error->reason, 80) }}
+                                            </p>
+                                        </div>
+                                    @endforeach
+                                    @if($wmsSyncErrors->count() > 5)
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 italic">
+                                            + {{ $alerts['wms_sync_errors'] - 5 }} more errors...
+                                        </p>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
