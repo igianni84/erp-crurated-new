@@ -273,9 +273,18 @@ class ViewBottlingInstruction extends ViewRecord
                             ]),
                     ]),
 
+                // Preference Collection Progress Widget
                 Section::make('Preference Collection Progress')
-                    ->description('Status of customer bottling preferences')
+                    ->description('Track customer bottling preference collection')
                     ->schema([
+                        // Progress Bar
+                        TextEntry::make('progress_bar')
+                            ->label('')
+                            ->getStateUsing(fn (BottlingInstruction $record): string => $this->renderProgressBar($record))
+                            ->html()
+                            ->columnSpanFull(),
+
+                        // Stats Grid
                         Grid::make(4)
                             ->schema([
                                 TextEntry::make('preference_status_display')
@@ -286,38 +295,53 @@ class ViewBottlingInstruction extends ViewRecord
                                     ->icon(fn (BottlingInstruction $record): string => $record->preference_status->icon()),
                                 TextEntry::make('voucher_count')
                                     ->label('Total Vouchers')
-                                    ->getStateUsing(fn (BottlingInstruction $record): string => (string) $record->bottle_equivalents)
+                                    ->getStateUsing(fn (BottlingInstruction $record): string => (string) $record->getTotalVoucherCount())
                                     ->suffix(' linked')
                                     ->helperText('Based on bottle equivalents'),
                                 TextEntry::make('preferences_collected')
                                     ->label('Preferences Collected')
                                     ->getStateUsing(function (BottlingInstruction $record): string {
-                                        // Placeholder - actual collection would come from voucher preferences
-                                        return match ($record->preference_status) {
-                                            BottlingPreferenceStatus::Complete, BottlingPreferenceStatus::Defaulted => (string) $record->bottle_equivalents,
-                                            BottlingPreferenceStatus::Partial => (string) (int) ($record->bottle_equivalents * 0.5),
-                                            default => '0',
-                                        };
+                                        $progress = $record->getPreferenceProgress();
+
+                                        return (string) $progress['collected'];
                                     })
-                                    ->suffix(' collected'),
+                                    ->suffix(' collected')
+                                    ->badge()
+                                    ->color('success'),
                                 TextEntry::make('preferences_missing')
                                     ->label('Missing Preferences')
                                     ->getStateUsing(function (BottlingInstruction $record): string {
-                                        // Placeholder - actual collection would come from voucher preferences
-                                        return match ($record->preference_status) {
-                                            BottlingPreferenceStatus::Complete, BottlingPreferenceStatus::Defaulted => '0',
-                                            BottlingPreferenceStatus::Partial => (string) (int) ($record->bottle_equivalents * 0.5),
-                                            default => (string) $record->bottle_equivalents,
-                                        };
+                                        $progress = $record->getPreferenceProgress();
+
+                                        return (string) $progress['pending'];
                                     })
                                     ->suffix(' pending')
+                                    ->badge()
                                     ->color(fn (BottlingInstruction $record): string => $record->preference_status->isCollecting() ? 'warning' : 'gray'),
                             ]),
                     ]),
 
-                Section::make('Preference Collection Status')
-                    ->description('Current state of preference collection')
+                // Voucher List with Preference Status
+                Section::make('Voucher Preference Status')
+                    ->description('List of vouchers with their preference collection status')
+                    ->collapsible()
                     ->schema([
+                        TextEntry::make('voucher_list')
+                            ->label('')
+                            ->getStateUsing(fn (BottlingInstruction $record): string => $this->renderVoucherList($record))
+                            ->html()
+                            ->columnSpanFull(),
+                    ]),
+
+                // Customer Portal Link
+                Section::make('Customer Portal')
+                    ->description('External link for customer preference collection')
+                    ->schema([
+                        TextEntry::make('portal_link')
+                            ->label('')
+                            ->getStateUsing(fn (BottlingInstruction $record): string => $this->renderPortalLink($record))
+                            ->html()
+                            ->columnSpanFull(),
                         TextEntry::make('collection_explanation')
                             ->label('')
                             ->getStateUsing(function (BottlingInstruction $record): string {
@@ -330,11 +354,6 @@ class ViewBottlingInstruction extends ViewRecord
                             })
                             ->icon(fn (BottlingInstruction $record): string => $record->preference_status->icon())
                             ->iconColor(fn (BottlingInstruction $record): string => $record->preference_status->color()),
-                        TextEntry::make('customer_portal_link')
-                            ->label('Customer Portal')
-                            ->getStateUsing(fn (): string => 'Customer preferences are collected via the external customer portal. Contact the customer success team for portal access links.')
-                            ->color('gray')
-                            ->icon('heroicon-o-globe-alt'),
                     ]),
 
                 Section::make('Defaults Application')
@@ -354,6 +373,147 @@ class ViewBottlingInstruction extends ViewRecord
                             ]),
                     ]),
             ]);
+    }
+
+    /**
+     * Render the progress bar HTML for preference collection.
+     */
+    protected function renderProgressBar(BottlingInstruction $record): string
+    {
+        $progress = $record->getPreferenceProgress();
+        $percentage = $record->getPreferenceProgressPercentage();
+
+        $colorClass = match (true) {
+            $percentage >= 100 => 'bg-success-500',
+            $percentage >= 50 => 'bg-warning-500',
+            $percentage > 0 => 'bg-info-500',
+            default => 'bg-gray-400',
+        };
+
+        $textColor = match (true) {
+            $percentage >= 100 => 'text-success-600 dark:text-success-400',
+            $percentage >= 50 => 'text-warning-600 dark:text-warning-400',
+            $percentage > 0 => 'text-info-600 dark:text-info-400',
+            default => 'text-gray-600 dark:text-gray-400',
+        };
+
+        return <<<HTML
+        <div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Collection Progress</span>
+                <span class="text-sm font-bold {$textColor}">{$percentage}%</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
+                <div class="h-4 rounded-full transition-all duration-500 ease-out {$colorClass}" style="width: {$percentage}%"></div>
+            </div>
+            <div class="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
+                <span>{$progress['collected']} collected</span>
+                <span>{$progress['pending']} pending</span>
+                <span>{$progress['total']} total</span>
+            </div>
+        </div>
+        HTML;
+    }
+
+    /**
+     * Render the voucher list HTML for preference status.
+     */
+    protected function renderVoucherList(BottlingInstruction $record): string
+    {
+        $vouchers = $record->getVoucherPreferenceList();
+
+        if (empty($vouchers)) {
+            return <<<'HTML'
+            <div class="text-center py-8">
+                <svg class="mx-auto h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                </svg>
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No vouchers linked to this instruction yet.</p>
+            </div>
+            HTML;
+        }
+
+        $html = '<div class="space-y-2 max-h-96 overflow-y-auto">';
+
+        foreach ($vouchers as $voucher) {
+            $isCollected = $voucher['preference_status'] === 'collected';
+            $statusBadge = $isCollected
+                ? '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400">Collected</span>'
+                : '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400">Pending</span>';
+
+            $icon = $isCollected
+                ? '<div class="flex-shrink-0 w-8 h-8 rounded-full bg-success-100 dark:bg-success-900/30 flex items-center justify-center"><svg class="h-4 w-4 text-success-600 dark:text-success-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg></div>'
+                : '<div class="flex-shrink-0 w-8 h-8 rounded-full bg-warning-100 dark:bg-warning-900/30 flex items-center justify-center"><svg class="h-4 w-4 text-warning-600 dark:text-warning-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>';
+
+            $formatInfo = $voucher['format_preference']
+                ? '<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Format: '.htmlspecialchars($voucher['format_preference']).'</div>'
+                : '';
+
+            $customerName = htmlspecialchars($voucher['customer_name']);
+            $voucherId = htmlspecialchars(substr($voucher['voucher_id'], 0, 8)).'...';
+
+            $html .= <<<HTML
+            <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center gap-3">
+                    {$icon}
+                    <div>
+                        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{$customerName}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400">Voucher: {$voucherId}</div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    {$statusBadge}
+                    {$formatInfo}
+                </div>
+            </div>
+            HTML;
+        }
+
+        $html .= '</div>';
+
+        // Add summary
+        $collectedCount = count(array_filter($vouchers, fn ($v) => $v['preference_status'] === 'collected'));
+        $pendingCount = count($vouchers) - $collectedCount;
+        $totalCount = count($vouchers);
+
+        $html .= <<<HTML
+        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-sm">
+            <span class="text-gray-500 dark:text-gray-400">Showing {$collectedCount} collected, {$pendingCount} pending</span>
+            <span class="text-gray-400 dark:text-gray-500">Total: {$totalCount}</span>
+        </div>
+        HTML;
+
+        return $html;
+    }
+
+    /**
+     * Render the customer portal link HTML.
+     */
+    protected function renderPortalLink(BottlingInstruction $record): string
+    {
+        $portalUrl = $record->getCustomerPortalUrl();
+
+        return <<<HTML
+        <div class="flex items-center justify-between p-4 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
+            <div class="flex items-center gap-3">
+                <div class="flex-shrink-0 w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="text-sm font-medium text-primary-900 dark:text-primary-100">Customer Preference Portal</div>
+                    <div class="text-xs text-primary-700 dark:text-primary-300">Share this link with customers to collect their bottling preferences</div>
+                </div>
+            </div>
+            <a href="{$portalUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-lg transition-colors">
+                Open Portal
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+            </a>
+        </div>
+        HTML;
     }
 
     /**
