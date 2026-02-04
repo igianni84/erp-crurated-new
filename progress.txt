@@ -626,3 +626,21 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Export CSV bulk action available
   - Browser verification pending
 ---
+
+## 2026-02-04 - US-C044, US-C045, US-C046
+- **What was implemented:** Verified Supply Exception Handling, WMS Discrepancy Resolution (already implemented), added VoucherIneligible exception creation
+- **Files changed:**
+  - `app/Services/Fulfillment/ShippingOrderService.php` (added VoucherIneligible exception creation at planning and pre-picking checkpoints)
+- **Files verified (no changes needed):**
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (handleDiscrepancy creates WmsDiscrepancy exception)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (Planning tab creates SupplyInsufficient exception)
+- **Learnings for future iterations:**
+  - US-C044 was already implemented in US-C026 (Planning tab) - SupplyInsufficient exception created with resolution paths
+  - US-C045 was already implemented in US-C015 (WmsIntegrationService) - handleDiscrepancy() creates WmsDiscrepancy exception
+  - US-C046 required adding ShippingOrderException creation for VoucherIneligible at planning and pre-picking checkpoints
+  - Added imports for ShippingOrderException, ShippingOrderExceptionType, ShippingOrderExceptionStatus
+  - Exception is linked to specific line when possible via shipping_order_line_id
+  - Resolution paths: Remove ineligible voucher from SO, Cancel Shipping Order
+  - Banner "One or more vouchers are not eligible" already implemented in Vouchers & Eligibility tab
+  - Cross-allocation substitution blocked at: ShippingOrderLine boot() guard, LateBindingService, WmsIntegrationService
+---

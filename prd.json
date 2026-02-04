@@ -713,8 +713,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 44,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C026 (Planning tab). SupplyInsufficient exception created when planning fails, description shows allocation_id/required/available, resolution_path includes: Wait for inventory, Request internal transfer, Cancel SO. Cross-allocation substitution blocked at multiple levels."
     },
     {
       "id": "US-C045",
@@ -729,8 +729,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 45,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C015 (WmsIntegrationService). handleDiscrepancy() creates WmsDiscrepancy exception with description showing constraints/serial/error, resolution_path includes: Request WMS re-pick, Cancel SO, Manual reconciliation. No manual acceptance of invalid picks."
     },
     {
       "id": "US-C046",
@@ -744,8 +744,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 46,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Eligibility checked at creation (validateVouchersForCreation), planning (handlePreTransition), pre-picking (handlePreTransition). VoucherIneligible exception created at planning/picking failures. Banner shows 'One or more vouchers are not eligible' in Vouchers & Eligibility tab. No partial fulfillment."
     },
     {
       "id": "US-C047",

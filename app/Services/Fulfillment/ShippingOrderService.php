@@ -3,12 +3,15 @@
 namespace App\Services\Fulfillment;
 
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
+use App\Enums\Fulfillment\ShippingOrderExceptionType;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
 use App\Models\Fulfillment\ShippingOrder;
 use App\Models\Fulfillment\ShippingOrderAuditLog;
+use App\Models\Fulfillment\ShippingOrderException;
 use App\Models\Fulfillment\ShippingOrderLine;
 use App\Services\Allocation\VoucherService;
 use Illuminate\Support\Collection;
@@ -816,6 +819,21 @@ class ShippingOrderService
                     $validation['errors']
                 );
 
+                // Create VoucherIneligible exceptions for each ineligible voucher
+                foreach ($validation['errors'] as $error) {
+                    $line = $shippingOrder->lines->first(fn ($l) => $l->voucher_id === $error['voucher_id']);
+
+                    ShippingOrderException::create([
+                        'shipping_order_id' => $shippingOrder->id,
+                        'shipping_order_line_id' => $line?->id,
+                        'exception_type' => ShippingOrderExceptionType::VoucherIneligible,
+                        'description' => "Voucher {$error['voucher_id']} is not eligible for planning: {$error['reason']}",
+                        'resolution_path' => "Remove ineligible voucher from Shipping Order\nCancel Shipping Order",
+                        'status' => ShippingOrderExceptionStatus::Active,
+                        'created_by' => Auth::id(),
+                    ]);
+                }
+
                 throw new \InvalidArgumentException(
                     'Cannot plan Shipping Order: voucher validation failed. '
                     .implode('; ', $errorMessages)
@@ -832,8 +850,21 @@ class ShippingOrderService
                     $validation['errors']
                 );
 
-                // Log the ineligibility event for each voucher
+                // Create VoucherIneligible exceptions and log for each ineligible voucher
                 foreach ($validation['errors'] as $error) {
+                    // Find the line for this voucher to link exception to it
+                    $line = $shippingOrder->lines->first(fn ($l) => $l->voucher_id === $error['voucher_id']);
+
+                    ShippingOrderException::create([
+                        'shipping_order_id' => $shippingOrder->id,
+                        'shipping_order_line_id' => $line?->id,
+                        'exception_type' => ShippingOrderExceptionType::VoucherIneligible,
+                        'description' => "Voucher {$error['voucher_id']} is no longer eligible: {$error['reason']}",
+                        'resolution_path' => "Remove ineligible voucher from Shipping Order\nCancel Shipping Order",
+                        'status' => ShippingOrderExceptionStatus::Active,
+                        'created_by' => Auth::id(),
+                    ]);
+
                     $this->logEvent(
                         $shippingOrder,
                         self::EVENT_VOUCHER_INELIGIBLE,
