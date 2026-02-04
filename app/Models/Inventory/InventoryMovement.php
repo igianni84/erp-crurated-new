@@ -131,14 +131,11 @@ class InventoryMovement extends Model
 
     /**
      * Get the movement items associated with this movement.
-     * MovementItem model will be created in US-B007.
      *
-     * @return HasMany<\Illuminate\Database\Eloquent\Model, $this>
+     * @return HasMany<MovementItem, $this>
      */
     public function movementItems(): HasMany
     {
-        // MovementItem class will be created in US-B007
-        /** @phpstan-ignore-next-line */
         return $this->hasMany(MovementItem::class, 'inventory_movement_id');
     }
 
