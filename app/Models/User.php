@@ -111,4 +111,13 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
     }
+
+    /**
+     * Check if the user can approve or reject memberships.
+     * Requires at least Manager role.
+     */
+    public function canApproveMemberships(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
 }

@@ -355,6 +355,10 @@ class ViewCustomer extends ViewRecord
         $record = $this->record;
         $membership = $record->membership;
 
+        /** @var \App\Models\User|null $user */
+        $user = auth()->user();
+        $canApproveMemberships = $user?->canApproveMemberships() ?? false;
+
         $actions = [];
 
         // Apply for Membership - only if no membership exists or previous was rejected
@@ -394,8 +398,8 @@ class ViewCustomer extends ViewRecord
                 });
         }
 
-        // Submit for Review - only if status is Applied
-        if ($membership !== null && $membership->status === MembershipStatus::Applied) {
+        // Submit for Review - only if status is Applied and transition is valid
+        if ($membership !== null && $membership->canTransitionTo(MembershipStatus::UnderReview)) {
             $actions[] = \Filament\Infolists\Components\Actions\Action::make('submit_review')
                 ->label('Submit for Review')
                 ->icon('heroicon-o-clipboard-document-check')
@@ -405,26 +409,34 @@ class ViewCustomer extends ViewRecord
                 ->modalDescription('Submit this membership application for review. A manager will need to approve or reject it.')
                 ->modalSubmitActionLabel('Submit for Review')
                 ->action(function () use ($membership): void {
-                    $membership->update([
-                        'status' => MembershipStatus::UnderReview,
-                    ]);
+                    try {
+                        $membership->submitForReview();
 
-                    Notification::make()
-                        ->title('Submitted for review')
-                        ->body('The membership application has been submitted for review.')
-                        ->success()
-                        ->send();
+                        Notification::make()
+                            ->title('Submitted for review')
+                            ->body('The membership application has been submitted for review.')
+                            ->success()
+                            ->send();
+                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                        Notification::make()
+                            ->title('Transition failed')
+                            ->body($e->getUserMessage())
+                            ->danger()
+                            ->send();
+                    }
 
                     $this->refreshFormData(['membership', 'memberships']);
                 });
         }
 
-        // Approve - only if status is UnderReview (requires Manager role - to be enforced in US-014)
-        if ($membership !== null && $membership->status === MembershipStatus::UnderReview) {
+        // Approve - only if transition is valid and user has Manager role or higher
+        if ($membership !== null && $membership->canTransitionTo(MembershipStatus::Approved) && $membership->status === MembershipStatus::UnderReview) {
             $actions[] = \Filament\Infolists\Components\Actions\Action::make('approve_membership')
                 ->label('Approve')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
+                ->disabled(! $canApproveMemberships)
+                ->tooltip(! $canApproveMemberships ? 'Manager role or higher required to approve memberships' : null)
                 ->form([
                     Textarea::make('decision_notes')
                         ->label('Decision Notes (Optional)')
@@ -434,29 +446,45 @@ class ViewCustomer extends ViewRecord
                 ->modalHeading('Approve Membership')
                 ->modalDescription('Approve this membership application. The effective date will be set to now.')
                 ->modalSubmitActionLabel('Approve Membership')
-                ->action(function (array $data) use ($membership): void {
-                    $membership->update([
-                        'status' => MembershipStatus::Approved,
-                        'effective_from' => now(),
-                        'decision_notes' => $data['decision_notes'] ?? null,
-                    ]);
+                ->action(function (array $data) use ($membership, $canApproveMemberships): void {
+                    if (! $canApproveMemberships) {
+                        Notification::make()
+                            ->title('Unauthorized')
+                            ->body('You must have Manager role or higher to approve memberships.')
+                            ->danger()
+                            ->send();
 
-                    Notification::make()
-                        ->title('Membership approved')
-                        ->body('The membership has been approved and is now active.')
-                        ->success()
-                        ->send();
+                        return;
+                    }
+
+                    try {
+                        $membership->approve($data['decision_notes'] ?? null);
+
+                        Notification::make()
+                            ->title('Membership approved')
+                            ->body('The membership has been approved and is now active.')
+                            ->success()
+                            ->send();
+                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                        Notification::make()
+                            ->title('Transition failed')
+                            ->body($e->getUserMessage())
+                            ->danger()
+                            ->send();
+                    }
 
                     $this->refreshFormData(['membership', 'memberships']);
                 });
         }
 
-        // Reject - only if status is UnderReview (requires Manager role - to be enforced in US-014)
-        if ($membership !== null && $membership->status === MembershipStatus::UnderReview) {
+        // Reject - only if transition is valid and user has Manager role or higher
+        if ($membership !== null && $membership->canTransitionTo(MembershipStatus::Rejected)) {
             $actions[] = \Filament\Infolists\Components\Actions\Action::make('reject_membership')
                 ->label('Reject')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
+                ->disabled(! $canApproveMemberships)
+                ->tooltip(! $canApproveMemberships ? 'Manager role or higher required to reject memberships' : null)
                 ->form([
                     Textarea::make('decision_notes')
                         ->label('Rejection Reason')
@@ -468,24 +496,39 @@ class ViewCustomer extends ViewRecord
                 ->modalHeading('Reject Membership')
                 ->modalDescription('Reject this membership application. A reason must be provided.')
                 ->modalSubmitActionLabel('Reject Membership')
-                ->action(function (array $data) use ($membership): void {
-                    $membership->update([
-                        'status' => MembershipStatus::Rejected,
-                        'decision_notes' => $data['decision_notes'],
-                    ]);
+                ->action(function (array $data) use ($membership, $canApproveMemberships): void {
+                    if (! $canApproveMemberships) {
+                        Notification::make()
+                            ->title('Unauthorized')
+                            ->body('You must have Manager role or higher to reject memberships.')
+                            ->danger()
+                            ->send();
 
-                    Notification::make()
-                        ->title('Membership rejected')
-                        ->body('The membership application has been rejected.')
-                        ->warning()
-                        ->send();
+                        return;
+                    }
+
+                    try {
+                        $membership->reject($data['decision_notes']);
+
+                        Notification::make()
+                            ->title('Membership rejected')
+                            ->body('The membership application has been rejected.')
+                            ->warning()
+                            ->send();
+                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                        Notification::make()
+                            ->title('Transition failed')
+                            ->body($e->getUserMessage())
+                            ->danger()
+                            ->send();
+                    }
 
                     $this->refreshFormData(['membership', 'memberships']);
                 });
         }
 
-        // Suspend - only if status is Approved
-        if ($membership !== null && $membership->status === MembershipStatus::Approved) {
+        // Suspend - only if transition is valid
+        if ($membership !== null && $membership->canTransitionTo(MembershipStatus::Suspended)) {
             $actions[] = \Filament\Infolists\Components\Actions\Action::make('suspend_membership')
                 ->label('Suspend')
                 ->icon('heroicon-o-pause-circle')
@@ -502,23 +545,28 @@ class ViewCustomer extends ViewRecord
                 ->modalDescription('Suspend this active membership. The customer will lose access to membership benefits. A reason must be provided.')
                 ->modalSubmitActionLabel('Suspend Membership')
                 ->action(function (array $data) use ($membership): void {
-                    $membership->update([
-                        'status' => MembershipStatus::Suspended,
-                        'decision_notes' => $data['decision_notes'],
-                    ]);
+                    try {
+                        $membership->suspend($data['decision_notes']);
 
-                    Notification::make()
-                        ->title('Membership suspended')
-                        ->body('The membership has been suspended.')
-                        ->warning()
-                        ->send();
+                        Notification::make()
+                            ->title('Membership suspended')
+                            ->body('The membership has been suspended.')
+                            ->warning()
+                            ->send();
+                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                        Notification::make()
+                            ->title('Transition failed')
+                            ->body($e->getUserMessage())
+                            ->danger()
+                            ->send();
+                    }
 
                     $this->refreshFormData(['membership', 'memberships']);
                 });
         }
 
-        // Reactivate - only if status is Suspended
-        if ($membership !== null && $membership->status === MembershipStatus::Suspended) {
+        // Reactivate - only if transition is valid (Suspended -> Approved)
+        if ($membership !== null && $membership->status === MembershipStatus::Suspended && $membership->canTransitionTo(MembershipStatus::Approved)) {
             $actions[] = \Filament\Infolists\Components\Actions\Action::make('reactivate_membership')
                 ->label('Reactivate')
                 ->icon('heroicon-o-play-circle')
@@ -533,16 +581,21 @@ class ViewCustomer extends ViewRecord
                 ->modalDescription('Reactivate this suspended membership. The customer will regain access to membership benefits.')
                 ->modalSubmitActionLabel('Reactivate Membership')
                 ->action(function (array $data) use ($membership): void {
-                    $membership->update([
-                        'status' => MembershipStatus::Approved,
-                        'decision_notes' => $data['decision_notes'] ?? null,
-                    ]);
+                    try {
+                        $membership->reactivate($data['decision_notes'] ?? null);
 
-                    Notification::make()
-                        ->title('Membership reactivated')
-                        ->body('The membership has been reactivated and is now active.')
-                        ->success()
-                        ->send();
+                        Notification::make()
+                            ->title('Membership reactivated')
+                            ->body('The membership has been reactivated and is now active.')
+                            ->success()
+                            ->send();
+                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                        Notification::make()
+                            ->title('Transition failed')
+                            ->body($e->getUserMessage())
+                            ->danger()
+                            ->send();
+                    }
 
                     $this->refreshFormData(['membership', 'memberships']);
                 });

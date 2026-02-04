@@ -365,4 +365,117 @@ class Membership extends Model
 
         return $tierReasons;
     }
+
+    /**
+     * Transition the membership to a new status with validation.
+     *
+     * @param  MembershipStatus  $newStatus  The target status to transition to
+     * @param  string|null  $notes  Decision notes for this transition
+     * @param  bool  $autoSetEffectiveFrom  Auto-set effective_from on approval (default true)
+     *
+     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     */
+    public function transitionTo(
+        MembershipStatus $newStatus,
+        ?string $notes = null,
+        bool $autoSetEffectiveFrom = true
+    ): void {
+        if (! $this->canTransitionTo($newStatus)) {
+            throw new \App\Exceptions\InvalidMembershipTransitionException(
+                $this->status,
+                $newStatus
+            );
+        }
+
+        $updateData = [
+            'status' => $newStatus,
+        ];
+
+        // Set decision notes if provided
+        if ($notes !== null) {
+            $updateData['decision_notes'] = $notes;
+        }
+
+        // Auto-set effective_from when transitioning to Approved
+        if ($autoSetEffectiveFrom && $newStatus === MembershipStatus::Approved && $this->effective_from === null) {
+            $updateData['effective_from'] = now();
+        }
+
+        $this->update($updateData);
+    }
+
+    /**
+     * Submit the membership application for review.
+     *
+     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     */
+    public function submitForReview(): void
+    {
+        $this->transitionTo(MembershipStatus::UnderReview);
+    }
+
+    /**
+     * Approve the membership application.
+     *
+     * @param  string|null  $notes  Decision notes
+     *
+     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     */
+    public function approve(?string $notes = null): void
+    {
+        $this->transitionTo(MembershipStatus::Approved, $notes);
+    }
+
+    /**
+     * Reject the membership application.
+     *
+     * @param  string  $notes  Rejection reason (required)
+     *
+     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     */
+    public function reject(string $notes): void
+    {
+        $this->transitionTo(MembershipStatus::Rejected, $notes);
+    }
+
+    /**
+     * Suspend an approved membership.
+     *
+     * @param  string  $notes  Suspension reason (required)
+     *
+     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     */
+    public function suspend(string $notes): void
+    {
+        $this->transitionTo(MembershipStatus::Suspended, $notes);
+    }
+
+    /**
+     * Reactivate a suspended membership.
+     *
+     * @param  string|null  $notes  Reactivation notes
+     *
+     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     */
+    public function reactivate(?string $notes = null): void
+    {
+        $this->transitionTo(MembershipStatus::Approved, $notes, autoSetEffectiveFrom: false);
+    }
+
+    /**
+     * Get a user-friendly message describing why a transition is invalid.
+     */
+    public function getTransitionErrorMessage(MembershipStatus $targetStatus): string
+    {
+        $validTransitions = $this->getValidTransitions();
+
+        if (empty($validTransitions)) {
+            return "Membership in '{$this->status->label()}' status cannot transition to any other status.";
+        }
+
+        $validLabels = array_map(fn (MembershipStatus $s) => $s->label(), $validTransitions);
+
+        return "Cannot transition from '{$this->status->label()}' to '{$targetStatus->label()}'. "
+            .'Valid transitions: '.implode(', ', $validLabels).'.';
+    }
 }
