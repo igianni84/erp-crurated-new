@@ -961,3 +961,45 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Hand-off to Module B is one-way operation - shows warning for unlinked inbounds
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-043
+- What was implemented:
+  - Status transitions were already fully implemented in InboundService (US-008)
+  - Verified all acceptance criteria are met:
+    - Valid transitions: recorded→routed, routed→completed (InboundStatus enum with allowedTransitions())
+    - recorded→routed requires serialization_location - InboundService.route() validates and throws
+    - routed→completed requires ownership_flag != pending - InboundService.complete() calls validateOwnershipClarity()
+    - Invalid transitions generate user-friendly errors (InvalidArgumentException with explanation)
+    - Every transition logs user_id and timestamp via logStatusTransition()
+  - ViewInbound header actions call InboundService methods with try/catch for error handling
+  - Typecheck and lint pass
+- Files changed:
+  - No new files (implementation was complete in previous iterations)
+  - prd.json (marked US-043 as passes: true)
+- **Learnings for future iterations:**
+  - Inbound status transitions follow same pattern as other Module D entities
+  - InboundService was implemented in US-008 with full transition validation
+  - UI actions in ViewInbound call service methods and display Notification on success/error
+---
+
+## 2026-02-04 - US-044
+- What was implemented:
+  - Module B Hand-off was already fully implemented in InboundService (US-008)
+  - ViewInbound header action for Hand-off added in US-042
+  - Verified all acceptance criteria are met:
+    - Action visible only when status = completed (ViewInbound isCompleted() check)
+    - Validates ownership clarity - InboundService.handOffToModuleB() calls validateOwnershipClarity()
+    - Validates serialization routing - InboundService.handOffToModuleB() calls validateSerializationRouting()
+    - Sets handed_to_module_b = true, handed_to_module_b_at = now()
+    - Creates AuditLog for Module B event (EVENT_FLAG_CHANGE)
+    - Action is non-reversible - service throws error if already handed off, delete action hidden
+  - Typecheck and lint pass
+- Files changed:
+  - No new files (implementation was complete in previous iterations)
+  - prd.json (marked US-044 as passes: true)
+- **Learnings for future iterations:**
+  - Hand-off action in ViewInbound is disabled (not hidden) when canHandOffToModuleB() returns false
+  - Modal description shows warning for unlinked inbounds requiring manual validation
+  - Delete action is hidden once handed_to_module_b is true
+  - Browser verification should be done manually as dev-browser skill is not available
+---
