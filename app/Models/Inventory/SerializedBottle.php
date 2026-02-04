@@ -92,6 +92,25 @@ class SerializedBottle extends Model
     ];
 
     /**
+     * Set the serial_number attribute.
+     *
+     * Enforces immutability: serial_number cannot be changed after creation.
+     *
+     * @throws \InvalidArgumentException If attempting to modify an existing serial_number
+     */
+    public function setSerialNumberAttribute(string $value): void
+    {
+        // If the model exists (not new) and serial_number is already set, block modification
+        if ($this->exists && $this->getOriginal('serial_number') !== null) {
+            throw new \InvalidArgumentException(
+                'Serial number is immutable and cannot be changed after creation. Use the mis-serialization correction flow (US-B029) instead.'
+            );
+        }
+
+        $this->attributes['serial_number'] = $value;
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
