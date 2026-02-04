@@ -412,4 +412,115 @@ class InventoryService
     {
         return $this->getAtRiskAllocations()->pluck('allocation.id');
     }
+
+    /**
+     * Validate that a bottle can be used for a specific allocation (no cross-allocation substitution).
+     *
+     * This method enforces the critical business rule that bottles can ONLY fulfill
+     * vouchers/orders from the SAME allocation lineage. Cross-allocation substitution
+     * is strictly prohibited.
+     *
+     * US-B048: Allocation lineage substitution blocker
+     *
+     * @param  SerializedBottle  $bottle  The bottle to validate
+     * @param  Allocation  $targetAllocation  The allocation the bottle is being used for
+     * @return bool True if the bottle matches the allocation, false otherwise
+     *
+     * @throws \InvalidArgumentException If attempting cross-allocation substitution
+     */
+    public function validateAllocationLineageMatch(SerializedBottle $bottle, Allocation $targetAllocation): bool
+    {
+        if ($bottle->allocation_id !== $targetAllocation->id) {
+            throw new \InvalidArgumentException(
+                'Allocation lineage mismatch. Substitution not allowed. '.
+                "Bottle allocation: {$bottle->allocation_id}, ".
+                "Target allocation: {$targetAllocation->id}"
+            );
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if a bottle matches a target allocation (without throwing exception).
+     *
+     * Use this method when you need to check allocation match without exception handling.
+     *
+     * @param  SerializedBottle  $bottle  The bottle to check
+     * @param  Allocation  $targetAllocation  The allocation to match against
+     * @return bool True if allocations match, false otherwise
+     */
+    public function bottleMatchesAllocation(SerializedBottle $bottle, Allocation $targetAllocation): bool
+    {
+        return $bottle->allocation_id === $targetAllocation->id;
+    }
+
+    /**
+     * Filter a collection of bottles to only those matching a specific allocation.
+     *
+     * This helper ensures that only bottles from the correct allocation lineage
+     * are returned, enforcing the no-substitution rule at the query level.
+     *
+     * @param  Collection<int, SerializedBottle>  $bottles  Collection of bottles to filter
+     * @param  Allocation  $targetAllocation  The allocation to filter by
+     * @return Collection<int, SerializedBottle> Filtered collection of matching bottles
+     */
+    public function filterBottlesByAllocation(Collection $bottles, Allocation $targetAllocation): Collection
+    {
+        return $bottles->filter(
+            fn (SerializedBottle $bottle): bool => $bottle->allocation_id === $targetAllocation->id
+        );
+    }
+
+    /**
+     * Get bottles available for fulfillment for a specific allocation.
+     *
+     * Returns only bottles that:
+     * - Match the target allocation (no substitution)
+     * - Are in 'stored' state
+     * - Are available for fulfillment
+     *
+     * @param  Allocation  $allocation  The allocation to get bottles for
+     * @return Collection<int, SerializedBottle> Available bottles for this allocation
+     */
+    public function getAvailableBottlesForAllocation(Allocation $allocation): Collection
+    {
+        return SerializedBottle::query()
+            ->where('allocation_id', $allocation->id)
+            ->where('state', BottleState::Stored)
+            ->get();
+    }
+
+    /**
+     * Check if there are any available bottles for a specific allocation.
+     *
+     * @param  Allocation  $allocation  The allocation to check
+     * @return bool True if bottles are available, false otherwise
+     */
+    public function hasAvailableBottlesForAllocation(Allocation $allocation): bool
+    {
+        return SerializedBottle::query()
+            ->where('allocation_id', $allocation->id)
+            ->where('state', BottleState::Stored)
+            ->exists();
+    }
+
+    /**
+     * Get the allocation lineage display string for a bottle.
+     *
+     * Returns a human-readable string showing the bottle's allocation lineage,
+     * which should be prominently displayed in all inventory views.
+     *
+     * @param  SerializedBottle  $bottle  The bottle to get lineage for
+     * @return string Human-readable allocation lineage
+     */
+    public function getAllocationLineageDisplay(SerializedBottle $bottle): string
+    {
+        $allocation = $bottle->allocation;
+        if ($allocation === null) {
+            return 'No Allocation (ERROR)';
+        }
+
+        return $allocation->getBottleSkuLabel().' (ID: '.substr($allocation->id, 0, 8).'...)';
+    }
 }

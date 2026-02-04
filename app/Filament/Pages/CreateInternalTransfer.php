@@ -192,7 +192,7 @@ class CreateInternalTransfer extends Page implements HasForms
                                             }
 
                                             return SerializedBottle::query()
-                                                ->with(['wineVariant.wineMaster', 'format'])
+                                                ->with(['wineVariant.wineMaster', 'format', 'allocation'])
                                                 ->where('current_location_id', $locationId)
                                                 ->where('state', BottleState::Stored)
                                                 ->orderBy('serial_number')
@@ -210,8 +210,14 @@ class CreateInternalTransfer extends Page implements HasForms
                                                     $format = $bottle->format;
                                                     $formatName = $format !== null ? $format->name : '';
 
+                                                    // Include allocation lineage prominently (US-B048)
+                                                    $allocation = $bottle->allocation;
+                                                    $allocationLabel = $allocation !== null
+                                                        ? '['.substr($allocation->id, 0, 8).'...]'
+                                                        : '[No Allocation]';
+
                                                     return [
-                                                        $bottle->id => "{$bottle->serial_number} - {$wineName} ({$formatName})",
+                                                        $bottle->id => "{$bottle->serial_number} - {$wineName} ({$formatName}) {$allocationLabel}",
                                                     ];
                                                 })
                                                 ->toArray();

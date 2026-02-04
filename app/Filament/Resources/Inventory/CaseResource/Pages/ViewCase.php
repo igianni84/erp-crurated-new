@@ -282,7 +282,7 @@ class ViewCase extends ViewRecord
                         RepeatableEntry::make('serializedBottles')
                             ->label('')
                             ->schema([
-                                Grid::make(5)
+                                Grid::make(6)
                                     ->schema([
                                         TextEntry::make('serial_number')
                                             ->label('Serial Number')
@@ -313,6 +313,19 @@ class ViewCase extends ViewRecord
                                             ->formatStateUsing(fn ($state): string => $state->label())
                                             ->color(fn ($state): string => $state->color())
                                             ->icon(fn ($state): string => $state->icon()),
+                                        TextEntry::make('allocation_lineage')
+                                            ->label('Allocation')
+                                            ->getStateUsing(function ($record): string {
+                                                $allocation = $record->allocation;
+                                                if ($allocation === null) {
+                                                    return 'N/A';
+                                                }
+
+                                                return substr($allocation->id, 0, 8).'...';
+                                            })
+                                            ->badge()
+                                            ->color('primary')
+                                            ->icon('heroicon-o-link'),
                                         TextEntry::make('nft_status')
                                             ->label('NFT')
                                             ->getStateUsing(fn ($record): string => $record->hasNft() ? 'Minted' : 'Pending')
