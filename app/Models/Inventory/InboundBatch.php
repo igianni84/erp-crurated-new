@@ -10,6 +10,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -147,6 +148,16 @@ class InboundBatch extends Model
     }
 
     /**
+     * Get the serialized bottles created from this batch.
+     *
+     * @return HasMany<SerializedBottle, $this>
+     */
+    public function serializedBottles(): HasMany
+    {
+        return $this->hasMany(SerializedBottle::class);
+    }
+
+    /**
      * Check if serialization can be started on this batch.
      */
     public function canStartSerialization(): bool
@@ -171,9 +182,17 @@ class InboundBatch extends Model
      */
     public function getRemainingUnserializedAttribute(): int
     {
-        // This will be updated when SerializedBottle model is created
-        // For now, return quantity_received as all are unserialized
-        return $this->quantity_received;
+        $serializedCount = $this->serializedBottles()->count();
+
+        return max(0, $this->quantity_received - $serializedCount);
+    }
+
+    /**
+     * Get the count of serialized bottles.
+     */
+    public function getSerializedCountAttribute(): int
+    {
+        return $this->serializedBottles()->count();
     }
 
     /**

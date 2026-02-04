@@ -8,6 +8,7 @@ use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -80,6 +81,26 @@ class Location extends Model
     public function auditLogs(): MorphMany
     {
         return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+    }
+
+    /**
+     * Get the serialized bottles currently at this location.
+     *
+     * @return HasMany<SerializedBottle, $this>
+     */
+    public function serializedBottles(): HasMany
+    {
+        return $this->hasMany(SerializedBottle::class, 'current_location_id');
+    }
+
+    /**
+     * Get the inbound batches received at this location.
+     *
+     * @return HasMany<InboundBatch, $this>
+     */
+    public function inboundBatches(): HasMany
+    {
+        return $this->hasMany(InboundBatch::class, 'receiving_location_id');
     }
 
     /**
