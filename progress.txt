@@ -697,3 +697,20 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - LateBindingService injected via constructor for unbindLine() calls
   - Binding status tracked via isBound() method which checks bound_bottle_serial presence
 ---
+
+## 2026-02-04 - US-C055
+- **What was implemented:** Fulfillment Dashboard page as landing page for Fulfillment module
+- **Files changed:**
+  - `app/Filament/Pages/FulfillmentDashboard.php` (new)
+  - `resources/views/filament/pages/fulfillment-dashboard.blade.php` (new)
+- **Learnings for future iterations:**
+  - Dashboard pages use Page class with custom Blade view (not Resource)
+  - Navigation group "Fulfillment", navigationSort=0 to make it first item
+  - Widget A: SO by Status - status bar chart with links to filtered SO list
+  - Widget B: SOs Requiring Attention - two sections: active exceptions and near ship date (3 days)
+  - Widget C: Shipments Today/This Week - metrics cards with pending confirmation count
+  - Widget D: Exception Summary - grouped by type with count and quick links
+  - View pattern: methods return data arrays/collections, Blade template consumes via $this->getMethodName()
+  - Quick links use Resource::getUrl('index', ['tableFilters' => [...]])
+  - Color classes mapped from enum color() values to Tailwind classes
+---
