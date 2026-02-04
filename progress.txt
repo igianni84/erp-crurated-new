@@ -298,3 +298,28 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - TrashedFilter requires getEloquentQuery() to remove SoftDeletingScope
   - View and Edit pages are placeholders for US-B013 and US-B014 respectively
 ---
+
+## 2026-02-04 - US-B013
+- **Implemented**: Location Detail page with 4 tabs for comprehensive location management
+- **Files modified**:
+  - app/Filament/Resources/Inventory/LocationResource/Pages/ViewLocation.php (complete rewrite)
+- **Features implemented**:
+  - Prominent serialization warning banner at top when serialization_authorized = false
+  - Tab 1: Overview - Location identity, stock summary (serialized bottles, cases, unserialized inbound), bottles by state breakdown, ownership breakdown by type
+  - Tab 2: Inventory - Paginated list of SerializedBottles with serial number/wine/format/state/ownership, list of Cases with configuration/integrity/bottles count
+  - Tab 3: Inbound/Outbound - Recent InboundBatches with status, recent transfers in/out from InventoryMovement records
+  - Tab 4: WMS Status - Connection status badge, WMS ID, last sync timestamp from WMS-triggered movements, error logs section (read-only)
+- **Key patterns used**:
+  - Tabs::make() with persistTabInQueryString() for tab persistence in URL
+  - TextEntry with getStateUsing() for computed values and aggregations
+  - RepeatableEntry for displaying related models (bottles, cases, batches)
+  - Section with visible() for conditional display (e.g., WMS sections)
+  - HTML generation within TextEntry for custom movement displays
+- **Learnings for future iterations**:
+  - PHPStan requires explicit null checks for nullable relations - use `$relation !== null ? ... : ...` pattern instead of `?->` with `??`
+  - For eager-loaded relations that may not exist, assign to variable first then check null
+  - executed_at on InventoryMovement is non-nullable (required field), so no null checks needed
+  - Section::extraAttributes() can add custom styling classes like bg-danger-50 for warning sections
+  - RepeatableEntry columns(1) forces vertical layout for better readability
+  - Browser verification requirement noted - manual testing needed
+---
