@@ -1920,32 +1920,259 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 7: Clubs - Club affiliations (placeholder).
+     * Tab 7: Clubs - Club affiliations management.
      */
     protected function getClubsTab(): Tab
     {
+        /** @var Customer $record */
+        $record = $this->record;
+        $affiliationsCount = $record->clubAffiliations()->count();
+        $effectiveCount = $record->effectiveClubAffiliations()->count();
+
+        // Get available clubs for the add affiliation form (exclude already affiliated clubs)
+        $affiliatedClubIds = $record->clubAffiliations()->pluck('club_id')->toArray();
+        $availableClubs = \App\Models\Customer\Club::query()
+            ->whereNotIn('id', $affiliatedClubIds)
+            ->where('status', \App\Enums\Customer\ClubStatus::Active)
+            ->orderBy('partner_name')
+            ->pluck('partner_name', 'id')
+            ->toArray();
+
         return Tab::make('Clubs')
             ->icon('heroicon-o-user-group')
+            ->badge($affiliationsCount > 0 ? (string) $affiliationsCount : null)
+            ->badgeColor($effectiveCount > 0 ? 'success' : 'gray')
             ->schema([
                 Section::make('Club Affiliations')
-                    ->description('Club memberships and partnerships for this customer')
+                    ->description('Club memberships and partnerships for this customer. Effective affiliations unlock Club channel access.')
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('add_affiliation')
+                            ->label('Add Affiliation')
+                            ->icon('heroicon-o-plus-circle')
+                            ->color('primary')
+                            ->visible(count($availableClubs) > 0)
+                            ->form([
+                                Select::make('club_id')
+                                    ->label('Club')
+                                    ->options($availableClubs)
+                                    ->required()
+                                    ->native(false)
+                                    ->searchable()
+                                    ->helperText('Select a club to affiliate this customer with'),
+                                DatePicker::make('start_date')
+                                    ->label('Start Date')
+                                    ->required()
+                                    ->default(now())
+                                    ->native(false)
+                                    ->helperText('When the affiliation becomes active'),
+                            ])
+                            ->modalHeading('Add Club Affiliation')
+                            ->modalDescription('Create a new club affiliation for this customer.')
+                            ->modalSubmitActionLabel('Add Affiliation')
+                            ->action(function (array $data) use ($record): void {
+                                $club = \App\Models\Customer\Club::find($data['club_id']);
+
+                                $record->clubAffiliations()->create([
+                                    'club_id' => $data['club_id'],
+                                    'affiliation_status' => \App\Enums\Customer\AffiliationStatus::Active,
+                                    'start_date' => $data['start_date'],
+                                    'end_date' => null,
+                                ]);
+
+                                Notification::make()
+                                    ->title('Club affiliation added')
+                                    ->body("Customer is now affiliated with club \"{$club->partner_name}\".")
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData(['clubAffiliations']);
+                            }),
+                    ])
                     ->schema([
-                        TextEntry::make('clubs_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No club affiliations found. Club management will be implemented in US-021 through US-024.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                        $this->getClubAffiliationsRepeatableEntry($record),
                     ]),
                 Section::make('Club Eligibility Impact')
                     ->description('How club affiliations affect channel eligibility')
                     ->collapsed()
                     ->collapsible()
                     ->schema([
-                        TextEntry::make('club_eligibility_impact_placeholder')
+                        TextEntry::make('club_eligibility_summary')
                             ->label('')
-                            ->getStateUsing(fn (): string => 'Active club affiliations unlock access to the Club channel. Each club may provide additional benefits and exclusive access.')
+                            ->getStateUsing(function () use ($effectiveCount): string {
+                                if ($effectiveCount > 0) {
+                                    return '✓ This customer has '.$effectiveCount.' effective club affiliation(s), which unlocks access to the Club sales channel.';
+                                }
+
+                                return '✗ No effective club affiliations. To access the Club channel, the customer needs at least one active affiliation that has started and not ended.';
+                            })
+                            ->icon(fn () => $effectiveCount > 0 ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                            ->color(fn () => $effectiveCount > 0 ? 'success' : 'warning'),
+                        TextEntry::make('club_eligibility_info')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'Note: Some membership tiers (Legacy, Invitation Only) automatically grant Club channel access regardless of club affiliations.')
                             ->icon('heroicon-o-information-circle')
                             ->color('gray'),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Build the club affiliations repeatable entry with CRUD actions.
+     */
+    protected function getClubAffiliationsRepeatableEntry(Customer $record): RepeatableEntry|TextEntry
+    {
+        $affiliations = $record->clubAffiliations()->with('club')->get();
+
+        if ($affiliations->isEmpty()) {
+            return TextEntry::make('no_affiliations')
+                ->label('')
+                ->getStateUsing(fn (): string => 'No club affiliations found. Use "Add Affiliation" to create one.')
+                ->icon('heroicon-o-information-circle')
+                ->color('gray');
+        }
+
+        return RepeatableEntry::make('clubAffiliations')
+            ->label('')
+            ->schema([
+                Grid::make(7)
+                    ->schema([
+                        TextEntry::make('club.partner_name')
+                            ->label('Club')
+                            ->weight(FontWeight::Bold)
+                            ->url(fn (\App\Models\Customer\CustomerClub $affiliation): string => \App\Filament\Resources\Customer\ClubResource::getUrl('view', ['record' => $affiliation->club_id])),
+                        TextEntry::make('affiliation_status')
+                            ->label('Status')
+                            ->badge()
+                            ->formatStateUsing(fn (\App\Enums\Customer\AffiliationStatus $state): string => $state->label())
+                            ->color(fn (\App\Enums\Customer\AffiliationStatus $state): string => $state->color())
+                            ->icon(fn (\App\Enums\Customer\AffiliationStatus $state): string => $state->icon()),
+                        TextEntry::make('start_date')
+                            ->label('Start Date')
+                            ->date(),
+                        TextEntry::make('end_date')
+                            ->label('End Date')
+                            ->date()
+                            ->placeholder('No end date'),
+                        TextEntry::make('effective_indicator')
+                            ->label('Eligibility')
+                            ->getStateUsing(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective() ? 'Effective' : 'Not Effective')
+                            ->badge()
+                            ->color(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective() ? 'success' : 'gray')
+                            ->icon(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective() ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                            ->tooltip(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective()
+                                ? 'This affiliation is active, has started, and has not ended - it grants Club channel access.'
+                                : 'This affiliation is not effective (suspended, not started, or ended) - it does not grant Club channel access.'),
+                        TextEntry::make('club.status')
+                            ->label('Club Status')
+                            ->badge()
+                            ->formatStateUsing(fn (\App\Enums\Customer\ClubStatus $state): string => $state->label())
+                            ->color(fn (\App\Enums\Customer\ClubStatus $state): string => $state->color())
+                            ->icon(fn (\App\Enums\Customer\ClubStatus $state): string => $state->icon()),
+                        \Filament\Infolists\Components\Actions::make([
+                            \Filament\Infolists\Components\Actions\Action::make('edit_affiliation')
+                                ->label('Edit')
+                                ->icon('heroicon-o-pencil-square')
+                                ->color('gray')
+                                ->size('sm')
+                                ->form(fn (\App\Models\Customer\CustomerClub $affiliation): array => [
+                                    Select::make('affiliation_status')
+                                        ->label('Affiliation Status')
+                                        ->options(collect(\App\Enums\Customer\AffiliationStatus::cases())
+                                            ->mapWithKeys(fn (\App\Enums\Customer\AffiliationStatus $status): array => [
+                                                $status->value => $status->label(),
+                                            ])
+                                            ->toArray())
+                                        ->required()
+                                        ->native(false)
+                                        ->default($affiliation->affiliation_status->value)
+                                        ->helperText('Active affiliations contribute to Club channel eligibility'),
+                                    DatePicker::make('end_date')
+                                        ->label('End Date')
+                                        ->native(false)
+                                        ->default($affiliation->end_date)
+                                        ->helperText('Leave empty for ongoing affiliation, or set to end the affiliation'),
+                                ])
+                                ->modalHeading('Edit Club Affiliation')
+                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Edit affiliation with club: {$affiliation->club->partner_name}")
+                                ->modalSubmitActionLabel('Save Changes')
+                                ->action(function (array $data, \App\Models\Customer\CustomerClub $affiliation): void {
+                                    $affiliation->update([
+                                        'affiliation_status' => $data['affiliation_status'],
+                                        'end_date' => $data['end_date'],
+                                    ]);
+
+                                    Notification::make()
+                                        ->title('Affiliation updated')
+                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been updated.")
+                                        ->success()
+                                        ->send();
+
+                                    $this->refreshFormData(['clubAffiliations']);
+                                }),
+                            \Filament\Infolists\Components\Actions\Action::make('suspend_affiliation')
+                                ->label('Suspend')
+                                ->icon('heroicon-o-pause-circle')
+                                ->color('warning')
+                                ->size('sm')
+                                ->requiresConfirmation()
+                                ->modalHeading('Suspend Affiliation')
+                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Are you sure you want to suspend the affiliation with \"{$affiliation->club->partner_name}\"? This will remove Club channel eligibility from this affiliation.")
+                                ->modalSubmitActionLabel('Suspend')
+                                ->visible(fn (\App\Models\Customer\CustomerClub $affiliation): bool => $affiliation->isActive() && ! $affiliation->hasEnded())
+                                ->action(function (\App\Models\Customer\CustomerClub $affiliation): void {
+                                    $affiliation->update(['affiliation_status' => \App\Enums\Customer\AffiliationStatus::Suspended]);
+
+                                    Notification::make()
+                                        ->title('Affiliation suspended')
+                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been suspended.")
+                                        ->success()
+                                        ->send();
+
+                                    $this->refreshFormData(['clubAffiliations']);
+                                }),
+                            \Filament\Infolists\Components\Actions\Action::make('reactivate_affiliation')
+                                ->label('Reactivate')
+                                ->icon('heroicon-o-play-circle')
+                                ->color('success')
+                                ->size('sm')
+                                ->requiresConfirmation()
+                                ->modalHeading('Reactivate Affiliation')
+                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Are you sure you want to reactivate the affiliation with \"{$affiliation->club->partner_name}\"?")
+                                ->modalSubmitActionLabel('Reactivate')
+                                ->visible(fn (\App\Models\Customer\CustomerClub $affiliation): bool => $affiliation->isSuspended() && ! $affiliation->hasEnded())
+                                ->action(function (\App\Models\Customer\CustomerClub $affiliation): void {
+                                    $affiliation->update(['affiliation_status' => \App\Enums\Customer\AffiliationStatus::Active]);
+
+                                    Notification::make()
+                                        ->title('Affiliation reactivated')
+                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been reactivated.")
+                                        ->success()
+                                        ->send();
+
+                                    $this->refreshFormData(['clubAffiliations']);
+                                }),
+                            \Filament\Infolists\Components\Actions\Action::make('end_affiliation')
+                                ->label('End')
+                                ->icon('heroicon-o-x-circle')
+                                ->color('danger')
+                                ->size('sm')
+                                ->requiresConfirmation()
+                                ->modalHeading('End Affiliation')
+                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Are you sure you want to end the affiliation with \"{$affiliation->club->partner_name}\"? This will set the end date to today.")
+                                ->modalSubmitActionLabel('End Affiliation')
+                                ->visible(fn (\App\Models\Customer\CustomerClub $affiliation): bool => ! $affiliation->hasEnded())
+                                ->action(function (\App\Models\Customer\CustomerClub $affiliation): void {
+                                    $affiliation->update(['end_date' => now()]);
+
+                                    Notification::make()
+                                        ->title('Affiliation ended')
+                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been ended.")
+                                        ->success()
+                                        ->send();
+
+                                    $this->refreshFormData(['clubAffiliations']);
+                                }),
+                        ])->alignEnd(),
                     ]),
             ]);
     }
