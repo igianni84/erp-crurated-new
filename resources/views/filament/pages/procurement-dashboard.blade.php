@@ -250,6 +250,214 @@
         </div>
     </div>
 
+    {{-- Widget B: Bottling Risk --}}
+    @php
+        $bottlingRiskMetrics = $this->getBottlingRiskMetrics();
+    @endphp
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
+                <x-heroicon-o-beaker class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
+                Bottling Risk
+            </h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">Deadline & preference tracking</span>
+        </div>
+        <div class="fi-section-content p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {{-- Left side: Deadline Horizons --}}
+                <div>
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center">
+                        <x-heroicon-o-calendar class="h-4 w-4 mr-2 text-gray-400" />
+                        Upcoming Deadlines
+                    </h4>
+                    <div class="grid grid-cols-3 gap-3">
+                        {{-- 30 days --}}
+                        @php
+                            $d30Status = $this->getBottlingRiskHealthStatus('deadlines_30d', $bottlingRiskMetrics['deadlines_30d']);
+                            $d30ColorBg = match($d30Status) {
+                                'success' => 'bg-success-50 dark:bg-success-400/10',
+                                'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                                'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                                default => 'bg-gray-50 dark:bg-gray-800',
+                            };
+                            $d30ColorText = match($d30Status) {
+                                'success' => 'text-success-600 dark:text-success-400',
+                                'warning' => 'text-warning-600 dark:text-warning-400',
+                                'danger' => 'text-danger-600 dark:text-danger-400',
+                                default => 'text-gray-600 dark:text-gray-400',
+                            };
+                        @endphp
+                        <a href="{{ $this->getBottling30dDeadlinesUrl() }}" class="block group">
+                            <div class="text-center p-3 rounded-lg {{ $d30ColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                                <p class="text-2xl font-bold {{ $d30ColorText }}">{{ $bottlingRiskMetrics['deadlines_30d'] }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">30 days</p>
+                            </div>
+                        </a>
+
+                        {{-- 60 days --}}
+                        @php
+                            $d60Status = $this->getBottlingRiskHealthStatus('deadlines_60d', $bottlingRiskMetrics['deadlines_60d']);
+                            $d60ColorBg = match($d60Status) {
+                                'success' => 'bg-success-50 dark:bg-success-400/10',
+                                'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                                'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                                default => 'bg-gray-50 dark:bg-gray-800',
+                            };
+                            $d60ColorText = match($d60Status) {
+                                'success' => 'text-success-600 dark:text-success-400',
+                                'warning' => 'text-warning-600 dark:text-warning-400',
+                                'danger' => 'text-danger-600 dark:text-danger-400',
+                                default => 'text-gray-600 dark:text-gray-400',
+                            };
+                        @endphp
+                        <a href="{{ $this->getBottlingInstructionsListUrl() }}" class="block group">
+                            <div class="text-center p-3 rounded-lg {{ $d60ColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                                <p class="text-2xl font-bold {{ $d60ColorText }}">{{ $bottlingRiskMetrics['deadlines_60d'] }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">60 days</p>
+                            </div>
+                        </a>
+
+                        {{-- 90 days --}}
+                        @php
+                            $d90Status = $this->getBottlingRiskHealthStatus('deadlines_90d', $bottlingRiskMetrics['deadlines_90d']);
+                            $d90ColorBg = match($d90Status) {
+                                'success' => 'bg-success-50 dark:bg-success-400/10',
+                                'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                                'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                                default => 'bg-gray-50 dark:bg-gray-800',
+                            };
+                            $d90ColorText = match($d90Status) {
+                                'success' => 'text-success-600 dark:text-success-400',
+                                'warning' => 'text-warning-600 dark:text-warning-400',
+                                'danger' => 'text-danger-600 dark:text-danger-400',
+                                default => 'text-gray-600 dark:text-gray-400',
+                            };
+                        @endphp
+                        <a href="{{ $this->getBottlingInstructionsListUrl() }}" class="block group">
+                            <div class="text-center p-3 rounded-lg {{ $d90ColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                                <p class="text-2xl font-bold {{ $d90ColorText }}">{{ $bottlingRiskMetrics['deadlines_90d'] }}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">90 days</p>
+                            </div>
+                        </a>
+                    </div>
+
+                    {{-- Urgent highlight (< 14 days) --}}
+                    @if($bottlingRiskMetrics['deadlines_14d'] > 0)
+                        <a href="{{ $this->getBottlingDeadlinesUrl() }}" class="mt-4 block">
+                            <div class="flex items-center justify-between p-3 rounded-lg bg-danger-50 dark:bg-danger-400/10 border-2 border-danger-300 dark:border-danger-600 hover:border-danger-500 transition-colors">
+                                <div class="flex items-center">
+                                    <x-heroicon-o-fire class="h-5 w-5 text-danger-600 dark:text-danger-400 mr-2" />
+                                    <span class="text-sm font-medium text-danger-700 dark:text-danger-300">
+                                        <span class="font-bold">{{ $bottlingRiskMetrics['deadlines_14d'] }}</span> deadline{{ $bottlingRiskMetrics['deadlines_14d'] !== 1 ? 's' : '' }} in next 14 days!
+                                    </span>
+                                </div>
+                                <x-heroicon-o-chevron-right class="h-5 w-5 text-danger-500" />
+                            </div>
+                        </a>
+                    @else
+                        <div class="mt-4 flex items-center p-3 rounded-lg bg-success-50 dark:bg-success-400/10 border border-success-200 dark:border-success-800">
+                            <x-heroicon-o-check-circle class="h-5 w-5 text-success-600 dark:text-success-400 mr-2" />
+                            <span class="text-sm text-success-700 dark:text-success-300">No urgent deadlines in next 14 days</span>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- Right side: Preference Collection & Defaults --}}
+                <div>
+                    <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center">
+                        <x-heroicon-o-clipboard-document-check class="h-4 w-4 mr-2 text-gray-400" />
+                        Preference Collection
+                    </h4>
+
+                    {{-- Progress Bar --}}
+                    @php
+                        $prefStatus = $this->getBottlingRiskHealthStatus('preferences_collected_pct', $bottlingRiskMetrics['preferences_collected_pct']);
+                        $prefBarColor = match($prefStatus) {
+                            'success' => 'bg-success-500',
+                            'warning' => 'bg-warning-500',
+                            'danger' => 'bg-danger-500',
+                            default => 'bg-gray-500',
+                        };
+                        $prefTextColor = match($prefStatus) {
+                            'success' => 'text-success-600 dark:text-success-400',
+                            'warning' => 'text-warning-600 dark:text-warning-400',
+                            'danger' => 'text-danger-600 dark:text-danger-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                    @endphp
+                    <a href="{{ $this->getBottlingPendingPreferencesUrl() }}" class="block group">
+                        <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">% Preferences Collected</span>
+                                <span class="text-lg font-bold {{ $prefTextColor }}">{{ number_format($bottlingRiskMetrics['preferences_collected_pct'], 1) }}%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                <div class="{{ $prefBarColor }} h-3 rounded-full transition-all duration-300" style="width: {{ min($bottlingRiskMetrics['preferences_collected_pct'], 100) }}%"></div>
+                            </div>
+                            <div class="flex justify-between items-center mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                <span>{{ $bottlingRiskMetrics['preferences_collected'] }} of {{ $bottlingRiskMetrics['preferences_total'] }} collected</span>
+                                @if($bottlingRiskMetrics['preferences_total'] - $bottlingRiskMetrics['preferences_collected'] > 0)
+                                    <span class="text-warning-600 dark:text-warning-400">{{ $bottlingRiskMetrics['preferences_total'] - $bottlingRiskMetrics['preferences_collected'] }} pending</span>
+                                @endif
+                            </div>
+                        </div>
+                    </a>
+
+                    {{-- Default Fallback Count --}}
+                    @php
+                        $defaultStatus = $this->getBottlingRiskHealthStatus('default_fallback_count', $bottlingRiskMetrics['default_fallback_count']);
+                        $defaultColorBg = match($defaultStatus) {
+                            'success' => 'bg-success-50 dark:bg-success-400/10',
+                            'warning' => 'bg-warning-50 dark:bg-warning-400/10',
+                            'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                            default => 'bg-gray-50 dark:bg-gray-800',
+                        };
+                        $defaultColorText = match($defaultStatus) {
+                            'success' => 'text-success-600 dark:text-success-400',
+                            'warning' => 'text-warning-600 dark:text-warning-400',
+                            'danger' => 'text-danger-600 dark:text-danger-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                    @endphp
+                    <a href="{{ $this->getBottlingDefaultedUrl() }}" class="mt-4 block group">
+                        <div class="p-4 rounded-lg {{ $defaultColorBg }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <x-heroicon-o-arrow-path class="h-5 w-5 {{ $defaultColorText }} mr-3" />
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Default Fallbacks Applied</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Instructions where defaults were used</p>
+                                    </div>
+                                </div>
+                                <span class="text-2xl font-bold {{ $defaultColorText }}">{{ $bottlingRiskMetrics['default_fallback_count'] }}</span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            {{-- Legend / Help text --}}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-success-500 mr-2"></span>
+                        <span>Healthy</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-warning-500 mr-2"></span>
+                        <span>Attention</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-danger-500 mr-2"></span>
+                        <span>Critical</span>
+                    </div>
+                    <span class="text-gray-400 dark:text-gray-500">|</span>
+                    <span>Click each metric to view filtered list</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Main Content Grid (Status Distributions) --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {{-- Intents by Status --}}

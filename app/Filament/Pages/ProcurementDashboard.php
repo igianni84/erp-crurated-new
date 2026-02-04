@@ -637,4 +637,158 @@ class ProcurementDashboard extends Page
     {
         return BottlingInstructionResource::getUrl('view', ['record' => $instruction]);
     }
+
+    // ========================================
+    // Widget B: Bottling Risk
+    // ========================================
+
+    /**
+     * Get metrics for the Bottling Risk widget.
+     *
+     * @return array{deadlines_30d: int, deadlines_60d: int, deadlines_90d: int, deadlines_14d: int, preferences_collected_pct: float, preferences_total: int, preferences_collected: int, default_fallback_count: int}
+     */
+    public function getBottlingRiskMetrics(): array
+    {
+        // Base query for active bottling instructions
+        $baseQuery = fn () => BottlingInstruction::where('status', BottlingInstructionStatus::Active->value);
+
+        // Deadline counts (cumulative - 60d includes 30d, etc.)
+        $deadlines30d = $baseQuery()
+            ->where('bottling_deadline', '>=', Carbon::today())
+            ->where('bottling_deadline', '<=', Carbon::now()->addDays(30))
+            ->count();
+
+        $deadlines60d = $baseQuery()
+            ->where('bottling_deadline', '>=', Carbon::today())
+            ->where('bottling_deadline', '<=', Carbon::now()->addDays(60))
+            ->count();
+
+        $deadlines90d = $baseQuery()
+            ->where('bottling_deadline', '>=', Carbon::today())
+            ->where('bottling_deadline', '<=', Carbon::now()->addDays(90))
+            ->count();
+
+        // Urgent deadlines (< 14 days)
+        $deadlines14d = $baseQuery()
+            ->where('bottling_deadline', '>=', Carbon::today())
+            ->where('bottling_deadline', '<=', Carbon::now()->addDays(14))
+            ->count();
+
+        // Preference collection stats
+        // Active instructions that have preference collection ongoing
+        $activeInstructions = $baseQuery()->get();
+
+        $totalPreferencesExpected = 0;
+        $totalPreferencesCollected = 0;
+
+        foreach ($activeInstructions as $instruction) {
+            /** @var BottlingInstruction $instruction */
+            $progress = $instruction->getPreferenceProgress();
+            $totalPreferencesExpected += $progress['total'];
+            $totalPreferencesCollected += $progress['collected'];
+        }
+
+        $preferencesCollectedPct = $totalPreferencesExpected > 0
+            ? round(($totalPreferencesCollected / $totalPreferencesExpected) * 100, 1)
+            : 100.0; // If no preferences expected, consider 100% complete
+
+        // Default fallback count: Instructions where defaults have been applied
+        $defaultFallbackCount = BottlingInstruction::where('preference_status', BottlingPreferenceStatus::Defaulted->value)
+            ->count();
+
+        return [
+            'deadlines_30d' => $deadlines30d,
+            'deadlines_60d' => $deadlines60d,
+            'deadlines_90d' => $deadlines90d,
+            'deadlines_14d' => $deadlines14d,
+            'preferences_collected_pct' => $preferencesCollectedPct,
+            'preferences_total' => $totalPreferencesExpected,
+            'preferences_collected' => $totalPreferencesCollected,
+            'default_fallback_count' => $defaultFallbackCount,
+        ];
+    }
+
+    /**
+     * Get the health status for a bottling risk metric.
+     *
+     * @param  string  $metric  The metric name
+     * @param  int|float  $value  The metric value
+     * @return string Color class: 'success' (green/healthy), 'warning' (yellow/attention), 'danger' (red/critical)
+     */
+    public function getBottlingRiskHealthStatus(string $metric, int|float $value): string
+    {
+        return match ($metric) {
+            'deadlines_14d' => match (true) {
+                $value === 0 => 'success',
+                $value <= 3 => 'warning',
+                default => 'danger',
+            },
+            'deadlines_30d' => match (true) {
+                $value === 0 => 'success',
+                $value <= 5 => 'warning',
+                default => 'danger',
+            },
+            'deadlines_60d', 'deadlines_90d' => match (true) {
+                $value === 0 => 'success',
+                $value <= 10 => 'warning',
+                default => 'danger',
+            },
+            'preferences_collected_pct' => match (true) {
+                $value >= 90.0 => 'success',
+                $value >= 50.0 => 'warning',
+                default => 'danger',
+            },
+            'default_fallback_count' => match (true) {
+                $value === 0 => 'success',
+                $value <= 3 => 'warning',
+                default => 'danger',
+            },
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Get URL to bottling instructions with deadlines in next 30 days.
+     */
+    public function getBottling30dDeadlinesUrl(): string
+    {
+        return BottlingInstructionResource::getUrl('index', [
+            'tableFilters' => [
+                'deadline_urgent' => true,
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to bottling instructions with pending preferences.
+     */
+    public function getBottlingPendingPreferencesUrl(): string
+    {
+        return BottlingInstructionResource::getUrl('index', [
+            'tableFilters' => [
+                'preference_status' => [
+                    'values' => [
+                        BottlingPreferenceStatus::Pending->value,
+                        BottlingPreferenceStatus::Partial->value,
+                    ],
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL to bottling instructions where defaults have been applied.
+     */
+    public function getBottlingDefaultedUrl(): string
+    {
+        return BottlingInstructionResource::getUrl('index', [
+            'tableFilters' => [
+                'preference_status' => [
+                    'values' => [
+                        BottlingPreferenceStatus::Defaulted->value,
+                    ],
+                ],
+            ],
+        ]);
+    }
 }
