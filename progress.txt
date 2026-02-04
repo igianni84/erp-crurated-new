@@ -795,3 +795,30 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Use `->visible(fn ($accountUser): bool => !$accountUser->isOwner())` to hide actions for owners
   - Email lookup with `User::where('email', $data['email'])->first()` validates user exists before invite
 ---
+
+## 2026-02-04 - US-033
+- What was implemented:
+  - Created `CustomerPolicy` with authorization methods: viewAny, view, create, update, delete, restore, forceDelete, manageBlocks, managePayments, suspend, activate, manageMembership
+  - Created `AccountPolicy` with authorization methods: viewAny, view, create, update, delete, restore, forceDelete, manageUsers, suspend, activate, manageBlocks
+  - AccountPolicy supports both system-wide role authorization AND account-level role authorization (Owner/Admin can manage their accounts)
+  - Registered policies in AppServiceProvider using Gate::policy()
+  - Updated CustomerResource to use Gate::allows() for table action visibility (suspend, activate)
+  - Updated ViewCustomer page to use Gate::allows() for header actions and section permissions
+  - Replaced direct canManagePaymentPermissions/canManageOperationalBlocks checks with policy checks
+  - Created comprehensive tests for CustomerPolicy (11 tests) and AccountPolicy (15 tests)
+- Files changed:
+  - app/Policies/CustomerPolicy.php (new)
+  - app/Policies/AccountPolicy.php (new)
+  - app/Providers/AppServiceProvider.php (updated - registered policies)
+  - app/Filament/Resources/Customer/CustomerResource.php (updated - Gate checks for actions)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - Gate checks for actions)
+  - tests/Feature/CustomerPolicyTest.php (new)
+  - tests/Feature/AccountPolicyTest.php (new)
+- **Learnings for future iterations:**
+  - Policies are registered in AppServiceProvider using `Gate::policy(Model::class, PolicyClass::class)`
+  - Use `Gate::allows('methodName', $model)` for authorization checks in Filament actions
+  - AccountPolicy demonstrates dual authorization: system-wide roles (Manager+) OR account-level roles (Owner/Admin)
+  - Policy methods can combine role-based authorization with record-specific checks (e.g., account owner can delete own account)
+  - Test factories for roles are defined in UserFactory: superAdmin(), admin(), manager(), editor(), viewer()
+  - For conditional action visibility, combine state checks with Gate::allows() using && operator
+---
