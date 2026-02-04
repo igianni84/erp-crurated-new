@@ -117,6 +117,16 @@ class Customer extends Model
     }
 
     /**
+     * Get the accounts for this customer.
+     *
+     * @return HasMany<Account, $this>
+     */
+    public function accounts(): HasMany
+    {
+        return $this->hasMany(Account::class);
+    }
+
+    /**
      * Get the audit logs for this customer.
      *
      * @return MorphMany<\App\Models\AuditLog, $this>
