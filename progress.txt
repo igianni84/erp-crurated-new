@@ -460,3 +460,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Use getGlobalSearchEloquentQuery() to eager load relationships for search results display
   - Much of global search infrastructure was already implemented in US-E013, this story completed the customer search capability
 ---
+
+## 2026-02-04 - US-E025
+- What was implemented: Verified invoice bulk actions - implementation was already complete from US-E013
+- Files verified (no changes needed):
+  - app/Filament/Resources/Finance/InvoiceResource.php (bulk actions at lines 213-271)
+- **Acceptance criteria verification:**
+  - ✅ Checkbox selection in list: Filament provides this automatically with bulk actions
+  - ✅ Bulk action Export to CSV: Already implemented with comprehensive field export (invoice_number, type, customer, currency, amounts, status, dates, xero_id)
+  - ✅ Bulk action Retry Xero Sync (for failed syncs): Already implemented as placeholder - actual sync logic will be in US-E101
+  - ✅ NO bulk issue or bulk payment (too risky): These actions are NOT present - verified
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Bulk actions were proactively implemented in US-E013 during InvoiceResource creation
+  - Placeholder bulk actions with TODO comments are valid - allows UI patterns to exist before backend services are ready
+  - CSV export uses response()->streamDownload() with fputcsv() for efficient streaming
+  - Filament BulkAction::make() provides checkbox selection automatically
+  - Use ->deselectRecordsAfterCompletion() to clear selection after bulk action completes
+---
