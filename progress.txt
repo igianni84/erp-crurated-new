@@ -622,3 +622,23 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - effectiveClubAffiliations() is the right relationship for counting active clubs (filters by status and dates)
   - Segments are mutually exclusive within categories (e.g., high_value vs mid_value) but not across categories (can be both high_value and frequent_buyer)
 ---
+
+## 2026-02-04 - US-026
+- What was implemented:
+  - Added Customer Segments section to the Overview tab in Customer Detail
+  - Segments displayed as color-coded badges using SegmentEngine.compute()
+  - Each badge has a tooltip (title attribute) showing the derivation criteria
+  - Badge colors based on segment priority: purple (VIP/high priority), amber (important), green (active), blue (neutral), red (at-risk/dormant)
+  - Refresh button to recalculate segments in real-time
+  - Collapsible "Segment Definitions" subsection showing all possible segments and their meanings
+  - Section auto-collapses if no segments are assigned
+  - Completely read-only - no manual segment override possible
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - added getSegmentsSection() and getSegmentBadgeColor() methods)
+- **Learnings for future iterations:**
+  - Use HTML title attribute for tooltips on badges - simple and works well for short explanations
+  - Segment badges use Tailwind classes for styling with dark mode support
+  - Priority-based coloring helps users quickly identify important segments (VIP, high-value)
+  - SegmentEngine::getSegmentDefinitions() provides static list of all possible segments for help/documentation
+  - Section collapsible state can be controlled by segment count for progressive disclosure
+---
