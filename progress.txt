@@ -742,5 +742,33 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - `ExportColumn::make()->state(fn (Model $record) => ...)` for computed export columns
   - OperationalBlock does not use SoftDeletes, so no TrashedFilter needed
   - Default filter value: `->default(BlockStatus::Active->value)` shows Active blocks by default
-  - For date range filters, use `Filter::make()->form([DatePicker, DatePicker])` with `->query()` and `->indicateUsing()` 
+  - For date range filters, use `Filter::make()->form([DatePicker, DatePicker])` with `->query()` and `->indicateUsing()`
+---
+
+## 2026-02-04 - US-031
+- What was implemented:
+  - Created `AccountUserRole` enum (owner, admin, operator, viewer) with label/color/icon/description methods
+  - Added permission helper methods: `canManageUsers()`, `canOperate()`, `isReadOnly()`, `isOwner()`, `hasAtLeast()`
+  - Created migration for `account_users` pivot table with unique constraint on (account_id, user_id)
+  - Created `AccountUser` pivot model with HasUuid, Auditable traits
+  - Added `invited_at` and `accepted_at` timestamp tracking for invitation workflow
+  - Added helper methods on AccountUser: `isOwner()`, `isAdmin()`, `isOperator()`, `isViewer()`, `isPending()`, `isAccepted()`, `accept()`
+  - Added scopes: `scopeAccepted()`, `scopePending()`, `scopeWithRole()`, `scopeCanManageUsers()`
+  - Updated Account model with users relationships: `users()`, `accountUsers()`, `acceptedAccountUsers()`, `pendingAccountUsers()`
+  - Added Account helper methods: `hasUser()`, `hasAcceptedUser()`, `getAccountUser()`, `getUserRole()`, `isOwner()`, `canUserManageUsers()`, `canUserOperate()`, `getOwner()`, `getAcceptedUsersCount()`, `getPendingInvitationsCount()`
+  - Updated User model with accounts relationships: `accounts()`, `accountUsers()`, `acceptedAccountUsers()`, `pendingAccountUsers()`
+  - Added User helper methods: `hasAccessToAccount()`, `hasAcceptedAccessToAccount()`, `getRoleForAccount()`, `isOwnerOfAccount()`, `canManageUsersOnAccount()`, `canOperateOnAccount()`, `getAcceptedAccountsCount()`, `getPendingInvitationsCount()`
+- Files changed:
+  - app/Enums/Customer/AccountUserRole.php (new)
+  - app/Models/Customer/AccountUser.php (new)
+  - app/Models/Customer/Account.php (updated - added users relationships and helpers)
+  - app/Models/User.php (updated - added accounts relationships and helpers)
+  - database/migrations/2026_02_04_390010_create_account_users_table.php (new)
+- **Learnings for future iterations:**
+  - AccountUser follows same pattern as CustomerClub: standalone Model with HasUuid (not Pivot class)
+  - Use `belongsToMany` with `withPivot()` for simple access, `HasMany` to pivot model for querying
+  - Migration sequence continues: 390010 for account_users table
+  - Role-based permission methods on enum allow clean authorization checks: `role->canManageUsers()`
+  - Invitation workflow uses `invited_at` and `accepted_at` - accepted_at being non-null indicates acceptance
+  - Owner role cannot be removed (enforced in US-032 UI)
 ---
