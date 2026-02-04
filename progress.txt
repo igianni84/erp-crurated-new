@@ -1026,3 +1026,35 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Doesn't block operations but provides consistent visual warnings
   - Dashboard widget count will be added when implementing dashboard stories
 ---
+
+## 2026-02-04 - US-046
+- What was implemented:
+  - New "Supplier Config" tab in ViewParty page (only visible for parties with Supplier/Producer roles)
+  - Tab shows ProducerSupplierConfig read-only fields when config exists:
+    - Default Bottling Deadline (days) with helper text
+    - Allowed Formats (displayed as comma-separated list)
+    - Serialization Constraints (parsed JSON with authorized_locations, required_location, notes)
+    - Notes (general notes about the supplier)
+  - Configuration Metadata section (collapsible) with config ID, created/updated dates
+  - "Edit Config" action link to dedicated EditSupplierConfig page when config exists
+  - "Create Config" action with modal form when config doesn't exist
+  - EditSupplierConfig page with form for editing/creating config:
+    - Bottling Defaults section: deadline days, allowed formats
+    - Serialization Constraints section (KeyValue input)
+    - Notes section
+    - Save action creates audit log for creation/update
+  - Tab badge shows "!" when no config exists (warning indicator)
+- Files changed:
+  - app/Filament/Resources/Customer/PartyResource.php (modified - added edit-supplier-config route)
+  - app/Filament/Resources/Customer/PartyResource/Pages/ViewParty.php (modified - added Supplier Config tab)
+  - app/Filament/Resources/Customer/PartyResource/Pages/EditSupplierConfig.php (new)
+  - resources/views/filament/resources/customer/party-resource/pages/edit-supplier-config.blade.php (new)
+- **Learnings for future iterations:**
+  - Filament Page with form needs InteractsWithForms trait + HasForms interface
+  - Use `/** @property Form $form */` docblock for PHPStan compatibility
+  - Use `public array $data = []` instead of `$this->form->fill()` for form data initialization
+  - Tab visibility controlled with `->visible(fn(): bool => ...)` closure
+  - Tab badge with "!" indicator helps draw attention to missing config
+  - Party.isSupplier() and Party.isProducer() helper methods useful for role checks
+  - Browser verification should be done manually as dev-browser skill is not available
+---
