@@ -1251,3 +1251,40 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - invalidateCache() can be called from voucher model observers when vouchers change state
   - isCacheFresh() can be used in UI to show stale data warnings
 ---
+
+## 2026-02-04 - US-B043
+- **Implemented**: Inventory Overview landing page as Module B control tower dashboard
+- **Files created**:
+  - app/Filament/Pages/InventoryOverview.php
+  - resources/views/filament/pages/inventory-overview.blade.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 0 - landing page)
+  - Top summary cards: Total serialized bottles, Pending serialization, Committed quantity, Free quantity
+  - Widget A - Global KPIs: Bottles by state breakdown (stored/reserved/shipped/consumed/destroyed/missing) with progress bars
+  - Widget B - Inventory by Location: Top 8 locations by bottle count with clickable links, warehouse vs consignee breakdown stats
+  - Widget C - Alerts & Exceptions: Serialization pending, Batches with discrepancy, Committed at risk (free < 10%), WMS sync errors - all with visual indicators (red when count > 0)
+  - Widget D - Ownership breakdown: Progress bars by ownership type, recent movement activity summary
+  - Unresolved Exceptions section: Shows recent pending InventoryException records
+  - All metrics link to filtered lists via resource URLs
+- **Methods implemented**:
+  - getGlobalKpis(): Returns total serialized, unserialized inbound, bottles by state, committed/free quantities, case stats
+  - getTopLocationsByBottleCount(): Top locations with stored bottle and intact case counts
+  - getLocationTypeBreakdown(): Warehouse vs consignee bottles and location counts
+  - getAlerts(): Serialization pending, discrepancy batches, committed at risk, WMS errors, unresolved exceptions
+  - getOwnershipBreakdown(): Bottles by ownership type (stored only)
+  - getRecentMovementsSummary(): Today and this week movement counts
+  - URL helper methods for linking to filtered lists
+- **Acceptance criteria verification**:
+  - ✅ Pagina Inventory Overview come landing page di Inventory navigation group (sort order 0)
+  - ✅ Layout: 4 widget principali in grid (Global KPIs, Locations, Alerts, Ownership)
+  - ✅ Dashboard è read-only, non transactional (no create/edit actions)
+  - ✅ Links da ogni widget a filtered list corrispondente (SerializedBottleResource, LocationResource, etc.)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Filament Page with custom blade view is used for dashboard pages (not Resource)
+  - withCount() attributes return mixed type - use explicit PHPDoc @var annotations for PHPStan
+  - Collection->map() return type needs explicit type hints in the closure
+  - Alert widgets should highlight critical items (discrepancy, at risk) with danger colors when count > 0
+  - Dashboard metrics can be computationally expensive - consider caching for production
+  - Browser verification requirement noted - manual testing needed
+---
