@@ -378,3 +378,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Customer `activeMembership` relationship already filters for approved + effective dates
   - EligibilityEngine will be extended in US-016 (channel rules), US-017 (UI tab), US-018 (payments), US-022 (clubs), US-027 (blocks)
 ---
+
+## 2026-02-04 - US-016
+- What was implemented:
+  - Enhanced `ChannelScope` enum with eligibility rule documentation and helper methods
+  - Added `description()` method for human-readable channel descriptions
+  - Added `requiresB2BCustomerType()`, `requiresCreditApproval()`, `requiresClubAffiliation()`, `checksPaymentBlocks()` methods for rule checking
+  - Added `getEligibilityRequirements()` to return human-readable list of requirements per channel
+  - Updated `EligibilityEngine` with explicit channel eligibility rules in docblock
+  - Added B2B credit approval factor checking (`checkCreditApproval()`, `customerHasCreditApproved()`)
+  - Updated `checkPaymentPermissions()` to accept channel parameter for channel-specific messaging
+  - Added `getDetailedEligibility()` returning positive/negative reasons separated
+  - Added `getChannelRequirements()` for getting channel-specific rules
+  - Added `isEligibleForChannel()` for single-channel eligibility check
+  - Added `getBlockingFactors()` for getting reasons blocking eligibility
+- Files changed:
+  - app/Enums/Customer/ChannelScope.php (updated - added eligibility rule methods)
+  - app/Services/Customer/EligibilityEngine.php (updated - added B2B credit and helper methods)
+- **Learnings for future iterations:**
+  - Channel eligibility rules are documented in ChannelScope enum docblock for clarity
+  - B2B channel requires credit approval (credit_limit != null) in addition to other factors
+  - `getDetailedEligibility()` separates positive/negative reasons for UI display
+  - Placeholder methods (customerHasCreditApproved) return true to not block until US-018 implements PaymentPermission
+  - ChannelScope helper methods allow type-safe rule checking in EligibilityEngine
+---
