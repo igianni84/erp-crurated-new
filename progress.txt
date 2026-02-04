@@ -520,3 +520,25 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Pre-filling fields across wizard steps is done in afterStateUpdated() of the source step
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-024
+- What was implemented:
+  - Verified Step 5 (Review) was already implemented in US-020
+  - Step 5 has all required sections: Linked Intent, Supplier, Commercial Terms, Delivery
+  - Read-only summary of all data entered in previous steps
+  - Linked intent shown with ID and product label
+  - Total cost calculated (quantity × unit_cost)
+  - PO created in status draft via mutateFormDataBeforeCreate()
+  - Draft status message: "Draft POs are not sent to suppliers until status changes to Sent"
+  - CTA: "Create as Draft" button via getWizardSubmitActions()
+  - Success notification shown after creation with guidance about Sent status
+  - Verified typecheck and lint pass
+- Files changed:
+  - prd.json (marked US-024 as passes: true)
+  - No code changes needed - implementation was complete in US-020
+- **Learnings for future iterations:**
+  - All 5 PO wizard steps (Intent, Supplier, Commercial Terms, Delivery, Review) were implemented together in US-020
+  - Review step follows pattern: Section per domain area, Placeholder fields for each data point
+  - Total calculations in review step provide value-add for operator validation
+  - Browser verification should be done manually as dev-browser skill is not available
+---
