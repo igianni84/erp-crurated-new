@@ -598,3 +598,27 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Club affiliation status (Active/Suspended) is independent of Club status (Active/Suspended/Ended)
   - Use $this->refreshFormData(['clubAffiliations']) to refresh the repeatable entry after CRUD operations
 ---
+
+## 2026-02-04 - US-025
+- What was implemented:
+  - Created `SegmentEngine` service class in `App\Services\Customer` namespace
+  - Main `compute(Customer)` method returns all applicable segments for a customer
+  - Segments derived from 4 factor categories:
+    - Spending history: high_value (50+ vouchers), mid_value (10-49), collector (5+ cases), new_buyer (recent + purchases)
+    - Membership tier: legacy_member, vip (invitation_only), standard_member
+    - Club affiliations: multi_club (3+ clubs), club_member (1-2 clubs)
+    - Purchase frequency: frequent_buyer (5+ in 12mo), regular_buyer (2-4 in 12mo), at_risk (no purchases in 12mo), dormant (no purchases in 24mo)
+  - Output format: `array<string, array{tag: string, label: string, criteria: string, priority: int}>`
+  - Helper methods: `getTags()`, `getSummary()`, `hasSegment()`, `getSegmentCriteria()`
+  - Static `getSegmentDefinitions()` returns all possible segments with descriptions
+  - All segments are computed at runtime, not stored - ensures real-time accuracy
+- Files changed:
+  - app/Services/Customer/SegmentEngine.php (new)
+- **Learnings for future iterations:**
+  - SegmentEngine follows same pattern as EligibilityEngine (compute method, no storage)
+  - Segments have priority for display ordering (higher = more important)
+  - Use voucher count as proxy for spending history, voucher creation dates for purchase frequency
+  - Customer.created_at used to determine "recent" customers (within 6 months)
+  - effectiveClubAffiliations() is the right relationship for counting active clubs (filters by status and dates)
+  - Segments are mutually exclusive within categories (e.g., high_value vs mid_value) but not across categories (can be both high_value and frequent_buyer)
+---
