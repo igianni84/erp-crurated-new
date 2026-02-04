@@ -618,3 +618,27 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Close action can show warnings via modalDescription closure without blocking the action
   - Tab badges with icon property (e.g., `->icon('heroicon-o-exclamation-triangle')`) draw attention to important states
 ---
+
+## 2026-02-04 - US-028
+- What was implemented:
+  - BottlingInstructionResource in Filament under navigation group "Procurement"
+  - List columns: instruction_id (copyable, limited), wine+vintage (via getProductLabel()), bottle_equivalents (badge), allowed_formats (badge), bottling_deadline (with urgency coloring and description), deadline_urgent (icon indicator), preference_status (badge with icon/color), preference_pending (icon indicator), status (badge with icon/color), updated_at
+  - Filters: status (with executed hidden by default), preference_status, deadline_range (date picker), deadline_urgent (toggle), deadline_passed (toggle), trashed
+  - Search: instruction_id searchable directly, wine name searchable via complex join query (liquid_products, wine_variants, wine_masters)
+  - Executed instructions hidden by default via status filter defaulting to [draft, active]
+  - Visual indicator (exclamation icon) for instructions with deadline < 30 days
+  - Visual indicator (bell icon) for instructions with preference_status = pending
+  - ListBottlingInstructions page with tabs: Active, Draft, Running (Active status), Deadline < 30 days, Pending Preferences, Executed, All - each with badge counts
+  - ViewBottlingInstruction page (placeholder for US-033 detail tabs)
+  - Default sort by bottling_deadline ascending (soonest deadlines first)
+- Files changed:
+  - app/Filament/Resources/Procurement/BottlingInstructionResource.php (new)
+  - app/Filament/Resources/Procurement/BottlingInstructionResource/Pages/ListBottlingInstructions.php (new)
+  - app/Filament/Resources/Procurement/BottlingInstructionResource/Pages/ViewBottlingInstruction.php (new)
+- **Learnings for future iterations:**
+  - Bottling Instructions have two status systems: BottlingInstructionStatus (lifecycle) and BottlingPreferenceStatus (preference collection)
+  - Default sort by deadline ascending helps operators prioritize urgent items
+  - Use column description() for inline contextual info (e.g., "X days remaining")
+  - Multiple icon indicators for different attention states (deadline urgent, preference pending) help operators quickly scan
+  - Browser verification should be done manually as dev-browser skill is not available
+---
