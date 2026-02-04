@@ -303,6 +303,74 @@ class MovementService
     }
 
     /**
+     * Record a serialized bottle as missing.
+     *
+     * Creates a missing event and updates the bottle state to missing.
+     * Used when a bottle cannot be located (e.g., consignment lost).
+     *
+     * @param  SerializedBottle  $bottle  The bottle to mark as missing
+     * @param  string  $reason  The reason for marking as missing
+     * @param  User|null  $executor  The user performing the action
+     * @param  string|null  $lastKnownCustody  Last known custody holder
+     * @param  string|null  $agreementReference  Agreement reference (for consignment)
+     * @return InventoryMovement The created movement
+     *
+     * @throws \InvalidArgumentException If marking as missing is not allowed
+     */
+    public function recordMissing(
+        SerializedBottle $bottle,
+        string $reason,
+        ?User $executor = null,
+        ?string $lastKnownCustody = null,
+        ?string $agreementReference = null
+    ): InventoryMovement {
+        // Validate bottle can be marked as missing
+        if ($bottle->isInTerminalState()) {
+            throw new \InvalidArgumentException(
+                'Cannot mark bottle as missing when already in terminal state: '.$bottle->state->label()
+            );
+        }
+
+        // Get the bottle's current location
+        $location = $bottle->currentLocation;
+
+        // Build reason text
+        $reasonText = "Missing - {$reason}";
+        if ($lastKnownCustody !== null && $lastKnownCustody !== '') {
+            $reasonText .= ". Last known custody: {$lastKnownCustody}";
+        }
+        if ($agreementReference !== null && $agreementReference !== '') {
+            $reasonText .= ". Agreement reference: {$agreementReference}";
+        }
+
+        return DB::transaction(function () use ($bottle, $executor, $reasonText, $location) {
+            // Create the movement (using InternalTransfer type with missing reason)
+            // Note: There's no dedicated MovementType for missing, we use InternalTransfer
+            // to record the last known location transition to "missing" state
+            $movement = $this->createMovement([
+                'movement_type' => MovementType::InternalTransfer,
+                'trigger' => MovementTrigger::ErpOperator,
+                'source_location_id' => $location?->id,
+                'destination_location_id' => null, // Missing has no destination
+                'custody_changed' => true, // Custody effectively changes when item goes missing
+                'reason' => $reasonText,
+                'executed_by' => $executor?->id,
+                'items' => [
+                    [
+                        'serialized_bottle_id' => $bottle->id,
+                        'quantity' => 1,
+                    ],
+                ],
+            ]);
+
+            // Update bottle state to missing
+            $bottle->update(['state' => BottleState::Missing]);
+
+            return $movement;
+        });
+    }
+
+    /**
      * Record consumption of a serialized bottle.
      *
      * Creates a consumption movement and updates the bottle state to consumed.

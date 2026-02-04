@@ -833,6 +833,7 @@ class ViewSerializedBottle extends ViewRecord
     {
         return [
             $this->getMarkAsDamagedAction(),
+            $this->getMarkAsMissingAction(),
         ];
     }
 
@@ -960,6 +961,149 @@ class ViewSerializedBottle extends ViewRecord
                         ->success()
                         ->title('Bottle Marked as Destroyed')
                         ->body("Bottle {$record->serial_number} has been marked as destroyed. The record remains visible for audit purposes.")
+                        ->persistent()
+                        ->send();
+
+                    // Refresh the record to show updated state
+                    $this->refreshFormData(['state']);
+
+                } catch (\InvalidArgumentException $e) {
+                    Notification::make()
+                        ->danger()
+                        ->title('Error')
+                        ->body($e->getMessage())
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Action to mark a bottle as missing.
+     *
+     * US-B028: Mark Bottle as Missing
+     *
+     * - Captures reason for marking as missing
+     * - Captures last known custody holder
+     * - Captures agreement reference (for consignment)
+     * - Changes state to MISSING
+     * - Inventory reduced (bottle locked from fulfillment)
+     * - Creates audit trail via movement record and exception
+     * - Missing bottles remain visible forever
+     * - Used in loss & compliance reporting
+     */
+    protected function getMarkAsMissingAction(): Actions\Action
+    {
+        return Actions\Action::make('markAsMissing')
+            ->label('Mark as Missing')
+            ->icon('heroicon-o-question-mark-circle')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->modalHeading('Mark Bottle as Missing')
+            ->modalDescription(fn (SerializedBottle $record): string => "You are about to mark bottle {$record->serial_number} as MISSING. This action indicates the bottle cannot be located.")
+            ->modalIcon('heroicon-o-question-mark-circle')
+            ->modalIconColor('warning')
+            ->visible(fn (SerializedBottle $record): bool => ! $record->isInTerminalState())
+            ->form([
+                Forms\Components\Section::make('Missing Bottle Confirmation')
+                    ->description('Mark this bottle as missing when it cannot be located')
+                    ->schema([
+                        Forms\Components\Placeholder::make('warning')
+                            ->label('')
+                            ->content(new HtmlString('
+                                <div class="p-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800">
+                                    <div class="flex items-start gap-3">
+                                        <div class="flex-shrink-0">
+                                            <svg class="w-6 h-6 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-warning-700 dark:text-warning-300">Marking as Missing</h4>
+                                            <ul class="mt-2 text-sm text-warning-600 dark:text-warning-400 list-disc list-inside space-y-1">
+                                                <li>The bottle will be marked as <strong>MISSING</strong></li>
+                                                <li>It will be locked from fulfillment operations</li>
+                                                <li>Physical inventory count will be reduced</li>
+                                                <li>The record will remain visible for compliance reporting</li>
+                                                <li>Used for loss tracking and audit purposes</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            ')),
+                        Forms\Components\Checkbox::make('confirm_missing')
+                            ->label('I confirm that this bottle cannot be located and should be marked as missing')
+                            ->required()
+                            ->accepted()
+                            ->validationMessages([
+                                'accepted' => 'You must confirm the bottle is missing to proceed.',
+                            ]),
+                    ])
+                    ->extraAttributes(['class' => 'bg-warning-50/50 dark:bg-warning-900/10']),
+                Forms\Components\Section::make('Missing Details')
+                    ->description('Provide details about the missing bottle')
+                    ->schema([
+                        Forms\Components\Textarea::make('reason')
+                            ->label('Reason')
+                            ->placeholder('Describe why this bottle is being marked as missing...')
+                            ->rows(2)
+                            ->required()
+                            ->maxLength(500)
+                            ->helperText('Explain the circumstances (e.g., consignment lost, inventory discrepancy, etc.)'),
+                        Forms\Components\TextInput::make('last_known_custody')
+                            ->label('Last Known Custody')
+                            ->placeholder('e.g., Consignee name, warehouse section, etc.')
+                            ->maxLength(255)
+                            ->helperText('Who or where was the bottle last known to be?'),
+                        Forms\Components\TextInput::make('agreement_reference')
+                            ->label('Agreement Reference')
+                            ->placeholder('e.g., Consignment agreement number')
+                            ->maxLength(255)
+                            ->helperText('Relevant agreement reference (for consignment situations)'),
+                    ]),
+            ])
+            ->action(function (array $data, SerializedBottle $record): void {
+                try {
+                    /** @var MovementService $movementService */
+                    $movementService = app(MovementService::class);
+
+                    /** @var string $reason */
+                    $reason = $data['reason'];
+                    /** @var string|null $lastKnownCustody */
+                    $lastKnownCustody = $data['last_known_custody'] ?? null;
+                    /** @var string|null $agreementReference */
+                    $agreementReference = $data['agreement_reference'] ?? null;
+
+                    // Record the missing status via MovementService
+                    $movementService->recordMissing(
+                        bottle: $record,
+                        reason: $reason,
+                        executor: auth()->user(),
+                        lastKnownCustody: $lastKnownCustody,
+                        agreementReference: $agreementReference
+                    );
+
+                    // Build reason text for exception
+                    $exceptionReason = "Bottle marked as missing: {$reason}";
+                    if ($lastKnownCustody !== null && $lastKnownCustody !== '') {
+                        $exceptionReason .= ". Last known custody: {$lastKnownCustody}";
+                    }
+                    if ($agreementReference !== null && $agreementReference !== '') {
+                        $exceptionReason .= ". Agreement reference: {$agreementReference}";
+                    }
+
+                    // Create an inventory exception for audit trail and compliance reporting
+                    InventoryException::create([
+                        'exception_type' => 'bottle_missing',
+                        'serialized_bottle_id' => $record->id,
+                        'reason' => $exceptionReason,
+                        'created_by' => auth()->id(),
+                        // Not resolved - missing bottles stay open until found or written off
+                    ]);
+
+                    Notification::make()
+                        ->warning()
+                        ->title('Bottle Marked as Missing')
+                        ->body("Bottle {$record->serial_number} has been marked as missing. The record remains visible for compliance and loss reporting.")
                         ->persistent()
                         ->send();
 
