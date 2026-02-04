@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Procurement\PurchaseOrderResource\Pages;
 
+use App\Enums\Customer\PartyRoleType;
 use App\Enums\Procurement\ProcurementIntentStatus;
 use App\Enums\Procurement\PurchaseOrderStatus;
 use App\Enums\Procurement\SourcingModel;
@@ -289,11 +290,14 @@ class CreatePurchaseOrder extends CreateRecord
                             ->required()
                             ->getSearchResultsUsing(function (string $search): array {
                                 return Party::query()
-                                    ->where(function ($query) use ($search): void {
-                                        $query->where('legal_name', 'like', "%{$search}%")
-                                            ->orWhere('trade_name', 'like', "%{$search}%");
+                                    ->where('legal_name', 'like', "%{$search}%")
+                                    ->whereHas('roles', function ($query): void {
+                                        $query->whereIn('role', [
+                                            PartyRoleType::Supplier->value,
+                                            PartyRoleType::Producer->value,
+                                        ]);
                                     })
-                                    ->whereIn('role', ['supplier', 'producer'])
+                                    ->with(['roles', 'supplierConfig'])
                                     ->limit(50)
                                     ->get()
                                     ->mapWithKeys(fn (Party $party): array => [
@@ -302,7 +306,7 @@ class CreatePurchaseOrder extends CreateRecord
                                     ->toArray();
                             })
                             ->getOptionLabelUsing(function (string $value): ?string {
-                                $party = Party::find($value);
+                                $party = Party::with('roles')->find($value);
 
                                 return $party !== null ? self::formatPartyOption($party) : null;
                             })
@@ -319,7 +323,7 @@ class CreatePurchaseOrder extends CreateRecord
 
                                 if ($party !== null) {
                                     // Get roles as comma-separated string
-                                    $roles = $party->roles->pluck('role')->map(fn ($role) => ucfirst((string) $role))->join(', ');
+                                    $roles = $party->roles->map(fn ($role) => $role->role->label())->join(', ');
 
                                     $set('supplier_preview_data', [
                                         'legal_name' => $party->legal_name,
@@ -829,10 +833,18 @@ class CreatePurchaseOrder extends CreateRecord
                                 }
 
                                 if ($start !== null) {
-                                    return 'From '.($start instanceof \Carbon\Carbon ? $start->format('Y-m-d') : (string) $start);
+                                    $startFormatted = $start instanceof \Carbon\Carbon
+                                        ? $start->format('Y-m-d')
+                                        : (is_scalar($start) ? (string) $start : '');
+
+                                    return "From {$startFormatted}";
                                 }
 
-                                return 'Until '.($end instanceof \Carbon\Carbon ? $end->format('Y-m-d') : (string) $end);
+                                $endFormatted = $end instanceof \Carbon\Carbon
+                                    ? $end->format('Y-m-d')
+                                    : (is_scalar($end) ? (string) $end : '');
+
+                                return "Until {$endFormatted}";
                             }),
 
                         Forms\Components\Placeholder::make('review_destination')
@@ -882,7 +894,15 @@ class CreatePurchaseOrder extends CreateRecord
         $name = $party->legal_name ?? 'Unknown';
         $partyType = $party->party_type->label();
 
-        return "{$name} ({$partyType})";
+        // Get supplier/producer roles from the loaded relationship
+        $relevantRoles = $party->roles
+            ->filter(fn ($role): bool => $role->isSupplier() || $role->isProducer())
+            ->map(fn ($role): string => $role->role->label())
+            ->join(', ');
+
+        $roleInfo = $relevantRoles !== '' ? " [{$relevantRoles}]" : '';
+
+        return "{$name} ({$partyType}){$roleInfo}";
     }
 
     /**
