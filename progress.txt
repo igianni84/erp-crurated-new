@@ -347,3 +347,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Section::make()->extraAttributes() adds custom CSS classes for visual prominence
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B015
+- **Implemented**: InboundBatchResource in Filament for managing inbound batches
+- **Files created**:
+  - app/Filament/Resources/Inventory/InboundBatchResource.php
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ListInboundBatches.php
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ViewInboundBatch.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 2)
+  - List columns: batch_id, source (badge), product_reference, quantity_expected, quantity_received (colored for discrepancy), packaging, receiving_location, received_date, serialization_status (badge), ownership_type (badge)
+  - Visual indicators: IconColumn for discrepancy (red triangle), IconColumn for pending serialization (yellow clock)
+  - Row highlighting: red background for discrepancy status, yellow for pending serialization
+  - Filters: serialization_status (multi-select), receiving_location (searchable), ownership_type (multi-select), received_date range (from/until), has_discrepancy toggle, TrashedFilter
+  - Search: batch_id, product_reference_id (via product_reference column)
+- **Key patterns used**:
+  - recordClasses() for conditional row styling based on status
+  - IconColumn with state() callback for computed boolean columns
+  - Filter::make() with form() for date range filters
+  - indicateUsing() for filter indicator badges
+  - withoutGlobalScopes() for soft delete handling
+  - Eager loading receivingLocation relationship for performance
+- **Learnings for future iterations**:
+  - Use recordClasses() for row-level visual indicators (e.g., highlighting danger rows)
+  - IconColumn with state() callback allows computed boolean indicators without model accessor
+  - Date range filters use Filter::make() with form() containing two DatePicker components
+  - indicateUsing() returns array of indicator strings for active filters
+  - quantity_received column uses color() callback to show green/red based on discrepancy
+  - Browser verification requirement noted - manual testing needed
+---
