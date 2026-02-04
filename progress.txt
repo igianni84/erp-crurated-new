@@ -86,3 +86,17 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Exception can be order-level or line-level (nullable shipping_order_line_id)
   - All exceptions require manual review (canAutoResolve() returns false)
 ---
+
+## 2026-02-04 - US-C010
+- **What was implemented:** ShippingOrderAuditLog model and migration for immutable audit logs
+- **Files changed:**
+  - `database/migrations/2026_02_04_240000_create_shipping_order_audit_logs_table.php` (new)
+  - `app/Models/Fulfillment/ShippingOrderAuditLog.php` (new)
+  - `app/Models/Fulfillment/ShippingOrder.php` (added shippingOrderAuditLogs() HasMany relationship)
+- **Learnings for future iterations:**
+  - Audit logs do NOT use SoftDeletes - they are immutable
+  - Only has `created_at` timestamp (no `updated_at`) since records cannot be modified
+  - boot() guards prevent both updating and deleting
+  - Method `hasChangeTracking()` instead of `hasChanges()` to avoid conflict with Model base class
+  - Uses HasUuid trait but NOT Auditable (no created_by/updated_by needed, has user_id instead)
+---

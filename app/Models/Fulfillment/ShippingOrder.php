@@ -226,6 +226,16 @@ class ShippingOrder extends Model
     }
 
     /**
+     * Get the shipping order audit logs for this shipping order.
+     *
+     * @return HasMany<ShippingOrderAuditLog, $this>
+     */
+    public function shippingOrderAuditLogs(): HasMany
+    {
+        return $this->hasMany(ShippingOrderAuditLog::class);
+    }
+
+    /**
      * Check if the shipping order is in draft status.
      */
     public function isDraft(): bool
