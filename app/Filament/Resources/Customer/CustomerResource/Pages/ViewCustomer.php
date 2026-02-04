@@ -11,10 +11,12 @@ use App\Enums\Customer\CustomerType;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Models\AuditLog;
+use App\Models\Customer\Account;
 use App\Models\Customer\Customer;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -23,6 +25,7 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
@@ -325,7 +328,7 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 3: Accounts - List of accounts with status (placeholder).
+     * Tab 3: Accounts - Full CRUD for customer accounts.
      */
     protected function getAccountsTab(): Tab
     {
@@ -340,11 +343,52 @@ class ViewCustomer extends ViewRecord
             ->schema([
                 Section::make('Customer Accounts')
                     ->description('Operational contexts for this customer. Each account can have its own channel scope and restrictions.')
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('create_account')
+                            ->label('Create Account')
+                            ->icon('heroicon-o-plus-circle')
+                            ->color('primary')
+                            ->form([
+                                TextInput::make('name')
+                                    ->label('Account Name')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->helperText('A descriptive name for this account'),
+                                Select::make('channel_scope')
+                                    ->label('Channel Scope')
+                                    ->options(collect(ChannelScope::cases())
+                                        ->mapWithKeys(fn (ChannelScope $scope): array => [
+                                            $scope->value => $scope->label(),
+                                        ])
+                                        ->toArray())
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('The operational channel for this account'),
+                            ])
+                            ->modalHeading('Create New Account')
+                            ->modalDescription('Create a new operational account for this customer.')
+                            ->modalSubmitActionLabel('Create Account')
+                            ->action(function (array $data) use ($record): void {
+                                $account = $record->accounts()->create([
+                                    'name' => $data['name'],
+                                    'channel_scope' => $data['channel_scope'],
+                                    'status' => AccountStatus::Active,
+                                ]);
+
+                                Notification::make()
+                                    ->title('Account created')
+                                    ->body("Account \"{$account->name}\" has been created successfully.")
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData(['accounts']);
+                            }),
+                    ])
                     ->schema([
                         RepeatableEntry::make('accounts')
                             ->label('')
                             ->schema([
-                                Grid::make(5)
+                                Grid::make(6)
                                     ->schema([
                                         TextEntry::make('id')
                                             ->label('Account ID')
@@ -369,21 +413,114 @@ class ViewCustomer extends ViewRecord
                                         TextEntry::make('created_at')
                                             ->label('Created')
                                             ->dateTime(),
+                                        \Filament\Infolists\Components\Actions::make([
+                                            \Filament\Infolists\Components\Actions\Action::make('edit_account')
+                                                ->label('Edit')
+                                                ->icon('heroicon-o-pencil-square')
+                                                ->color('gray')
+                                                ->size('sm')
+                                                ->form(fn (Account $account): array => [
+                                                    TextInput::make('name')
+                                                        ->label('Account Name')
+                                                        ->required()
+                                                        ->maxLength(255)
+                                                        ->default($account->name),
+                                                    Select::make('channel_scope')
+                                                        ->label('Channel Scope')
+                                                        ->options(collect(ChannelScope::cases())
+                                                            ->mapWithKeys(fn (ChannelScope $scope): array => [
+                                                                $scope->value => $scope->label(),
+                                                            ])
+                                                            ->toArray())
+                                                        ->required()
+                                                        ->native(false)
+                                                        ->default($account->channel_scope->value),
+                                                ])
+                                                ->modalHeading('Edit Account')
+                                                ->modalDescription(fn (Account $account): string => "Edit account: {$account->name}")
+                                                ->modalSubmitActionLabel('Save Changes')
+                                                ->action(function (array $data, Account $account): void {
+                                                    $account->update([
+                                                        'name' => $data['name'],
+                                                        'channel_scope' => $data['channel_scope'],
+                                                    ]);
+
+                                                    Notification::make()
+                                                        ->title('Account updated')
+                                                        ->body("Account \"{$account->name}\" has been updated.")
+                                                        ->success()
+                                                        ->send();
+
+                                                    $this->refreshFormData(['accounts']);
+                                                }),
+                                            \Filament\Infolists\Components\Actions\Action::make('suspend_account')
+                                                ->label('Suspend')
+                                                ->icon('heroicon-o-pause-circle')
+                                                ->color('warning')
+                                                ->size('sm')
+                                                ->requiresConfirmation()
+                                                ->modalHeading('Suspend Account')
+                                                ->modalDescription(fn (Account $account): string => "Are you sure you want to suspend account \"{$account->name}\"? This will prevent any operations on this account.")
+                                                ->modalSubmitActionLabel('Suspend')
+                                                ->visible(fn (Account $account): bool => $account->status === AccountStatus::Active)
+                                                ->action(function (Account $account): void {
+                                                    $account->update(['status' => AccountStatus::Suspended]);
+
+                                                    Notification::make()
+                                                        ->title('Account suspended')
+                                                        ->body("Account \"{$account->name}\" has been suspended.")
+                                                        ->success()
+                                                        ->send();
+
+                                                    $this->refreshFormData(['accounts']);
+                                                }),
+                                            \Filament\Infolists\Components\Actions\Action::make('activate_account')
+                                                ->label('Activate')
+                                                ->icon('heroicon-o-check-circle')
+                                                ->color('success')
+                                                ->size('sm')
+                                                ->requiresConfirmation()
+                                                ->modalHeading('Activate Account')
+                                                ->modalDescription(fn (Account $account): string => "Are you sure you want to activate account \"{$account->name}\"?")
+                                                ->modalSubmitActionLabel('Activate')
+                                                ->visible(fn (Account $account): bool => $account->status === AccountStatus::Suspended)
+                                                ->action(function (Account $account): void {
+                                                    $account->update(['status' => AccountStatus::Active]);
+
+                                                    Notification::make()
+                                                        ->title('Account activated')
+                                                        ->body("Account \"{$account->name}\" has been activated.")
+                                                        ->success()
+                                                        ->send();
+
+                                                    $this->refreshFormData(['accounts']);
+                                                }),
+                                            \Filament\Infolists\Components\Actions\Action::make('delete_account')
+                                                ->label('Delete')
+                                                ->icon('heroicon-o-trash')
+                                                ->color('danger')
+                                                ->size('sm')
+                                                ->requiresConfirmation()
+                                                ->modalHeading('Delete Account')
+                                                ->modalDescription(fn (Account $account): string => "Are you sure you want to delete account \"{$account->name}\"? This action cannot be undone.")
+                                                ->modalSubmitActionLabel('Delete')
+                                                ->action(function (Account $account): void {
+                                                    $accountName = $account->name;
+                                                    $account->delete();
+
+                                                    Notification::make()
+                                                        ->title('Account deleted')
+                                                        ->body("Account \"{$accountName}\" has been deleted.")
+                                                        ->success()
+                                                        ->send();
+
+                                                    $this->refreshFormData(['accounts']);
+                                                }),
+                                        ])->alignEnd(),
                                     ]),
                             ])
                             ->columns(1)
-                            ->placeholder('No accounts found for this customer. Account management will be implemented in US-009.'),
-                    ]),
-                Section::make('Account Management')
-                    ->description('Create and manage accounts')
-                    ->collapsed()
-                    ->collapsible()
-                    ->schema([
-                        TextEntry::make('account_management_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'Full account management (create, edit, suspend, delete) will be implemented in US-009.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                            ->placeholder('No accounts found for this customer. Use the "Create Account" button to add one.'),
                     ]),
             ]);
     }
