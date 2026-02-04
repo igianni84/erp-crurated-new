@@ -55,3 +55,22 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Include domain-specific helper methods (e.g., `OwnershipFlag::isClarified()`, `InboundStatus::allowsHandOff()`)
   - BottlingPreferenceStatus tracks customer preference collection and supports defaulting
 ---
+
+## 2026-02-04 - US-003
+- What was implemented:
+  - Migration `2026_02_04_400003_create_purchase_orders_table.php` with all required fields
+  - PurchaseOrder model with relationships to ProcurementIntent and Party (supplier)
+  - Morphic relationship to product reference (SellableSku or LiquidProduct)
+  - FK constraint: `procurement_intent_id` NOT NULL enforced at DB level
+  - Invariant check in `boot()` method for early feedback
+  - Added `purchaseOrders()` hasMany relationship to ProcurementIntent model
+  - Soft deletes enabled
+- Files changed:
+  - database/migrations/2026_02_04_400003_create_purchase_orders_table.php (new)
+  - app/Models/Procurement/PurchaseOrder.php (new)
+  - app/Models/Procurement/ProcurementIntent.php (modified - added purchaseOrders relationship)
+- **Learnings for future iterations:**
+  - Use `foreignUuid()` for FK to other UUID-based tables (parties, procurement_intents)
+  - Use `foreignId()` for FK to users (integer IDs)
+  - PurchaseOrder requires ProcurementIntent - this invariant is enforced at both DB and model levels
+---
