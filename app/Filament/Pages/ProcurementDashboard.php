@@ -929,4 +929,69 @@ class ProcurementDashboard extends Page
             ],
         ]);
     }
+
+    // ========================================
+    // Widget D: Exceptions
+    // ========================================
+
+    /**
+     * Get detailed metrics for the Exceptions widget.
+     *
+     * @return array{ownership_pending: int, unlinked_inbounds: int, bottling_past_deadline: int, variance_pos: int, has_any_exception: bool}
+     */
+    public function getExceptionMetrics(): array
+    {
+        // Inbound without ownership clarity: ownership_flag = pending
+        $ownershipPending = Inbound::where('ownership_flag', OwnershipFlag::Pending->value)
+            ->whereIn('status', [InboundStatus::Recorded->value, InboundStatus::Routed->value])
+            ->count();
+
+        // Inbound blocked by missing intent: procurement_intent_id is null
+        $unlinkedInbounds = Inbound::whereNull('procurement_intent_id')
+            ->whereIn('status', [InboundStatus::Recorded->value, InboundStatus::Routed->value])
+            ->count();
+
+        // Bottling past deadline: Active instructions with deadline < today
+        $bottlingPastDeadline = BottlingInstruction::where('status', BottlingInstructionStatus::Active->value)
+            ->where('bottling_deadline', '<', Carbon::today())
+            ->count();
+
+        // PO with delivery variance > 10%
+        $variancePOs = $this->getSignificantVariancePOCount();
+
+        return [
+            'ownership_pending' => $ownershipPending,
+            'unlinked_inbounds' => $unlinkedInbounds,
+            'bottling_past_deadline' => $bottlingPastDeadline,
+            'variance_pos' => $variancePOs,
+            'has_any_exception' => ($ownershipPending + $unlinkedInbounds + $bottlingPastDeadline + $variancePOs) > 0,
+        ];
+    }
+
+    /**
+     * Get the health status for an exception metric.
+     * Per acceptance criteria: "All in red if count > 0"
+     *
+     * @param  int  $value  The metric value
+     * @return string Color class: 'success' (green/healthy), 'danger' (red/critical)
+     */
+    public function getExceptionHealthStatus(int $value): string
+    {
+        return $value > 0 ? 'danger' : 'success';
+    }
+
+    /**
+     * Get URL to bottling instructions past deadline.
+     */
+    public function getBottlingPastDeadlineUrl(): string
+    {
+        return BottlingInstructionResource::getUrl('index', [
+            'tableFilters' => [
+                'status' => [
+                    'value' => BottlingInstructionStatus::Active->value,
+                ],
+                'deadline_passed' => true,
+            ],
+        ]);
+    }
 }

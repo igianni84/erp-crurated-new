@@ -619,6 +619,202 @@
         </div>
     </div>
 
+    {{-- Widget D: Exceptions --}}
+    @php
+        $exceptionMetrics = $this->getExceptionMetrics();
+    @endphp
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
+                <x-heroicon-o-exclamation-triangle class="inline-block h-5 w-5 mr-2 -mt-0.5 text-danger-500" />
+                Exceptions
+            </h3>
+            <span class="text-xs text-gray-500 dark:text-gray-400">Items requiring attention</span>
+        </div>
+        <div class="fi-section-content p-6">
+            @if($exceptionMetrics['has_any_exception'])
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {{-- Inbound without ownership clarity --}}
+                    @php
+                        $ownershipStatus = $this->getExceptionHealthStatus($exceptionMetrics['ownership_pending']);
+                        $ownershipColorBg = match($ownershipStatus) {
+                            'success' => 'bg-success-50 dark:bg-success-400/10',
+                            'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                            default => 'bg-gray-50 dark:bg-gray-800',
+                        };
+                        $ownershipColorText = match($ownershipStatus) {
+                            'success' => 'text-success-600 dark:text-success-400',
+                            'danger' => 'text-danger-600 dark:text-danger-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                        $ownershipBorder = $exceptionMetrics['ownership_pending'] > 0 ? 'ring-2 ring-danger-300 dark:ring-danger-600' : '';
+                    @endphp
+                    <a href="{{ $this->getPendingOwnershipInboundsUrl() }}" class="block group">
+                        <div class="p-4 rounded-lg {{ $ownershipColorBg }} {{ $ownershipBorder }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Ownership Unclear</p>
+                                    <p class="text-2xl font-bold {{ $ownershipColorText }} mt-1">{{ $exceptionMetrics['ownership_pending'] }}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">inbounds pending</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <x-heroicon-o-question-mark-circle class="h-8 w-8 {{ $ownershipColorText }} opacity-50" />
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+
+                    {{-- Inbound blocked by missing intent --}}
+                    @php
+                        $unlinkedStatus = $this->getExceptionHealthStatus($exceptionMetrics['unlinked_inbounds']);
+                        $unlinkedColorBg = match($unlinkedStatus) {
+                            'success' => 'bg-success-50 dark:bg-success-400/10',
+                            'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                            default => 'bg-gray-50 dark:bg-gray-800',
+                        };
+                        $unlinkedColorText = match($unlinkedStatus) {
+                            'success' => 'text-success-600 dark:text-success-400',
+                            'danger' => 'text-danger-600 dark:text-danger-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                        $unlinkedBorder = $exceptionMetrics['unlinked_inbounds'] > 0 ? 'ring-2 ring-danger-300 dark:ring-danger-600' : '';
+                    @endphp
+                    <a href="{{ $this->getUnlinkedInboundsUrl() }}" class="block group">
+                        <div class="p-4 rounded-lg {{ $unlinkedColorBg }} {{ $unlinkedBorder }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Missing Intent</p>
+                                    <p class="text-2xl font-bold {{ $unlinkedColorText }} mt-1">{{ $exceptionMetrics['unlinked_inbounds'] }}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">unlinked inbounds</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <x-heroicon-o-link-slash class="h-8 w-8 {{ $unlinkedColorText }} opacity-50" />
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+
+                    {{-- Bottling past deadline --}}
+                    @php
+                        $bottlingStatus = $this->getExceptionHealthStatus($exceptionMetrics['bottling_past_deadline']);
+                        $bottlingColorBg = match($bottlingStatus) {
+                            'success' => 'bg-success-50 dark:bg-success-400/10',
+                            'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                            default => 'bg-gray-50 dark:bg-gray-800',
+                        };
+                        $bottlingColorText = match($bottlingStatus) {
+                            'success' => 'text-success-600 dark:text-success-400',
+                            'danger' => 'text-danger-600 dark:text-danger-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                        $bottlingBorder = $exceptionMetrics['bottling_past_deadline'] > 0 ? 'ring-2 ring-danger-300 dark:ring-danger-600' : '';
+                    @endphp
+                    <a href="{{ $this->getBottlingPastDeadlineUrl() }}" class="block group">
+                        <div class="p-4 rounded-lg {{ $bottlingColorBg }} {{ $bottlingBorder }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Past Deadline</p>
+                                    <p class="text-2xl font-bold {{ $bottlingColorText }} mt-1">{{ $exceptionMetrics['bottling_past_deadline'] }}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">bottling overdue</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <x-heroicon-o-clock class="h-8 w-8 {{ $bottlingColorText }} opacity-50" />
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+
+                    {{-- PO with delivery variance > 10% --}}
+                    @php
+                        $varianceStatus = $this->getExceptionHealthStatus($exceptionMetrics['variance_pos']);
+                        $varianceColorBg = match($varianceStatus) {
+                            'success' => 'bg-success-50 dark:bg-success-400/10',
+                            'danger' => 'bg-danger-50 dark:bg-danger-400/10',
+                            default => 'bg-gray-50 dark:bg-gray-800',
+                        };
+                        $varianceColorText = match($varianceStatus) {
+                            'success' => 'text-success-600 dark:text-success-400',
+                            'danger' => 'text-danger-600 dark:text-danger-400',
+                            default => 'text-gray-600 dark:text-gray-400',
+                        };
+                        $varianceBorder = $exceptionMetrics['variance_pos'] > 0 ? 'ring-2 ring-danger-300 dark:ring-danger-600' : '';
+                    @endphp
+                    <a href="{{ $this->getVariancePOsUrl() }}" class="block group">
+                        <div class="p-4 rounded-lg {{ $varianceColorBg }} {{ $varianceBorder }} border border-transparent group-hover:border-gray-300 dark:group-hover:border-gray-600 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Variance &gt; 10%</p>
+                                    <p class="text-2xl font-bold {{ $varianceColorText }} mt-1">{{ $exceptionMetrics['variance_pos'] }}</p>
+                                    <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">PO delivery mismatch</p>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <x-heroicon-o-arrow-trending-down class="h-8 w-8 {{ $varianceColorText }} opacity-50" />
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+
+                {{-- Summary Alert when there are exceptions --}}
+                @php
+                    $totalExceptions = $exceptionMetrics['ownership_pending'] + $exceptionMetrics['unlinked_inbounds'] + $exceptionMetrics['bottling_past_deadline'] + $exceptionMetrics['variance_pos'];
+                @endphp
+                <div class="mt-4 flex items-center justify-between p-3 rounded-lg bg-danger-50 dark:bg-danger-400/10 border-2 border-danger-300 dark:border-danger-600">
+                    <div class="flex items-center">
+                        <x-heroicon-o-exclamation-circle class="h-5 w-5 text-danger-600 dark:text-danger-400 mr-2" />
+                        <span class="text-sm font-medium text-danger-700 dark:text-danger-300">
+                            <span class="font-bold">{{ $totalExceptions }}</span> total exception{{ $totalExceptions !== 1 ? 's' : '' }} require{{ $totalExceptions === 1 ? 's' : '' }} attention
+                        </span>
+                    </div>
+                    <span class="text-xs text-danger-600 dark:text-danger-400">Click items above to resolve</span>
+                </div>
+            @else
+                {{-- All Clear State --}}
+                <div class="text-center py-8">
+                    <div class="flex justify-center">
+                        <x-heroicon-o-check-circle class="h-16 w-16 text-success-500" />
+                    </div>
+                    <h3 class="mt-4 text-lg font-semibold text-gray-900 dark:text-white">No Exceptions</h3>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">All systems operating normally. No items require immediate attention.</p>
+                    <div class="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div class="text-center p-3 rounded-lg bg-success-50 dark:bg-success-400/10">
+                            <x-heroicon-o-check class="h-5 w-5 text-success-600 dark:text-success-400 mx-auto" />
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Ownership Clear</p>
+                        </div>
+                        <div class="text-center p-3 rounded-lg bg-success-50 dark:bg-success-400/10">
+                            <x-heroicon-o-check class="h-5 w-5 text-success-600 dark:text-success-400 mx-auto" />
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">All Linked</p>
+                        </div>
+                        <div class="text-center p-3 rounded-lg bg-success-50 dark:bg-success-400/10">
+                            <x-heroicon-o-check class="h-5 w-5 text-success-600 dark:text-success-400 mx-auto" />
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Deadlines OK</p>
+                        </div>
+                        <div class="text-center p-3 rounded-lg bg-success-50 dark:bg-success-400/10">
+                            <x-heroicon-o-check class="h-5 w-5 text-success-600 dark:text-success-400 mx-auto" />
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Variances OK</p>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+            {{-- Legend / Help text --}}
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-success-500 mr-2"></span>
+                        <span>Healthy (0 issues)</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="inline-block w-3 h-3 rounded-full bg-danger-500 mr-2"></span>
+                        <span>Requires Action (any count &gt; 0)</span>
+                    </div>
+                    <span class="text-gray-400 dark:text-gray-500">|</span>
+                    <span>Click each metric to view problematic items</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Main Content Grid (Status Distributions) --}}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {{-- Intents by Status --}}
