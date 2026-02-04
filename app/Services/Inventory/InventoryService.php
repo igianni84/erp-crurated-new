@@ -4,8 +4,10 @@ namespace App\Services\Inventory;
 
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Inventory\BottleState;
+use App\Enums\Inventory\InboundBatchStatus;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
+use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use Illuminate\Database\Eloquent\Collection;
@@ -139,5 +141,88 @@ class InventoryService
         return SerializedBottle::where('allocation_id', $allocation->id)
             ->where('state', BottleState::Stored)
             ->count();
+    }
+
+    /**
+     * Get the count of bottles pending serialization (inbound wine pending serialization).
+     *
+     * This returns the total quantity of bottles in inbound batches that have:
+     * - Status pending_serialization or partially_serialized
+     * - A receiving location authorized for serialization
+     *
+     * Used by Inventory Overview to show "Inbound wine pending serialization" count.
+     * Note: This is a normal operational state, not an exception.
+     *
+     * @return int The total count of bottles awaiting serialization
+     */
+    public function getPendingSerializationCount(): int
+    {
+        // Get batches that are pending or partially serialized at authorized locations
+        $batches = InboundBatch::query()
+            ->whereIn('serialization_status', [
+                InboundBatchStatus::PendingSerialization,
+                InboundBatchStatus::PartiallySerialized,
+            ])
+            ->whereHas('receivingLocation', function ($query): void {
+                $query->where('serialization_authorized', true)
+                    ->where('status', 'active');
+            })
+            ->get();
+
+        // Sum up the remaining unserialized bottles
+        $totalRemaining = 0;
+        foreach ($batches as $batch) {
+            $totalRemaining += $batch->remaining_unserialized;
+        }
+
+        return $totalRemaining;
+    }
+
+    /**
+     * Get detailed pending serialization statistics.
+     *
+     * Returns an array with:
+     * - total_batches: Number of batches pending serialization
+     * - pending_count: Batches with pending_serialization status
+     * - partial_count: Batches with partially_serialized status
+     * - total_bottles_remaining: Total bottles awaiting serialization
+     *
+     * @return array{total_batches: int, pending_count: int, partial_count: int, total_bottles_remaining: int}
+     */
+    public function getPendingSerializationStats(): array
+    {
+        $baseQuery = InboundBatch::query()
+            ->whereIn('serialization_status', [
+                InboundBatchStatus::PendingSerialization,
+                InboundBatchStatus::PartiallySerialized,
+            ])
+            ->whereHas('receivingLocation', function ($query): void {
+                $query->where('serialization_authorized', true)
+                    ->where('status', 'active');
+            });
+
+        $totalBatches = (clone $baseQuery)->count();
+
+        $pendingCount = (clone $baseQuery)
+            ->where('serialization_status', InboundBatchStatus::PendingSerialization)
+            ->count();
+
+        $partialCount = (clone $baseQuery)
+            ->where('serialization_status', InboundBatchStatus::PartiallySerialized)
+            ->count();
+
+        // Calculate total bottles remaining
+        $batches = (clone $baseQuery)->get();
+        $totalBottlesRemaining = 0;
+        foreach ($batches as $batch) {
+            $totalBottlesRemaining += $batch->remaining_unserialized;
+        }
+
+        return [
+            'total_batches' => $totalBatches,
+            'pending_count' => $pendingCount,
+            'partial_count' => $partialCount,
+            'total_bottles_remaining' => $totalBottlesRemaining,
+        ];
     }
 }
