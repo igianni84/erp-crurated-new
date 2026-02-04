@@ -10,6 +10,7 @@ use App\Models\AuditLog;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
+use App\Services\Finance\InvoiceMailService;
 use App\Services\Finance\InvoicePdfService;
 use App\Services\Finance\InvoiceService;
 use Filament\Actions\Action;
@@ -563,6 +564,7 @@ class ViewInvoice extends ViewRecord
     {
         return [
             $this->getDownloadPdfAction(),
+            $this->getSendToCustomerAction(),
             $this->getIssueAction(),
             $this->getRecordBankPaymentAction(),
             $this->getCreateCreditNoteAction(),
@@ -597,6 +599,89 @@ class ViewInvoice extends ViewRecord
                         ->send();
 
                     return null;
+                }
+            });
+    }
+
+    /**
+     * Send to Customer action - visible for issued invoices.
+     */
+    protected function getSendToCustomerAction(): Action
+    {
+        return Action::make('sendToCustomer')
+            ->label('Send to Customer')
+            ->icon('heroicon-o-envelope')
+            ->color('info')
+            ->visible(function (): bool {
+                $mailService = app(InvoiceMailService::class);
+
+                return $mailService->canSendEmail($this->getInvoice());
+            })
+            ->form([
+                Placeholder::make('recipient_info')
+                    ->label('Recipient')
+                    ->content(function (): string {
+                        $invoice = $this->getInvoice();
+                        $invoice->loadMissing('customer');
+
+                        $customerName = $invoice->customer !== null ? $invoice->customer->name : 'Unknown';
+                        $customerEmail = $invoice->customer !== null ? $invoice->customer->email : 'No email';
+
+                        return "{$customerName}\n{$customerEmail}";
+                    }),
+                TextInput::make('custom_subject')
+                    ->label('Email Subject (Optional)')
+                    ->maxLength(255)
+                    ->placeholder(function (): string {
+                        $invoice = $this->getInvoice();
+                        $companyName = config('app.name', 'ERP4');
+
+                        return "Invoice {$invoice->invoice_number} from {$companyName}";
+                    })
+                    ->helperText('Leave blank to use the default subject'),
+                Textarea::make('custom_message')
+                    ->label('Custom Message (Optional)')
+                    ->rows(4)
+                    ->maxLength(2000)
+                    ->placeholder('Add a personalized message to include in the email...')
+                    ->helperText('This message will appear in the email body above the invoice summary'),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Send Invoice to Customer')
+            ->modalDescription(function (): string {
+                $invoice = $this->getInvoice();
+                $invoice->loadMissing('customer');
+
+                return "Send invoice {$invoice->invoice_number} to {$invoice->customer?->name}?\n\n".
+                    "Email will be sent to: {$invoice->customer?->email}\n".
+                    'The invoice PDF will be attached automatically.';
+            })
+            ->modalSubmitActionLabel('Send Email')
+            ->action(function (array $data): void {
+                $mailService = app(InvoiceMailService::class);
+
+                try {
+                    $mailService->sendToCustomer(
+                        invoice: $this->getInvoice(),
+                        customSubject: $data['custom_subject'] ?? null,
+                        customMessage: $data['custom_message'] ?? null,
+                        sentBy: auth()->id()
+                    );
+
+                    $invoice = $this->getInvoice();
+                    $invoice->loadMissing('customer');
+
+                    Notification::make()
+                        ->title('Invoice Sent')
+                        ->body("Invoice {$invoice->invoice_number} has been sent to {$invoice->customer?->email}.")
+                        ->success()
+                        ->send();
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Send Invoice')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
                 }
             });
     }
