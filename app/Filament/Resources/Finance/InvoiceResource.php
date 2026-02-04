@@ -301,7 +301,12 @@ class InvoiceResource extends Resource
 
     public static function getGloballySearchableAttributes(): array
     {
-        return ['invoice_number', 'xero_invoice_id'];
+        return ['invoice_number', 'xero_invoice_id', 'customer.name', 'customer.email'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['customer']);
     }
 
     public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string
