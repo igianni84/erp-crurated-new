@@ -91,3 +91,29 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - SerializedBottle.canConsumeForEvents() checks ownership_type.canConsumeForEvents() AND isStored()
   - All state-checking helper methods (isStored, isShipped, etc.) delegate to BottleState enum
 ---
+
+## 2026-02-04 - US-B005
+- **Implemented**: InventoryCase model as physical container for bottles
+- **Files created**:
+  - app/Models/Inventory/InventoryCase.php (HasUuid, Auditable, SoftDeletes)
+  - database/migrations/2026_02_04_100003_create_cases_table.php
+- **Files modified**:
+  - app/Models/Inventory/SerializedBottle.php (updated case() relationship to use InventoryCase class)
+  - app/Models/Inventory/Location.php (added cases() relationship)
+  - app/Models/Inventory/InboundBatch.php (added cases() relationship)
+- **Relationships**:
+  - belongsTo CaseConfiguration (case_configuration_id)
+  - belongsTo Allocation (allocation_id) - allocation lineage
+  - belongsTo InboundBatch (inbound_batch_id) - nullable
+  - belongsTo Location (current_location_id)
+  - hasMany SerializedBottle (via case_id FK)
+- **Key integrity enforcement**:
+  - integrity_status: BROKEN cannot revert to INTACT (model boot guard throws InvalidArgumentException)
+  - Breaking is irreversible per US-B052
+- **Learnings for future iterations**:
+  - Model named InventoryCase (not Case) to avoid PHP reserved keyword
+  - Table is named 'cases' while model is InventoryCase
+  - FK from serialized_bottles.case_id to cases.id added in this migration
+  - canBreak() checks is_breakable AND isIntact() for Break Case action (US-B032)
+  - bottle_count accessor counts related serializedBottles
+---
