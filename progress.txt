@@ -22,3 +22,23 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - The serialization_authorized flag is key for US-B022 (serialization location blocker)
   - LocationStatus.canReceiveInventory() and canDispatchInventory() will be used by movement validation
 ---
+
+## 2026-02-04 - US-B002
+- **Implemented**: 8 inventory-related enums for Module B
+- **Files created**:
+  - app/Enums/Inventory/InboundBatchStatus.php (pending_serialization, partially_serialized, fully_serialized, discrepancy)
+  - app/Enums/Inventory/BottleState.php (stored, reserved_for_picking, shipped, consumed, destroyed, missing)
+  - app/Enums/Inventory/CaseIntegrityStatus.php (intact, broken)
+  - app/Enums/Inventory/MovementType.php (internal_transfer, consignment_placement, consignment_return, event_shipment, event_consumption)
+  - app/Enums/Inventory/MovementTrigger.php (wms_event, erp_operator, system_automatic)
+  - app/Enums/Inventory/OwnershipType.php (crurated_owned, in_custody, third_party_owned)
+  - app/Enums/Inventory/ConsumptionReason.php (event_consumption, sampling, damage_writeoff)
+  - app/Enums/Inventory/DiscrepancyResolution.php (shortage, overage, damage, other)
+- **Learnings for future iterations**:
+  - LocationType and LocationStatus were already created in US-B001
+  - Each enum includes helper methods beyond label/color/icon (e.g., canStartSerialization(), isAvailableForFulfillment())
+  - InboundBatchStatus.canStartSerialization() will be key for serialization flow (US-B020-B023)
+  - BottleState.isAvailableForFulfillment() and isTerminal() will be used by inventory service
+  - CaseIntegrityStatus.canHandleAsUnit() will prevent operations on broken cases
+  - OwnershipType.canConsumeForEvents() enforces only crurated_owned items can be consumed
+---
