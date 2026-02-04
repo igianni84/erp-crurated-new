@@ -604,3 +604,27 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - InventoryService now has both allocation-level and batch-level query methods
   - Partial serialization stats use same query pattern as SerializationQueue.getQueueStats()
 ---
+
+## 2026-02-04 - US-B024
+- **Verified**: MintProvenanceNftJob implementation (already implemented in US-B010)
+- **File location**: app/Jobs/Inventory/MintProvenanceNftJob.php
+- **Acceptance criteria verification**:
+  - ✅ Job class MintProvenanceNftJob in app/Jobs/Inventory/
+  - ✅ Input: SerializedBottle $bottle (public property via constructor promotion)
+  - ✅ Action: calls blockchain service via mintNft() method (placeholder for actual integration)
+  - ✅ On success: updates bottle.nft_reference and bottle.nft_minted_at
+  - ✅ On failure: retry with exponential backoff ($backoff = [10, 60, 300])
+  - ✅ Max 3 attempts ($tries = 3)
+  - ✅ NFT minting is separate from serialization (dispatched async via queue)
+  - ✅ Typecheck and lint pass
+- **Key implementation details**:
+  - Uses ShouldQueue interface for async processing
+  - hasNft() check prevents duplicate minting
+  - failed() hook logs permanent failures with full context
+  - mintNft() is a placeholder generating NFT-{32hex} tokens
+- **Learnings for future iterations**:
+  - US-B024 is a verification story - implementation was done proactively in US-B010
+  - Job properties $tries and $backoff control retry behavior
+  - The failed() method is called after all retry attempts exhausted
+  - Blockchain integration point is isolated in mintNft() method for future replacement
+---
