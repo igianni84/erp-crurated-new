@@ -429,3 +429,18 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Service methods handle most audit logging automatically (ShippingOrderService.transitionTo() logs EVENT_STATUS_CHANGE)
   - Browser verification pending
 ---
+## 2026-02-04 - US-C030
+- **What was implemented:** Voucher Eligibility Validation - rigorous validation at creation, planning, and pre-picking checkpoints
+- **Files changed:**
+  - `app/Services/Fulfillment/ShippingOrderService.php` (enhanced eligibility checks and blocking mechanism)
+- **Learnings for future iterations:**
+  - checkVoucherEligibility() made public for external use (UI, other services)
+  - Eligibility criteria: lifecycle_state = issued (or locked for THIS SO), suspended = false, customer_id match, no pending transfer, allocation active (not closed)
+  - Three validation checkpoints: (1) SO creation in validateVouchersForCreation(), (2) planning in handlePreTransition(), (3) pre-picking in handlePreTransition()
+  - checkIfBlocked() returns {blocked, ineligible_count, errors} for UI blocking banners
+  - getVoucherEligibilitySummary() returns detailed per-voucher eligibility info
+  - canProceed() provides quick boolean check for state transitions
+  - EVENT_VOUCHER_INELIGIBLE constant added for audit logging when vouchers become ineligible during lifecycle
+  - Pre-picking validation logs individual voucher ineligibility events before throwing exception
+  - Allocation::isClosed() checks if allocation is in Closed status (not available for fulfillment)
+---
