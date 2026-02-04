@@ -914,8 +914,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 57,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added Shipping Orders tab to CustomerResource view with SO summary (total, pending, shipped) and list showing so_id, status, voucher_count, created_at, shipped_at. Links to SO detail view."
     },
     {
       "id": "US-C058",

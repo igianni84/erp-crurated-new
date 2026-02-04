@@ -728,3 +728,16 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Color classes: success-500 for completed, info-500 for current, gray-200 for future
   - Overlay for OnHold (danger) and Cancelled (gray) with z-10 to cover workflow
 ---
+
+## 2026-02-04 - US-C057
+- **What was implemented:** Shipping Orders tab in CustomerResource detail view
+- **Files changed:**
+  - `app/Models/Customer/Customer.php` (added shippingOrders() HasMany relationship)
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php` (added getShippingOrdersTab, getShippingOrderList methods)
+- **Learnings for future iterations:**
+  - Customer model needed shippingOrders() relationship before adding the tab
+  - Tab shows summary: Total SOs, Pending (Draft/Planned/Picking), Shipped/Completed counts
+  - RepeatableEntry used to list SOs with columns: so_id (link), status (badge), voucher_count, created_at, shipped_at
+  - Header action links to ShippingOrderResource index with customer_id filter
+  - Str::limit() used to truncate UUID SO IDs in display
+---

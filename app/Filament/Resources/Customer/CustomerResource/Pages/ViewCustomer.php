@@ -4,12 +4,15 @@ namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Allocation\CaseEntitlementResource;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
+use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
+use App\Models\Fulfillment\ShippingOrder;
 use Filament\Actions;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
@@ -43,6 +46,7 @@ class ViewCustomer extends ViewRecord
                     ->tabs([
                         $this->getOverviewTab(),
                         $this->getVouchersTab(),
+                        $this->getShippingOrdersTab(),
                     ])
                     ->persistTabInQueryString()
                     ->columnSpanFull(),
@@ -184,6 +188,121 @@ class ViewCustomer extends ViewRecord
                     ]),
                 $this->getCaseEntitlementsSection($record, $totalCaseEntitlements, $intactCasesCount, $brokenCasesCount),
             ]);
+    }
+
+    /**
+     * Tab 3: Shipping Orders - Customer's shipping orders with filters and summary.
+     */
+    protected function getShippingOrdersTab(): Tab
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+
+        $totalSOs = $record->shippingOrders()->count();
+        $pendingSOs = $record->shippingOrders()->whereIn('status', [
+            ShippingOrderStatus::Draft->value,
+            ShippingOrderStatus::Planned->value,
+            ShippingOrderStatus::Picking->value,
+        ])->count();
+        $shippedSOs = $record->shippingOrders()->whereIn('status', [
+            ShippingOrderStatus::Shipped->value,
+            ShippingOrderStatus::Completed->value,
+        ])->count();
+
+        return Tab::make('Shipping Orders')
+            ->icon('heroicon-o-truck')
+            ->badge($totalSOs > 0 ? (string) $totalSOs : null)
+            ->badgeColor('info')
+            ->schema([
+                Section::make('Shipping Order Summary')
+                    ->description('Overview of customer\'s shipping orders')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextEntry::make('total_sos')
+                                    ->label('Total SOs')
+                                    ->getStateUsing(fn (): int => $totalSOs)
+                                    ->numeric()
+                                    ->weight(FontWeight::Bold)
+                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->icon('heroicon-o-document-text'),
+                                TextEntry::make('pending_sos')
+                                    ->label('Pending')
+                                    ->getStateUsing(fn (): int => $pendingSOs)
+                                    ->numeric()
+                                    ->color('warning')
+                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->icon('heroicon-o-clock')
+                                    ->helperText('Draft, Planned, Picking'),
+                                TextEntry::make('shipped_sos')
+                                    ->label('Shipped/Completed')
+                                    ->getStateUsing(fn (): int => $shippedSOs)
+                                    ->numeric()
+                                    ->color('success')
+                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->icon('heroicon-o-check-circle')
+                                    ->helperText('Shipped or Completed'),
+                            ]),
+                    ]),
+                Section::make('Customer Shipping Orders')
+                    ->description('All shipping orders for this customer. Click on an SO ID to view details.')
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('view_all_sos')
+                            ->label('View All in Shipping Orders List')
+                            ->icon('heroicon-o-arrow-top-right-on-square')
+                            ->url(fn (): string => ShippingOrderResource::getUrl('index', [
+                                'tableFilters' => [
+                                    'customer_id' => ['value' => $record->id],
+                                ],
+                            ]))
+                            ->openUrlInNewTab(),
+                    ])
+                    ->schema([
+                        $this->getShippingOrderList(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Get the shipping order list component as a RepeatableEntry.
+     */
+    protected function getShippingOrderList(): RepeatableEntry
+    {
+        return RepeatableEntry::make('shippingOrders')
+            ->label('')
+            ->schema([
+                Grid::make(5)
+                    ->schema([
+                        TextEntry::make('id')
+                            ->label('SO ID')
+                            ->copyable()
+                            ->copyMessage('SO ID copied')
+                            ->url(fn (ShippingOrder $so): string => ShippingOrderResource::getUrl('view', ['record' => $so]))
+                            ->color('primary')
+                            ->weight(FontWeight::Bold)
+                            ->formatStateUsing(fn (string $state): string => \Illuminate\Support\Str::limit($state, 8, '...')),
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->badge()
+                            ->formatStateUsing(fn (ShippingOrderStatus $state): string => $state->label())
+                            ->color(fn (ShippingOrderStatus $state): string => $state->color())
+                            ->icon(fn (ShippingOrderStatus $state): string => $state->icon()),
+                        TextEntry::make('lines_count')
+                            ->label('Vouchers')
+                            ->getStateUsing(fn (ShippingOrder $so): int => $so->lines()->count())
+                            ->badge()
+                            ->color('gray'),
+                        TextEntry::make('created_at')
+                            ->label('Created')
+                            ->dateTime(),
+                        TextEntry::make('shipped_at')
+                            ->label('Shipped')
+                            ->dateTime()
+                            ->placeholder('Not shipped'),
+                    ]),
+            ])
+            ->columns(1)
+            ->placeholder('No shipping orders found for this customer.');
     }
 
     /**

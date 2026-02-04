@@ -84,6 +84,16 @@ class Customer extends Model
     }
 
     /**
+     * Get the shipping orders for this customer.
+     *
+     * @return HasMany<\App\Models\Fulfillment\ShippingOrder, $this>
+     */
+    public function shippingOrders(): HasMany
+    {
+        return $this->hasMany(\App\Models\Fulfillment\ShippingOrder::class);
+    }
+
+    /**
      * Check if the customer is active.
      */
     public function isActive(): bool
