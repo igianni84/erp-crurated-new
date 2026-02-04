@@ -310,3 +310,25 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - AuditLog created_at is always set (not nullable) so don't use nullsafe operator on Carbon methods
   - For closure validation, use service method that returns structured array with `can_close` and `pending_items`
 ---
+
+## 2026-02-04 - US-015
+- What was implemented:
+  - Verified that status transitions are already fully implemented across the codebase
+  - ProcurementIntentStatus enum: `allowedTransitions()` returns valid transitions (draft→approved, approved→executed, executed→closed)
+  - ProcurementIntentStatus enum: `canTransitionTo()` validates if a transition is allowed
+  - ProcurementIntentService::approve(): Validates draft status, sets approved_at and approved_by, creates audit log with user_id
+  - ProcurementIntentService::markExecuted(): Validates approved status, creates audit log with user_id
+  - ProcurementIntentService::close(): Validates executed status, checks all linked objects completed via canClose(), creates audit log with user_id
+  - ProcurementIntentService::canClose(): Returns structured array with `can_close` flag and list of pending items
+  - ViewProcurementIntent header actions: Call service methods with try/catch for user-friendly error notifications
+  - All validation errors throw InvalidArgumentException with descriptive messages
+  - Typecheck and lint pass
+- Files changed:
+  - prd.json (marked US-015 as passes: true)
+  - No code changes needed - implementation was complete in previous iterations (US-007 for service, US-002 for enum)
+- **Learnings for future iterations:**
+  - Status transitions in this codebase follow a pattern: enum defines valid transitions, service enforces them with audit logging
+  - User-friendly errors are thrown as InvalidArgumentException and caught in Filament actions to show notifications
+  - Close operations require a two-phase validation: first `canClose()` to check preconditions, then `close()` to execute
+  - The ViewProcurementIntent page disables the Close action when canClose() returns false, showing pending items in modal
+---
