@@ -102,4 +102,16 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->role?->isReadOnly() ?? true;
     }
+
+    /**
+     * Check if the user can consume committed inventory (exceptional operation).
+     *
+     * This permission allows consuming inventory that is committed to voucher
+     * fulfillment. This is an exceptional flow that requires explicit justification
+     * and creates InventoryException records for finance & ops review.
+     */
+    public function canConsumeCommittedInventory(): bool
+    {
+        return $this->role?->canConsumeCommittedInventory() ?? false;
+    }
 }

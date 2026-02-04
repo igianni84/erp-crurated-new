@@ -103,4 +103,17 @@ enum UserRole: string
     {
         return $this === self::Viewer;
     }
+
+    /**
+     * Check if this role can consume committed inventory (exceptional operation).
+     *
+     * This is an exceptional permission for consuming inventory that is
+     * committed to voucher fulfillment. Only Admin and SuperAdmin roles
+     * have this permission as it requires explicit justification and
+     * creates InventoryException records for finance & ops review.
+     */
+    public function canConsumeCommittedInventory(): bool
+    {
+        return $this->hasAtLeast(self::Admin);
+    }
 }
