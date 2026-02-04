@@ -1237,3 +1237,147 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - PHPStan doesn't like nullsafe operator (?->) on left side of ?? - use ternary instead
   - Wire directives like wire:click and wire:target work with Livewire methods for interactivity
 ---
+
+## 2026-02-04 - US-055
+- What was implemented:
+  - SimulationResult DTO with full breakdown structure for price simulation
+  - SimulationContext for holding input parameters (SKU, Channel, Customer, date, quantity)
+  - AllocationCheckResult for Step 1 - allocation verification with constraint checking
+  - EmpReferenceResult for Step 2 - EMP reference lookup with freshness indicators
+  - PriceBookResolutionResult for Step 3 - Price Book lookup with entry resolution
+  - OfferResolutionResult for Step 4 - Offer application with discount calculation
+  - FinalPriceResult for Step 5 - final price computation with explanation
+  - Enhanced PriceSimulation page that performs real data lookups
+  - Updated Blade template with visual breakdown, numbered steps, and status indicators
+- Files changed:
+  - app/DataTransferObjects/Commercial/SimulationResult.php (created)
+  - app/Filament/Pages/PriceSimulation.php (modified - added DTOs and real simulation logic)
+  - resources/views/filament/pages/price-simulation.blade.php (modified - enhanced display)
+- **Learnings for future iterations:**
+  - DTOs go in `app/DataTransferObjects/{Module}/` directory
+  - Multiple classes can be defined in a single file for cohesive value objects
+  - PHPStan is strict about nullsafe operators - use ternary when mixing with ?? operator
+  - OfferBenefit has `getBenefitSummary()` and `isPercentageDiscount()` (not `getDescription()` or `isPercentage()`)
+  - PriceBook.valid_from and Offer.valid_from are non-nullable Carbon dates
+  - The simulation page provides the display structure; SimulationService (US-056) will centralize the logic
+---
+
+## 2026-02-04 - US-056
+- What was implemented:
+  - SimulationService class in `app/Services/Commercial/` for pricing simulation calculations
+  - `simulate(SellableSku, ?Customer, Channel, date, quantity)` method returning SimulationResult
+  - Integration with AllocationService for availability checks (using getRemainingAvailable)
+  - Integration with OfferService for finding active offers (using getActiveForContext)
+  - Integration with PriceBookService for price lookups (using getPriceForSku)
+  - Allocation check with constraint validation (channel restrictions)
+  - EMP reference lookup with freshness indicators
+  - Price Book resolution with channel-specific and fallback logic
+  - Offer resolution with customer eligibility using CustomerContext
+  - Final price calculation with discount application
+  - Updated PriceSimulation page to use SimulationService instead of inline logic
+- Files changed:
+  - app/Services/Commercial/SimulationService.php (created)
+  - app/Filament/Pages/PriceSimulation.php (modified - refactored to use SimulationService)
+- **Learnings for future iterations:**
+  - Use app() helper to resolve services with constructor injection from container
+  - SimulationService integrates with AllocationService, OfferService, and PriceBookService
+  - CustomerContext is used for customer eligibility checks in OfferService
+  - The date parameter allows simulating prices at different points in time
+  - Error handling builds error arrays for blocking errors, warning arrays for non-blocking issues
+---
+
+## 2026-02-04 - US-057
+- What was implemented:
+  - Full Commercial Overview dashboard as landing page for Commercial module
+  - Active Price Books widget: count by status (draft/active/expired/archived), expiring soon indicator (30 days)
+  - Active Offers widget: count by status (draft/active/paused/expired/cancelled), expiring soon indicator (7 days)
+  - Pricing Policies widget: count by status with failed executions count, recent executions list with status
+  - EMP Coverage widget: SKUs with EMP / total SKUs, coverage percentage progress bar, markets covered count
+  - Alerts summary bar: total alerts count with expiring offers, expiring price books, policy failures, stale EMP data
+  - Recent Policy Executions section: last 5 executions with policy name, status, execution time
+  - Quick Actions section: Create Price Book, Create Offer, Create Pricing Policy, Price Simulation, View Pricing Intelligence
+  - Updated isPriceBookAvailable() and isOfferAvailable() to return true (features are now implemented)
+  - Added isPricingPolicyAvailable() method
+  - Added getResourceUrls() method for linking to resource list pages
+- Files changed:
+  - app/Filament/Pages/CommercialOverview.php (modified - added real statistics methods)
+  - resources/views/filament/pages/commercial-overview.blade.php (modified - replaced placeholders with real widgets)
+- **Learnings for future iterations:**
+  - Dashboard widgets use direct Eloquent queries for statistics (count, whereHas, groupBy)
+  - Status badges can be styled inline using match() expressions for Filament colors
+  - Alert severity calculation uses percentage thresholds (>25% danger, >10% warning, else success)
+  - Recent executions use eager loading with limit for efficient data retrieval
+  - Progress bars for coverage use inline style width percentage
+  - Quick actions array now includes 'enabled' flag for conditional rendering
+---
+
+## 2026-02-04 - US-058
+- What was implemented:
+  - CommercialCalendar Filament Page under Commercial navigation group
+  - Calendar view with month and week display modes
+  - Events: Price Book validity periods (green), Offer validity periods (blue), Pricing Policy scheduled executions (indigo)
+  - Filters: event type (Price Books, Offers, Scheduled Policies) and channel
+  - Navigation: previous/next period, "Today" button, toggle month/week view
+  - Click on event opens the detail page for that entity
+  - Event list panel below calendar showing all events in the current period
+  - Updated CommercialOverview with Calendar link in Quick Actions
+- Files changed:
+  - app/Filament/Pages/CommercialCalendar.php (created)
+  - resources/views/filament/pages/commercial-calendar.blade.php (created)
+  - app/Filament/Pages/CommercialOverview.php (modified - added Calendar to quick actions and resource URLs)
+- **Learnings for future iterations:**
+  - Calendar views use Livewire wire:click and wire:model.live for real-time interactivity
+  - Carbon's startOfWeek(), endOfWeek(), startOfMonth(), endOfMonth() are useful for date range calculations
+  - Events with date ranges need careful comparison logic (event.start <= dayDate <= event.end)
+  - Scheduled policy events are generated dynamically based on execution_cadence and schedule info
+  - Color coding by event type helps visual distinction (green=PriceBook, blue=Offer, indigo=Policy)
+---
+
+## 2026-02-04 - US-059
+- What was implemented:
+  - Upcoming Expirations widget in Commercial Overview dashboard
+  - getUpcomingExpirations() method: queries active Offers expiring within 7 days and active Price Books expiring within 30 days
+  - Results ordered by expiration date (ascending, soonest first)
+  - Each item includes: name, type, valid_to date, days_until_expiry, urgency level, URL to detail page, extra_info (channel for Offers, market/currency for Price Books)
+  - getExpirationUrgency() method: returns 'critical' (<3 days), 'warning' (3-6 days), 'normal' (7+ days)
+  - Widget displays two columns: Expiring Offers and Expiring Price Books
+  - Visual urgency indicators: critical items have danger border/background, warning items have warning border/background
+  - Badge displays days until expiry with exclamation icon for critical items
+  - "Today" and "1 day" singular/plural handling
+  - Links to detail page for each expiring item
+  - Widget only shows when there are expirations (conditional rendering)
+  - Empty state with check-circle icon when no items expiring in each category
+- Files changed:
+  - app/Filament/Pages/CommercialOverview.php (modified - added getUpcomingExpirations() and getExpirationUrgency() methods)
+  - resources/views/filament/pages/commercial-overview.blade.php (modified - added Upcoming Expirations widget section)
+- **Learnings for future iterations:**
+  - Carbon's diffInDays() with second parameter false returns positive numbers for future dates
+  - Widget conditional rendering uses @if($expirations['total'] > 0) to hide when empty
+  - Blade's match() expression works inline for dynamic CSS classes
+  - Extra info field provides context (channel for Offers, market/currency for Price Books)
+  - Urgency thresholds: <3 days = critical (danger), 3-6 days = warning, 7+ days = normal
+---
+
+## 2026-02-04 - US-060
+- What was implemented:
+  - Applied Auditable trait to all remaining commercial entities: PriceBookEntry, OfferEligibility, OfferBenefit, DiscountRule, Bundle
+  - Created migration to add created_by/updated_by columns to: pricing_policies, price_book_entries, offer_eligibilities, offer_benefits, discount_rules, bundles
+  - Added auditLogs() MorphMany relationship to all affected models
+  - Added Tab Audit to ViewDiscountRule (converted to tabbed layout with Overview, Logic, Usage, Audit tabs)
+  - Added Tab Audit to ViewBundle (added as 4th tab alongside Overview, Pricing, Manage Components)
+  - Audit tabs include filtering by event type and date range, with immutable log display
+- Files changed:
+  - database/migrations/2026_02_04_380013_add_auditable_columns_to_commercial_tables.php (created)
+  - app/Models/Commercial/PriceBookEntry.php (modified - added Auditable trait and auditLogs relationship)
+  - app/Models/Commercial/OfferEligibility.php (modified - added Auditable trait and auditLogs relationship)
+  - app/Models/Commercial/OfferBenefit.php (modified - added Auditable trait and auditLogs relationship)
+  - app/Models/Commercial/DiscountRule.php (modified - added Auditable trait and auditLogs relationship)
+  - app/Models/Commercial/Bundle.php (modified - added Auditable trait and auditLogs relationship)
+  - app/Filament/Resources/DiscountRuleResource/Pages/ViewDiscountRule.php (modified - converted to tabbed layout with Audit tab)
+  - app/Filament/Resources/BundleResource/Pages/ViewBundle.php (modified - added Audit tab)
+- **Learnings for future iterations:**
+  - All commercial entities now have full audit trail via Auditable trait
+  - Audit tab pattern is consistent across all Commercial detail views: filter actions + audit log display + info section
+  - PricingPolicy had Auditable trait but was missing the migration columns - combined fix in one migration
+  - ViewDiscountRule was originally a simple infolist - converted to tabs for consistency with other Commercial views
+---
