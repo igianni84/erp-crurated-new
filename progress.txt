@@ -1489,3 +1489,36 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - getCorrectionGuidance() can be shown in UI when operators attempt forbidden actions
   - Compensating movements are the correct pattern for correcting errors in inventory movements
 ---
+
+## 2026-02-04 - US-B052
+- **Implemented**: Case breakability irreversibility with explicit documentation and helper methods
+- **Files modified**:
+  - app/Models/Inventory/InventoryCase.php (enhanced docblock, added immutability helper methods)
+- **Pre-existing enforcement verified** (from US-B005):
+  - Boot guard preventing BROKEN → INTACT transition (throws InvalidArgumentException)
+  - SoftDeletes trait ensures broken cases remain in system for audit
+- **New additions**:
+  - Enhanced docblock with INTEGRITY RULES (US-B052) section
+  - Added WHY BREAKING IS IRREVERSIBLE explanation (physical reality, audit integrity, provenance)
+  - `isBreakingIrreversible()` static method - returns true (always irreversible)
+  - `canBeUnbroken()` instance method - returns false (never possible to unbreak)
+  - `getBreakingIrreversibilityReason()` - human-readable explanation for operators
+  - `getCorrectionGuidance()` - guidance for handling errors (create exception record, manage bottles individually)
+  - `canChangeIntegrityStatusTo(CaseIntegrityStatus)` - validates if status transition is allowed
+- **UI verification**:
+  - Confirmed no "Unbreak Case" action exists in CaseResource/Pages/ViewCase.php
+  - Only "Break Case" action exists, which is visible only when canBreak() returns true
+  - Prominent "Breaking is IRREVERSIBLE" notices displayed in UI
+- **Acceptance criteria verification**:
+  - ✅ Case.integrity_status = BROKEN cannot revert to INTACT: Boot guard throws exception
+  - ✅ No unbreak action exists: Verified in ViewCase.php - only breakCase action
+  - ✅ Model blocks any attempt to change BROKEN to INTACT: Boot guard in static::updating()
+  - ✅ Broken cases remain in system for audit: SoftDeletes trait, no permanent deletion
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - US-B052 makes irreversibility a first-class documented concept
+  - canBeUnbroken() always returns false - useful for UI conditional display
+  - canChangeIntegrityStatusTo() can be used for pre-validation before attempting status changes
+  - Broken cases stay in system indefinitely for audit and provenance tracking
+  - Correction guidance points operators to create InventoryException records for error documentation
+---
