@@ -642,3 +642,31 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - SegmentEngine::getSegmentDefinitions() provides static list of all possible segments for help/documentation
   - Section collapsible state can be controlled by segment count for progressive disclosure
 ---
+
+## 2026-02-04 - US-027
+- What was implemented:
+  - Created `BlockType` enum (payment, shipment, redemption, trading, compliance) with label/color/icon/description methods
+  - Created `BlockStatus` enum (active, removed) with label/color/icon methods
+  - Created `OperationalBlock` model with HasUuid, Auditable traits
+  - Created polymorphic migration for `operational_blocks` table with FKs to users for applied_by, removed_by, and audit fields
+  - Added `operationalBlocks()` and `activeOperationalBlocks()` morphMany relationships to Customer model
+  - Added `operationalBlocks()` and `activeOperationalBlocks()` morphMany relationships to Account model
+  - Added helper methods on both models: `hasActiveBlocks()`, `hasActiveBlockOfType()`, `hasCriticalBlocks()`, `getActiveBlocksCount()`
+  - Added helper methods on OperationalBlock: `isActive()`, `isRemoved()`, `remove()`, scopes `active()`, `removed()`, `ofType()`, `critical()`
+  - BlockType enum includes `affectsEligibility()` and `isCritical()` methods for Payment and Compliance blocks
+- Files changed:
+  - app/Enums/Customer/BlockType.php (new)
+  - app/Enums/Customer/BlockStatus.php (new)
+  - app/Models/Customer/OperationalBlock.php (new)
+  - app/Models/Customer/Customer.php (updated - added operationalBlocks relationships and helpers)
+  - app/Models/Customer/Account.php (updated - added operationalBlocks relationships and helpers)
+  - database/migrations/2026_02_04_390009_create_operational_blocks_table.php (new)
+- **Learnings for future iterations:**
+  - OperationalBlock uses polymorphic relationship (blockable_type, blockable_id) to support both Customer and Account
+  - Migration sequence continues: 390009 for operational_blocks table
+  - BlockType has 5 types: payment, shipment, redemption, trading, compliance
+  - Payment and Compliance blocks are "critical" and affect eligibility calculations
+  - OperationalBlock does not use SoftDeletes - instead uses status (active/removed) with removed_at timestamp
+  - Added removal_reason field for tracking why a block was removed
+  - Both Customer and Account have identical helper methods for operational blocks
+---
