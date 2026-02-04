@@ -141,6 +141,16 @@ class ProcurementIntent extends Model
     }
 
     /**
+     * Get the bottling instructions linked to this intent.
+     *
+     * @return HasMany<BottlingInstruction, $this>
+     */
+    public function bottlingInstructions(): HasMany
+    {
+        return $this->hasMany(BottlingInstruction::class, 'procurement_intent_id');
+    }
+
+    /**
      * Check if the intent is in draft status.
      */
     public function isDraft(): bool
