@@ -440,3 +440,37 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Resolution creates both exception record AND updates batch status atomically
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B018
+- **Implemented**: Manual Inbound Batch creation with admin-only permission gate
+- **Files created**:
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/CreateInboundBatch.php
+- **Files modified**:
+  - app/Filament/Resources/Inventory/InboundBatchResource.php (added complete form schema, canCreate permission gate)
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ListInboundBatches.php (added create button with admin visibility)
+- **Features implemented**:
+  - Admin-only permission gate via canCreate() using User.isAdmin() (checks for admin or super_admin role)
+  - Prominent warning banner at top of form explaining manual creation is for exceptions only
+  - Mandatory reason field (manual_creation_reason) with min 20 char validation
+  - Full form sections:
+    - Source Information: source_type, product_reference_type/id, allocation_id
+    - Quantities: quantity_expected, quantity_received, packaging_type
+    - Location & Ownership: receiving_location_id, ownership_type, received_date
+    - Serialization: serialization_status (defaults to PendingSerialization)
+    - Additional Information: wms_reference_id, condition_notes (collapsible)
+    - Confirmation: audit_confirmation checkbox (required)
+  - Manual creation reason stored in condition_notes with "[MANUAL CREATION - Reason: ...]" prefix
+  - Create button styled with warning color to indicate exceptional action
+- **Key patterns used**:
+  - canCreate() override in Resource for permission gating
+  - mutateFormDataBeforeCreate() for storing manual creation reason
+  - Section extraAttributes for visual prominence (danger/warning background colors)
+  - Forms\Components\Placeholder for warning banner content
+  - Checkbox with accepted() validation for confirmation
+- **Learnings for future iterations**:
+  - OwnershipType enum has a typo: CururatedOwned (not CruratedOwned) - be careful with enum case names
+  - canCreate() is the Filament way to gate resource creation permissions
+  - Use visible() callback on CreateAction to match canCreate() logic
+  - mutateFormDataBeforeCreate() runs before validation passes through to model
+  - Browser verification requirement noted - manual testing needed
+---
