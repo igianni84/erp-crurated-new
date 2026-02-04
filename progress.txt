@@ -1221,3 +1221,30 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Alert boxes with border-2 and exclamation-triangle icon draw attention to overdue items
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-054
+- What was implemented:
+  - Widget D: Exceptions added to Procurement Dashboard
+  - Four exception metrics tracked with color-coded health status:
+    1. Inbound without ownership clarity (count) - inbounds with ownership_flag = pending
+    2. Inbound blocked by missing intent (count) - unlinked inbounds (procurement_intent_id is null)
+    3. Bottling past deadline (count) - active instructions with deadline < today
+    4. PO with delivery variance > 10% (count) - POs with significant quantity variance from inbounds
+  - Per acceptance criteria: ALL metrics show red (danger) when count > 0, green (success) when 0
+  - Ring-2 danger border added to non-zero exception cards for extra visual prominence
+  - Click navigation: Each metric links to its filtered list for direct action
+  - Summary alert showing total exception count when any exceptions exist
+  - "All Clear" state when no exceptions: Shows 4 green checkmarks with positive messaging
+  - Added getExceptionMetrics() method with has_any_exception flag for conditional rendering
+  - Added getExceptionHealthStatus() method with simple binary logic (> 0 = danger, else success)
+  - Added getBottlingPastDeadlineUrl() method for navigating to overdue bottling instructions
+- Files changed:
+  - app/Filament/Pages/ProcurementDashboard.php (modified - added Widget D methods)
+  - resources/views/filament/pages/procurement-dashboard.blade.php (modified - added Widget D section)
+- **Learnings for future iterations:**
+  - Exception widgets use simpler health status logic than other widgets: any count > 0 = danger
+  - Visual prominence achieved with ring-2 border in addition to background color
+  - "All Clear" state provides positive feedback when there are no issues
+  - has_any_exception flag in metrics array enables conditional rendering in blade
+  - Browser verification should be done manually as dev-browser skill is not available
+---
