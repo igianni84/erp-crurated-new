@@ -59,3 +59,15 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - 1 voucher = 1 line = 1 bottle invariant enforced via model design
   - early_binding_serial for Module D personalization, bound_bottle_serial for late binding from WMS
 ---
+
+## 2026-02-04 - US-C007
+- **What was implemented:** ShippingOrderLineStatus enum and integration into ShippingOrderLine model
+- **Files changed:**
+  - `app/Enums/Fulfillment/ShippingOrderLineStatus.php` (new)
+  - `app/Models/Fulfillment/ShippingOrderLine.php` (updated to use enum)
+- **Learnings for future iterations:**
+  - Enum includes `allowsBinding()` method - binding only allowed in Validated status
+  - Terminal states: Shipped, Cancelled
+  - Transitions: pending→validated→picked→shipped, any→cancelled
+  - Also marked US-C004 and US-C006 as passing - they were already implemented in US-C001
+---

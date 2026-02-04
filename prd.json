@@ -65,8 +65,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented together with US-C001"
     },
     {
       "id": "US-C005",
@@ -95,8 +95,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented together with US-C001"
     },
     {
       "id": "US-C007",
@@ -109,7 +109,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

@@ -2,6 +2,7 @@
 
 namespace App\Models\Fulfillment;
 
+use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
 use App\Models\Inventory\InventoryCase;
@@ -30,7 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $shipping_order_id
  * @property string $voucher_id
  * @property string $allocation_id
- * @property string $status
+ * @property ShippingOrderLineStatus $status
  * @property string|null $bound_bottle_serial
  * @property string|null $bound_case_id
  * @property string|null $early_binding_serial
@@ -45,19 +46,6 @@ class ShippingOrderLine extends Model
     use HasFactory;
     use HasUuid;
     use SoftDeletes;
-
-    /**
-     * Status constants until ShippingOrderLineStatus enum is implemented (US-C007).
-     */
-    public const STATUS_PENDING = 'pending';
-
-    public const STATUS_VALIDATED = 'validated';
-
-    public const STATUS_PICKED = 'picked';
-
-    public const STATUS_SHIPPED = 'shipped';
-
-    public const STATUS_CANCELLED = 'cancelled';
 
     /**
      * The table associated with the model.
@@ -91,7 +79,7 @@ class ShippingOrderLine extends Model
      * @var array<string, mixed>
      */
     protected $attributes = [
-        'status' => self::STATUS_PENDING,
+        'status' => ShippingOrderLineStatus::Pending,
     ];
 
     /**
@@ -102,6 +90,7 @@ class ShippingOrderLine extends Model
     protected function casts(): array
     {
         return [
+            'status' => ShippingOrderLineStatus::class,
             'binding_confirmed_at' => 'datetime',
         ];
     }
@@ -198,7 +187,7 @@ class ShippingOrderLine extends Model
      */
     public function isPending(): bool
     {
-        return $this->status === self::STATUS_PENDING;
+        return $this->status === ShippingOrderLineStatus::Pending;
     }
 
     /**
@@ -206,7 +195,7 @@ class ShippingOrderLine extends Model
      */
     public function isValidated(): bool
     {
-        return $this->status === self::STATUS_VALIDATED;
+        return $this->status === ShippingOrderLineStatus::Validated;
     }
 
     /**
@@ -214,7 +203,7 @@ class ShippingOrderLine extends Model
      */
     public function isPicked(): bool
     {
-        return $this->status === self::STATUS_PICKED;
+        return $this->status === ShippingOrderLineStatus::Picked;
     }
 
     /**
@@ -222,7 +211,7 @@ class ShippingOrderLine extends Model
      */
     public function isShipped(): bool
     {
-        return $this->status === self::STATUS_SHIPPED;
+        return $this->status === ShippingOrderLineStatus::Shipped;
     }
 
     /**
@@ -230,7 +219,81 @@ class ShippingOrderLine extends Model
      */
     public function isCancelled(): bool
     {
-        return $this->status === self::STATUS_CANCELLED;
+        return $this->status === ShippingOrderLineStatus::Cancelled;
+    }
+
+    /**
+     * Check if this line is in a terminal state.
+     */
+    public function isTerminal(): bool
+    {
+        return $this->status->isTerminal();
+    }
+
+    /**
+     * Check if this line is active (non-terminal).
+     */
+    public function isActive(): bool
+    {
+        return $this->status->isActive();
+    }
+
+    /**
+     * Check if a transition to the given status is allowed.
+     */
+    public function canTransitionTo(ShippingOrderLineStatus $target): bool
+    {
+        return $this->status->canTransitionTo($target);
+    }
+
+    /**
+     * Get the allowed transitions from the current status.
+     *
+     * @return list<ShippingOrderLineStatus>
+     */
+    public function getAllowedTransitions(): array
+    {
+        return $this->status->allowedTransitions();
+    }
+
+    /**
+     * Check if binding can be performed on this line.
+     */
+    public function canBind(): bool
+    {
+        return $this->status->allowsBinding();
+    }
+
+    /**
+     * Check if this line can be cancelled.
+     */
+    public function canBeCancelled(): bool
+    {
+        return $this->status->allowsCancellation();
+    }
+
+    /**
+     * Get the status label for UI display.
+     */
+    public function getStatusLabel(): string
+    {
+        return $this->status->label();
+    }
+
+    /**
+     * Get the status color for UI display.
+     */
+    public function getStatusColor(): string
+    {
+        return $this->status->color();
+    }
+
+    /**
+     * Get the status icon for UI display.
+     */
+    public function getStatusIcon(): string
+    {
+        return $this->status->icon();
     }
 
     /**
