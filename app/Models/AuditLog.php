@@ -66,6 +66,8 @@ class AuditLog extends Model
 
     public const EVENT_VOUCHER_UNQUARANTINED = 'voucher_unquarantined';
 
+    public const EVENT_DEFAULTS_APPLIED = 'defaults_applied';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -144,6 +146,7 @@ class AuditLog extends Model
             self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'Duplicate Request Detected',
             self::EVENT_VOUCHER_QUARANTINED => 'Voucher Quarantined',
             self::EVENT_VOUCHER_UNQUARANTINED => 'Voucher Unquarantined',
+            self::EVENT_DEFAULTS_APPLIED => 'Defaults Applied',
             default => ucfirst((string) $this->event),
         };
     }
@@ -172,6 +175,7 @@ class AuditLog extends Model
             self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'heroicon-o-document-duplicate',
             self::EVENT_VOUCHER_QUARANTINED => 'heroicon-o-exclamation-triangle',
             self::EVENT_VOUCHER_UNQUARANTINED => 'heroicon-o-check-badge',
+            self::EVENT_DEFAULTS_APPLIED => 'heroicon-o-cog-6-tooth',
             default => 'heroicon-o-document',
         };
     }
@@ -200,6 +204,7 @@ class AuditLog extends Model
             self::EVENT_DUPLICATE_VOUCHER_REQUEST => 'warning',
             self::EVENT_VOUCHER_QUARANTINED => 'danger',
             self::EVENT_VOUCHER_UNQUARANTINED => 'success',
+            self::EVENT_DEFAULTS_APPLIED => 'warning',
             default => 'gray',
         };
     }
