@@ -581,3 +581,26 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Location.canSerialize() checks both `serialization_authorized` AND `status === Active`
   - No override mechanism exists by design - this is a hard business rule
 ---
+
+## 2026-02-04 - US-B023
+- **Implemented**: Partial serialization handling - treating partial serialization as normal state
+- **Files modified**:
+  - app/Services/Inventory/InventoryService.php (added pending serialization methods)
+- **Features implemented**:
+  - `getPendingSerializationCount()`: Returns total bottles awaiting serialization
+  - `getPendingSerializationStats()`: Returns detailed stats (batches count, pending/partial breakdown, bottles remaining)
+  - These methods filter only batches at authorized locations with pending/partially_serialized status
+- **Pre-existing functionality verified** (from earlier stories):
+  - Serialization quantity can be < remaining_unserialized (US-B020 form validation)
+  - SerializationService.updateBatchSerializationStatus() correctly sets partially_serialized when quantity_serialized < quantity_received (US-B010)
+  - SerializationQueue includes partially_serialized batches in query (US-B019)
+- **Key design note**:
+  - Partial serialization is a NORMAL operational state, not an exception
+  - Batches remain in queue with partially_serialized status until fully serialized
+  - Inventory Overview (US-B043) will use getPendingSerializationCount() to show "Inbound wine pending serialization"
+- **Learnings for future iterations**:
+  - Most acceptance criteria were already implemented in US-B010, US-B019, US-B020
+  - US-B023 mainly provides the infrastructure for US-B043's dashboard widget
+  - InventoryService now has both allocation-level and batch-level query methods
+  - Partial serialization stats use same query pattern as SerializationQueue.getQueueStats()
+---

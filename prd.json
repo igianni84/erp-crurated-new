@@ -400,7 +400,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 23,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
