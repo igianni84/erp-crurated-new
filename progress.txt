@@ -120,3 +120,23 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Observers are registered in AppServiceProvider's `boot()` method using `Model::observe(Observer::class)`
   - Migration sequence continues: 390002 for customers table enhancement
 ---
+
+## 2026-02-04 - US-006
+- What was implemented:
+  - Created `ChannelScope` enum (b2c, b2b, club) with label/color/icon methods
+  - Created `AccountStatus` enum (active, suspended) with label/color/icon methods
+  - Created `Account` model with HasUuid, Auditable, SoftDeletes traits
+  - Created migration for `accounts` table with FK to customers
+  - Added `accounts()` hasMany relationship to Customer model
+- Files changed:
+  - app/Enums/Customer/ChannelScope.php (new)
+  - app/Enums/Customer/AccountStatus.php (new)
+  - app/Models/Customer/Account.php (new)
+  - app/Models/Customer/Customer.php (updated - added accounts relationship)
+  - database/migrations/2026_02_04_390003_create_accounts_table.php (new)
+- **Learnings for future iterations:**
+  - Account model represents operational contexts for a Customer
+  - A Customer can have multiple Accounts with different channel scopes
+  - Migration sequence continues: 390003 for accounts table
+  - Account inherits restrictions from Customer but can add its own (to be implemented in later stories)
+---
