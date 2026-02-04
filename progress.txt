@@ -1215,3 +1215,39 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - US-B047 will implement the actual admin override with justification and audit trail
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B042
+- **Implemented**: SyncCommittedInventoryJob for periodic syncing of committed quantities from Module A
+- **Files created**:
+  - app/Jobs/Inventory/SyncCommittedInventoryJob.php
+- **Files modified**:
+  - app/Services/Inventory/InventoryService.php (updated getCommittedQuantity to use cache)
+- **Features implemented**:
+  - Job runs periodically (configurable, default hourly) to sync committed quantities
+  - Iterates all Active and Exhausted allocations using cursor for memory efficiency
+  - Counts unredeemed vouchers (Issued + Locked states) per allocation
+  - Caches committed_quantity with 2-hour TTL using Laravel Cache facade
+  - Cache key format: `inventory:committed_quantity:allocation:{id}`
+  - Records last sync timestamp for monitoring
+  - Exponential backoff retry: 30s, 120s, 300s (max 3 attempts)
+- **Helper methods added to job**:
+  - getCachedCommittedQuantity(Allocation): Returns cached value or null
+  - invalidateCache(Allocation): Clears cache for immediate refresh on next sync
+  - getLastSyncTimestamp(): Returns ISO8601 timestamp of last sync
+  - isCacheFresh(): Checks if cache synced within TTL window
+- **InventoryService changes**:
+  - getCommittedQuantity() now checks cache first, falls back to live query
+  - Added getCommittedQuantityLive() for cases needing guaranteed fresh data
+- **Acceptance criteria verification**:
+  - ✅ Job class SyncCommittedInventoryJob in app/Jobs/Inventory/
+  - ✅ Runs periodically (job is queue-based, schedule configuration is deployment concern)
+  - ✅ Per ogni Allocation: Count unredeemed vouchers, Cache committed_quantity
+  - ✅ InventoryService uses cached value for performance
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Cache TTL should be > job interval to handle missed runs (2h TTL for hourly job)
+  - Use cursor() for memory-efficient iteration over large datasets
+  - Job can be scheduled via Laravel scheduler: `$schedule->job(new SyncCommittedInventoryJob)->hourly()`
+  - invalidateCache() can be called from voucher model observers when vouchers change state
+  - isCacheFresh() can be used in UI to show stale data warnings
+---
