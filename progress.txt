@@ -806,3 +806,23 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - System actions (no user) set user_id = null in AuditLog
   - Use AuditLog::EVENT_* constants instead of raw strings for audit event types
 ---
+
+## 2026-02-04 - US-036
+- What was implemented:
+  - BottlingInstructionService class in app/Services/Procurement/
+  - activate(BottlingInstruction $instruction): Transitions draft → active, creates audit log
+  - markExecuted(BottlingInstruction $instruction): Transitions active → executed, includes preference_status context in audit
+  - applyDefaults(BottlingInstruction $instruction): Sets preference_status to defaulted, defaults_applied_at to now(), validates status
+  - updatePreferenceStatus(BottlingInstruction $instruction, int $collectedCount, ?int $totalCount): Recalculates preference_status based on collected/total
+  - getPreferenceProgress(BottlingInstruction $instruction): Returns {collected, pending, total, percentage} array
+  - All methods validate state transitions and throw InvalidArgumentException on invalid operations
+  - All transitions create AuditLog entries with user_id and relevant context
+- Files changed:
+  - app/Services/Procurement/BottlingInstructionService.php (new)
+- **Learnings for future iterations:**
+  - BottlingInstructionService follows same pattern as ProcurementIntentService and InboundService
+  - BottlingInstruction has two status systems: BottlingInstructionStatus (lifecycle) and BottlingPreferenceStatus (preference collection)
+  - applyDefaults uses AuditLog::EVENT_DEFAULTS_APPLIED (added in US-035)
+  - updatePreferenceStatus uses calculatePreferenceStatus helper: 0% = Pending, 1-99% = Partial, 100% = Complete
+  - getPreferenceProgress delegates to model's getPreferenceProgress() but adds percentage to the return array
+---
