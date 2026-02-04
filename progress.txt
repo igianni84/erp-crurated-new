@@ -822,3 +822,24 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Test factories for roles are defined in UserFactory: superAdmin(), admin(), manager(), editor(), viewer()
   - For conditional action visibility, combine state checks with Gate::allows() using && operator
 ---
+
+## 2026-02-04 - US-034
+- What was implemented:
+  - Verified Auditable trait is applied to all Module K entities: Party, PartyRole, Customer, Account, Membership, PaymentPermission, OperationalBlock, Club, CustomerClub, Address, AccountUser
+  - Confirmed all entities have `auditLogs()` MorphMany relationship to AuditLog
+  - Enhanced AuditLog model with immutability protection:
+    - Added `booted()` method that throws RuntimeException on update/delete attempts
+    - `UPDATED_AT = null` already prevents timestamp updates
+  - Added helper methods to AuditLog: `hasOldValues()`, `hasNewValues()`, `getChangesSummary()`
+  - Added comprehensive PHPDoc with property annotations to AuditLog model
+  - Audit log fields confirmed: created_at (timestamp), user_id, event (event_type), old_values, new_values
+  - Automatic logging on create, update, delete events via Auditable trait's bootAuditable() method
+- Files changed:
+  - app/Models/AuditLog.php (updated - added immutability protection and helper methods)
+- **Learnings for future iterations:**
+  - AuditLog immutability is enforced at model level via `booted()` callbacks - not just migration constraints
+  - All Module K entities already had Auditable trait and auditLogs() relationship from earlier stories
+  - The `booted()` method is the correct place for model-level hooks (vs boot() which is for trait-level)
+  - RuntimeException is appropriate for "this should never happen" scenarios like immutability violations
+  - The getChangesSummary() method provides human-readable change descriptions for UI display
+---
