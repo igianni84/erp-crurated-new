@@ -11,6 +11,7 @@ Started: Wed Feb  4 08:12:32 CET 2026
 - Enums need `label()`, `color()`, and `icon()` methods for Filament compatibility
 - Migration naming: `YYYY_MM_DD_XXXXXX_create_table_name_table.php`
 - Use `foreignId()->constrained()->nullOnDelete()` for FK references to users table
+- Use `foreignUuid()->constrained()->cascadeOnDelete()` for FK references to UUID tables (Module K uses UUIDs)
 
 ---
 
@@ -31,4 +32,21 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Customer module uses `App\Enums\Customer\` and `App\Models\Customer\` namespaces
   - Migration sequence for Module K starts at 390000
   - PartyRole stub created to satisfy Party relationship, will be completed in US-002
+---
+
+## 2026-02-04 - US-002
+- What was implemented:
+  - Created `PartyRoleType` enum (customer, supplier, producer, partner) with label/color/icon methods
+  - Completed `PartyRole` model with HasUuid, Auditable traits and role type casting
+  - Created migration for `party_roles` table with FK to parties and unique constraint on (party_id, role)
+  - Updated `Party` model with addRole/removeRole methods and role checking helpers (isCustomer, isSupplier, isProducer, isPartner)
+- Files changed:
+  - app/Enums/Customer/PartyRoleType.php (new)
+  - app/Models/Customer/PartyRole.php (updated from stub)
+  - app/Models/Customer/Party.php (updated - added role helpers)
+  - database/migrations/2026_02_04_390001_create_party_roles_table.php (new)
+- **Learnings for future iterations:**
+  - Use `foreignUuid()->constrained()->cascadeOnDelete()` for FK references to UUID tables (vs foreignId for int tables)
+  - Migration sequence continues: 390001 for party_roles
+  - Party model uses union type `PartyRoleType|string` to accept both enum and string values for backward compatibility
 ---
