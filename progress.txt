@@ -74,3 +74,24 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Use `foreignId()` for FK to users (integer IDs)
   - PurchaseOrder requires ProcurementIntent - this invariant is enforced at both DB and model levels
 ---
+
+## 2026-02-04 - US-004
+- What was implemented:
+  - Migration `2026_02_04_400004_create_bottling_instructions_table.php` with all required fields
+  - BottlingInstruction model with relationships to ProcurementIntent and LiquidProduct
+  - All required fields: bottle_equivalents, allowed_formats (JSON), allowed_case_configurations (JSON), default_bottling_rule, bottling_deadline, preference_status, personalised_bottling_required, early_binding_required, delivery_location, status, defaults_applied_at
+  - FK constraint: `procurement_intent_id` required (NOT NULL enforced at DB level)
+  - FK constraint: `liquid_product_id` required
+  - Invariant check in `boot()` method for bottling_deadline required
+  - Added `bottlingInstructions()` hasMany relationship to ProcurementIntent model
+  - Soft deletes enabled
+- Files changed:
+  - database/migrations/2026_02_04_400004_create_bottling_instructions_table.php (new)
+  - app/Models/Procurement/BottlingInstruction.php (new)
+  - app/Models/Procurement/ProcurementIntent.php (modified - added bottlingInstructions relationship)
+- **Learnings for future iterations:**
+  - JSON fields use `$table->json()` in migration and `'array'` cast in model
+  - For required date fields, check raw attributes in boot() to avoid PHPStan issues with Carbon casting
+  - BottlingInstruction uses BottlingInstructionStatus for lifecycle and BottlingPreferenceStatus for preference collection tracking
+  - Deadline urgency helper methods useful for UI display (getDeadlineUrgency, getDaysUntilDeadline)
+---
