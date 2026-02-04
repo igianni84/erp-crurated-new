@@ -216,3 +216,37 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - BottleState.Stored is the only state considered for physical availability
   - Bottle-to-voucher binding doesn't exist yet, so canConsume checks at allocation level
 ---
+
+## 2026-02-04 - US-B010
+- **Implemented**: SerializationService for centralized serialization logic
+- **Files created**:
+  - app/Services/Inventory/SerializationService.php
+  - app/Jobs/Inventory/MintProvenanceNftJob.php (for async NFT minting)
+- **Methods implemented**:
+  - canSerializeAtLocation(Location): delegates to Location.canSerialize()
+  - serializeBatch(InboundBatch, int, User): creates SerializedBottle records with full validation
+  - generateSerialNumber(): generates unique CRU-YYYYMMDD-XXXXXXXX format serial numbers
+  - queueNftMinting(SerializedBottle): dispatches MintProvenanceNftJob
+  - updateBatchSerializationStatus(InboundBatch): updates status to pending/partial/fully_serialized
+- **Key validation in serializeBatch**:
+  - Quantity > 0
+  - Batch.canStartSerialization() = true
+  - Quantity <= remaining unserialized
+  - Location.canSerialize() = true
+  - Batch has allocation lineage (for immutable propagation)
+  - Batch has product reference
+- **Allocation lineage invariant**:
+  - allocation_id is propagated from InboundBatch to every SerializedBottle created
+  - This is immutable after creation (enforced in SerializedBottle model)
+- **MintProvenanceNftJob**:
+  - Uses exponential backoff: 10s, 60s, 300s
+  - Max 3 attempts
+  - Updates bottle.nft_reference and bottle.nft_minted_at on success
+  - Placeholder implementation for actual blockchain integration
+- **Learnings for future iterations**:
+  - Jobs go in app/Jobs/Inventory/ directory for inventory module
+  - Serial number format: CRU-{YYYYMMDD}-{8 random chars}
+  - NFT minting is decoupled from serialization (async job)
+  - getDefaultFormatId() needs UI improvement to select format explicitly
+  - Discrepancy status is NOT changed by updateBatchSerializationStatus (handled separately)
+---
