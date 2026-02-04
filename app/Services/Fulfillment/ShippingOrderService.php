@@ -50,6 +50,8 @@ class ShippingOrderService
 
     public const EVENT_VALIDATION_FAILED = 'validation_failed';
 
+    public const EVENT_VOUCHER_INELIGIBLE = 'voucher_ineligible';
+
     public function __construct(
         protected VoucherService $voucherService
     ) {}
@@ -433,6 +435,97 @@ class ShippingOrderService
     }
 
     /**
+     * Check if a Shipping Order is blocked due to ineligible vouchers.
+     *
+     * This method re-validates all vouchers and returns whether the SO is blocked.
+     * Called by UI to show blocking banners and prevent state transitions.
+     *
+     * Per US-C030: If a voucher becomes ineligible during the SO lifecycle,
+     * the SO is blocked and cannot proceed until the issue is resolved.
+     *
+     * @param  ShippingOrder  $shippingOrder  The shipping order to check
+     * @return array{blocked: bool, ineligible_count: int, errors: list<array{voucher_id: string, reason: string}>}
+     */
+    public function checkIfBlocked(ShippingOrder $shippingOrder): array
+    {
+        $validation = $this->validateVouchers($shippingOrder);
+
+        return [
+            'blocked' => ! $validation['valid'],
+            'ineligible_count' => count($validation['errors']),
+            'errors' => $validation['errors'],
+        ];
+    }
+
+    /**
+     * Get a summary of voucher eligibility status for a Shipping Order.
+     *
+     * Returns detailed eligibility information for each voucher in the SO.
+     * Useful for displaying eligibility status in the UI.
+     *
+     * @param  ShippingOrder  $shippingOrder  The shipping order
+     * @return array{total: int, eligible: int, ineligible: int, vouchers: list<array{voucher_id: string, eligible: bool, reason: string|null}>}
+     */
+    public function getVoucherEligibilitySummary(ShippingOrder $shippingOrder): array
+    {
+        $shippingOrder->load('lines.voucher');
+
+        $vouchers = [];
+        $eligible = 0;
+        $ineligible = 0;
+
+        foreach ($shippingOrder->lines as $line) {
+            $voucher = $line->voucher;
+            if ($voucher === null) {
+                $vouchers[] = [
+                    'voucher_id' => $line->voucher_id,
+                    'eligible' => false,
+                    'reason' => 'Voucher not found',
+                ];
+                $ineligible++;
+
+                continue;
+            }
+
+            $eligibilityResult = $this->checkVoucherEligibility($voucher, $shippingOrder);
+
+            $vouchers[] = [
+                'voucher_id' => $voucher->id,
+                'eligible' => $eligibilityResult['eligible'],
+                'reason' => $eligibilityResult['reason'],
+            ];
+
+            if ($eligibilityResult['eligible']) {
+                $eligible++;
+            } else {
+                $ineligible++;
+            }
+        }
+
+        return [
+            'total' => count($vouchers),
+            'eligible' => $eligible,
+            'ineligible' => $ineligible,
+            'vouchers' => $vouchers,
+        ];
+    }
+
+    /**
+     * Check if a Shipping Order can proceed based on voucher eligibility.
+     *
+     * Returns false if any voucher is ineligible. This is a quick check
+     * for determining if an SO can transition to the next state.
+     *
+     * @param  ShippingOrder  $shippingOrder  The shipping order
+     */
+    public function canProceed(ShippingOrder $shippingOrder): bool
+    {
+        $validation = $this->validateVouchers($shippingOrder);
+
+        return $validation['valid'];
+    }
+
+    /**
      * Add a voucher to an existing Shipping Order.
      *
      * Only allowed when SO is in draft status.
@@ -578,11 +671,18 @@ class ShippingOrderService
     /**
      * Check if a voucher is eligible for fulfillment.
      *
+     * Eligibility criteria (per US-C030):
+     * - lifecycle_state = issued (or locked for THIS SO during planning/picking)
+     * - suspended = false
+     * - customer_id match SO customer
+     * - not in pending transfer
+     * - allocation active (not closed)
+     *
      * @param  Voucher  $voucher  The voucher to check
      * @param  ShippingOrder|null  $shippingOrder  Optional SO context for additional checks
      * @return array{eligible: bool, reason: string|null}
      */
-    protected function checkVoucherEligibility(Voucher $voucher, ?ShippingOrder $shippingOrder = null): array
+    public function checkVoucherEligibility(Voucher $voucher, ?ShippingOrder $shippingOrder = null): array
     {
         // Check lifecycle state - must be issued (not locked by another process)
         if ($voucher->lifecycle_state !== VoucherLifecycleState::Issued) {
@@ -630,11 +730,20 @@ class ShippingOrderService
             ];
         }
 
-        // Check allocation is valid
+        // Check allocation is valid (has lineage)
         if ($voucher->hasLineageIssues()) {
             return [
                 'eligible' => false,
                 'reason' => 'Voucher has allocation lineage issues.',
+            ];
+        }
+
+        // Check allocation is active (not closed) - US-C030 requirement
+        $allocation = $voucher->allocation;
+        if ($allocation !== null && $allocation->isClosed()) {
+            return [
+                'eligible' => false,
+                'reason' => 'Voucher allocation is closed. Closed allocations cannot be used for fulfillment.',
             ];
         }
 
@@ -682,6 +791,11 @@ class ShippingOrderService
     /**
      * Handle pre-transition validations and side effects.
      *
+     * Voucher eligibility is validated at three checkpoints (US-C030):
+     * 1. SO creation (in validateVouchersForCreation)
+     * 2. Planning (draft → planned)
+     * 3. Pre-picking (planned → picking)
+     *
      * @param  ShippingOrder  $shippingOrder  The shipping order
      * @param  ShippingOrderStatus  $from  The current status
      * @param  ShippingOrderStatus  $to  The target status
@@ -693,7 +807,7 @@ class ShippingOrderService
         ShippingOrderStatus $from,
         ShippingOrderStatus $to
     ): void {
-        // Validate vouchers before planning
+        // Validate vouchers before planning (checkpoint 2)
         if ($to === ShippingOrderStatus::Planned) {
             $validation = $this->validateVouchers($shippingOrder);
             if (! $validation['valid']) {
@@ -704,6 +818,34 @@ class ShippingOrderService
 
                 throw new \InvalidArgumentException(
                     'Cannot plan Shipping Order: voucher validation failed. '
+                    .implode('; ', $errorMessages)
+                );
+            }
+        }
+
+        // Validate vouchers before picking (checkpoint 3 - pre-picking)
+        if ($to === ShippingOrderStatus::Picking) {
+            $validation = $this->validateVouchers($shippingOrder);
+            if (! $validation['valid']) {
+                $errorMessages = array_map(
+                    fn ($e) => "{$e['voucher_id']}: {$e['reason']}",
+                    $validation['errors']
+                );
+
+                // Log the ineligibility event for each voucher
+                foreach ($validation['errors'] as $error) {
+                    $this->logEvent(
+                        $shippingOrder,
+                        self::EVENT_VOUCHER_INELIGIBLE,
+                        "Voucher {$error['voucher_id']} became ineligible during SO lifecycle: {$error['reason']}",
+                        null,
+                        ['voucher_id' => $error['voucher_id'], 'reason' => $error['reason']]
+                    );
+                }
+
+                throw new \InvalidArgumentException(
+                    'Cannot proceed to picking: voucher validation failed. '
+                    .'One or more vouchers are no longer eligible for fulfillment. '
                     .implode('; ', $errorMessages)
                 );
             }
