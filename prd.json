@@ -452,8 +452,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented Picking & Binding tab with: visibility for status >= picking, binding summary statistics (early/late binding counts, pending, discrepancies), line-by-line binding details showing voucher_id/wine/allocation/binding_type/binding_status/line_status, detailed binding info panel with early_binding_serial/bound_bottle_serial/confirmation timestamp, Pre-bound (Personalized) badge for early binding, discrepancy detection and display with red highlighting for invalid serials, Request Re-pick header action for discrepant items via WmsIntegrationService, operator cannot manually select bottles. Browser verification pending."
     },
     {
       "id": "US-C028",

@@ -372,3 +372,21 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - PHPStan: avoid `?->property ?? default` when relation may be null - use explicit null checks
   - Browser verification pending
 ---
+
+## 2026-02-04 - US-C027
+- **What was implemented:** SO Detail - Tab Picking & Binding for viewing late binding during picking
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added Picking & Binding tab)
+- **Learnings for future iterations:**
+  - Tab visibility controlled via `isPickingOrBeyond()` helper - checks for Picking, Shipped, Completed statuses
+  - Binding completion statistics cached per page load using `static $cache = []` pattern
+  - hasBindingDiscrepancy() queries ShippingOrderException for active exceptions of type WmsDiscrepancy, BindingFailed, EarlyBindingFailed
+  - Early binding shows "Pre-bound (Personalized)" badge with star icon
+  - Late binding shows serial after WMS feedback with checkmark, or "Awaiting WMS feedback" message
+  - Discrepancies shown in red with warning icon, display active exceptions with resolution paths
+  - Request Re-pick action calls WmsIntegrationService.requestRePick() and marks related exceptions as resolved
+  - NO manual bottle selection - operator can only accept/reject via Re-pick action
+  - Binding details panel shows: early_binding_serial, bound_bottle_serial, binding_confirmed_at/by
+  - Tab badge shows: ✓ when all bound, count of discrepancies (danger), count of pending (warning)
+  - Browser verification pending
+---
