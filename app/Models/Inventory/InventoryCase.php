@@ -21,9 +21,17 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * Represents a physical case (container) for bottles in the inventory system.
  * Cases can be intact or broken, and track their contained bottles.
  *
- * INTEGRITY RULES:
- * - Once a case is broken (integrity_status = BROKEN), it cannot revert to INTACT
- * - Broken cases remain in the system for audit purposes
+ * INTEGRITY RULES (US-B052):
+ * - Once a case is broken (integrity_status = BROKEN), it CANNOT revert to INTACT
+ * - Breaking is IRREVERSIBLE - there is no "unbreak" operation
+ * - Boot guard throws exception on any attempt to change BROKEN → INTACT
+ * - Broken cases remain in the system for audit purposes (never deleted)
+ * - No override mechanism exists - this is a hard business rule
+ *
+ * WHY BREAKING IS IRREVERSIBLE:
+ * - Physical reality: Once a case seal is broken, it cannot be authentically resealed
+ * - Audit integrity: Breaking is a permanent physical event that must be recorded
+ * - Provenance: Case integrity is part of the wine's chain of custody
  *
  * @property string $id
  * @property string $case_configuration_id
@@ -250,5 +258,86 @@ class InventoryCase extends Model
     public function getDisplayLabelAttribute(): string
     {
         return "Case #{$this->id}";
+    }
+
+    // =========================================================================
+    // INTEGRITY STATUS IRREVERSIBILITY (US-B052)
+    // =========================================================================
+
+    /**
+     * Check if breaking this case would be irreversible.
+     * For InventoryCase, breaking is ALWAYS irreversible.
+     *
+     * @return true Always returns true - breaking cannot be undone
+     */
+    public static function isBreakingIrreversible(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Check if this case can be unbroken (reverted to intact).
+     * This is NEVER possible - breaking is irreversible.
+     *
+     * @return false Always returns false - broken cases cannot be unbroken
+     */
+    public function canBeUnbroken(): bool
+    {
+        return false;
+    }
+
+    /**
+     * Get guidance on why breaking is irreversible.
+     *
+     * @return string Human-readable explanation
+     */
+    public static function getBreakingIrreversibilityReason(): string
+    {
+        return 'Case breaking is irreversible because it represents a physical event. '.
+               'Once a case seal is broken, it cannot be authentically resealed. '.
+               'This preserves the integrity of the wine\'s chain of custody and provenance.';
+    }
+
+    /**
+     * Get guidance on what to do if a case was broken in error.
+     *
+     * @return string Human-readable guidance
+     */
+    public function getCorrectionGuidance(): string
+    {
+        if (! $this->isBroken()) {
+            return 'This case is not broken. No correction is needed.';
+        }
+
+        return 'This case has been broken and cannot be unbroken. '.
+               'If this was done in error, document the error in the case notes or create an InventoryException record. '.
+               'The bottles from this case must now be managed individually.';
+    }
+
+    /**
+     * Check if integrity status change is allowed.
+     * Only allows: INTACT → BROKEN. Prevents: BROKEN → INTACT.
+     *
+     * @param  CaseIntegrityStatus  $newStatus  The proposed new status
+     * @return bool Whether the status change is allowed
+     */
+    public function canChangeIntegrityStatusTo(CaseIntegrityStatus $newStatus): bool
+    {
+        // If already broken, cannot change to anything else (especially not intact)
+        if ($this->isBroken()) {
+            return false;
+        }
+
+        // If intact, can only change to broken (if breakable)
+        if ($this->isIntact() && $newStatus === CaseIntegrityStatus::Broken) {
+            return $this->is_breakable;
+        }
+
+        // Same status is always "allowed" (no-op)
+        if ($this->integrity_status === $newStatus) {
+            return true;
+        }
+
+        return false;
     }
 }
