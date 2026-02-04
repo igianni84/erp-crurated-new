@@ -1076,3 +1076,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - US-046 and US-047 overlap significantly - better to merge or implement together
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-048
+- What was implemented:
+  - SupplierProducerResource in Filament under navigation group "Procurement" (sort order 5)
+  - Filtered view of parties where role = supplier OR producer via modifyQueryUsing with whereHas
+  - List columns: party name (bold, searchable), roles (badges with icons/colors), has_config indicator (check/x icon), default_deadline (from supplierConfig), status (badge), jurisdiction (hidden by default), last_updated
+  - Filters: role (Supplier/Producer), status, has_config (ternary), jurisdiction
+  - Tabs: All, Suppliers, Producers, With Config, Without Config - each with badge counts
+  - View Party action linking to PartyResource detail view
+  - Manage Config action linking to EditSupplierConfig page (dynamic label/icon based on config existence)
+  - Lightweight read-focused view: canCreate() returns false, no bulk actions
+  - Default sort by legal_name ascending
+- Files changed:
+  - app/Filament/Resources/Procurement/SupplierProducerResource.php (new)
+  - app/Filament/Resources/Procurement/SupplierProducerResource/Pages/ListSupplierProducers.php (new)
+- **Learnings for future iterations:**
+  - Filtered views of existing resources use modifyQueryUsing in table() for base filtering
+  - Use whereHas('roles', ...) with whereIn() to filter parties by multiple roles
+  - canCreate() override to false makes resource read-only
+  - Action URLs can link to other resources using route() helper with named routes
+  - Tab badges with badgeColor() highlight important states (e.g., warning for missing config)
+  - Browser verification should be done manually as dev-browser skill is not available
+---
