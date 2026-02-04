@@ -7,6 +7,22 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * AuditLog Model
+ *
+ * Immutable audit log record for tracking changes to models.
+ * Audit logs cannot be updated or deleted once created - this ensures
+ * a complete and tamper-proof audit trail.
+ *
+ * @property string $id
+ * @property string $auditable_type
+ * @property string $auditable_id
+ * @property string $event
+ * @property array|null $old_values
+ * @property array|null $new_values
+ * @property int|null $user_id
+ * @property \Carbon\Carbon $created_at
+ */
 class AuditLog extends Model
 {
     use HasUuid;
@@ -186,5 +202,64 @@ class AuditLog extends Model
             self::EVENT_VOUCHER_UNQUARANTINED => 'success',
             default => 'gray',
         };
+    }
+
+    /**
+     * Boot the model.
+     * Prevents updates and deletions to ensure audit log immutability.
+     */
+    protected static function booted(): void
+    {
+        static::updating(function (): bool {
+            throw new \RuntimeException('Audit logs are immutable and cannot be updated.');
+        });
+
+        static::deleting(function (): bool {
+            throw new \RuntimeException('Audit logs are immutable and cannot be deleted.');
+        });
+    }
+
+    /**
+     * Check if the audit log has old values.
+     */
+    public function hasOldValues(): bool
+    {
+        return ! empty($this->old_values);
+    }
+
+    /**
+     * Check if the audit log has new values.
+     */
+    public function hasNewValues(): bool
+    {
+        return ! empty($this->new_values);
+    }
+
+    /**
+     * Get a summary of the changes for display.
+     */
+    public function getChangesSummary(): string
+    {
+        if ($this->event === self::EVENT_CREATED) {
+            return 'Record created';
+        }
+
+        if ($this->event === self::EVENT_DELETED) {
+            return 'Record deleted';
+        }
+
+        if (! $this->hasNewValues()) {
+            return 'No changes recorded';
+        }
+
+        $changes = [];
+        foreach ($this->new_values as $field => $newValue) {
+            $oldValue = $this->old_values[$field] ?? null;
+            $oldDisplay = $oldValue === null ? 'null' : (is_array($oldValue) ? json_encode($oldValue) : (string) $oldValue);
+            $newDisplay = $newValue === null ? 'null' : (is_array($newValue) ? json_encode($newValue) : (string) $newValue);
+            $changes[] = "{$field}: {$oldDisplay} → {$newDisplay}";
+        }
+
+        return implode(', ', $changes);
     }
 }
