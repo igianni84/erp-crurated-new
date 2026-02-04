@@ -990,3 +990,46 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Enum state badges use color names (success, warning, info, danger) which work in Tailwind classes
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B035
+- **Implemented**: Create Internal Transfer page with 4-step wizard for transferring inventory
+- **Files created**:
+  - app/Filament/Pages/CreateInternalTransfer.php
+  - resources/views/filament/pages/create-internal-transfer.blade.php
+- **Features implemented**:
+  - Navigation group: Inventory (sort order 7)
+  - Step 1 - Source Location: Select active location with info display (type, status, bottle/case counts)
+  - Step 2 - Select Items: CheckboxList for bottles (up to 100 stored), CheckboxList for cases (up to 100 intact), bulk toggle, selection summary
+  - Step 3 - Destination: Select destination (excluding source), location info display, optional transfer reason
+  - Step 4 - Review & Confirm: Transfer summary with from/to locations, items count, reason, confirmation checkbox with warning
+  - Transfer execution: Uses MovementService.transferBottle() and MovementService.transferCase() for each selected item
+  - Transaction wrapping ensures all or nothing transfer
+  - Success/warning notifications with link to movements list
+  - Form reset and redirect to movements after completion
+- **Key patterns used**:
+  - Wizard component with Steps for multi-step form
+  - Forms\Get for accessing form state across steps
+  - live() and afterStateUpdated() for reactive form updates
+  - afterValidation() on steps for custom validation (using Halt exception)
+  - HtmlString for complex HTML content in Placeholders
+  - CheckboxList with searchable() and bulkToggleable() for item selection
+- **Acceptance criteria verification**:
+  - ✅ Create Transfer action in Inventory section (navigation sort 7)
+  - ✅ Step 1: Select source location with details display
+  - ✅ Step 2: Select items (bottles and/or cases) at source location
+  - ✅ Step 3: Select destination location (source excluded)
+  - ✅ Step 4: Review and confirm with explicit confirmation checkbox
+  - ✅ Movement created with type = internal_transfer (via MovementService)
+  - ✅ All selected items: current_location updated (bottles + cases + contained bottles)
+  - ✅ Audit log complete (movements are immutable audit records)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Filament Wizard component handles multi-step forms with automatic navigation
+  - afterValidation() can throw \Filament\Support\Exceptions\Halt to prevent step progression
+  - @property Form $form PHPDoc annotation needed for PHPStan to recognize InteractsWithForms magic property
+  - WineVariant uses vintage_year (not vintage) for the year field
+  - Method calls like ->label() cannot be used directly in heredoc - extract to variable first
+  - CheckboxList with limit(100) prevents loading too many items at once
+  - DB::transaction() with references (&$var) allows capturing values from within transaction
+  - Browser verification requirement noted - manual testing needed
+---
