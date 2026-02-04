@@ -845,3 +845,35 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - bottle_count column uses sortable with custom query using withCount
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B031
+- **Implemented**: Case Detail page with 4 comprehensive tabs for viewing all case information
+- **Files modified**:
+  - app/Models/Inventory/InventoryCase.php (added movementItems() and movements() relationships)
+  - app/Filament/Resources/Inventory/CaseResource/Pages/ViewCase.php (complete rewrite with 4 tabs)
+- **Features implemented**:
+  - Prominent integrity status banner at top (BROKEN danger warning or INTACT success message)
+  - Tab 1 - Summary: Case identity (ID, configuration, bottle count), integrity status badge, case attributes (is_original, is_breakable, unit handling), allocation lineage section (prominent, immutable), current location, origin (inbound batch link)
+  - Tab 2 - Contained Bottles: Notice for broken cases, bottle count summary vs expected, RepeatableEntry showing all SerializedBottles with serial number, wine/format, state badge, NFT status, links to bottle detail
+  - Tab 3 - Integrity & Handling: Current status (integrity, can_break, handling method), breaking details section (visible only for broken cases with broken_at/by/reason), intact case info section, handling guidelines
+  - Tab 4 - Movements: Immutability notice, full movement history with type/trigger badges, source/destination, executor, reason, WMS event ID, styled cards with color-coded borders
+  - Break Case action visible only when case.canBreak() returns true (intact AND breakable)
+  - Action is placeholder for US-B032 full implementation
+- **Model changes**:
+  - Added movementItems() HasMany relationship to InventoryCase
+  - Added movements() HasManyThrough relationship to get movements via MovementItem (same pattern as SerializedBottle)
+- **Acceptance criteria verification**:
+  - ✅ Tab Summary: configuration, is_original, is_breakable, allocation_lineage (prominent), integrity status
+  - ✅ Tab Contained Bottles: list of SerializedBottles with wine, format, state, NFT status
+  - ✅ Tab Integrity & Handling: broken_at, broken_by, broken_reason (visible only when broken)
+  - ✅ Tab Movements: full movement history from MovementItem records
+  - ✅ Break Case action visible when integrity_status = intact AND is_breakable = true
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - RepeatableEntry works with HasMany relationships for displaying child records
+  - MovementItem can reference either serialized_bottle_id OR case_id (or both)
+  - Case movements follow the same pattern as bottle movements via MovementItem pivot
+  - canBreak() checks BOTH is_breakable AND isIntact() - both conditions must be true
+  - Break Case action placeholder shows action visibility works correctly; full implementation in US-B032
+  - Browser verification requirement noted - manual testing needed
+---
