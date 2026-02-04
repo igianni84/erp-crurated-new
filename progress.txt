@@ -295,3 +295,32 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Eligibility reasons follow `array<string, array{eligible: bool, reason: string}>` format for human-readable explanations
   - This eligibility logic will be consumed by EligibilityEngine (US-015) for complete channel eligibility computation
 ---
+
+## 2026-02-04 - US-013
+- What was implemented:
+  - Fully functional Membership Tab in Customer Detail with workflow actions
+  - Current Membership section showing: tier (with description), status (with badge), effective_from, effective_to, decision_notes
+  - Membership Lifecycle visual timeline with 3-step progress indicator (Applied → Under Review → Approved)
+  - Timeline handles special states: Rejected (shows red), Suspended (shows gray on approved stage)
+  - Status description explains the current state and next steps
+  - Decision History section showing all membership records with tier, status, dates, and notes
+  - Workflow Actions (appear based on current state):
+    - Apply for Membership: creates new membership in Applied status (when no membership or rejected)
+    - Submit for Review: transitions Applied → Under Review
+    - Approve: transitions Under Review → Approved (sets effective_from to now)
+    - Reject: transitions Under Review → Rejected (requires decision notes)
+    - Suspend: transitions Approved → Suspended (requires decision notes)
+    - Reactivate: transitions Suspended → Approved
+  - Updated Overview tab to show actual membership tier instead of placeholder
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Membership tab implementation)
+- **Learnings for future iterations:**
+  - Use `->headerActions()` on Section to add workflow action buttons
+  - Workflow actions should be conditional based on current state using separate if blocks (not visible callback)
+  - Decision notes should be required for negative actions (Reject, Suspend) using `->required()` in form
+  - Visual timeline can be built using HTML with Tailwind classes in a TextEntry with `->html()`
+  - Tab badge can show the current membership status for quick visibility
+  - Match expressions must be exhaustive for all enum cases - add Rejected/Suspended to catch-all arms when they won't actually be reached
+  - Section does not have a `badge()` method in Filament Infolists - use string concatenation in section title instead
+  - For repeatable entries from relationships, the collection is already available through the relationship
+---
