@@ -7,11 +7,14 @@ use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\SourcingModel;
 use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages;
 use App\Models\Procurement\ProcurementIntent;
+use App\Services\Procurement\ProcurementIntentService;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 class ProcurementIntentResource extends Resource
 {
@@ -187,7 +190,75 @@ class ProcurementIntentResource extends Resource
                 Tables\Actions\ViewAction::make(),
             ])
             ->bulkActions([
-                // Bulk approve action will be implemented in US-017
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('approve')
+                        ->label('Approve Selected')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Approve Procurement Intents')
+                        ->modalDescription(function (Collection $records): string {
+                            $draftCount = 0;
+                            foreach ($records as $record) {
+                                /** @var ProcurementIntent $record */
+                                if ($record->status === ProcurementIntentStatus::Draft) {
+                                    $draftCount++;
+                                }
+                            }
+
+                            return sprintf(
+                                'Are you sure you want to approve %d procurement intent(s)? Only draft intents will be approved.',
+                                $draftCount
+                            );
+                        })
+                        ->modalSubmitActionLabel('Approve Selected')
+                        ->action(function (Collection $records): void {
+                            $service = app(ProcurementIntentService::class);
+                            $approved = 0;
+                            $skipped = 0;
+                            $errors = [];
+
+                            foreach ($records as $record) {
+                                /** @var ProcurementIntent $record */
+                                if ($record->status !== ProcurementIntentStatus::Draft) {
+                                    $skipped++;
+
+                                    continue;
+                                }
+
+                                try {
+                                    $service->approve($record);
+                                    $approved++;
+                                } catch (\InvalidArgumentException $e) {
+                                    $errors[] = "Intent {$record->id}: {$e->getMessage()}";
+                                }
+                            }
+
+                            if ($approved > 0) {
+                                Notification::make()
+                                    ->title("{$approved} intent(s) approved successfully")
+                                    ->success()
+                                    ->send();
+                            }
+
+                            if ($skipped > 0) {
+                                Notification::make()
+                                    ->title("{$skipped} intent(s) skipped")
+                                    ->body('Only draft intents can be approved.')
+                                    ->warning()
+                                    ->send();
+                            }
+
+                            if (count($errors) > 0) {
+                                Notification::make()
+                                    ->title('Some approvals failed')
+                                    ->body(implode("\n", $errors))
+                                    ->danger()
+                                    ->send();
+                            }
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                ]),
             ])
             ->defaultSort('updated_at', 'desc')
             ->modifyQueryUsing(fn (Builder $query) => $query
