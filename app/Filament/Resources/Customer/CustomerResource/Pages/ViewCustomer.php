@@ -9,15 +9,19 @@ use App\Enums\Customer\AddressType;
 use App\Enums\Customer\ChannelScope;
 use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\CustomerType;
+use App\Enums\Customer\MembershipStatus;
+use App\Enums\Customer\MembershipTier;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Account;
 use App\Models\Customer\Address;
 use App\Models\Customer\Customer;
+use App\Models\Customer\Membership;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
@@ -178,11 +182,10 @@ class ViewCustomer extends ViewRecord
                                     ->icon('heroicon-o-ticket'),
                                 TextEntry::make('membership_tier')
                                     ->label('Membership Tier')
-                                    ->getStateUsing(fn (): string => 'Not Set')
+                                    ->getStateUsing(fn (Customer $customer): string => $customer->getMembershipTier()?->label() ?? 'Not Set')
                                     ->badge()
-                                    ->color('gray')
-                                    ->icon('heroicon-o-star')
-                                    ->helperText('Coming in US-011'),
+                                    ->color(fn (Customer $customer): string => $customer->getMembershipTier()?->color() ?? 'gray')
+                                    ->icon(fn (Customer $customer): string => $customer->getMembershipTier()?->icon() ?? 'heroicon-o-star'),
                                 TextEntry::make('active_blocks')
                                     ->label('Active Blocks')
                                     ->getStateUsing(fn (): string => 'None')
@@ -274,59 +277,481 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 2: Membership - Tier, lifecycle, decision history (placeholder).
+     * Tab 2: Membership - Tier, lifecycle, decision history with workflow actions.
      */
     protected function getMembershipTab(): Tab
     {
+        /** @var Customer $record */
+        $record = $this->record;
+        $membership = $record->membership;
+        $membershipsCount = $record->memberships()->count();
+
         return Tab::make('Membership')
             ->icon('heroicon-o-star')
+            ->badge($membership !== null ? $membership->status->label() : null)
+            ->badgeColor($membership !== null ? $membership->status->color() : 'gray')
             ->schema([
-                Section::make('Membership Status')
-                    ->description('Current membership tier and status')
+                Section::make('Current Membership')
+                    ->description('Current membership tier, status, and effective dates')
+                    ->headerActions($this->getMembershipActions())
                     ->schema([
-                        Grid::make(3)
+                        Grid::make(4)
                             ->schema([
-                                TextEntry::make('membership_tier_placeholder')
+                                TextEntry::make('membership.tier')
                                     ->label('Tier')
-                                    ->getStateUsing(fn (): string => 'Not Set')
                                     ->badge()
-                                    ->color('gray')
-                                    ->icon('heroicon-o-star'),
-                                TextEntry::make('membership_status_placeholder')
+                                    ->formatStateUsing(fn (?MembershipTier $state): string => $state?->label() ?? 'Not Set')
+                                    ->color(fn (?MembershipTier $state): string => $state?->color() ?? 'gray')
+                                    ->icon(fn (?MembershipTier $state): ?string => $state?->icon())
+                                    ->helperText(fn (?MembershipTier $state): ?string => $state?->description()),
+                                TextEntry::make('membership.status')
                                     ->label('Status')
-                                    ->getStateUsing(fn (): string => 'Not Applied')
                                     ->badge()
-                                    ->color('gray')
-                                    ->icon('heroicon-o-clock'),
-                                TextEntry::make('membership_effective_placeholder')
+                                    ->formatStateUsing(fn (?MembershipStatus $state): string => $state?->label() ?? 'No Membership')
+                                    ->color(fn (?MembershipStatus $state): string => $state?->color() ?? 'gray')
+                                    ->icon(fn (?MembershipStatus $state): ?string => $state?->icon()),
+                                TextEntry::make('membership.effective_from')
                                     ->label('Effective From')
-                                    ->getStateUsing(fn (): string => '—')
-                                    ->placeholder('Not applicable'),
+                                    ->dateTime()
+                                    ->placeholder('Not set'),
+                                TextEntry::make('membership.effective_to')
+                                    ->label('Effective Until')
+                                    ->dateTime()
+                                    ->placeholder('No expiry'),
                             ]),
+                        Grid::make(1)
+                            ->schema([
+                                TextEntry::make('membership.decision_notes')
+                                    ->label('Latest Decision Notes')
+                                    ->placeholder('No decision notes')
+                                    ->columnSpanFull(),
+                            ])
+                            ->visible(fn (): bool => $membership !== null && $membership->decision_notes !== null),
                     ]),
                 Section::make('Membership Lifecycle')
-                    ->description('Timeline of membership decisions and transitions')
-                    ->collapsed()
+                    ->description('Visual timeline of membership status transitions')
                     ->collapsible()
                     ->schema([
-                        TextEntry::make('membership_lifecycle_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'Membership lifecycle tracking will be implemented in US-011 through US-014.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                        $this->getMembershipLifecycleTimeline(),
                     ]),
-                Section::make('Decision History')
-                    ->description('Record of membership applications and decisions')
-                    ->collapsed()
+                Section::make('Decision History'.($membershipsCount > 1 ? " ({$membershipsCount})" : ''))
+                    ->description('Complete record of all membership decisions and status changes')
                     ->collapsible()
+                    ->collapsed($membershipsCount <= 1)
                     ->schema([
-                        TextEntry::make('membership_decisions_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No membership decisions recorded. Decision history will be implemented in US-013.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
+                        $this->getMembershipDecisionHistory(),
                     ]),
             ]);
+    }
+
+    /**
+     * Get the membership workflow actions based on current state.
+     *
+     * @return array<\Filament\Infolists\Components\Actions\Action>
+     */
+    protected function getMembershipActions(): array
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+        $membership = $record->membership;
+
+        $actions = [];
+
+        // Apply for Membership - only if no membership exists or previous was rejected
+        if ($membership === null || $membership->status === MembershipStatus::Rejected) {
+            $actions[] = \Filament\Infolists\Components\Actions\Action::make('apply_membership')
+                ->label('Apply for Membership')
+                ->icon('heroicon-o-paper-airplane')
+                ->color('primary')
+                ->form([
+                    Select::make('tier')
+                        ->label('Membership Tier')
+                        ->options(collect(MembershipTier::cases())
+                            ->mapWithKeys(fn (MembershipTier $tier): array => [
+                                $tier->value => $tier->label().' - '.$tier->description(),
+                            ])
+                            ->toArray())
+                        ->required()
+                        ->native(false)
+                        ->helperText('Select the tier to apply for'),
+                ])
+                ->modalHeading('Apply for Membership')
+                ->modalDescription('Start a membership application for this customer. The application will be created in "Applied" status.')
+                ->modalSubmitActionLabel('Submit Application')
+                ->action(function (array $data) use ($record): void {
+                    $record->memberships()->create([
+                        'tier' => $data['tier'],
+                        'status' => MembershipStatus::Applied,
+                    ]);
+
+                    Notification::make()
+                        ->title('Membership application submitted')
+                        ->body('The membership application has been created successfully.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['membership', 'memberships']);
+                });
+        }
+
+        // Submit for Review - only if status is Applied
+        if ($membership !== null && $membership->status === MembershipStatus::Applied) {
+            $actions[] = \Filament\Infolists\Components\Actions\Action::make('submit_review')
+                ->label('Submit for Review')
+                ->icon('heroicon-o-clipboard-document-check')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalHeading('Submit for Review')
+                ->modalDescription('Submit this membership application for review. A manager will need to approve or reject it.')
+                ->modalSubmitActionLabel('Submit for Review')
+                ->action(function () use ($membership): void {
+                    $membership->update([
+                        'status' => MembershipStatus::UnderReview,
+                    ]);
+
+                    Notification::make()
+                        ->title('Submitted for review')
+                        ->body('The membership application has been submitted for review.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['membership', 'memberships']);
+                });
+        }
+
+        // Approve - only if status is UnderReview (requires Manager role - to be enforced in US-014)
+        if ($membership !== null && $membership->status === MembershipStatus::UnderReview) {
+            $actions[] = \Filament\Infolists\Components\Actions\Action::make('approve_membership')
+                ->label('Approve')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->form([
+                    Textarea::make('decision_notes')
+                        ->label('Decision Notes (Optional)')
+                        ->placeholder('Add any notes about this approval...')
+                        ->rows(3),
+                ])
+                ->modalHeading('Approve Membership')
+                ->modalDescription('Approve this membership application. The effective date will be set to now.')
+                ->modalSubmitActionLabel('Approve Membership')
+                ->action(function (array $data) use ($membership): void {
+                    $membership->update([
+                        'status' => MembershipStatus::Approved,
+                        'effective_from' => now(),
+                        'decision_notes' => $data['decision_notes'] ?? null,
+                    ]);
+
+                    Notification::make()
+                        ->title('Membership approved')
+                        ->body('The membership has been approved and is now active.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['membership', 'memberships']);
+                });
+        }
+
+        // Reject - only if status is UnderReview (requires Manager role - to be enforced in US-014)
+        if ($membership !== null && $membership->status === MembershipStatus::UnderReview) {
+            $actions[] = \Filament\Infolists\Components\Actions\Action::make('reject_membership')
+                ->label('Reject')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->form([
+                    Textarea::make('decision_notes')
+                        ->label('Rejection Reason')
+                        ->placeholder('Explain why this membership application is being rejected...')
+                        ->required()
+                        ->rows(3)
+                        ->helperText('Required: Please provide a clear reason for rejection.'),
+                ])
+                ->modalHeading('Reject Membership')
+                ->modalDescription('Reject this membership application. A reason must be provided.')
+                ->modalSubmitActionLabel('Reject Membership')
+                ->action(function (array $data) use ($membership): void {
+                    $membership->update([
+                        'status' => MembershipStatus::Rejected,
+                        'decision_notes' => $data['decision_notes'],
+                    ]);
+
+                    Notification::make()
+                        ->title('Membership rejected')
+                        ->body('The membership application has been rejected.')
+                        ->warning()
+                        ->send();
+
+                    $this->refreshFormData(['membership', 'memberships']);
+                });
+        }
+
+        // Suspend - only if status is Approved
+        if ($membership !== null && $membership->status === MembershipStatus::Approved) {
+            $actions[] = \Filament\Infolists\Components\Actions\Action::make('suspend_membership')
+                ->label('Suspend')
+                ->icon('heroicon-o-pause-circle')
+                ->color('danger')
+                ->form([
+                    Textarea::make('decision_notes')
+                        ->label('Suspension Reason')
+                        ->placeholder('Explain why this membership is being suspended...')
+                        ->required()
+                        ->rows(3)
+                        ->helperText('Required: Please provide a clear reason for suspension.'),
+                ])
+                ->modalHeading('Suspend Membership')
+                ->modalDescription('Suspend this active membership. The customer will lose access to membership benefits. A reason must be provided.')
+                ->modalSubmitActionLabel('Suspend Membership')
+                ->action(function (array $data) use ($membership): void {
+                    $membership->update([
+                        'status' => MembershipStatus::Suspended,
+                        'decision_notes' => $data['decision_notes'],
+                    ]);
+
+                    Notification::make()
+                        ->title('Membership suspended')
+                        ->body('The membership has been suspended.')
+                        ->warning()
+                        ->send();
+
+                    $this->refreshFormData(['membership', 'memberships']);
+                });
+        }
+
+        // Reactivate - only if status is Suspended
+        if ($membership !== null && $membership->status === MembershipStatus::Suspended) {
+            $actions[] = \Filament\Infolists\Components\Actions\Action::make('reactivate_membership')
+                ->label('Reactivate')
+                ->icon('heroicon-o-play-circle')
+                ->color('success')
+                ->form([
+                    Textarea::make('decision_notes')
+                        ->label('Reactivation Notes (Optional)')
+                        ->placeholder('Add any notes about this reactivation...')
+                        ->rows(3),
+                ])
+                ->modalHeading('Reactivate Membership')
+                ->modalDescription('Reactivate this suspended membership. The customer will regain access to membership benefits.')
+                ->modalSubmitActionLabel('Reactivate Membership')
+                ->action(function (array $data) use ($membership): void {
+                    $membership->update([
+                        'status' => MembershipStatus::Approved,
+                        'decision_notes' => $data['decision_notes'] ?? null,
+                    ]);
+
+                    Notification::make()
+                        ->title('Membership reactivated')
+                        ->body('The membership has been reactivated and is now active.')
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['membership', 'memberships']);
+                });
+        }
+
+        return $actions;
+    }
+
+    /**
+     * Get the membership lifecycle timeline visualization.
+     */
+    protected function getMembershipLifecycleTimeline(): TextEntry
+    {
+        return TextEntry::make('membership_lifecycle')
+            ->label('')
+            ->getStateUsing(function (Customer $record): string {
+                $membership = $record->membership;
+
+                if ($membership === null) {
+                    return '<div class="text-gray-500 text-sm py-4">No membership exists. Use "Apply for Membership" to start the process.</div>';
+                }
+
+                // Define the workflow stages
+                $stages = [
+                    ['status' => MembershipStatus::Applied, 'label' => 'Applied'],
+                    ['status' => MembershipStatus::UnderReview, 'label' => 'Under Review'],
+                    ['status' => MembershipStatus::Approved, 'label' => 'Approved'],
+                ];
+
+                $currentStatus = $membership->status;
+                $html = '<div class="flex items-center justify-between py-4">';
+
+                foreach ($stages as $index => $stage) {
+                    $isCompleted = $this->isStageCompleted($currentStatus, $stage['status']);
+                    $isCurrent = $currentStatus === $stage['status'];
+                    $isRejected = $currentStatus === MembershipStatus::Rejected && $stage['status'] === MembershipStatus::UnderReview;
+                    $isSuspended = $currentStatus === MembershipStatus::Suspended && $stage['status'] === MembershipStatus::Approved;
+
+                    // Determine colors
+                    if ($isCurrent && $currentStatus === MembershipStatus::Rejected) {
+                        $bgColor = 'bg-red-500';
+                        $textColor = 'text-white';
+                        $label = 'Rejected';
+                    } elseif ($isCurrent && $currentStatus === MembershipStatus::Suspended) {
+                        $bgColor = 'bg-gray-500';
+                        $textColor = 'text-white';
+                        $label = 'Suspended';
+                    } elseif ($isCompleted || $isCurrent) {
+                        $bgColor = match ($stage['status']) {
+                            MembershipStatus::Applied => 'bg-blue-500',
+                            MembershipStatus::UnderReview => 'bg-yellow-500',
+                            MembershipStatus::Approved => 'bg-green-500',
+                        };
+                        $textColor = 'text-white';
+                        $label = $stage['label'];
+                    } else {
+                        $bgColor = 'bg-gray-200 dark:bg-gray-700';
+                        $textColor = 'text-gray-500 dark:text-gray-400';
+                        $label = $stage['label'];
+                    }
+
+                    $html .= '<div class="flex flex-col items-center">';
+                    $html .= "<div class=\"w-10 h-10 rounded-full {$bgColor} {$textColor} flex items-center justify-center font-semibold text-sm\">";
+                    $html .= ($index + 1);
+                    $html .= '</div>';
+                    $html .= "<span class=\"text-xs mt-1 {$textColor} font-medium\">{$label}</span>";
+                    $html .= '</div>';
+
+                    // Add connector line between stages
+                    if ($index < count($stages) - 1) {
+                        $lineColor = $isCompleted ? 'bg-green-500' : 'bg-gray-200 dark:bg-gray-700';
+                        $html .= "<div class=\"flex-1 h-1 mx-2 {$lineColor} rounded\"></div>";
+                    }
+                }
+
+                $html .= '</div>';
+
+                // Add current status description
+                $statusDescription = match ($currentStatus) {
+                    MembershipStatus::Applied => 'Membership application has been submitted. Waiting to be submitted for review.',
+                    MembershipStatus::UnderReview => 'Membership application is under review. A manager will approve or reject it.',
+                    MembershipStatus::Approved => 'Membership is active. The customer has full membership benefits.',
+                    MembershipStatus::Rejected => 'Membership application was rejected. A new application can be submitted.',
+                    MembershipStatus::Suspended => 'Membership is suspended. It can be reactivated by a manager.',
+                };
+
+                $html .= "<div class=\"text-sm text-gray-600 dark:text-gray-400 mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded\">{$statusDescription}</div>";
+
+                return $html;
+            })
+            ->html()
+            ->columnSpanFull();
+    }
+
+    /**
+     * Check if a stage is completed based on current status.
+     */
+    protected function isStageCompleted(MembershipStatus $current, MembershipStatus $stage): bool
+    {
+        // Special cases
+        if ($current === MembershipStatus::Rejected) {
+            return $stage === MembershipStatus::Applied;
+        }
+
+        if ($current === MembershipStatus::Suspended) {
+            // Suspended means it was approved before, so all stages are complete
+            return true;
+        }
+
+        // At this point, $current is one of: Applied, UnderReview, Approved
+        $currentOrder = match ($current) {
+            MembershipStatus::Applied => 1,
+            MembershipStatus::UnderReview => 2,
+            MembershipStatus::Approved => 3,
+        };
+
+        // $stage is only passed from the timeline: Applied, UnderReview, Approved
+        $stageOrder = match ($stage) {
+            MembershipStatus::Applied => 1,
+            MembershipStatus::UnderReview => 2,
+            MembershipStatus::Approved => 3,
+            // These are never passed to this method, but must be handled for exhaustiveness
+            MembershipStatus::Rejected, MembershipStatus::Suspended => 0,
+        };
+
+        return $stageOrder < $currentOrder;
+    }
+
+    /**
+     * Get the membership decision history.
+     */
+    protected function getMembershipDecisionHistory(): TextEntry
+    {
+        return TextEntry::make('membership_history')
+            ->label('')
+            ->getStateUsing(function (Customer $record): string {
+                $memberships = $record->memberships()->orderBy('created_at', 'desc')->get();
+
+                if ($memberships->isEmpty()) {
+                    return '<div class="text-gray-500 text-sm py-4">No membership history found.</div>';
+                }
+
+                $html = '<div class="space-y-3">';
+
+                foreach ($memberships as $membership) {
+                    /** @var Membership $membership */
+                    $tierColor = $membership->tier->color();
+                    $tierLabel = $membership->tier->label();
+                    $statusColor = $membership->status->color();
+                    $statusLabel = $membership->status->label();
+                    $createdAt = $membership->created_at->format('M d, Y H:i');
+                    $effectiveFrom = $membership->effective_from !== null ? $membership->effective_from->format('M d, Y H:i') : 'Not set';
+                    $effectiveTo = $membership->effective_to !== null ? $membership->effective_to->format('M d, Y H:i') : 'No expiry';
+                    $notes = $membership->decision_notes ?? 'No notes';
+
+                    $tierBadgeClass = match ($tierColor) {
+                        'success' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                        'warning' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                        'primary' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+                        default => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+                    };
+
+                    $statusBadgeClass = match ($statusColor) {
+                        'success' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+                        'danger' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+                        'warning' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+                        'info' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+                        default => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+                    };
+
+                    $notesHtml = htmlspecialchars($notes);
+
+                    $html .= <<<HTML
+                    <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {$tierBadgeClass}">
+                                    {$tierLabel}
+                                </span>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {$statusBadgeClass}">
+                                    {$statusLabel}
+                                </span>
+                            </div>
+                            <span class="text-xs text-gray-500 dark:text-gray-400">Created: {$createdAt}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 text-sm mb-2">
+                            <div>
+                                <span class="text-gray-500 dark:text-gray-400">Effective From:</span>
+                                <span class="ml-1 font-medium">{$effectiveFrom}</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 dark:text-gray-400">Effective Until:</span>
+                                <span class="ml-1 font-medium">{$effectiveTo}</span>
+                            </div>
+                        </div>
+                        <div class="text-sm">
+                            <span class="text-gray-500 dark:text-gray-400">Notes:</span>
+                            <p class="mt-1 text-gray-700 dark:text-gray-300">{$notesHtml}</p>
+                        </div>
+                    </div>
+                    HTML;
+                }
+
+                $html .= '</div>';
+
+                return $html;
+            })
+            ->html()
+            ->columnSpanFull();
     }
 
     /**
