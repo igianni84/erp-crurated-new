@@ -402,3 +402,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Log channel 'finance' should be used for financial logging (ensure config/logging.php defines it)
   - Use getIsOverdueAttribute() to create computed properties accessible as $model->is_overdue
 ---
+
+## 2026-02-04 - US-E022
+- What was implemented: Invoice currency handling with FX rate snapshot at issuance
+- Files changed:
+  - database/migrations/2026_02_04_300010_add_fx_rate_to_invoices_table.php (new migration for fx_rate_at_issuance field)
+  - app/Models/Finance/Invoice.php (added fx_rate_at_issuance field, currency helper methods, immutability enforcement)
+  - app/Services/Finance/InvoiceService.php (added FX rate capture at issuance, currency validation)
+  - app/Filament/Resources/Finance/InvoiceResource.php (updated currency filter to use model's getSupportedCurrencies())
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (updated currency display with symbol, FX rate section)
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/CreateInvoice.php (updated currency select to use model's supported currencies)
+- **Acceptance criteria verification:**
+  - ✅ Currency field required (default EUR): Already enforced in model defaults
+  - ✅ Currency not modifiable after issuance: Enforced in Invoice boot() updating hook
+  - ✅ All amounts in same currency: Enforced by single currency per invoice, no multi-currency line items
+  - ✅ Exchange rate snapshot at issuance: fx_rate_at_issuance captured in InvoiceService::issue()
+  - ✅ UI shows currency symbol/code: Added getCurrencySymbol(), formatAmount() methods and updated UI
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Use getSupportedCurrencies() static method on models to centralize currency list
+  - FX rate is stub implementation - production should integrate with external FX rate provider
+  - Use decimal(10,6) precision for FX rates to handle currencies like JPY
+  - Currency immutability is enforced alongside amounts after issuance in boot() hook
+  - isBaseCurrency() helper checks if invoice is in EUR (base currency)
+  - hasFxRate() and getFxRateDescription() helpers for UI display logic
+---
