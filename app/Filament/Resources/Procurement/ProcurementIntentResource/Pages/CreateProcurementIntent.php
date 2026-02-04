@@ -171,16 +171,23 @@ class CreateProcurementIntent extends CreateRecord
                                     return [];
                                 }
 
-                                return WineVariant::query()
+                                /** @var array<int|string, string> $options */
+                                $options = WineVariant::query()
                                     ->where('wine_master_id', $wineMasterId)
                                     ->orderByDesc('vintage_year')
                                     ->get()
-                                    ->mapWithKeys(fn (WineVariant $variant): array => [
-                                        $variant->id => $variant->getAttribute('vintage_year') !== null
-                                            ? (string) $variant->getAttribute('vintage_year')
-                                            : 'NV (Non-Vintage)',
-                                    ])
+                                    ->mapWithKeys(function (WineVariant $variant): array {
+                                        $vintageYear = $variant->getAttribute('vintage_year');
+
+                                        return [
+                                            $variant->id => is_scalar($vintageYear)
+                                                ? (string) $vintageYear
+                                                : 'NV (Non-Vintage)',
+                                        ];
+                                    })
                                     ->toArray();
+
+                                return $options;
                             })
                             ->required()
                             ->hidden(fn (Get $get): bool => $get('wine_master_id') === null)
@@ -272,16 +279,23 @@ class CreateProcurementIntent extends CreateRecord
                                     return [];
                                 }
 
-                                return WineVariant::query()
+                                /** @var array<int|string, string> $options */
+                                $options = WineVariant::query()
                                     ->where('wine_master_id', $wineMasterId)
                                     ->orderByDesc('vintage_year')
                                     ->get()
-                                    ->mapWithKeys(fn (WineVariant $variant): array => [
-                                        $variant->id => $variant->getAttribute('vintage_year') !== null
-                                            ? (string) $variant->getAttribute('vintage_year')
-                                            : 'NV (Non-Vintage)',
-                                    ])
+                                    ->mapWithKeys(function (WineVariant $variant): array {
+                                        $vintageYear = $variant->getAttribute('vintage_year');
+
+                                        return [
+                                            $variant->id => is_scalar($vintageYear)
+                                                ? (string) $vintageYear
+                                                : 'NV (Non-Vintage)',
+                                        ];
+                                    })
                                     ->toArray();
+
+                                return $options;
                             })
                             ->required()
                             ->hidden(fn (Get $get): bool => $get('liquid_wine_master_id') === null)
@@ -323,7 +337,9 @@ class CreateProcurementIntent extends CreateRecord
                                         return 'Complete the selections above to see the product preview';
                                     }
 
+                                    /** @var WineVariant|null $wineVariant */
                                     $wineVariant = WineVariant::with('wineMaster')->find($wineVariantId);
+                                    /** @var Format|null $format */
                                     $format = Format::find($formatId);
 
                                     if ($wineVariant === null || $format === null) {
@@ -332,11 +348,13 @@ class CreateProcurementIntent extends CreateRecord
 
                                     $wineMaster = $wineVariant->wineMaster;
                                     $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
-                                    $producer = $wineMaster !== null ? ($wineMaster->producer ?? '') : '';
-                                    $vintage = $wineVariant->getAttribute('vintage_year') ?? 'NV';
+                                    $producerValue = $wineMaster !== null ? $wineMaster->getAttribute('producer') : null;
+                                    $producer = is_string($producerValue) ? $producerValue : '';
+                                    $vintageValue = $wineVariant->getAttribute('vintage_year');
+                                    $vintage = is_scalar($vintageValue) ? (string) $vintageValue : 'NV';
                                     $formatLabel = self::formatFormatOption($format);
 
-                                    $label = "{$wineName}";
+                                    $label = $wineName;
                                     if ($producer !== '') {
                                         $label .= " ({$producer})";
                                     }
@@ -352,6 +370,7 @@ class CreateProcurementIntent extends CreateRecord
                                         return 'Complete the selections above to see the product preview';
                                     }
 
+                                    /** @var WineVariant|null $wineVariant */
                                     $wineVariant = WineVariant::with('wineMaster')->find($wineVariantId);
 
                                     if ($wineVariant === null) {
@@ -360,10 +379,12 @@ class CreateProcurementIntent extends CreateRecord
 
                                     $wineMaster = $wineVariant->wineMaster;
                                     $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
-                                    $producer = $wineMaster !== null ? ($wineMaster->producer ?? '') : '';
-                                    $vintage = $wineVariant->getAttribute('vintage_year') ?? 'NV';
+                                    $producerValue = $wineMaster !== null ? $wineMaster->getAttribute('producer') : null;
+                                    $producer = is_string($producerValue) ? $producerValue : '';
+                                    $vintageValue = $wineVariant->getAttribute('vintage_year');
+                                    $vintage = is_scalar($vintageValue) ? (string) $vintageValue : 'NV';
 
-                                    $label = "{$wineName}";
+                                    $label = $wineName;
                                     if ($producer !== '') {
                                         $label .= " ({$producer})";
                                     }
@@ -462,13 +483,16 @@ class CreateProcurementIntent extends CreateRecord
                     ->schema([
                         Forms\Components\Select::make('trigger_type')
                             ->label('Trigger Type')
-                            ->options(
-                                collect(ProcurementTriggerType::cases())
+                            ->options(function (): array {
+                                /** @var array<string, string> $options */
+                                $options = collect(ProcurementTriggerType::cases())
                                     ->mapWithKeys(fn (ProcurementTriggerType $type): array => [
                                         $type->value => $type->label(),
                                     ])
-                                    ->toArray()
-                            )
+                                    ->toArray();
+
+                                return $options;
+                            })
                             ->required()
                             ->native(false)
                             ->live()
@@ -505,13 +529,16 @@ class CreateProcurementIntent extends CreateRecord
                     ->schema([
                         Forms\Components\Select::make('sourcing_model')
                             ->label('Sourcing Model')
-                            ->options(
-                                collect(SourcingModel::cases())
+                            ->options(function (): array {
+                                /** @var array<string, string> $options */
+                                $options = collect(SourcingModel::cases())
                                     ->mapWithKeys(fn (SourcingModel $model): array => [
                                         $model->value => $model->label(),
                                     ])
-                                    ->toArray()
-                            )
+                                    ->toArray();
+
+                                return $options;
+                            })
                             ->required()
                             ->native(false)
                             ->live()
@@ -677,7 +704,9 @@ class CreateProcurementIntent extends CreateRecord
                                         return 'Not selected';
                                     }
 
+                                    /** @var WineVariant|null $wineVariant */
                                     $wineVariant = WineVariant::with('wineMaster')->find($wineVariantId);
+                                    /** @var Format|null $format */
                                     $format = Format::find($formatId);
 
                                     if ($wineVariant === null || $format === null) {
@@ -686,7 +715,8 @@ class CreateProcurementIntent extends CreateRecord
 
                                     $wineMaster = $wineVariant->wineMaster;
                                     $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
-                                    $vintage = $wineVariant->getAttribute('vintage_year') ?? 'NV';
+                                    $vintageValue = $wineVariant->getAttribute('vintage_year');
+                                    $vintage = is_scalar($vintageValue) ? (string) $vintageValue : 'NV';
                                     $formatLabel = self::formatFormatOption($format);
 
                                     return "{$wineName} {$vintage} - {$formatLabel}";
@@ -699,6 +729,7 @@ class CreateProcurementIntent extends CreateRecord
                                         return 'Not selected';
                                     }
 
+                                    /** @var WineVariant|null $wineVariant */
                                     $wineVariant = WineVariant::with('wineMaster')->find($wineVariantId);
 
                                     if ($wineVariant === null) {
@@ -707,7 +738,8 @@ class CreateProcurementIntent extends CreateRecord
 
                                     $wineMaster = $wineVariant->wineMaster;
                                     $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
-                                    $vintage = $wineVariant->getAttribute('vintage_year') ?? 'NV';
+                                    $vintageValue = $wineVariant->getAttribute('vintage_year');
+                                    $vintage = is_scalar($vintageValue) ? (string) $vintageValue : 'NV';
 
                                     return "{$wineName} {$vintage} (Liquid)";
                                 }
@@ -725,7 +757,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->label('Trigger Type')
                             ->content(function (Get $get): string {
                                 $triggerType = $get('trigger_type');
-                                if ($triggerType === null) {
+                                if (! is_string($triggerType)) {
                                     return 'Not selected';
                                 }
                                 $enum = ProcurementTriggerType::tryFrom($triggerType);
@@ -737,7 +769,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->label('Sourcing Model')
                             ->content(function (Get $get): string {
                                 $sourcingModel = $get('sourcing_model');
-                                if ($sourcingModel === null) {
+                                if (! is_string($sourcingModel)) {
                                     return 'Not selected';
                                 }
                                 $enum = SourcingModel::tryFrom($sourcingModel);
@@ -748,7 +780,8 @@ class CreateProcurementIntent extends CreateRecord
                         Forms\Components\Placeholder::make('review_quantity')
                             ->label('Quantity')
                             ->content(function (Get $get): string {
-                                $quantity = $get('quantity') ?? 0;
+                                $quantityValue = $get('quantity');
+                                $quantity = is_numeric($quantityValue) ? (int) $quantityValue : 0;
                                 $unit = $get('product_type') === 'liquid_product' ? 'bottle-equivalents' : 'bottles';
 
                                 return "{$quantity} {$unit}";
@@ -776,7 +809,11 @@ class CreateProcurementIntent extends CreateRecord
 
                         Forms\Components\Placeholder::make('review_rationale')
                             ->label('Rationale')
-                            ->content(fn (Get $get): string => $get('rationale') ?? 'Not specified'),
+                            ->content(function (Get $get): string {
+                                $rationale = $get('rationale');
+
+                                return is_string($rationale) && $rationale !== '' ? $rationale : 'Not specified';
+                            }),
                     ])
                     ->columns(2),
 
@@ -830,12 +867,12 @@ class CreateProcurementIntent extends CreateRecord
         $label = $wineMaster->name;
 
         $producer = $wineMaster->getAttribute('producer');
-        if ($producer !== null && $producer !== '') {
+        if (is_string($producer) && $producer !== '') {
             $label .= " ({$producer})";
         }
 
         $appellation = $wineMaster->getAttribute('appellation');
-        if ($appellation !== null && $appellation !== '') {
+        if (is_string($appellation) && $appellation !== '') {
             $label .= " - {$appellation}";
         }
 
@@ -851,7 +888,7 @@ class CreateProcurementIntent extends CreateRecord
         $label = "{$volumeMl}ml";
 
         $name = $format->getAttribute('name');
-        if ($name !== null && $name !== '' && $name !== "{$volumeMl}ml") {
+        if (is_string($name) && $name !== '' && $name !== "{$volumeMl}ml") {
             $label .= " ({$name})";
         }
 
