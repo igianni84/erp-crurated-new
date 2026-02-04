@@ -502,3 +502,22 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Format payment permission changes using helper method that builds human-readable diff strings
   - Tab badges can use functions to conditionally show alerts (e.g., `fn (): ?string => !$cardAllowed ? '!' : null`)
 ---
+
+## 2026-02-04 - US-021
+- What was implemented:
+  - Created `ClubStatus` enum (active, suspended, ended) with label/color/icon methods
+  - Created `Club` model with HasUuid, Auditable, SoftDeletes traits
+  - Created migration for `clubs` table with uuid primary key, partner_name, status, branding_metadata (JSON), and audit fields
+  - Club is an independent entity (not linked to Customer - affiliation will be in US-022)
+  - Added helper methods: isActive(), isSuspended(), isEnded(), getStatusColor(), getStatusLabel(), getStatusIcon()
+- Files changed:
+  - app/Enums/Customer/ClubStatus.php (new)
+  - app/Models/Customer/Club.php (new)
+  - database/migrations/2026_02_04_390007_create_clubs_table.php (new)
+- **Learnings for future iterations:**
+  - Club uses same pattern as other Module K entities: HasUuid, Auditable, SoftDeletes traits
+  - ClubStatus has 3 states: Active, Suspended, Ended (differs from AccountStatus which has only Active/Suspended)
+  - branding_metadata is stored as JSON for flexibility
+  - Migration sequence continues: 390007 for clubs table
+  - Customer-Club relationship (US-022) will use a pivot table, not direct FK on Club
+---
