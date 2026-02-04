@@ -1270,3 +1270,29 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Keep contextual actions close to the static actions for visual grouping
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-056
+- What was implemented:
+  - Dashboard refresh button with Livewire wire:click for manual refresh
+  - Date range selector (30/60/90 days) affecting all time-based widgets
+  - Auto-refresh with configurable intervals (Off, 1m, 5m, 10m, 15m) using wire:poll
+  - Last updated timestamp showing when dashboard was last refreshed
+  - Dashboard controls bar at top with all controls and description
+  - Updated widget methods to use configurable dateRangeDays property:
+    - getSummaryMetrics() - bottling_deadlines now uses date range
+    - getDemandExecutionMetrics() - inbound_expected_in_range uses date range
+    - getBottlingRiskMetrics() - added deadlines_in_range metric
+    - getInboundStatusMetrics() - expected_in_range uses date range
+  - Blade view updated to show date range context in metric labels (e.g., "Deadlines (30d)")
+  - Loading state on refresh button with spinner animation
+- Files changed:
+  - app/Filament/Pages/ProcurementDashboard.php (modified - added dashboard controls state, methods for refresh/date range/auto-refresh)
+  - resources/views/filament/pages/procurement-dashboard.blade.php (modified - added controls bar with selectors and refresh button)
+- **Learnings for future iterations:**
+  - Filament Pages can have public properties that are Livewire reactive state
+  - Use wire:poll.{interval}="methodName" for auto-refresh functionality
+  - Carbon objects as public properties work well for timestamp tracking
+  - wire:loading.class and wire:loading.attr provide good loading state UX
+  - Date range selector affects multiple widget methods - centralize the property
+  - Browser verification should be done manually as dev-browser skill is not available
+---
