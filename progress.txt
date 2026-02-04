@@ -409,3 +409,23 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Tab badge shows total event count
   - Browser verification pending
 ---
+
+## 2026-02-04 - US-C029
+- **What was implemented:** SO Actions e State Transitions - contextual header actions for all status transitions
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added state transition actions)
+- **Learnings for future iterations:**
+  - Header actions organized by status visibility: Draft (Plan Order, Edit, Cancel), Planned (Send to Picking, Cancel, Put on Hold), Picking (Confirm Shipment, Put on Hold), On Hold (Resume, Cancel)
+  - Shipped/Completed status shows no transition actions (read-only)
+  - Send to Picking action: transitions to Picking status AND sends WMS instructions via WmsIntegrationService.sendPickingInstructions()
+  - Confirm Shipment action: creates shipment via ShipmentService.createFromOrder(), confirms it, transitions SO to Shipped - this is the "point of no return" that triggers voucher redemption
+  - Put on Hold action: stores previous_status on model before transition for later resume functionality
+  - Resume action: transitions from OnHold back to previous_status (Draft, Planned, Picking, or Shipped)
+  - Cancel action: requires reason text, calls ShippingOrderService.cancel() which handles voucher unlocking and binding cleanup
+  - All actions use `->requiresConfirmation()` with detailed `->modalDescription()` explaining consequences
+  - Actions use `->visible()` based on current status to show only valid transitions
+  - Confirm Shipment additionally uses `->disabled()` when not all lines are bound (checks `getBindingCompletion()['all_bound']`)
+  - Manual audit logging for Put on Hold and Resume actions using ShippingOrderAuditLog::create() with event types 'put_on_hold' and 'resumed_from_hold'
+  - Service methods handle most audit logging automatically (ShippingOrderService.transitionTo() logs EVENT_STATUS_CHANGE)
+  - Browser verification pending
+---
