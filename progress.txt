@@ -606,3 +606,23 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Individual bottle failures logged but don't fail entire job (graceful degradation)
   - failed() method logs detailed error for permanent failures
 ---
+
+## 2026-02-04 - US-C043
+- **What was implemented:** Exceptions & Holds List page in Filament
+- **Files changed:**
+  - `app/Filament/Resources/Fulfillment/ShippingOrderExceptionResource.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderExceptionResource/Pages/ListShippingOrderExceptions.php` (new)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderExceptionResource/Pages/ViewShippingOrderException.php` (new)
+- **Learnings for future iterations:**
+  - Navigation group "Fulfillment" with sort order 3 (after ShippingOrders=1, Shipments=2)
+  - Navigation icon: heroicon-o-exclamation-triangle for exceptions
+  - Table columns: exception_id, so_id (link), exception_type (badge), description, status (badge), created_at
+  - Filters: exception_type (multi-select), status (default=active), date_range
+  - Search by exception_id and shipping_order_id
+  - Active exceptions highlighted with `recordClasses()` returning 'bg-danger-50' for isActive()
+  - Navigation badge with active exception count using getNavigationBadge() and getNavigationBadgeColor()
+  - View page shows: status banner, exception details, description, resolution path, resolution details (if resolved), blocking warning (if blocking)
+  - "Mark as Resolved" action updates status, resolved_at, resolved_by
+  - Export CSV bulk action available
+  - Browser verification pending
+---
