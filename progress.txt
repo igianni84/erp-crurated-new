@@ -549,3 +549,28 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - `effectiveClubAffiliations()` filters for: affiliation_status = active AND start_date <= now AND (end_date IS NULL OR end_date >= now)
   - Migration sequence continues: 390008 for customer_clubs table
 ---
+
+## 2026-02-04 - US-023
+- What was implemented:
+  - Created `ClubResource` Filament resource in `App\Filament\Resources\Customer` namespace
+  - List view with columns: partner_name (searchable, sortable, bold), status (badge with color/icon), members_count (computed via getActiveMembersCount()), updated_at
+  - Status filter using ClubStatus enum options
+  - Search on: partner_name
+  - Quick actions: view, edit, suspend (when Active), activate (when Suspended), end (when not Ended)
+  - Bulk actions: suspend, activate, delete, restore
+  - CRUD pages: ListClubs, CreateClub, ViewClub, EditClub
+  - Form includes: partner_name (required), status (select), branding_metadata (KeyValue)
+  - Navigation sort: 3 (after Customers and Parties)
+- Files changed:
+  - app/Filament/Resources/Customer/ClubResource.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/ListClubs.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/CreateClub.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/ViewClub.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/EditClub.php (new)
+- **Learnings for future iterations:**
+  - ClubResource follows same pattern as CustomerResource and PartyResource
+  - For sortable computed columns, use `sortable(query: fn())` to add the count via withCount
+  - Club has 3 status states (Active, Suspended, Ended) vs Account which has only 2
+  - Form KeyValue component works well for JSON metadata fields
+  - Navigation order: Customers (1), Parties (2), Clubs (3) within Customers group
+---
