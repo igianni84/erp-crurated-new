@@ -361,3 +361,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Eager load relationships (customer, invoiceLines) before generating PDF for performance
   - Sanitize invoice numbers for filenames using preg_replace()
 ---
+
+## 2026-02-04 - US-E020
+- What was implemented: Invoice email sending functionality
+- Files changed:
+  - app/Mail/Finance/InvoiceMail.php (new Mailable class with PDF attachment)
+  - app/Services/Finance/InvoiceMailService.php (new service for email sending)
+  - resources/views/emails/finance/invoice.blade.php (new email template)
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added Send to Customer action)
+- **Acceptance criteria verification:**
+  - ✅ Action Send to Customer visible for issued invoices: getSendToCustomerAction() with canSendEmail() check
+  - ✅ Email includes PDF attachment: InvoiceMail::attachments() uses InvoicePdfService
+  - ✅ Configurable email template: supports custom_subject and custom_message via form fields
+  - ✅ Log sending in audit trail: logEmailSent() creates audit log entry
+  - ✅ Typecheck passes: phpstan and pint both pass
+- **Learnings for future iterations:**
+  - Create Mailable classes in app/Mail/{Module}/ directory
+  - InvoiceMail implements ShouldQueue for async email sending
+  - Use Attachment::fromData() for dynamically generated content (PDF)
+  - Email templates go in resources/views/emails/{module}/ directory
+  - Service provides both sendToCustomer() and queueToCustomer() methods for sync/async
+  - canSendEmail() checks: status, invoice_number presence, customer email presence
+  - Audit logging uses 'email_sent' or 'email_queued' events with recipient info
+---
