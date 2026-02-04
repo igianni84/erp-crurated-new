@@ -198,7 +198,118 @@ class ViewCustomer extends ViewRecord
                             ]),
                     ]),
                 $this->getVouchersSummarySection(),
+                $this->getSegmentsSection(),
             ]);
+    }
+
+    /**
+     * Segments section for the Overview tab - displays automatically derived customer segments.
+     * Read-only display of computed segments based on spending, membership, clubs, and purchase frequency.
+     */
+    protected function getSegmentsSection(): Section
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+
+        // Compute segments using SegmentEngine
+        $segmentEngine = new \App\Services\Customer\SegmentEngine;
+        $segments = $segmentEngine->compute($record);
+        $segmentCount = count($segments);
+
+        // Build the badges HTML with tooltips
+        $badgesHtml = '';
+        if ($segmentCount > 0) {
+            $badgeElements = [];
+            foreach ($segments as $segment) {
+                $label = htmlspecialchars($segment['label']);
+                $criteria = htmlspecialchars($segment['criteria']);
+                $priority = $segment['priority'];
+
+                // Determine badge color based on segment type/priority
+                $color = $this->getSegmentBadgeColor($segment['tag'], $priority);
+
+                $badgeElements[] = '<span class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full '.$color.'" title="'.$criteria.'">'.$label.'</span>';
+            }
+            $badgesHtml = '<div class="flex flex-wrap gap-2">'.implode('', $badgeElements).'</div>';
+        } else {
+            $badgesHtml = '<span class="text-gray-500 text-sm">No segments assigned yet. Segments will appear as the customer builds purchase history and membership.</span>';
+        }
+
+        // Build segment definitions for the collapsible help section
+        $definitions = \App\Services\Customer\SegmentEngine::getSegmentDefinitions();
+        $definitionsHtml = '<div class="space-y-2">';
+        foreach ($definitions as $def) {
+            $tag = htmlspecialchars($def['tag']);
+            $defLabel = htmlspecialchars($def['label']);
+            $description = htmlspecialchars($def['description']);
+            $definitionsHtml .= '<div class="flex items-start gap-2"><span class="font-medium text-gray-900 dark:text-gray-100">'.$defLabel.':</span><span class="text-gray-600 dark:text-gray-400">'.$description.'</span></div>';
+        }
+        $definitionsHtml .= '</div>';
+
+        return Section::make('Customer Segments')
+            ->description('Automatically derived segments based on customer behavior and status (read-only)')
+            ->icon('heroicon-o-tag')
+            ->collapsible()
+            ->collapsed($segmentCount === 0)
+            ->headerActions([
+                \Filament\Infolists\Components\Actions\Action::make('refresh_segments')
+                    ->label('Refresh')
+                    ->icon('heroicon-o-arrow-path')
+                    ->action(fn () => $this->refreshFormData([]))
+                    ->size('sm'),
+            ])
+            ->schema([
+                TextEntry::make('computed_segments')
+                    ->label('Active Segments')
+                    ->getStateUsing(fn (): string => $badgesHtml)
+                    ->html()
+                    ->helperText($segmentCount > 0 ? "Showing {$segmentCount} segment(s). Hover over each badge for derivation criteria." : null),
+                Section::make('Segment Definitions')
+                    ->description('Learn what each segment means and how it is derived')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        TextEntry::make('segment_definitions')
+                            ->label('')
+                            ->hiddenLabel()
+                            ->getStateUsing(fn (): string => $definitionsHtml)
+                            ->html(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Get the badge color classes for a segment based on its tag and priority.
+     */
+    protected function getSegmentBadgeColor(string $tag, int $priority): string
+    {
+        // High-value/VIP segments (priority >= 90)
+        if ($priority >= 95) {
+            return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+        }
+
+        // Important segments (priority 80-94)
+        if ($priority >= 80) {
+            return 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200';
+        }
+
+        // Active/positive segments (priority 60-79)
+        if ($priority >= 60) {
+            return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+        }
+
+        // Neutral segments (priority 40-59)
+        if ($priority >= 40) {
+            return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+        }
+
+        // At-risk/negative segments (priority < 40)
+        if (in_array($tag, ['at_risk', 'dormant'], true)) {
+            return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+        }
+
+        // Default
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
 
     /**
