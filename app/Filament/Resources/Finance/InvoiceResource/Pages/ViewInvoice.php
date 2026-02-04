@@ -332,7 +332,153 @@ class ViewInvoice extends ViewRecord
                             ->visible(fn (Invoice $record): bool => $record->source_type === null || $record->source_id === null)
                             ->color('gray'),
                     ]),
+                $this->getSubscriptionDetailsSection(),
             ]);
+    }
+
+    /**
+     * Get subscription details section for INV0 invoices.
+     */
+    protected function getSubscriptionDetailsSection(): Section
+    {
+        return Section::make('Subscription Details')
+            ->description('Membership subscription information for this INV0 invoice')
+            ->visible(fn (Invoice $record): bool => $record->isSubscriptionInvoice())
+            ->schema([
+                Grid::make(3)
+                    ->schema([
+                        TextEntry::make('subscription_plan_name')
+                            ->label('Plan Name')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'plan_name') ?? 'N/A')
+                            ->weight(FontWeight::Bold)
+                            ->icon('heroicon-o-tag'),
+                        TextEntry::make('subscription_plan_type')
+                            ->label('Plan Type')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'plan_type_label') ?? 'N/A')
+                            ->badge()
+                            ->color(fn (Invoice $record): string => $this->getSubscriptionField($record, 'plan_type_color') ?? 'gray'),
+                        TextEntry::make('subscription_status')
+                            ->label('Subscription Status')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'status_label') ?? 'N/A')
+                            ->badge()
+                            ->color(fn (Invoice $record): string => $this->getSubscriptionField($record, 'status_color') ?? 'gray'),
+                    ]),
+                Grid::make(3)
+                    ->schema([
+                        TextEntry::make('subscription_billing_cycle')
+                            ->label('Billing Cycle')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'billing_cycle_label') ?? 'N/A')
+                            ->badge()
+                            ->color(fn (Invoice $record): string => $this->getSubscriptionField($record, 'billing_cycle_color') ?? 'gray')
+                            ->icon('heroicon-o-calendar'),
+                        TextEntry::make('subscription_amount')
+                            ->label('Subscription Amount')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'formatted_amount') ?? 'N/A'),
+                        TextEntry::make('subscription_next_billing')
+                            ->label('Next Billing Date')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'next_billing_date') ?? 'N/A'),
+                    ]),
+                Grid::make(2)
+                    ->schema([
+                        TextEntry::make('subscription_started')
+                            ->label('Started At')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getSubscriptionField($record, 'started_at') ?? 'N/A'),
+                        TextEntry::make('subscription_stripe_id')
+                            ->label('Stripe Subscription ID')
+                            ->getStateUsing(fn (Invoice $record): ?string => $this->getSubscriptionField($record, 'stripe_subscription_id'))
+                            ->placeholder('Not linked to Stripe')
+                            ->copyable()
+                            ->copyMessage('Stripe ID copied')
+                            ->visible(fn (Invoice $record): bool => $this->getSubscriptionField($record, 'stripe_subscription_id') !== null),
+                    ]),
+                Section::make('Membership Tier Details')
+                    ->description('Additional metadata from the subscription')
+                    ->collapsed()
+                    ->schema([
+                        TextEntry::make('subscription_metadata')
+                            ->label('')
+                            ->getStateUsing(fn (Invoice $record): string => $this->formatSubscriptionMetadata($record))
+                            ->html(),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Get a field from the linked subscription.
+     */
+    protected function getSubscriptionField(Invoice $record, string $field): ?string
+    {
+        $subscription = $record->getSourceSubscription();
+
+        if ($subscription === null) {
+            return null;
+        }
+
+        return match ($field) {
+            'plan_name' => $subscription->plan_name,
+            'plan_type_label' => $subscription->getPlanTypeLabel(),
+            'plan_type_color' => $subscription->getPlanTypeColor(),
+            'status_label' => $subscription->getStatusLabel(),
+            'status_color' => $subscription->getStatusColor(),
+            'billing_cycle_label' => $subscription->getBillingCycleLabel(),
+            'billing_cycle_color' => $subscription->getBillingCycleColor(),
+            'formatted_amount' => $subscription->getFormattedAmount(),
+            'next_billing_date' => $subscription->next_billing_date->format('M d, Y'),
+            'started_at' => $subscription->started_at->format('M d, Y'),
+            'stripe_subscription_id' => $subscription->stripe_subscription_id,
+            default => null,
+        };
+    }
+
+    /**
+     * Format subscription metadata for display.
+     */
+    protected function formatSubscriptionMetadata(Invoice $record): string
+    {
+        $subscription = $record->getSourceSubscription();
+
+        if ($subscription === null) {
+            return '<span class="text-gray-500">No subscription data available</span>';
+        }
+
+        $lines = [];
+
+        // Add core subscription info
+        $lines[] = '<div class="grid grid-cols-2 gap-4">';
+        $customerName = $subscription->customer !== null ? $subscription->customer->name : 'N/A';
+        $lines[] = '<div><strong>Customer:</strong> '.e($customerName).'</div>';
+        $lines[] = '<div><strong>Currency:</strong> '.$subscription->currency.'</div>';
+        $lines[] = '<div><strong>Plan Type:</strong> '.$subscription->plan_type->label().'</div>';
+        $lines[] = '<div><strong>Billing Cycle:</strong> '.$subscription->billing_cycle->label().'</div>';
+        $lines[] = '</div>';
+
+        // Add metadata if available
+        if ($subscription->metadata !== null && count($subscription->metadata) > 0) {
+            $lines[] = '<hr class="my-4">';
+            $lines[] = '<strong>Additional Metadata:</strong>';
+            $lines[] = '<div class="mt-2 bg-gray-50 p-3 rounded-lg text-sm font-mono">';
+            foreach ($subscription->metadata as $key => $value) {
+                $displayValue = is_array($value) ? json_encode($value) : (string) $value;
+                $lines[] = '<div><span class="text-gray-600">'.$key.':</span> '.e($displayValue).'</div>';
+            }
+            $lines[] = '</div>';
+        }
+
+        // Also show invoice line metadata (contains membership tier details)
+        $firstLine = $record->invoiceLines()->first();
+        if ($firstLine !== null && is_array($firstLine->metadata) && count($firstLine->metadata) > 0) {
+            $lines[] = '<hr class="my-4">';
+            $lines[] = '<strong>Invoice Line Metadata (Billing Period Details):</strong>';
+            $lines[] = '<div class="mt-2 bg-blue-50 p-3 rounded-lg text-sm font-mono">';
+            foreach ($firstLine->metadata as $key => $value) {
+                $displayValue = is_array($value) ? json_encode($value) : (string) $value;
+                $displayKey = str_replace('_', ' ', ucfirst($key));
+                $lines[] = '<div><span class="text-blue-600">'.$displayKey.':</span> '.e($displayValue).'</div>';
+            }
+            $lines[] = '</div>';
+        }
+
+        return implode("\n", $lines);
     }
 
     /**

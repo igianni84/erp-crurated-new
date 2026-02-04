@@ -116,7 +116,7 @@ class Invoice extends Model
             'issued_at' => 'datetime',
             'due_date' => 'date',
             'xero_synced_at' => 'datetime',
-            'source_id' => 'integer',
+            // Note: source_id is a string to support both int IDs and UUIDs
         ];
     }
 
@@ -209,6 +209,39 @@ class Invoice extends Model
     public function auditLogs(): MorphMany
     {
         return $this->morphMany(AuditLog::class, 'auditable');
+    }
+
+    /**
+     * Get the subscription if this is an INV0 (membership service) invoice.
+     *
+     * @return BelongsTo<Subscription, $this>
+     */
+    public function subscription(): BelongsTo
+    {
+        return $this->belongsTo(Subscription::class, 'source_id');
+    }
+
+    /**
+     * Get the source subscription for INV0 invoices.
+     * Returns null if this is not a subscription-based invoice.
+     */
+    public function getSourceSubscription(): ?Subscription
+    {
+        if ($this->source_type !== 'subscription' || $this->source_id === null) {
+            return null;
+        }
+
+        return Subscription::find($this->source_id);
+    }
+
+    /**
+     * Check if this invoice is linked to a subscription (INV0).
+     */
+    public function isSubscriptionInvoice(): bool
+    {
+        return $this->invoice_type === InvoiceType::MembershipService
+            && $this->source_type === 'subscription'
+            && $this->source_id !== null;
     }
 
     // =========================================================================
