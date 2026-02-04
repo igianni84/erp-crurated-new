@@ -741,3 +741,16 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Header action links to ShippingOrderResource index with customer_id filter
   - Str::limit() used to truncate UUID SO IDs in display
 ---
+
+## 2026-02-04 - US-C058
+- **What was implemented:** Shipment History section in Customer Shipping Orders tab
+- **Files changed:**
+  - `app/Models/Customer/Customer.php` (added shipments() HasManyThrough relationship)
+  - `app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php` (added getShipmentsSection, getShipmentList methods)
+- **Learnings for future iterations:**
+  - HasManyThrough relationship: Customer -> ShippingOrder -> Shipment
+  - Parameters: through model, final model, foreign key on intermediate, foreign key on final, local key on parent, local key on intermediate
+  - Shipment list shows: shipment_id (link), carrier, tracking_number (copyable), shipped_at, status (badge)
+  - Section is collapsible and collapsed by default if no shipments
+  - Link to Shipment detail uses ShipmentResource::getUrl('view', ['record' => $shipment])
+---

@@ -6,6 +6,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -91,6 +92,23 @@ class Customer extends Model
     public function shippingOrders(): HasMany
     {
         return $this->hasMany(\App\Models\Fulfillment\ShippingOrder::class);
+    }
+
+    /**
+     * Get the shipments for this customer through shipping orders.
+     *
+     * @return HasManyThrough<\App\Models\Fulfillment\Shipment, \App\Models\Fulfillment\ShippingOrder, $this>
+     */
+    public function shipments(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            \App\Models\Fulfillment\Shipment::class,
+            \App\Models\Fulfillment\ShippingOrder::class,
+            'customer_id', // Foreign key on shipping_orders table
+            'shipping_order_id', // Foreign key on shipments table
+            'id', // Local key on customers table
+            'id' // Local key on shipping_orders table
+        );
     }
 
     /**

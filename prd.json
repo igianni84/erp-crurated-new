@@ -930,8 +930,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 58,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added Shipment History section to Customer Shipping Orders tab. Shows shipment_id, carrier, tracking_number, shipped_at, status. Uses hasManyThrough relationship from Customer through ShippingOrder to Shipment."
     },
     {
       "id": "US-C059",

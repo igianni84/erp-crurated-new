@@ -4,14 +4,17 @@ namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Fulfillment\ShipmentStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Allocation\CaseEntitlementResource;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
+use App\Filament\Resources\Fulfillment\ShipmentResource;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
+use App\Models\Fulfillment\Shipment;
 use App\Models\Fulfillment\ShippingOrder;
 use Filament\Actions;
 use Filament\Infolists\Components\Grid;
@@ -260,6 +263,32 @@ class ViewCustomer extends ViewRecord
                     ->schema([
                         $this->getShippingOrderList(),
                     ]),
+                $this->getShipmentsSection($record),
+            ]);
+    }
+
+    /**
+     * Get the Shipment History section for the Shipping Orders tab.
+     */
+    protected function getShipmentsSection(Customer $record): Section
+    {
+        $totalShipments = $record->shipments()->count();
+
+        return Section::make('Shipment History')
+            ->description('All shipments for this customer. Click on a shipment ID to view details.')
+            ->icon('heroicon-o-paper-airplane')
+            ->headerActions([
+                \Filament\Infolists\Components\Actions\Action::make('view_all_shipments')
+                    ->label('View All in Shipments List')
+                    ->icon('heroicon-o-arrow-top-right-on-square')
+                    ->url(fn (): string => ShipmentResource::getUrl('index'))
+                    ->openUrlInNewTab()
+                    ->visible($totalShipments > 0),
+            ])
+            ->collapsed($totalShipments === 0)
+            ->collapsible()
+            ->schema([
+                $this->getShipmentList(),
             ]);
     }
 
@@ -303,6 +332,48 @@ class ViewCustomer extends ViewRecord
             ])
             ->columns(1)
             ->placeholder('No shipping orders found for this customer.');
+    }
+
+    /**
+     * Get the shipment list component as a RepeatableEntry.
+     */
+    protected function getShipmentList(): RepeatableEntry
+    {
+        return RepeatableEntry::make('shipments')
+            ->label('')
+            ->schema([
+                Grid::make(5)
+                    ->schema([
+                        TextEntry::make('id')
+                            ->label('Shipment ID')
+                            ->copyable()
+                            ->copyMessage('Shipment ID copied')
+                            ->url(fn (Shipment $shipment): string => ShipmentResource::getUrl('view', ['record' => $shipment]))
+                            ->color('primary')
+                            ->weight(FontWeight::Bold)
+                            ->formatStateUsing(fn (string $state): string => \Illuminate\Support\Str::limit($state, 8, '...')),
+                        TextEntry::make('carrier')
+                            ->label('Carrier')
+                            ->placeholder('N/A'),
+                        TextEntry::make('tracking_number')
+                            ->label('Tracking')
+                            ->copyable()
+                            ->copyMessage('Tracking number copied')
+                            ->placeholder('N/A'),
+                        TextEntry::make('shipped_at')
+                            ->label('Shipped')
+                            ->dateTime()
+                            ->placeholder('Not shipped'),
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->badge()
+                            ->formatStateUsing(fn (ShipmentStatus $state): string => $state->label())
+                            ->color(fn (ShipmentStatus $state): string => $state->color())
+                            ->icon(fn (ShipmentStatus $state): string => $state->icon()),
+                    ]),
+            ])
+            ->columns(1)
+            ->placeholder('No shipments found for this customer.');
     }
 
     /**
