@@ -160,3 +160,25 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Match on enum cases directly instead of ->value when PHPStan has full type info
   - canClose() returns a structured array for UI to show pending items before closure attempt
 ---
+
+## 2026-02-04 - US-008
+- What was implemented:
+  - InboundService class in app/Services/Procurement/
+  - record(array $data): Creates Inbound in status recorded with full validation
+  - route(Inbound $inbound, string $location): Transitions recorded → routed, sets serialization_location_authorized
+  - complete(Inbound $inbound): Transitions routed → completed, validates ownership clarity
+  - handOffToModuleB(Inbound $inbound): Marks handed_to_module_b = true with timestamp, validates preconditions
+  - validateOwnershipClarity(Inbound $inbound): Throws if ownership_flag == pending
+  - validateSerializationRouting(Inbound $inbound): Validates location is set when serialization_required = true
+  - updateOwnershipFlag(Inbound $inbound, OwnershipFlag $newFlag): Helper to update ownership with audit
+  - All methods use explicit InvalidArgumentException for validation errors
+  - Audit logging for creation, status transitions, hand-off, and ownership updates
+- Files changed:
+  - app/Services/Procurement/InboundService.php (new)
+- **Learnings for future iterations:**
+  - InboundService follows same pattern as ProcurementIntentService
+  - Hand-off to Module B is a one-way operation - cannot be reversed
+  - Ownership clarity is required before completing or handing off
+  - Serialization routing validation is a placeholder for future ProducerSupplierConfig.serialization_constraints integration
+  - AuditLog::EVENT_FLAG_CHANGE is appropriate for boolean flag changes (handed_to_module_b, ownership_flag)
+---
