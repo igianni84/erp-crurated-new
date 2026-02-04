@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Customer\AccountStatus;
+use App\Enums\Customer\AddressType;
 use App\Enums\Customer\ChannelScope;
 use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\CustomerType;
@@ -12,6 +13,7 @@ use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Account;
+use App\Models\Customer\Address;
 use App\Models\Customer\Customer;
 use Filament\Actions;
 use Filament\Forms\Components\DatePicker;
@@ -526,32 +528,310 @@ class ViewCustomer extends ViewRecord
     }
 
     /**
-     * Tab 4: Addresses - Billing and shipping addresses (placeholder).
+     * Tab 4: Addresses - Full CRUD for billing and shipping addresses.
      */
     protected function getAddressesTab(): Tab
     {
+        /** @var Customer $record */
+        $record = $this->record;
+        $addressesCount = $record->addresses()->count();
+
         return Tab::make('Addresses')
             ->icon('heroicon-o-map-pin')
+            ->badge($addressesCount > 0 ? (string) $addressesCount : null)
+            ->badgeColor('info')
             ->schema([
-                Section::make('Billing Addresses')
-                    ->description('Addresses used for invoicing')
-                    ->schema([
-                        TextEntry::make('billing_addresses_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No billing addresses configured. Address management will be implemented in US-010.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
-                    ]),
-                Section::make('Shipping Addresses')
-                    ->description('Addresses used for deliveries')
-                    ->schema([
-                        TextEntry::make('shipping_addresses_placeholder')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No shipping addresses configured. Address management will be implemented in US-010.')
-                            ->icon('heroicon-o-information-circle')
-                            ->color('gray'),
-                    ]),
+                $this->getBillingAddressesSection(),
+                $this->getShippingAddressesSection(),
             ]);
+    }
+
+    /**
+     * Get the billing addresses section.
+     */
+    protected function getBillingAddressesSection(): Section
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+        $billingCount = $record->billingAddresses()->count();
+
+        return Section::make('Billing Addresses')
+            ->description('Addresses used for invoicing')
+            ->headerActions([
+                \Filament\Infolists\Components\Actions\Action::make('add_billing_address')
+                    ->label('Add Billing Address')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->form($this->getAddressFormFields())
+                    ->modalHeading('Add Billing Address')
+                    ->modalDescription('Add a new billing address for this customer.')
+                    ->modalSubmitActionLabel('Add Address')
+                    ->action(function (array $data) use ($record): void {
+                        $this->createAddress($record, AddressType::Billing, $data);
+                    }),
+            ])
+            ->schema([
+                RepeatableEntry::make('billingAddresses')
+                    ->label('')
+                    ->schema($this->getAddressEntrySchema(AddressType::Billing))
+                    ->columns(1)
+                    ->placeholder('No billing addresses configured. Use the "Add Billing Address" button to add one.'),
+            ]);
+    }
+
+    /**
+     * Get the shipping addresses section.
+     */
+    protected function getShippingAddressesSection(): Section
+    {
+        /** @var Customer $record */
+        $record = $this->record;
+        $shippingCount = $record->shippingAddresses()->count();
+
+        return Section::make('Shipping Addresses')
+            ->description('Addresses used for deliveries')
+            ->headerActions([
+                \Filament\Infolists\Components\Actions\Action::make('add_shipping_address')
+                    ->label('Add Shipping Address')
+                    ->icon('heroicon-o-plus-circle')
+                    ->color('primary')
+                    ->form($this->getAddressFormFields())
+                    ->modalHeading('Add Shipping Address')
+                    ->modalDescription('Add a new shipping address for this customer.')
+                    ->modalSubmitActionLabel('Add Address')
+                    ->action(function (array $data) use ($record): void {
+                        $this->createAddress($record, AddressType::Shipping, $data);
+                    }),
+            ])
+            ->schema([
+                RepeatableEntry::make('shippingAddresses')
+                    ->label('')
+                    ->schema($this->getAddressEntrySchema(AddressType::Shipping))
+                    ->columns(1)
+                    ->placeholder('No shipping addresses configured. Use the "Add Shipping Address" button to add one.'),
+            ]);
+    }
+
+    /**
+     * Get the form fields for address creation/editing.
+     *
+     * @return array<\Filament\Forms\Components\Component>
+     */
+    protected function getAddressFormFields(): array
+    {
+        return [
+            TextInput::make('line_1')
+                ->label('Address Line 1')
+                ->required()
+                ->maxLength(255)
+                ->helperText('Street address, P.O. box, company name'),
+            TextInput::make('line_2')
+                ->label('Address Line 2')
+                ->maxLength(255)
+                ->helperText('Apartment, suite, unit, building, floor, etc.'),
+            \Filament\Forms\Components\Grid::make(2)
+                ->schema([
+                    TextInput::make('city')
+                        ->label('City')
+                        ->required()
+                        ->maxLength(255),
+                    TextInput::make('state')
+                        ->label('State/Province/Region')
+                        ->maxLength(255),
+                ]),
+            \Filament\Forms\Components\Grid::make(2)
+                ->schema([
+                    TextInput::make('postal_code')
+                        ->label('Postal Code')
+                        ->required()
+                        ->maxLength(20),
+                    TextInput::make('country')
+                        ->label('Country')
+                        ->required()
+                        ->maxLength(255),
+                ]),
+            \Filament\Forms\Components\Toggle::make('is_default')
+                ->label('Set as default address')
+                ->helperText('This address will be used by default for this address type'),
+        ];
+    }
+
+    /**
+     * Get the schema for displaying an address entry.
+     *
+     * @return array<\Filament\Infolists\Components\Component>
+     */
+    protected function getAddressEntrySchema(AddressType $addressType): array
+    {
+        return [
+            Grid::make(6)
+                ->schema([
+                    Group::make([
+                        TextEntry::make('formatted_address')
+                            ->label('Address')
+                            ->getStateUsing(fn (Address $address): string => $address->getFormattedAddress())
+                            ->weight(FontWeight::Bold),
+                    ])->columnSpan(2),
+                    TextEntry::make('city')
+                        ->label('City'),
+                    TextEntry::make('country')
+                        ->label('Country'),
+                    TextEntry::make('is_default')
+                        ->label('Default')
+                        ->badge()
+                        ->formatStateUsing(fn (bool $state): string => $state ? 'Default' : '—')
+                        ->color(fn (bool $state): string => $state ? 'success' : 'gray')
+                        ->icon(fn (bool $state): ?string => $state ? 'heroicon-o-star' : null),
+                    \Filament\Infolists\Components\Actions::make([
+                        \Filament\Infolists\Components\Actions\Action::make('edit_address')
+                            ->label('Edit')
+                            ->icon('heroicon-o-pencil-square')
+                            ->color('gray')
+                            ->size('sm')
+                            ->form(fn (Address $address): array => [
+                                TextInput::make('line_1')
+                                    ->label('Address Line 1')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->default($address->line_1),
+                                TextInput::make('line_2')
+                                    ->label('Address Line 2')
+                                    ->maxLength(255)
+                                    ->default($address->line_2),
+                                \Filament\Forms\Components\Grid::make(2)
+                                    ->schema([
+                                        TextInput::make('city')
+                                            ->label('City')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->default($address->city),
+                                        TextInput::make('state')
+                                            ->label('State/Province/Region')
+                                            ->maxLength(255)
+                                            ->default($address->state),
+                                    ]),
+                                \Filament\Forms\Components\Grid::make(2)
+                                    ->schema([
+                                        TextInput::make('postal_code')
+                                            ->label('Postal Code')
+                                            ->required()
+                                            ->maxLength(20)
+                                            ->default($address->postal_code),
+                                        TextInput::make('country')
+                                            ->label('Country')
+                                            ->required()
+                                            ->maxLength(255)
+                                            ->default($address->country),
+                                    ]),
+                            ])
+                            ->modalHeading('Edit Address')
+                            ->modalDescription(fn (Address $address): string => "Edit {$address->getTypeLabel()} address: {$address->getOneLine()}")
+                            ->modalSubmitActionLabel('Save Changes')
+                            ->action(function (array $data, Address $address): void {
+                                $address->update([
+                                    'line_1' => $data['line_1'],
+                                    'line_2' => $data['line_2'],
+                                    'city' => $data['city'],
+                                    'state' => $data['state'],
+                                    'postal_code' => $data['postal_code'],
+                                    'country' => $data['country'],
+                                ]);
+
+                                Notification::make()
+                                    ->title('Address updated')
+                                    ->body('The address has been updated successfully.')
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData(['billingAddresses', 'shippingAddresses']);
+                            }),
+                        \Filament\Infolists\Components\Actions\Action::make('set_default')
+                            ->label('Set Default')
+                            ->icon('heroicon-o-star')
+                            ->color('warning')
+                            ->size('sm')
+                            ->requiresConfirmation()
+                            ->modalHeading('Set as Default Address')
+                            ->modalDescription(fn (Address $address): string => "Are you sure you want to set this as the default {$address->getTypeLabel()} address?")
+                            ->modalSubmitActionLabel('Set Default')
+                            ->visible(fn (Address $address): bool => ! $address->is_default)
+                            ->action(function (Address $address): void {
+                                $address->setAsDefault();
+
+                                Notification::make()
+                                    ->title('Default address set')
+                                    ->body("This address is now the default {$address->getTypeLabel()} address.")
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData(['billingAddresses', 'shippingAddresses']);
+                            }),
+                        \Filament\Infolists\Components\Actions\Action::make('delete_address')
+                            ->label('Delete')
+                            ->icon('heroicon-o-trash')
+                            ->color('danger')
+                            ->size('sm')
+                            ->requiresConfirmation()
+                            ->modalHeading('Delete Address')
+                            ->modalDescription(fn (Address $address): string => "Are you sure you want to delete this {$address->getTypeLabel()} address? This action cannot be undone.")
+                            ->modalSubmitActionLabel('Delete')
+                            ->action(function (Address $address): void {
+                                $addressType = $address->getTypeLabel();
+                                $address->delete();
+
+                                Notification::make()
+                                    ->title('Address deleted')
+                                    ->body("The {$addressType} address has been deleted.")
+                                    ->success()
+                                    ->send();
+
+                                $this->refreshFormData(['billingAddresses', 'shippingAddresses']);
+                            }),
+                    ])->alignEnd(),
+                ]),
+        ];
+    }
+
+    /**
+     * Create a new address for the customer.
+     */
+    protected function createAddress(Customer $customer, AddressType $type, array $data): void
+    {
+        $isDefault = $data['is_default'] ?? false;
+
+        // If this is set as default, unset other defaults of the same type
+        if ($isDefault) {
+            Address::query()
+                ->where('addressable_type', Customer::class)
+                ->where('addressable_id', $customer->id)
+                ->where('type', $type)
+                ->update(['is_default' => false]);
+        }
+
+        // If this is the first address of this type, make it default
+        $existingCount = $customer->addresses()->where('type', $type)->count();
+        if ($existingCount === 0) {
+            $isDefault = true;
+        }
+
+        $customer->addresses()->create([
+            'type' => $type,
+            'line_1' => $data['line_1'],
+            'line_2' => $data['line_2'] ?? null,
+            'city' => $data['city'],
+            'state' => $data['state'] ?? null,
+            'postal_code' => $data['postal_code'],
+            'country' => $data['country'],
+            'is_default' => $isDefault,
+        ]);
+
+        Notification::make()
+            ->title('Address added')
+            ->body("A new {$type->label()} address has been added.")
+            ->success()
+            ->send();
+
+        $this->refreshFormData(['billingAddresses', 'shippingAddresses']);
     }
 
     /**
@@ -1055,18 +1335,36 @@ class ViewCustomer extends ViewRecord
         /** @var Customer $record */
         $record = $this->record;
 
+        $hasBillingAddress = $record->hasBillingAddress();
+
         return Actions\Action::make('activate')
             ->label('Activate')
             ->icon('heroicon-o-check-circle')
             ->color('success')
             ->requiresConfirmation()
             ->modalHeading('Activate Customer')
-            ->modalDescription('Are you sure you want to activate this customer? They will be able to perform operations.')
-            ->modalSubmitActionLabel('Activate')
-            ->action(function () use ($record): void {
+            ->modalDescription(function () use ($hasBillingAddress): string {
+                if (! $hasBillingAddress) {
+                    return 'This customer requires at least one billing address before they can be activated. Please add a billing address in the Addresses tab first.';
+                }
+
+                return 'Are you sure you want to activate this customer? They will be able to perform operations.';
+            })
+            ->modalSubmitActionLabel($hasBillingAddress ? 'Activate' : 'Go to Addresses')
+            ->action(function () use ($record, $hasBillingAddress): void {
+                if (! $hasBillingAddress) {
+                    Notification::make()
+                        ->title('Cannot activate customer')
+                        ->body('Please add at least one billing address before activating this customer.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
                 $record->update(['status' => CustomerStatus::Active]);
 
-                \Filament\Notifications\Notification::make()
+                Notification::make()
                     ->title('Customer activated')
                     ->body('The customer has been activated.')
                     ->success()

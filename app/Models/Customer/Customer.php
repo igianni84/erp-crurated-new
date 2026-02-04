@@ -127,6 +127,70 @@ class Customer extends Model
     }
 
     /**
+     * Get the addresses for this customer.
+     *
+     * @return MorphMany<Address, $this>
+     */
+    public function addresses(): MorphMany
+    {
+        return $this->morphMany(Address::class, 'addressable');
+    }
+
+    /**
+     * Get the billing addresses for this customer.
+     *
+     * @return MorphMany<Address, $this>
+     */
+    public function billingAddresses(): MorphMany
+    {
+        return $this->morphMany(Address::class, 'addressable')
+            ->where('type', \App\Enums\Customer\AddressType::Billing);
+    }
+
+    /**
+     * Get the shipping addresses for this customer.
+     *
+     * @return MorphMany<Address, $this>
+     */
+    public function shippingAddresses(): MorphMany
+    {
+        return $this->morphMany(Address::class, 'addressable')
+            ->where('type', \App\Enums\Customer\AddressType::Shipping);
+    }
+
+    /**
+     * Get the default billing address for this customer.
+     */
+    public function getDefaultBillingAddress(): ?Address
+    {
+        return $this->billingAddresses()->where('is_default', true)->first();
+    }
+
+    /**
+     * Get the default shipping address for this customer.
+     */
+    public function getDefaultShippingAddress(): ?Address
+    {
+        return $this->shippingAddresses()->where('is_default', true)->first();
+    }
+
+    /**
+     * Check if the customer has at least one billing address.
+     */
+    public function hasBillingAddress(): bool
+    {
+        return $this->billingAddresses()->exists();
+    }
+
+    /**
+     * Check if the customer has at least one shipping address.
+     */
+    public function hasShippingAddress(): bool
+    {
+        return $this->shippingAddresses()->exists();
+    }
+
+    /**
      * Get the audit logs for this customer.
      *
      * @return MorphMany<\App\Models\AuditLog, $this>

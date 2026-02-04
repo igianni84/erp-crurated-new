@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
+use App\Models\Customer\Customer;
 use App\Models\Customer\PartyRole;
+use App\Observers\Customer\CustomerObserver;
 use App\Observers\Customer\PartyRoleObserver;
 use App\Policies\AllocationPolicy;
 use App\Policies\VoucherPolicy;
@@ -35,5 +37,6 @@ class AppServiceProvider extends ServiceProvider
 
         // Register observers for Module K
         PartyRole::observe(PartyRoleObserver::class);
+        Customer::observe(CustomerObserver::class);
     }
 }
