@@ -503,3 +503,32 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - emptyStateHeading/Description/Icon customize the empty state display
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B020
+- **Implemented**: Enhanced Start Serialization action with pre-checks and warning dialog
+- **Files modified**:
+  - app/Filament/Resources/Inventory/InboundBatchResource/Pages/ViewInboundBatch.php
+- **Features implemented**:
+  - Pre-checks documented in method docblock (location.serialization_authorized, batch status != discrepancy)
+  - Enhanced modal description with location name and allocation lineage info
+  - Warning icon (exclamation-triangle) on modal in warning color
+  - Prominent warning section explaining consequences:
+    - Unique serial numbers cannot be changed
+    - Allocation lineage is permanently assigned and immutable
+    - NFT provenance minting is automatically queued
+    - Operation cannot be undone
+  - Quantity input with 'bottles' suffix
+  - Confirmation checkbox requiring user acknowledgment before proceeding
+- **Pre-existing functionality retained**:
+  - `visible()` callback using `canStartSerialization()` for hard blockers
+  - Quantity validation (min 1, max remaining_unserialized)
+  - SerializationService integration for execution
+  - Error handling with notifications
+- **Learnings for future iterations**:
+  - Actions already support modalIcon() and modalIconColor() for visual emphasis
+  - Use Forms\Components\Section with Placeholder for custom HTML warning content
+  - HtmlString allows raw HTML in Placeholder content
+  - Pre-checks are enforced at multiple levels: UI visibility, form validation, service validation
+  - When checking nullable relations, use explicit null check (`$location !== null`) instead of nullsafe + null coalescing for PHPStan
+  - Browser verification requirement noted - manual testing needed
+---
