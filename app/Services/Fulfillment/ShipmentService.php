@@ -366,9 +366,8 @@ class ShipmentService
             ]
         );
 
-        // Note: The actual provenance blockchain update would be dispatched as a job
-        // via UpdateProvenanceOnShipmentJob (US-C042). This is a placeholder for the job dispatch.
-        // dispatch(new UpdateProvenanceOnShipmentJob($shipment));
+        // Dispatch job to update on-chain provenance records for all bottles
+        dispatch(new \App\Jobs\Fulfillment\UpdateProvenanceOnShipmentJob($shipment));
     }
 
     /**

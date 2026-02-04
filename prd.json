@@ -636,8 +636,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 39,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C013. confirmShipment() validates tracking_number required, sets status=shipped, shipped_at=now(), calls triggerRedemption() and triggerOwnershipTransfer(). Provenance update is placeholder for US-C042. updateTracking() allows in_transit and delivered transitions."
     },
     {
       "id": "US-C040",
@@ -652,8 +652,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 40,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C013. triggerRedemption() calls VoucherService.redeem() for each voucher, throws exception if any fail (confirmation fails), logs EVENT_VOUCHER_REDEEMED with all redeemed voucher details."
     },
     {
       "id": "US-C041",
@@ -666,8 +666,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 41,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C013. triggerOwnershipTransfer() called after triggerRedemption() in confirmShipment(), updates each bottle state to BottleState::Shipped, logs EVENT_OWNERSHIP_TRANSFERRED. Provenance blockchain job dispatch is placeholder for US-C042."
     },
     {
       "id": "US-C042",
@@ -680,8 +680,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 42,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Created UpdateProvenanceOnShipmentJob with tries=3 and exponential backoff (10s, 60s, 300s). Job is dispatched from ShipmentService.triggerOwnershipTransfer() after ownership transfer. Updates on-chain provenance for each bottle with shipment event, customer as new owner, and timestamp."
     },
     {
       "id": "US-C043",

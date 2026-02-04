@@ -574,3 +574,35 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Default status attribute in model provides extra safety: $attributes['status'] = ShipmentStatus::Preparing
   - Confirm Shipment action creates shipment then immediately confirms it - two-step process ensures proper status lifecycle
 ---
+
+## 2026-02-04 - US-C039, US-C040, US-C041
+- **What was implemented:** Verified Shipment Confirmation & Tracking, Voucher Redemption Trigger, Ownership Transfer Trigger (all already fully implemented in US-C013)
+- **Files verified (no changes needed):**
+  - `app/Services/Fulfillment/ShipmentService.php` (confirmShipment, triggerRedemption, triggerOwnershipTransfer, updateTracking methods)
+  - `app/Enums/Fulfillment/ShipmentStatus.php` (allowedTransitions includes in_transit, delivered)
+  - `app/Services/Allocation/VoucherService.php` (redeem method transitions to Redeemed state)
+- **Learnings for future iterations:**
+  - confirmShipment() validates tracking_number required (throws if empty)
+  - Confirmation flow: set shipped status/timestamp → triggerRedemption → triggerOwnershipTransfer
+  - Redemption calls VoucherService.redeem() for each voucher, throws if any fail (atomic)
+  - Ownership transfer updates bottle.state to Shipped via BottleState enum
+  - updateTracking() allows transitions: shipped→in_transit, in_transit→delivered, any→failed
+  - All three stories were already implemented as part of US-C013 (ShipmentService creation)
+---
+
+## 2026-02-04 - US-C042
+- **What was implemented:** UpdateProvenanceOnShipmentJob for on-chain provenance updates post-shipment
+- **Files changed:**
+  - `app/Jobs/Fulfillment/UpdateProvenanceOnShipmentJob.php` (new)
+  - `app/Services/Fulfillment/ShipmentService.php` (uncommented dispatch call in triggerOwnershipTransfer)
+- **Learnings for future iterations:**
+  - Job follows same pattern as UpdateProvenanceOnMovementJob in Inventory module
+  - Uses ShouldQueue interface for async processing
+  - Retry config: tries=3 with exponential backoff [10, 60, 300] seconds
+  - Job loads shipment with shippingOrder.customer relationship
+  - Iterates shipped_bottle_serials, looks up each SerializedBottle, calls updateBottleProvenance
+  - Skips bottles without NFT (hasNft() check)
+  - Provenance data includes: event_type=shipment, shipment_id, carrier, tracking_number, new_owner_id, shipped_at timestamp
+  - Individual bottle failures logged but don't fail entire job (graceful degradation)
+  - failed() method logs detailed error for permanent failures
+---
