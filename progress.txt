@@ -558,3 +558,19 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - All acceptance criteria were already met by US-C036 implementation; only enhancement needed was adding wine info to Shipped Items table
   - Browser verification pending
 ---
+
+## 2026-02-04 - US-C038
+- **What was implemented:** Verified Shipment Creation from SO (already fully implemented in US-C013)
+- **Files verified (no changes needed):**
+  - `app/Services/Fulfillment/ShipmentService.php` (createFromOrder at lines 68-148)
+  - `app/Models/Fulfillment/Shipment.php` (immutability guard at lines 104-116)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (Confirm Shipment action at lines 2679-2766)
+- **Learnings for future iterations:**
+  - This story was already fully implemented as part of US-C013 (ShipmentService creation)
+  - createFromOrder() is called when operator clicks "Confirm Shipment" in UI (ViewShippingOrder)
+  - Shipment is created in ShipmentStatus::Preparing, NOT shipped - confirmation is a separate step
+  - bottle serials collected via getEffectiveSerial() on each line (handles both early and late binding)
+  - Shipment.shipped_bottle_serials immutability enforced via boot() guard after confirmation (status != Preparing)
+  - Default status attribute in model provides extra safety: $attributes['status'] = ShipmentStatus::Preparing
+  - Confirm Shipment action creates shipment then immediately confirms it - two-step process ensures proper status lifecycle
+---

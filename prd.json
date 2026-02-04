@@ -622,8 +622,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 38,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in US-C013 (ShipmentService.createFromOrder). Verified: creates Shipment in Preparing status, copies bound_bottle_serials from lines via getEffectiveSerial(), immutability enforced via boot() guard in Shipment model."
     },
     {
       "id": "US-C039",
