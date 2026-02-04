@@ -351,3 +351,30 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Named parameters like `autoSetEffectiveFrom: false` make method calls more readable
   - User::canApproveMemberships() follows the existing pattern of User::canApprovePriceBooks()
 ---
+
+## 2026-02-04 - US-015
+- What was implemented:
+  - Created `EligibilityEngine` service class in `App\Services\Customer` namespace
+  - Main `compute(Customer|Account)` method returns eligibility for all channels
+  - Factors evaluated per channel:
+    - `membership_status`: checks for Approved status and effective dates
+    - `membership_tier`: checks tier grants access to channel
+    - `customer_type`: B2B channel requires B2B customer type
+    - `club_affiliation`: Club channel checks for automatic tier access or active affiliation
+    - `operational_blocks`: placeholder for US-027 (returns positive)
+    - `payment_permissions`: placeholder for US-018 (returns positive)
+    - `account_status`: when computing for Account, checks active status and channel scope match
+  - Output format: `array<string, array{eligible: bool, factors: array<string, array{positive: bool, reason: string}>}>`
+  - Added `getSummary()` helper for human-readable eligibility summary
+  - Eligibility computed at runtime, not stored - ensures real-time accuracy
+- Files changed:
+  - app/Services/Customer/EligibilityEngine.php (new)
+- **Learnings for future iterations:**
+  - Services for Customer module go in `App\Services\Customer\` namespace
+  - Use union types (`Customer|Account`) for methods that accept multiple entity types
+  - Placeholder implementations for future stories should return "positive" to not block functionality
+  - Factor format `array{positive: bool, reason: string}` allows both machine processing and human readability
+  - `areAllFactorsPositive()` pattern makes eligibility decision transparent and traceable
+  - Customer `activeMembership` relationship already filters for approved + effective dates
+  - EligibilityEngine will be extended in US-016 (channel rules), US-017 (UI tab), US-018 (payments), US-022 (clubs), US-027 (blocks)
+---
