@@ -250,3 +250,27 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - getDefaultFormatId() needs UI improvement to select format explicitly
   - Discrepancy status is NOT changed by updateBatchSerializationStatus (handled separately)
 ---
+
+## 2026-02-04 - US-B011
+- **Implemented**: MovementService for centralized inventory movement logic
+- **Files created**:
+  - app/Services/Inventory/MovementService.php
+- **Methods implemented**:
+  - createMovement(array $data): creates InventoryMovement with MovementItems in a transaction
+  - isDuplicateWmsEvent(string $wmsEventId): checks if WMS event already processed (deduplication)
+  - transferBottle(SerializedBottle, Location, ?User, ?reason, ?wmsEventId): creates internal transfer and updates bottle location
+  - transferCase(InventoryCase, Location, ?User, ?reason, ?wmsEventId): creates internal transfer and updates case + contained bottles locations
+  - recordConsumption(SerializedBottle, ConsumptionReason, ?User, ?notes): creates consumption movement and updates bottle state to consumed
+- **Key validations**:
+  - createMovement: validates required fields, checks WMS event deduplication
+  - transferBottle: validates bottle not in terminal state, has current location, not transferring to same location
+  - transferCase: validates case canHandleAsUnit (not broken), has current location, not transferring to same location
+  - recordConsumption: validates bottle is stored, ownership allows consumption for events
+- **Transaction safety**:
+  - All methods use DB::transaction to ensure movement creation + location/state updates are atomic
+- **Learnings for future iterations**:
+  - MovementType::EventConsumption is used for all consumption types (sampling, damage writeoff, event)
+  - Trigger is automatically determined: WmsEvent if wms_event_id provided, otherwise ErpOperator
+  - Case transfer also updates all contained bottles' locations via batch update
+  - Terminal states (consumed, destroyed, missing, shipped) block bottle transfers
+---
