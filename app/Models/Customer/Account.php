@@ -218,4 +218,70 @@ class Account extends Model
     {
         return $this->activeOperationalBlocks()->count();
     }
+
+    /**
+     * Check if a specific operation is blocked for this account.
+     * Checks against active operational blocks and their blocked operations.
+     * Also checks parent Customer's blocks.
+     *
+     * @param  string  $operation  The operation to check (e.g., 'payment', 'shipment', 'redemption', 'trading')
+     */
+    public function isOperationBlocked(string $operation): bool
+    {
+        // Check account-level blocks
+        $activeBlocks = $this->activeOperationalBlocks()->get();
+
+        foreach ($activeBlocks as $block) {
+            if (in_array($operation, $block->block_type->blockedOperations(), true)) {
+                return true;
+            }
+        }
+
+        // Also check customer-level blocks (inherited)
+        return $this->customer->isOperationBlocked($operation);
+    }
+
+    /**
+     * Check if payments are blocked for this account.
+     * Returns true if there's an active Payment or Compliance block on this account or its customer.
+     */
+    public function hasPaymentOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Payment)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+            || $this->customer->hasPaymentOperationBlocked();
+    }
+
+    /**
+     * Check if shipments are blocked for this account.
+     * Returns true if there's an active Shipment or Compliance block on this account or its customer.
+     */
+    public function hasShipmentOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Shipment)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+            || $this->customer->hasShipmentOperationBlocked();
+    }
+
+    /**
+     * Check if redemptions are blocked for this account.
+     * Returns true if there's an active Redemption or Compliance block on this account or its customer.
+     */
+    public function hasRedemptionOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Redemption)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+            || $this->customer->hasRedemptionOperationBlocked();
+    }
+
+    /**
+     * Check if trading is blocked for this account.
+     * Returns true if there's an active Trading or Compliance block on this account or its customer.
+     */
+    public function hasTradingOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Trading)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+            || $this->customer->hasTradingOperationBlocked();
+    }
 }

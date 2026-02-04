@@ -2,6 +2,7 @@
 
 namespace App\Services\Customer;
 
+use App\Enums\Customer\BlockType;
 use App\Enums\Customer\ChannelScope;
 use App\Enums\Customer\CustomerType;
 use App\Enums\Customer\MembershipStatus;
@@ -22,9 +23,9 @@ use App\Models\Customer\Customer;
  * - Membership tier and status
  * - Customer type (for B2B channel)
  * - Credit approval (for B2B channel) - via PaymentPermission.credit_limit
- * - Operational blocks (placeholder for US-027)
+ * - Operational blocks - via OperationalBlock model (US-027/US-028)
  * - Payment permissions - via PaymentPermission.card_allowed
- * - Club affiliations (placeholder for US-022)
+ * - Club affiliations - via CustomerClub model (US-022)
  *
  * The result is computed at runtime, not stored, ensuring real-time accuracy.
  */
@@ -242,20 +243,23 @@ class EligibilityEngine
 
     /**
      * Check for operational blocks that would prevent channel access.
-     * Placeholder for US-027 - returns positive until OperationalBlock model exists.
+     * Block types that affect eligibility: Payment, Compliance (see BlockType::affectsEligibility).
      *
      * @return array{positive: bool, reason: string}
      */
     private function checkOperationalBlocks(Customer $customer, ?Account $account, ChannelScope $channel): array
     {
-        // Placeholder implementation until US-027 creates OperationalBlock model
-        // Once implemented, will check for active blocks of type: payment, compliance, etc.
-        $hasBlockingBlocks = $this->entityHasBlockingBlocks($customer, $account, $channel);
+        $blockingBlocks = $this->getBlockingOperationalBlocks($customer, $account, $channel);
 
-        if ($hasBlockingBlocks) {
+        if (count($blockingBlocks) > 0) {
+            $blockTypes = array_unique(array_map(
+                fn (BlockType $type) => $type->label(),
+                $blockingBlocks
+            ));
+
             return [
                 'positive' => false,
-                'reason' => 'One or more operational blocks are preventing access to this channel.',
+                'reason' => 'Active operational block(s) preventing access: '.implode(', ', $blockTypes).'.',
             ];
         }
 
@@ -362,28 +366,65 @@ class EligibilityEngine
     }
 
     /**
-     * Placeholder: Check if customer has active club affiliation.
-     * Will be implemented in US-022 when CustomerClub model exists.
+     * Check if customer has active club affiliation.
+     * Uses CustomerClub model (implemented in US-022).
      */
     private function customerHasActiveClubAffiliation(Customer $customer): bool
     {
-        // TODO: Implement when CustomerClub model exists (US-022)
-        // return $customer->clubs()->wherePivot('affiliation_status', 'active')->exists();
-        return false;
+        return $customer->hasEffectiveClubAffiliation();
     }
 
     /**
-     * Placeholder: Check if entity has blocking operational blocks.
-     * Will be implemented in US-027 when OperationalBlock model exists.
+     * Get blocking operational blocks for an entity.
+     * Returns the BlockType values of active blocks that affect channel eligibility.
+     *
+     * Block types that affect eligibility by channel:
+     * - B2C: Payment block, Compliance block
+     * - B2B: Payment block, Compliance block
+     * - Club: Compliance block only
+     *
+     * @return list<BlockType>
      */
-    private function entityHasBlockingBlocks(Customer $customer, ?Account $account, ChannelScope $channel): bool
+    private function getBlockingOperationalBlocks(Customer $customer, ?Account $account, ChannelScope $channel): array
     {
-        // TODO: Implement when OperationalBlock model exists (US-027)
-        // Block types that affect each channel:
-        // - B2C: payment, compliance
-        // - B2B: payment, compliance
-        // - Club: compliance
-        return false;
+        $blockingTypes = [];
+
+        // Determine which block types affect this channel
+        $relevantBlockTypes = $this->getBlockTypesForChannel($channel);
+
+        // Check customer-level blocks
+        foreach ($relevantBlockTypes as $blockType) {
+            if ($customer->hasActiveBlockOfType($blockType)) {
+                $blockingTypes[] = $blockType;
+            }
+        }
+
+        // Check account-level blocks if applicable
+        if ($account !== null) {
+            foreach ($relevantBlockTypes as $blockType) {
+                if ($account->hasActiveBlockOfType($blockType) && ! in_array($blockType, $blockingTypes, true)) {
+                    $blockingTypes[] = $blockType;
+                }
+            }
+        }
+
+        return $blockingTypes;
+    }
+
+    /**
+     * Get the block types that affect a specific channel.
+     *
+     * @return list<BlockType>
+     */
+    private function getBlockTypesForChannel(ChannelScope $channel): array
+    {
+        // Only block types that affect eligibility are considered
+        // Payment and Compliance blocks affect eligibility (see BlockType::affectsEligibility)
+        return match ($channel) {
+            ChannelScope::B2C => [BlockType::Payment, BlockType::Compliance],
+            ChannelScope::B2B => [BlockType::Payment, BlockType::Compliance],
+            ChannelScope::Club => [BlockType::Compliance],
+        };
     }
 
     /**

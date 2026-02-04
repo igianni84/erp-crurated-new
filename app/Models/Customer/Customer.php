@@ -661,4 +661,63 @@ class Customer extends Model
     {
         return $this->activeOperationalBlocks()->count();
     }
+
+    /**
+     * Check if a specific operation is blocked for this customer.
+     * Checks against active operational blocks and their blocked operations.
+     *
+     * @param  string  $operation  The operation to check (e.g., 'payment', 'shipment', 'redemption', 'trading')
+     */
+    public function isOperationBlocked(string $operation): bool
+    {
+        $activeBlocks = $this->activeOperationalBlocks()->get();
+
+        foreach ($activeBlocks as $block) {
+            if (in_array($operation, $block->block_type->blockedOperations(), true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if payments are blocked for this customer.
+     * Returns true if there's an active Payment or Compliance block.
+     */
+    public function hasPaymentOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Payment)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+    }
+
+    /**
+     * Check if shipments are blocked for this customer.
+     * Returns true if there's an active Shipment or Compliance block.
+     */
+    public function hasShipmentOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Shipment)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+    }
+
+    /**
+     * Check if redemptions are blocked for this customer.
+     * Returns true if there's an active Redemption or Compliance block.
+     */
+    public function hasRedemptionOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Redemption)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+    }
+
+    /**
+     * Check if trading is blocked for this customer.
+     * Returns true if there's an active Trading or Compliance block.
+     */
+    public function hasTradingOperationBlocked(): bool
+    {
+        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Trading)
+            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+    }
 }
