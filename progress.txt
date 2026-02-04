@@ -476,3 +476,26 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Always eager-load relationships needed for display: `with(['roles', 'supplierConfig'])`
   - Use `$role->role->label()` for enum label (role.role is PartyRoleType enum)
 ---
+
+## 2026-02-04 - US-022
+- What was implemented:
+  - Verified Step 3 (Commercial Terms) was already implemented in US-020
+  - Step 3 has all required fields: quantity, unit_cost, currency, incoterms, ownership_transfer
+  - Quantity field: numeric, required, minValue(1), pre-filled from intent
+  - Unit cost field: numeric, required, minValue(0.01), with € prefix
+  - Currency select: EUR, USD, GBP, CHF options with default EUR
+  - Incoterms select: All standard incoterms (EXW, FCA, CPT, CIP, DAP, DPU, DDP, FAS, FOB, CFR, CIF)
+  - Ownership transfer toggle with dynamic explanation (ownership vs custody)
+  - Warning for quantity exceeding intent quantity (quantity_warning placeholder)
+  - Warning for mismatch between Purchase sourcing model and no ownership transfer
+  - Verified typecheck and lint pass
+- Files changed:
+  - prd.json (marked US-022 as passes: true)
+  - No code changes needed - implementation was complete in US-020
+- **Learnings for future iterations:**
+  - Wizard steps are often implemented together for complete flow testing
+  - Commercial terms follow pattern: Quantity section + Pricing section + Ownership section
+  - Use `minValue()` on TextInput for positive number validation
+  - Dynamic content in Placeholders via closures reacts to `live()` field changes
+  - Mismatch warnings help operators catch inconsistent data entry
+---
