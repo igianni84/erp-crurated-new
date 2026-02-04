@@ -295,3 +295,23 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - When a story's acceptance criteria are already met by prior implementations, verify and document rather than duplicate code
   - Xero sync trigger is a TODO placeholder until US-E098 implements the actual integration
 ---
+
+## 2026-02-04 - US-E017
+- What was implemented: Created comprehensive test suite for Invoice immutability enforcement
+- Files changed:
+  - tests/Unit/Models/Finance/InvoiceImmutabilityTest.php (new file - 16 test methods)
+- **Acceptance criteria verification:**
+  - ✅ invoice_type cannot be modified EVER: Already enforced in Invoice model boot() hook (created US-E002)
+  - ✅ invoice_lines cannot be modified after status != draft: Already enforced in InvoiceLine model boot() hook (created US-E003)
+  - ✅ subtotal, tax_amount, total_amount cannot be modified after issuance: Already enforced in Invoice model boot() hook (created US-E002)
+  - ✅ Attempt to modify throws explicit exception: InvalidArgumentException with descriptive messages
+  - ✅ UI hides edit fields for issued invoices: ViewInvoice uses read-only Infolist (no Form edit), InvoiceResource has no Edit page
+  - ✅ Test that verifies immutability: InvoiceImmutabilityTest.php with 16 test cases
+  - ✅ Typecheck passes: phpstan and pint both pass
+- **Learnings for future iterations:**
+  - Finance immutability tests go in tests/Unit/Models/Finance/ directory
+  - Test pattern: Use expectException() before the action that should throw
+  - Invoice/InvoiceLine immutability was already implemented in US-E002/US-E003, tests validate that behavior
+  - Pre-existing migration issue with SQLite (MODIFY COLUMN syntax) blocks all RefreshDatabase tests - unrelated to Finance module
+  - canBeEdited() helper methods on models should be tested to ensure UI helpers work correctly
+---
