@@ -338,3 +338,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - After create, manually handle invoice_lines via afterCreate() since repeater data isn't model-bound
   - bcmul/bcadd/bcdiv for all decimal calculations to maintain precision
 ---
+
+## 2026-02-04 - US-E019
+- What was implemented: Invoice PDF generation using barryvdh/laravel-dompdf
+- Files changed:
+  - app/Services/Finance/InvoicePdfService.php (new service for PDF generation)
+  - resources/views/pdf/invoices/invoice.blade.php (new PDF template)
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added Download PDF action)
+  - composer.json/composer.lock (added barryvdh/laravel-dompdf dependency)
+- **Acceptance criteria verification:**
+  - ✅ Action Download PDF visible for issued/paid invoices: getDownloadPdfAction() with canGeneratePdf() check
+  - ✅ PDF includes header, invoice details, lines table, totals, payment info, footer
+  - ✅ Template compliant with fiscal requirements: includes VAT numbers, company registration, legal info
+  - ✅ Filename: {invoice_number}.pdf: getFilename() method returns sanitized invoice number
+  - ✅ Typecheck passes: phpstan and pint both pass
+- **Learnings for future iterations:**
+  - Use barryvdh/laravel-dompdf for simple PDF generation in Laravel
+  - PDF templates go in resources/views/pdf/{entity}/ directory
+  - InvoicePdfService provides generate(), download(), stream(), getContent() methods for flexibility
+  - canGeneratePdf() helper method controls visibility of Download PDF action
+  - Use ALLOWED_STATUSES constant to define which invoice statuses support PDF generation
+  - Eager load relationships (customer, invoiceLines) before generating PDF for performance
+  - Sanitize invoice numbers for filenames using preg_replace()
+---
