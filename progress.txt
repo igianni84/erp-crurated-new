@@ -1683,3 +1683,40 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Timeline uses same color scheme as bottle/case audit for UI consistency
   - WMS reference section is collapsible since not all batches have WMS integration
 ---
+
+## 2026-02-04 - US-B058
+- **Implemented**: Global Module B Audit page providing unified view of all inventory audit events
+- **Files created**:
+  - app/Filament/Pages/InventoryAudit.php (Filament Page with table)
+  - resources/views/filament/pages/inventory-audit.blade.php (Blade view with summary cards)
+  - resources/views/filament/pages/partials/audit-detail-modal.blade.php (Modal for audit details)
+- **Features implemented**:
+  - Summary statistics cards showing total events and breakdowns by entity type (Bottles, Cases, Batches)
+  - Unified audit events table with columns: Timestamp, Entity Type, Entity ID, Event, User, Changes, Location
+  - Filters: entity_type (Bottle/Case/InboundBatch), event_type (all inventory events), date_range, user, location
+  - Search functionality: by entity_id, serial_number, user_name
+  - View Entity action to navigate directly to the source record
+  - Details modal showing full change history (old → new values)
+  - CSV export for compliance reporting with all audit data
+  - Auto-refresh every 30 seconds
+  - Compliance info banner explaining immutability
+- **Technical notes**:
+  - Uses Filament Tables trait on a Page (not Resource) for read-only audit log display
+  - Queries AuditLog table filtering by auditable_type for Module B entities
+  - Location filter uses subqueries to find entities at specified location
+  - CSV export uses streamDownload for large datasets
+- **Acceptance criteria verification**:
+  - ✅ Pagina Audit in Filament sotto Inventory: Page registered with navigation group "Inventory", sort 10
+  - ✅ Lista unificata tutti gli audit events di Module B: Queries SerializedBottle, InventoryCase, InboundBatch
+  - ✅ Filtri: entity_type, event_type, date_range, user, location: All filters implemented
+  - ✅ Ricerca per: entity_id, serial_number, user_name: All search implemented
+  - ✅ Export CSV per compliance: exportToCsv() method with full data export
+  - ✅ Typecheck e lint passano: PHPStan and Pint pass
+- **Browser verification**:
+  - Manual browser verification needed to confirm page displays correctly at /admin/inventory-audit
+- **Learnings for future iterations**:
+  - For read-only tables in Filament, use Page with InteractsWithTable trait instead of Resource
+  - Polymorphic audit queries need proper eager loading (with 'auditable', 'user')
+  - Location-based filtering on polymorphic data requires subqueries per entity type
+  - CSV export with streamDownload allows exporting large datasets without memory issues
+---
