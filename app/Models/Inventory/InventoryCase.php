@@ -178,6 +178,33 @@ class InventoryCase extends Model
     }
 
     /**
+     * Get the movement items associated with this case.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany<MovementItem, $this>
+     */
+    public function movementItems(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(MovementItem::class, 'case_id');
+    }
+
+    /**
+     * Get the inventory movements that involve this case.
+     *
+     * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<InventoryMovement, MovementItem, $this>
+     */
+    public function movements(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    {
+        return $this->hasManyThrough(
+            InventoryMovement::class,
+            MovementItem::class,
+            'case_id', // Foreign key on movement_items table
+            'id', // Foreign key on inventory_movements table
+            'id', // Local key on cases table
+            'inventory_movement_id' // Local key on movement_items table
+        );
+    }
+
+    /**
      * Check if the case is intact.
      */
     public function isIntact(): bool
