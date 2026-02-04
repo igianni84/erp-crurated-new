@@ -1408,3 +1408,25 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - Modal content can use custom Blade views via view() helper
   - AuditLog has getEventLabel(), getEventIcon(), getEventColor() methods for consistent UI
 ---
+
+## 2026-02-04 - US-062
+- What was implemented:
+  - Added dedicated "Execution History" tab to Pricing Policy Detail view
+  - Tab displays complete execution history (not limited to 5 as in the Execution tab)
+  - Badge on tab shows total execution count
+  - For each execution shows: date/time, type (manual/scheduled/dry_run), status, SKUs processed, prices generated, errors, success rate
+  - Expandable log_summary section with full Markdown/prose support for detailed execution logs
+  - Target Price Book section with clickable link to view generated prices
+  - Tip explaining how to filter by source in Price Book to see policy-generated prices
+  - Execution Statistics section showing breakdown by status (success/partial/failed) and type (manual/scheduled/dry_run)
+  - All sections collapsible for better UX
+- Files changed:
+  - app/Filament/Resources/PricingPolicyResource/Pages/ViewPricingPolicy.php (modified - added getExecutionHistoryTab() method)
+- **Learnings for future iterations:**
+  - RepeatableEntry with contained(true) provides visual separation for repeated items
+  - PricingPolicyExecution has getSuccessRate() helper method for calculating percentage
+  - Using ->prose()->markdown() enables rich text display for log summaries
+  - Badge on Tab using ->badge($count) shows count indicator
+  - ExecutionStatus and ExecutionType enums have .value property for database queries
+  - Tab numbering in comments (Tab 5, Tab 6, etc.) helps keep track of order
+---
