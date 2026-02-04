@@ -323,3 +323,27 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - RepeatableEntry columns(1) forces vertical layout for better readability
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B014
+- **Implemented**: Create/Edit Location forms in Filament
+- **Files modified**:
+  - app/Filament/Resources/Inventory/LocationResource.php (added complete form schema)
+  - app/Filament/Resources/Inventory/LocationResource/Pages/CreateLocation.php (added redirect to view)
+  - app/Filament/Resources/Inventory/LocationResource/Pages/EditLocation.php (added beforeSave warning, redirect to view)
+- **Features implemented**:
+  - Form sections: Location Details (name, location_type, country, address), Settings (serialization_authorized, linked_wms_id, status), Notes (collapsible)
+  - Name uniqueness validation with `withoutTrashed()` modifier
+  - Prominent warning banner when disabling serialization_authorized on location with pending serialization batches
+  - Live reactive toggle for serialization_authorized to show/hide warning dynamically
+  - Notification sent on save when disabling serialization with pending batches
+  - Redirect to view page after create/edit
+- **Audit logging**:
+  - Handled automatically by Auditable trait on Location model
+  - All create/update/delete events logged to AuditLog table
+- **Learnings for future iterations**:
+  - Use `Forms\Get $get` with `->live()` on toggle to make warning section reactive
+  - `->unique(modifyRuleUsing: fn (Unique $rule) => $rule->withoutTrashed())` ensures soft-deleted records don't conflict with uniqueness
+  - `beforeSave()` hook in EditRecord is ideal for validation warnings that don't block save
+  - Section::make()->extraAttributes() adds custom CSS classes for visual prominence
+  - Browser verification requirement noted - manual testing needed
+---
