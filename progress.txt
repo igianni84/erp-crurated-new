@@ -142,3 +142,29 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Helper methods delegate to enums (isWmsTriggered, isTransfer, isConsumption)
   - items_count accessor counts related movementItems
 ---
+
+## 2026-02-04 - US-B007
+- **Implemented**: MovementItem model as detail of items involved in inventory movements
+- **Files created**:
+  - app/Models/Inventory/MovementItem.php (NO Auditable, NO SoftDeletes, NO HasUuid)
+  - database/migrations/2026_02_04_100005_create_movement_items_table.php
+- **Files modified**:
+  - app/Models/Inventory/InventoryMovement.php (removed @phpstan-ignore, fixed relationship return type)
+- **Relationships**:
+  - belongsTo InventoryMovement (inventory_movement_id) - required
+  - belongsTo SerializedBottle (serialized_bottle_id) - nullable
+  - belongsTo InventoryCase (case_id) - nullable
+- **Key immutability enforcement**:
+  - NO soft deletes - items are never deleted
+  - Model boot guard throws InvalidArgumentException on update attempt
+  - Model boot guard throws InvalidArgumentException on delete attempt
+  - Items are append-only (insert only)
+- **Validation**:
+  - Creating hook validates at least one of serialized_bottle_id or case_id is set
+- **Learnings for future iterations**:
+  - MovementItem uses standard auto-incrementing id (not UUID) since it's not a standalone entity
+  - MovementItem does NOT use Auditable (parent InventoryMovement is the audit record)
+  - Helper methods hasBottle() and hasCase() for quick type checking
+  - Uses cascadeOnDelete on inventory_movement_id FK (if parent is somehow deleted, items go too)
+  - Uses nullOnDelete on serialized_bottle_id and case_id (item stays, reference becomes null)
+---
