@@ -228,6 +228,25 @@ class Bundle extends Model
         return (int) $this->components()->sum('quantity');
     }
 
+    /**
+     * Calculate the bundle price based on the pricing logic.
+     *
+     * @param  float  $sumOfComponents  The sum of all component prices
+     * @return float The calculated bundle price
+     */
+    public function calculateBundlePrice(float $sumOfComponents): float
+    {
+        return match ($this->pricing_logic) {
+            BundlePricingLogic::SumComponents => $sumOfComponents,
+            BundlePricingLogic::FixedPrice => $this->fixed_price !== null
+                ? (float) $this->fixed_price
+                : $sumOfComponents,
+            BundlePricingLogic::PercentageOffSum => $this->percentage_off !== null
+                ? $sumOfComponents * (1 - (float) $this->percentage_off / 100)
+                : $sumOfComponents,
+        };
+    }
+
     // =========================================================================
     // UI Helper Methods
     // =========================================================================

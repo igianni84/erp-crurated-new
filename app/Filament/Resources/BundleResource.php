@@ -253,7 +253,7 @@ class BundleResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            \App\Filament\Resources\BundleResource\RelationManagers\ComponentsRelationManager::class,
         ];
     }
 

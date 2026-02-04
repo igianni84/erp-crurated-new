@@ -1047,3 +1047,143 @@ Started: Tue Feb  3 21:41:29 CET 2026
   - PHPStan doesn't like Collection::contains() with typed closures on generic collections - use foreach loop instead
   - canBeEdited(), canBeDeleted(), isReferencedByAnyOffer() model helpers control UI action visibility
 ---
+
+## 2026-02-04 - US-048
+- What was implemented:
+  - Full CRUD for DiscountRule with dynamic logic builder based on rule type
+  - Create form with name, rule_type radio selection with descriptions and examples
+  - Dynamic logic configuration section with type-specific inputs:
+    - Percentage: single value input with % suffix (0-100)
+    - Fixed Amount: single value input with € prefix
+    - Tiered: Repeater with min/max price range and discount percentage per tier
+    - Volume-Based: Repeater with min_qty threshold and fixed discount amount
+  - Plain-language preview showing rule summary and example calculations
+  - View page with detailed infolist showing logic configuration, tier/threshold tables, usage statistics
+  - Edit page with access control (blocks editing if active Offers use the rule)
+  - Delete protection (cannot delete if referenced by any Offer)
+  - Activate/Deactivate header actions in view page
+  - Form data cleaning in mutateFormDataBeforeCreate/Save to properly structure logic_definition JSON
+- Files changed:
+  - app/Filament/Resources/DiscountRuleResource.php (modified - added full form with dynamic logic builder and preview)
+  - app/Filament/Resources/DiscountRuleResource/Pages/CreateDiscountRule.php (modified - added form data cleaning)
+  - app/Filament/Resources/DiscountRuleResource/Pages/EditDiscountRule.php (modified - added access control and form data cleaning)
+  - app/Filament/Resources/DiscountRuleResource/Pages/ViewDiscountRule.php (modified - added full infolist with logic configuration display)
+  - app/Models/Commercial/DiscountRule.php (modified - updated PHPDoc types for getTiers/getThresholds)
+- **Learnings for future iterations:**
+  - Use Repeater component for dynamic array inputs (tiers, thresholds) with min/default items
+  - Form data from Filament forms comes as mixed types - use liberal type annotations (array<string, mixed>) and extract with ?? null pattern
+  - mutateFormDataBeforeCreate/Save is the right place to clean and restructure form data for JSON columns
+  - Use authorizeAccess() in EditRecord pages to redirect away if record is not editable
+  - Radio component with descriptions() provides better UX than Select for rule type selection
+  - Live preview with example calculations helps users understand rule configuration
+  - For tables with mixed types (tiers with optional max), iterate with explicit null checks and ?? defaults
+---
+
+## 2026-02-04 - US-049
+- What was implemented:
+  - BundlePricingLogic enum (sum_components, fixed_price, percentage_off_sum) with label/color/icon/description/example/requiresFixedPrice/requiresPercentage/isAutomatic methods
+  - BundleStatus enum (draft, active, inactive) with label/color/icon/description methods
+  - Bundle model with HasUuid and SoftDeletes traits
+  - bundles migration with: id (uuid), name, bundle_sku (unique), pricing_logic (enum), fixed_price (decimal nullable), percentage_off (decimal nullable), status (enum)
+  - Status helper methods: isDraft, isActive, isInactive, canBeActivated, canBeDeactivated, isEditable
+  - Pricing logic helpers: isSumComponents, isFixedPrice, isPercentageOffSum, getFixedPriceValue, getPercentageOffValue
+  - Component helpers: hasComponents, getComponentsCount, getTotalComponentQuantity
+  - UI helpers: getPricingLogicLabel/Color/Icon, getStatusLabel/Color/Icon, getPricingSummary, getDetailedDescription
+  - Query scopes: draft, active, inactive, withPricingLogic
+  - Placeholder components() hasMany relationship (BundleComponent model to be created in US-050)
+- Files changed:
+  - app/Enums/Commercial/BundlePricingLogic.php (created)
+  - app/Enums/Commercial/BundleStatus.php (created)
+  - app/Models/Commercial/Bundle.php (created)
+  - database/migrations/2026_02_04_380011_create_bundles_table.php (created)
+- **Learnings for future iterations:**
+  - When a model has a relationship to a class that doesn't exist yet (like BundleComponent), use a string class reference and @phpstan-ignore argument.type annotation
+  - Bundle model includes percentage_off field for the percentage_off_sum pricing logic, not just fixed_price
+  - Bundle generates a composite Sellable SKU in PIM - the bundle_sku field stores this reference
+  - Activation requires at least one component (enforced in canBeActivated() method)
+  - Only draft bundles can be edited (isEditable() returns true only for draft status)
+---
+
+## 2026-02-04 - US-050
+- What was implemented:
+  - BundleComponent model with HasUuid trait and belongsTo relationships (Bundle, SellableSku)
+  - bundle_components migration with: id (uuid), bundle_id (FK), sellable_sku_id (FK), quantity (int default 1)
+  - Unique constraint on bundle_id + sellable_sku_id (a SKU can only appear once in a bundle)
+  - Cascade delete on both FKs
+  - Quantity validation helper: hasValidQuantity() checks quantity > 0
+  - SKU validation helpers: hasActiveSku(), hasAllocation()
+  - Display helpers: getSkuCode(), getDisplayString(), getWineName(), getVintageYear(), getDetailedDescription()
+  - Validation method: validate() returns array of errors, isValid() returns boolean
+  - Updated Bundle.components() relationship to use actual BundleComponent class (removed @phpstan-ignore)
+  - Added bundleComponents() hasMany relationship to SellableSku model
+- Files changed:
+  - app/Models/Commercial/BundleComponent.php (created)
+  - database/migrations/2026_02_04_380012_create_bundle_components_table.php (created)
+  - app/Models/Commercial/Bundle.php (modified - updated components relationship)
+  - app/Models/Pim/SellableSku.php (modified - added bundleComponents relationship)
+- **Learnings for future iterations:**
+  - BundleComponent links Sellable SKUs (not Bottle SKUs) to bundles with quantity
+  - Components are Sellable SKUs which include full commercial packaging specification (wine variant + format + case configuration)
+  - Unique constraint ensures a SKU can only appear once per bundle - use quantity field for multiples
+  - hasAllocation() checks if the component's SKU has an active allocation by matching wine_variant_id + format_id
+  - When a placeholder relationship is replaced with the actual class, remove the @phpstan-ignore annotation
+---
+
+## 2026-02-04 - US-051
+- What was implemented:
+  - BundleResource Filament resource with navigation group 'Commercial' and sort order 7
+  - List view with columns: name (searchable, sortable), bundle_sku (searchable, sortable, copyable), pricing_logic (badge), components_count (badge with count), status (badge), computed_price (dynamic display based on pricing_logic)
+  - Filters: status (select), pricing_logic (select), trashed (soft-delete filter)
+  - Search by name and bundle_sku
+  - Bulk actions: Activate Selected (with component check), Deactivate Selected, Delete, Force Delete, Restore
+  - View action for all records, Edit action only for editable (draft) bundles
+  - Form with sections: Bundle Information (name, bundle_sku), Pricing Configuration (pricing_logic, fixed_price, percentage_off), Status
+  - Dynamic pricing fields shown/hidden based on pricing_logic selection
+  - Standard CRUD pages: ListBundles, CreateBundle, ViewBundle, EditBundle
+  - EditBundle page redirects to view if bundle is not editable (not in draft status)
+- Files changed:
+  - app/Filament/Resources/BundleResource.php (created)
+  - app/Filament/Resources/BundleResource/Pages/ListBundles.php (created)
+  - app/Filament/Resources/BundleResource/Pages/CreateBundle.php (created)
+  - app/Filament/Resources/BundleResource/Pages/ViewBundle.php (created)
+  - app/Filament/Resources/BundleResource/Pages/EditBundle.php (created)
+- **Learnings for future iterations:**
+  - BundleResource follows the same pattern as DiscountRuleResource and other Commercial resources
+  - Use withoutGlobalScopes([SoftDeletingScope::class]) instead of withTrashed() to satisfy PHPStan
+  - computed_price is a dynamic display based on pricing_logic (sum of components, fixed price, or percentage off sum)
+  - canBeActivated() checks both isDraft() AND hasComponents() - bulk activate skips bundles without components
+  - authorizeAccess() in EditRecord can redirect away from edit page if record is not editable
+---
+
+## 2026-02-04 - US-052
+- What was implemented:
+  - Converted CreateBundle page to multi-step wizard using HasWizard trait with 4 steps:
+    - Step 1 (Bundle Information): name, bundle_sku (auto-generated if empty)
+    - Step 2 (Components): Repeater-based component selection with Sellable SKU dropdown and quantity input
+    - Step 3 (Pricing): pricing_logic radio selection, fixed_price/percentage_off inputs based on logic
+    - Step 4 (Review): summary of all bundle configuration with dual submit buttons (Create as Draft / Create and Activate)
+  - ComponentsRelationManager for managing bundle components in view/edit pages
+  - Table with columns: SKU Code, Wine Name, Format, Packaging, Quantity (inline editable), SKU Status, Allocation Status
+  - Create/Edit/Delete actions visible only when bundle is in Draft status
+  - Validation to prevent deleting all components (bundle must have at least one)
+  - ViewBundle enhanced with 3 tabs: Overview, Pricing, Manage Components
+  - Tab Overview: bundle info, components summary, component list with validation status
+  - Tab Pricing: pricing configuration, pricing details with description/example, computed price preview against active Price Books
+  - Tab Manage Components: info banner explaining component editing status, relation manager embedded
+  - Header actions: Edit (draft only), Activate (with component validation), Deactivate, Reactivate, Delete
+  - Added calculateBundlePrice() method to Bundle model for computing bundle price based on pricing_logic
+- Files changed:
+  - app/Filament/Resources/BundleResource.php (modified - registered ComponentsRelationManager)
+  - app/Filament/Resources/BundleResource/Pages/CreateBundle.php (modified - converted to wizard)
+  - app/Filament/Resources/BundleResource/Pages/ViewBundle.php (modified - added 3 tabs and header actions)
+  - app/Filament/Resources/BundleResource/RelationManagers/ComponentsRelationManager.php (created)
+  - app/Models/Commercial/Bundle.php (modified - added calculateBundlePrice method)
+- **Learnings for future iterations:**
+  - For wizard-based create pages, use HasWizard trait with getSteps() returning Wizard\Step array
+  - Dual submit buttons use HtmlString with wire:click="$set('property', value)" to track user choice
+  - ComponentsRelationManager follows standard RelationManager pattern with form() and table() methods
+  - Use TextInputColumn for inline quantity editing with afterStateUpdated callback
+  - TextEntry with getStateUsing() and ->html() is the correct pattern for custom HTML content in Infolists (not Placeholder)
+  - PHPStan's vintage_year null checks are unnecessary since it's cast to integer - use direct cast instead
+  - Session-based data passing between mutateFormDataBeforeCreate() and afterCreate() for non-model data
+---
