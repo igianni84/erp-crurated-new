@@ -27,6 +27,7 @@ use InvalidArgumentException;
  * - subtotal, tax_amount, total_amount
  * - currency
  * - fx_rate_at_issuance
+ * - due_date (modifiable only in draft status)
  *
  * @property string $id
  * @property string|null $invoice_number
@@ -131,9 +132,9 @@ class Invoice extends Model
                 );
             }
 
-            // After issuance, amounts, currency, and FX rate become immutable
+            // After issuance, amounts, currency, FX rate, and due_date become immutable
             if ($invoice->getOriginal('status') !== InvoiceStatus::Draft->value) {
-                $immutableAfterIssuance = ['subtotal', 'tax_amount', 'total_amount', 'currency', 'fx_rate_at_issuance'];
+                $immutableAfterIssuance = ['subtotal', 'tax_amount', 'total_amount', 'currency', 'fx_rate_at_issuance', 'due_date'];
 
                 foreach ($immutableAfterIssuance as $field) {
                     if ($invoice->isDirty($field)) {
@@ -292,6 +293,40 @@ class Invoice extends Model
     public function canBeCancelled(): bool
     {
         return $this->status->allowsCancellation();
+    }
+
+    /**
+     * Check if due date can be modified.
+     * Due date is only modifiable while invoice is in draft status.
+     */
+    public function canModifyDueDate(): bool
+    {
+        return $this->isDraft();
+    }
+
+    /**
+     * Check if due date is required for this invoice type.
+     */
+    public function requiresDueDate(): bool
+    {
+        return $this->invoice_type->requiresDueDate();
+    }
+
+    /**
+     * Get the default due date days for this invoice type.
+     * Returns null if immediate payment is expected.
+     */
+    public function getDefaultDueDateDays(): ?int
+    {
+        return $this->invoice_type->defaultDueDateDays();
+    }
+
+    /**
+     * Check if this invoice type expects immediate payment.
+     */
+    public function expectsImmediatePayment(): bool
+    {
+        return $this->invoice_type->defaultDueDateDays() === null;
     }
 
     /**
