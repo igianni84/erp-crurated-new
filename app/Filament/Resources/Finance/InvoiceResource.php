@@ -189,6 +189,23 @@ class InvoiceResource extends Resource
                     ])
                     ->label('Currency'),
 
+                Tables\Filters\TernaryFilter::make('overdue')
+                    ->label('Overdue Status')
+                    ->placeholder('All invoices')
+                    ->trueLabel('Overdue only')
+                    ->falseLabel('Not overdue')
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query
+                            ->where('status', InvoiceStatus::Issued)
+                            ->whereNotNull('due_date')
+                            ->where('due_date', '<', now()->startOfDay()),
+                        false: fn (Builder $query): Builder => $query->where(function (Builder $q): void {
+                            $q->where('status', '!=', InvoiceStatus::Issued)
+                                ->orWhereNull('due_date')
+                                ->orWhere('due_date', '>=', now()->startOfDay());
+                        }),
+                    ),
+
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->actions([

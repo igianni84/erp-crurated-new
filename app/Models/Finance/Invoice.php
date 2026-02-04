@@ -49,6 +49,10 @@ use InvalidArgumentException;
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property \Carbon\Carbon|null $deleted_at
+ * @property-read bool $is_overdue
+ *
+ * @method static \Illuminate\Database\Eloquent\Builder<static> overdue()
+ * @method static \Illuminate\Database\Eloquent\Builder<static> notOverdue()
  */
 class Invoice extends Model
 {
@@ -288,6 +292,7 @@ class Invoice extends Model
 
     /**
      * Check if invoice is overdue.
+     * Invoice is overdue when: status = issued AND due_date < today
      */
     public function isOverdue(): bool
     {
@@ -300,6 +305,60 @@ class Invoice extends Model
         }
 
         return $this->due_date->isPast();
+    }
+
+    /**
+     * Get computed is_overdue attribute.
+     */
+    public function getIsOverdueAttribute(): bool
+    {
+        return $this->isOverdue();
+    }
+
+    /**
+     * Get the number of days overdue.
+     * Returns null if not overdue.
+     */
+    public function getDaysOverdue(): ?int
+    {
+        if (! $this->isOverdue()) {
+            return null;
+        }
+
+        return (int) $this->due_date?->diffInDays(now());
+    }
+
+    // =========================================================================
+    // Query Scopes
+    // =========================================================================
+
+    /**
+     * Scope to get overdue invoices.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public function scopeOverdue(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query
+            ->where('status', InvoiceStatus::Issued)
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->startOfDay());
+    }
+
+    /**
+     * Scope to get invoices that are not overdue.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public function scopeNotOverdue(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where(function (\Illuminate\Database\Eloquent\Builder $q): void {
+            $q->where('status', '!=', InvoiceStatus::Issued)
+                ->orWhereNull('due_date')
+                ->orWhere('due_date', '>=', now()->startOfDay());
+        });
     }
 
     // =========================================================================
