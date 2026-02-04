@@ -564,3 +564,25 @@ Started: Wed Feb  4 10:35:15 CET 2026
   - Link Inbound action passes purchase_order_id as query param to pre-fill create form
   - Browser verification should be done manually as dev-browser skill is not available
 ---
+
+## 2026-02-04 - US-026
+- What was implemented:
+  - Added confirmed_at (timestamp) and confirmed_by (FK users) fields to PurchaseOrder
+  - Migration 2026_02_04_400026_add_confirmed_at_to_purchase_orders.php
+  - Updated PurchaseOrder model with new fields, casts, confirmedByUser relationship
+  - Status transitions already implemented in enum (allowedTransitions, canTransitionTo)
+  - sent→confirmed: Now sets confirmed_at = now(), confirmed_by = auth()->id()
+  - confirmed→closed: Already supports variance_notes via close action form
+  - Invalid transitions show user-friendly Notification error
+  - All transitions create AuditLog with user_id, timestamp, and changes array
+  - Status & Identity section in Commercial Terms tab shows confirmed_at and confirmed_by when present
+- Files changed:
+  - database/migrations/2026_02_04_400026_add_confirmed_at_to_purchase_orders.php (new)
+  - app/Models/Procurement/PurchaseOrder.php (modified - added confirmed_at, confirmed_by, confirmedByUser relationship)
+  - app/Filament/Resources/Procurement/PurchaseOrderResource/Pages/ViewPurchaseOrder.php (modified - set confirmed_at/by on confirm, display in UI)
+- **Learnings for future iterations:**
+  - Use `$table->unsignedBigInteger()` + `$table->foreign()` for FK with after() positioning (foreignId + constrained doesn't support after())
+  - Confirmation tracking (timestamp + user) follows same pattern as approval tracking in ProcurementIntent
+  - AuditLog changes array should include new field values for complete audit trail
+  - Status transition actions use canTransitionTo() for validation before attempting change
+---

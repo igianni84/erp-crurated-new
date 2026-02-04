@@ -441,7 +441,7 @@
         "Typecheck e lint passano"
       ],
       "priority": 26,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
