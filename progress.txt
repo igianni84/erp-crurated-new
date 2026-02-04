@@ -728,3 +728,44 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - HtmlString used for rich HTML warning content in modal
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B028
+- **Implemented**: Mark Bottle as Missing action in Bottle Detail page
+- **Files modified**:
+  - app/Services/Inventory/MovementService.php (added recordMissing method)
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (added Mark as Missing header action)
+- **Features implemented**:
+  - "Mark as Missing" action visible only when bottle is NOT in terminal state
+  - Confirmation modal with warning about missing implications
+  - Checkbox confirmation for marking as missing acknowledgment
+  - Required reason text field explaining circumstances
+  - Optional last known custody field for tracking
+  - Optional agreement reference field for consignment situations
+  - Bottle state changes to MISSING upon confirmation
+  - Movement record created via MovementService.recordMissing()
+  - InventoryException record created (NOT resolved - stays open for compliance)
+  - Warning notification with persistent reminder about record visibility
+- **Service changes**:
+  - recordMissing(bottle, reason, executor, lastKnownCustody, agreementReference): Creates missing movement and updates state
+  - Uses InternalTransfer movement type with "Missing" prefix in reason (no dedicated MovementType for missing)
+  - Sets custody_changed = true (custody effectively changes when item goes missing)
+  - Validates bottle not already in terminal state
+  - Transaction ensures atomicity of movement creation + state update
+- **Acceptance criteria verification**:
+  - ✅ Action in Bottle Detail with "Mark as Missing" label
+  - ✅ Form with reason, last known custody, agreement reference fields
+  - ✅ Bottle.state becomes MISSING
+  - ✅ Inventory reduced (by state change - missing bottles excluded from available counts)
+  - ✅ Bottle locked from fulfillment (BottleState.isAvailableForFulfillment() returns false for Missing)
+  - ✅ Missing bottles remain visible forever (never deleted)
+  - ✅ Used in loss & compliance reporting (InventoryException with exception_type 'bottle_missing')
+  - ✅ Audit log complete (InventoryException + movement record)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Missing bottles create unresolved InventoryException records (no resolved_at/resolved_by set)
+  - MovementType::InternalTransfer reused for missing (no dedicated MovementType for missing)
+  - InventoryException with exception_type 'bottle_missing' for filtering missing events
+  - Last known custody and agreement reference are useful for consignment loss tracking
+  - Missing state is different from Destroyed - missing implies potential to be found later
+  - Browser verification requirement noted - manual testing needed
+---
