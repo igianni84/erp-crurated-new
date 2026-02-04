@@ -3,11 +3,15 @@
 namespace App\Models\Customer;
 
 use App\Enums\Customer\AccountStatus;
+use App\Enums\Customer\AccountUserRole;
 use App\Enums\Customer\ChannelScope;
+use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -283,5 +287,146 @@ class Account extends Model
         return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Trading)
             || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
             || $this->customer->hasTradingOperationBlocked();
+    }
+
+    /**
+     * Get all users with access to this account.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'account_users')
+            ->withPivot(['role', 'invited_at', 'accepted_at'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get all account-user relationships for this account.
+     *
+     * @return HasMany<AccountUser, $this>
+     */
+    public function accountUsers(): HasMany
+    {
+        return $this->hasMany(AccountUser::class);
+    }
+
+    /**
+     * Get only accepted account-user relationships.
+     *
+     * @return HasMany<AccountUser, $this>
+     */
+    public function acceptedAccountUsers(): HasMany
+    {
+        return $this->hasMany(AccountUser::class)
+            ->whereNotNull('accepted_at');
+    }
+
+    /**
+     * Get only pending (invited but not accepted) account-user relationships.
+     *
+     * @return HasMany<AccountUser, $this>
+     */
+    public function pendingAccountUsers(): HasMany
+    {
+        return $this->hasMany(AccountUser::class)
+            ->whereNotNull('invited_at')
+            ->whereNull('accepted_at');
+    }
+
+    /**
+     * Check if a user has access to this account.
+     */
+    public function hasUser(User $user): bool
+    {
+        return $this->accountUsers()
+            ->where('user_id', $user->id)
+            ->exists();
+    }
+
+    /**
+     * Check if a user has accepted access to this account.
+     */
+    public function hasAcceptedUser(User $user): bool
+    {
+        return $this->acceptedAccountUsers()
+            ->where('user_id', $user->id)
+            ->exists();
+    }
+
+    /**
+     * Get the account-user relationship for a specific user.
+     */
+    public function getAccountUser(User $user): ?AccountUser
+    {
+        return $this->accountUsers()
+            ->where('user_id', $user->id)
+            ->first();
+    }
+
+    /**
+     * Get the role of a user within this account.
+     */
+    public function getUserRole(User $user): ?AccountUserRole
+    {
+        $accountUser = $this->getAccountUser($user);
+
+        return $accountUser?->role;
+    }
+
+    /**
+     * Check if a user is the owner of this account.
+     */
+    public function isOwner(User $user): bool
+    {
+        return $this->getUserRole($user) === AccountUserRole::Owner;
+    }
+
+    /**
+     * Check if a user can manage users on this account.
+     */
+    public function canUserManageUsers(User $user): bool
+    {
+        $role = $this->getUserRole($user);
+
+        return $role !== null && $role->canManageUsers();
+    }
+
+    /**
+     * Check if a user can perform operations on this account.
+     */
+    public function canUserOperate(User $user): bool
+    {
+        $role = $this->getUserRole($user);
+
+        return $role !== null && $role->canOperate();
+    }
+
+    /**
+     * Get the owner of this account.
+     */
+    public function getOwner(): ?User
+    {
+        $ownerRelation = $this->accountUsers()
+            ->where('role', AccountUserRole::Owner)
+            ->first();
+
+        return $ownerRelation?->user;
+    }
+
+    /**
+     * Get the count of accepted users on this account.
+     */
+    public function getAcceptedUsersCount(): int
+    {
+        return $this->acceptedAccountUsers()->count();
+    }
+
+    /**
+     * Get the count of pending invitations on this account.
+     */
+    public function getPendingInvitationsCount(): int
+    {
+        return $this->pendingAccountUsers()->count();
     }
 }
