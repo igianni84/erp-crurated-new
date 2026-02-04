@@ -689,3 +689,42 @@ Started: Wed Feb  4 14:00:43 CET 2026
   - Fulfillment tab must NOT show customer identity - privacy compliance requirement
   - Browser verification requirement noted - manual testing needed
 ---
+
+## 2026-02-04 - US-B027
+- **Implemented**: Mark Bottle as Damaged/Destroyed action in Bottle Detail page
+- **Files modified**:
+  - app/Services/Inventory/MovementService.php (added recordDestruction method)
+  - app/Filament/Resources/Inventory/SerializedBottleResource/Pages/ViewSerializedBottle.php (added Mark as Damaged header action)
+- **Features implemented**:
+  - "Mark as Damaged" action visible only when bottle is NOT in terminal state
+  - Confirmation modal with prominent irreversibility warning
+  - Checkbox confirmation for physical destruction acknowledgment
+  - Reason selection: breakage, leakage, contamination, or other
+  - Optional evidence/notes text field for additional context
+  - Bottle state changes to DESTROYED upon confirmation
+  - Movement record created via MovementService.recordDestruction()
+  - InventoryException record created for audit trail
+  - Success notification with persistent reminder that record remains visible
+- **Service changes**:
+  - recordDestruction(bottle, reason, executor, evidence): Creates destruction movement and updates state
+  - Uses EventConsumption movement type with "Destroyed" prefix in reason
+  - Validates bottle not already in terminal state
+  - Transaction ensures atomicity of movement creation + state update
+- **Acceptance criteria verification**:
+  - ✅ Action in Bottle Detail with "Mark as Damaged" label
+  - ✅ Form with confirmation checkbox, reason select, optional evidence
+  - ✅ Bottle.state becomes DESTROYED
+  - ✅ Inventory reduced (by state change - destroyed bottles excluded from available counts)
+  - ✅ Bottle remains visible for audit (never deleted, uses soft deletes but not triggered)
+  - ✅ Provenance intact (all movements preserved, destruction is additive)
+  - ✅ Destroyed bottles blocked from Module C (BottleState.isAvailableForFulfillment() returns false)
+  - ✅ Audit log complete (InventoryException + Auditable trait)
+  - ✅ Typecheck and lint pass
+- **Learnings for future iterations**:
+  - Terminal state check via isInTerminalState() prevents double-destruction
+  - MovementType::EventConsumption reused for destruction (no dedicated MovementType for destruction)
+  - InventoryException with exception_type 'bottle_destroyed' for filtering destruction events
+  - Action visibility controlled by visible() callback checking terminal state
+  - HtmlString used for rich HTML warning content in modal
+  - Browser verification requirement noted - manual testing needed
+---
