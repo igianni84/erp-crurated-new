@@ -694,3 +694,26 @@ Started: Wed Feb  4 08:12:32 CET 2026
   - Account operation checks inherit from Customer (account block OR customer block = blocked)
   - Compliance block is "super block" - prevents ALL operations
 ---
+
+## 2026-02-04 - US-029
+- What was implemented:
+  - Full implementation of Operational Blocks Tab in Customer Detail (replaced placeholder)
+  - Active Blocks section showing: block type (badge), reason, applied by, applied at
+  - Tab badge shows active blocks count with color coding (danger for critical, warning for non-critical)
+  - Add Block action (Manager+ only): modal form with block type select and reason textarea
+  - Remove Block action (Manager+ only): modal with removal reason, sets status=removed with removed_at/removed_by
+  - Block Types Reference section: shows all 5 block types with descriptions, critical indicator
+  - Block History section: shows removed blocks with original reason, applied/removed timestamps and users, removal reason
+  - Added `canManageOperationalBlocks()` method to User model (requires Manager role)
+  - Actions visibility controlled by authorization (canManageBlocks)
+- Files changed:
+  - app/Models/User.php (updated - added canManageOperationalBlocks())
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Operational Blocks tab with CRUD)
+- **Learnings for future iterations:**
+  - Use `array_merge()` with conditional array to add/remove columns based on permissions
+  - Authorization for block management follows same pattern as payment permissions (Manager+)
+  - RepeatableEntry with `getStateUsing()` can display query results not from the record's relationship directly
+  - For removed blocks, query with `->where('status', BlockStatus::Removed)` since it's not a relationship scope
+  - OperationalBlock.remove() method handles status change, removed_at, removed_by, and removal_reason atomically
+  - Use `->limit(50)->tooltip()` pattern for long text fields to show full content on hover
+---
