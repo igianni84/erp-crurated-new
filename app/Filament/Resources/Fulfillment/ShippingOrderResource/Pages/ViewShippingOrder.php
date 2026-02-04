@@ -2694,7 +2694,7 @@ class ViewShippingOrder extends ViewRecord
                 $completion = $this->getBindingCompletion($record);
                 $voucherCount = $record->lines()->count();
 
-                return "Are you sure you want to confirm this shipment?\n\n"
+                $description = "Are you sure you want to confirm this shipment?\n\n"
                     ."Summary:\n"
                     ."• {$voucherCount} item(s) bound to bottles\n"
                     ."• Early bindings: {$completion['early_binding_count']}\n"
@@ -2706,9 +2706,35 @@ class ViewShippingOrder extends ViewRecord
                     ."• Transfer bottle ownership to customer\n"
                     ."• Update provenance records\n\n"
                     .'This action cannot be undone.';
+
+                // Add case integrity warning if needed
+                /** @var ShipmentService $shipmentService */
+                $shipmentService = app(ShipmentService::class);
+                $caseImpact = $shipmentService->checkCaseIntegrityImpact($record);
+                if ($caseImpact['requires_case_break']) {
+                    $description .= "\n\n🔴 CASE INTEGRITY WARNING:\n".$caseImpact['warning_message'];
+                }
+
+                return $description;
+            })
+            ->form(function (ShippingOrder $record): array {
+                /** @var ShipmentService $shipmentService */
+                $shipmentService = app(ShipmentService::class);
+                $caseImpact = $shipmentService->checkCaseIntegrityImpact($record);
+
+                $formFields = [];
+
+                if ($caseImpact['requires_case_break']) {
+                    $formFields[] = \Filament\Forms\Components\Checkbox::make('case_break_confirmed')
+                        ->label('I understand that this shipment will permanently break the original case(s) and this action is IRREVERSIBLE')
+                        ->required()
+                        ->accepted();
+                }
+
+                return $formFields;
             })
             ->modalSubmitActionLabel('Confirm Shipment')
-            ->action(function (ShippingOrder $record): void {
+            ->action(function (ShippingOrder $record, array $data): void {
                 $completion = $this->getBindingCompletion($record);
                 if (! $completion['all_bound']) {
                     Notification::make()
@@ -2728,7 +2754,8 @@ class ViewShippingOrder extends ViewRecord
 
                     // Confirm shipment with tracking (using carrier from SO or placeholder)
                     $trackingNumber = 'PENDING-'.strtoupper(substr(md5((string) $shipment->id), 0, 8));
-                    $shipmentService->confirmShipment($shipment, $trackingNumber);
+                    $caseBreakConfirmed = $data['case_break_confirmed'] ?? false;
+                    $shipmentService->confirmShipment($shipment, $trackingNumber, $caseBreakConfirmed);
 
                     // Transition SO to Shipped
                     /** @var ShippingOrderService $shippingOrderService */

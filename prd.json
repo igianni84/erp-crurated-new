@@ -572,8 +572,8 @@
         "Typecheck e lint passano"
       ],
       "priority": 35,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented checkCaseIntegrityImpact(), breakCasesForShipment(), validateCaseBreakConfirmation() in ShipmentService. UI confirmation checkbox in Confirm Shipment action. Case integrity_status → Broken is irreversible. No automatic downgrade from preserve_cases."
     },
     {
       "id": "US-C036",

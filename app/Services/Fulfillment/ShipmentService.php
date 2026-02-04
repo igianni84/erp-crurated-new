@@ -6,9 +6,11 @@ use App\Enums\Fulfillment\ShipmentStatus;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Enums\Inventory\BottleState;
+use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Models\Fulfillment\Shipment;
 use App\Models\Fulfillment\ShippingOrder;
 use App\Models\Fulfillment\ShippingOrderAuditLog;
+use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Allocation\VoucherService;
 use Illuminate\Support\Facades\Auth;
@@ -44,6 +46,8 @@ class ShipmentService
     public const EVENT_SHIPMENT_DELIVERED = 'shipment_delivered';
 
     public const EVENT_SHIPMENT_FAILED = 'shipment_failed';
+
+    public const EVENT_CASE_BROKEN = 'case_broken_for_shipment';
 
     public function __construct(
         protected VoucherService $voucherService,
@@ -147,17 +151,19 @@ class ShipmentService
      * Confirm a shipment with tracking number.
      *
      * Confirming a shipment is the "point of no return":
-     * 1. Sets shipped status and timestamp
-     * 2. Triggers voucher redemption for all vouchers in the SO
-     * 3. Triggers ownership transfer for all bottles
+     * 1. Breaks any intact cases that need partial bottle extraction (IRREVERSIBLE)
+     * 2. Sets shipped status and timestamp
+     * 3. Triggers voucher redemption for all vouchers in the SO
+     * 4. Triggers ownership transfer for all bottles
      *
      * @param  Shipment  $shipment  The shipment to confirm
      * @param  string  $trackingNumber  The carrier tracking number
+     * @param  bool  $caseBreakConfirmed  Whether operator has confirmed case breaking (required if cases will be broken)
      * @return Shipment The confirmed shipment
      *
      * @throws \InvalidArgumentException If confirmation fails
      */
-    public function confirmShipment(Shipment $shipment, string $trackingNumber): Shipment
+    public function confirmShipment(Shipment $shipment, string $trackingNumber, bool $caseBreakConfirmed = false): Shipment
     {
         // Validate shipment status
         if (! $shipment->isPreparing()) {
@@ -183,7 +189,18 @@ class ShipmentService
             );
         }
 
+        // Validate case break confirmation if needed
+        $caseBreakValidation = $this->validateCaseBreakConfirmation($so, $caseBreakConfirmed);
+        if (! $caseBreakValidation['valid']) {
+            throw new \InvalidArgumentException(
+                'Cannot confirm shipment: '.$caseBreakValidation['error']
+            );
+        }
+
         return DB::transaction(function () use ($shipment, $trackingNumber, $so): Shipment {
+            // Break any cases that need breaking for partial shipment (IRREVERSIBLE)
+            $brokenCases = $this->breakCasesForShipment($so);
+
             // Update shipment status to Shipped
             $shipment->tracking_number = $trackingNumber;
             $shipment->status = ShipmentStatus::Shipped;
@@ -214,6 +231,7 @@ class ShipmentService
                     'tracking_number' => $trackingNumber,
                     'shipped_at' => $shipment->shipped_at?->toIso8601String(),
                     'bottle_count' => $shipment->getBottleCount(),
+                    'cases_broken' => count($brokenCases),
                 ]
             );
 
@@ -559,6 +577,167 @@ class ShipmentService
         }
 
         return 'Address not specified';
+    }
+
+    /**
+     * Check case integrity impact for a Shipping Order.
+     *
+     * Identifies cases that will be broken due to partial shipment.
+     * When shipping only some bottles from an intact case, the case must be broken.
+     *
+     * @param  ShippingOrder  $so  The shipping order to check
+     * @return array{
+     *     cases_affected: list<array{case_id: string, case_serial: string, total_bottles: int, shipping_bottles: int, will_break: bool}>,
+     *     requires_case_break: bool,
+     *     warning_message: string|null
+     * }
+     */
+    public function checkCaseIntegrityImpact(ShippingOrder $so): array
+    {
+        $so->load(['lines']);
+
+        // Group bound bottles by case_id
+        $bottlesByCase = [];
+        foreach ($so->lines as $line) {
+            $caseId = $line->bound_case_id;
+            if ($caseId !== null) {
+                if (! isset($bottlesByCase[$caseId])) {
+                    $bottlesByCase[$caseId] = [];
+                }
+                $bottlesByCase[$caseId][] = $line->getEffectiveSerial();
+            }
+        }
+
+        $casesAffected = [];
+        $requiresCaseBreak = false;
+        $warnings = [];
+
+        foreach ($bottlesByCase as $caseId => $shippingSerials) {
+            $case = InventoryCase::with('serializedBottles')->find($caseId);
+            if ($case === null) {
+                continue;
+            }
+
+            // If case is already broken, no impact
+            if ($case->isBroken()) {
+                continue;
+            }
+
+            // Count total bottles in case vs bottles we're shipping
+            $totalBottles = $case->serializedBottles->count();
+            $shippingBottles = count($shippingSerials);
+
+            // Will break = shipping some but not all bottles from intact case
+            $willBreak = $shippingBottles < $totalBottles;
+
+            if ($willBreak) {
+                $requiresCaseBreak = true;
+                $warnings[] = "{$case->display_label} ({$shippingBottles}/{$totalBottles} bottles)";
+            }
+
+            $casesAffected[] = [
+                'case_id' => $caseId,
+                'case_serial' => $case->display_label,
+                'total_bottles' => $totalBottles,
+                'shipping_bottles' => $shippingBottles,
+                'will_break' => $willBreak,
+            ];
+        }
+
+        $warningMessage = null;
+        if ($requiresCaseBreak) {
+            $warningMessage = 'This shipment will permanently break the following original cases: '
+                .implode(', ', $warnings)
+                .'. Once broken, cases can never be restored to intact state.';
+        }
+
+        return [
+            'cases_affected' => $casesAffected,
+            'requires_case_break' => $requiresCaseBreak,
+            'warning_message' => $warningMessage,
+        ];
+    }
+
+    /**
+     * Break cases affected by a shipment.
+     *
+     * Called during shipment confirmation to break any intact cases
+     * that are having partial bottles shipped.
+     *
+     * @param  ShippingOrder  $so  The shipping order
+     * @param  string  $reason  The reason for breaking (defaults to shipment)
+     * @return list<array{case_id: string, case_serial: string}> The cases that were broken
+     */
+    public function breakCasesForShipment(ShippingOrder $so, string $reason = 'Partial shipment from case'): array
+    {
+        $caseImpact = $this->checkCaseIntegrityImpact($so);
+        $brokenCases = [];
+
+        foreach ($caseImpact['cases_affected'] as $caseInfo) {
+            if (! $caseInfo['will_break']) {
+                continue;
+            }
+
+            $case = InventoryCase::find($caseInfo['case_id']);
+            if ($case === null || $case->isBroken()) {
+                continue;
+            }
+
+            // Break the case
+            $case->integrity_status = CaseIntegrityStatus::Broken;
+            $case->broken_at = now();
+            $case->broken_by = Auth::id();
+            $case->broken_reason = "{$reason}: shipping {$caseInfo['shipping_bottles']}/{$caseInfo['total_bottles']} bottles for SO {$so->id}";
+            $case->save();
+
+            $brokenCases[] = [
+                'case_id' => $caseInfo['case_id'],
+                'case_serial' => $caseInfo['case_serial'],
+            ];
+
+            // Log the case breaking
+            $this->logEvent(
+                $so,
+                self::EVENT_CASE_BROKEN,
+                "Case {$caseInfo['case_serial']} broken for partial shipment ({$caseInfo['shipping_bottles']}/{$caseInfo['total_bottles']} bottles)",
+                ['integrity_status' => CaseIntegrityStatus::Intact->value],
+                [
+                    'integrity_status' => CaseIntegrityStatus::Broken->value,
+                    'case_id' => $caseInfo['case_id'],
+                    'shipping_bottles' => $caseInfo['shipping_bottles'],
+                    'total_bottles' => $caseInfo['total_bottles'],
+                ]
+            );
+        }
+
+        return $brokenCases;
+    }
+
+    /**
+     * Validate that case breaking has been confirmed by operator.
+     *
+     * If the shipment will break any cases, this must be explicitly confirmed.
+     *
+     * @param  ShippingOrder  $so  The shipping order
+     * @param  bool  $caseBreakConfirmed  Whether the operator has confirmed case breaking
+     * @return array{valid: bool, error: string|null}
+     */
+    public function validateCaseBreakConfirmation(ShippingOrder $so, bool $caseBreakConfirmed): array
+    {
+        $caseImpact = $this->checkCaseIntegrityImpact($so);
+
+        if ($caseImpact['requires_case_break'] && ! $caseBreakConfirmed) {
+            return [
+                'valid' => false,
+                'error' => $caseImpact['warning_message']
+                    .' You must confirm that you understand this action is IRREVERSIBLE.',
+            ];
+        }
+
+        return [
+            'valid' => true,
+            'error' => null,
+        ];
     }
 
     /**

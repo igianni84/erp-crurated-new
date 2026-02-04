@@ -505,3 +505,21 @@ Started: Wed Feb  4 17:27:51 CET 2026
   - Ownership/custody validation is implicit: Stored state means bottle is under warehouse custody
   - Early binding (Module D personalization) takes precedence - lines with hasEarlyBinding() skip late binding entirely
 ---
+
+## 2026-02-04 - US-C035
+- **What was implemented:** Case Integrity Handling for preserve_cases and partial shipment from cases
+- **Files changed:**
+  - `app/Services/Fulfillment/ShipmentService.php` (added checkCaseIntegrityImpact, breakCasesForShipment, validateCaseBreakConfirmation methods, updated confirmShipment signature)
+  - `app/Services/Fulfillment/WmsIntegrationService.php` (updated confirmShipment call to pass caseBreakConfirmed=true)
+  - `app/Filament/Resources/Fulfillment/ShippingOrderResource/Pages/ViewShippingOrder.php` (added case break warning and confirmation checkbox to Confirm Shipment action)
+- **Learnings for future iterations:**
+  - preserve_cases already blocks SO planning when intact case unavailable (via canPlanShippingOrder in ViewShippingOrder)
+  - NO automatic downgrade to loose bottles - SO cannot proceed if preserve_cases is selected but no intact case available
+  - checkCaseIntegrityImpact() identifies cases that will be broken due to partial shipment (shipping some but not all bottles from a case)
+  - breakCasesForShipment() breaks affected cases during shipment confirmation with full audit logging
+  - Case breaking is IRREVERSIBLE - InventoryCase model has boot() guard preventing Broken → Intact transition
+  - UI displays explicit warning "This will permanently break the original case" with required confirmation checkbox
+  - WMS confirmation implicitly confirms case breaking (bottles already picked by WMS)
+  - EVENT_CASE_BROKEN audit event added for tracking case breaks during shipment
+  - InventoryCase.display_label accessor returns "Case #{id}" for display
+---

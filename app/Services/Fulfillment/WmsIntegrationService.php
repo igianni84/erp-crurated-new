@@ -444,7 +444,8 @@ class WmsIntegrationService
         }
 
         // All validations passed - confirm the shipment
-        $confirmedShipment = $this->shipmentService->confirmShipment($shipment, $trackingNumber);
+        // WMS confirmation implicitly confirms case breaking (bottles already picked)
+        $confirmedShipment = $this->shipmentService->confirmShipment($shipment, $trackingNumber, caseBreakConfirmed: true);
 
         // Log the WMS confirmation
         $this->logEvent(
