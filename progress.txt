@@ -667,3 +667,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - InvoiceLine.hasSellableSku() helper checks if line is linked to a sellable SKU
   - Metadata is preserved independently per line - useful for pricing audit trail
 ---
+
+## 2026-02-05 - US-E035
+- What was implemented: INV1 immediate payment expectation - alert job for unpaid immediate invoices
+- Files changed:
+  - app/Jobs/Finance/AlertUnpaidImmediateInvoicesJob.php (new job to detect/alert unpaid immediate invoices)
+  - app/Models/Finance/Invoice.php (added isUnpaidPastThreshold(), getHoursSinceIssuance(), scopeUnpaidImmediate())
+  - config/finance.php (added immediate_invoice_alert_hours configuration)
+  - routes/console.php (scheduled AlertUnpaidImmediateInvoicesJob hourly)
+- **Acceptance criteria verification:**
+  - ✅ INV1 default: no due_date (immediate payment expected): Already in InvoiceType enum (requiresDueDate()=false, defaultDueDateDays()=null)
+  - ✅ Rapid status transitions: issued to paid (via Stripe): Already supported in InvoiceService (issue → applyPayment → paid)
+  - ✅ Alert if INV1 issued > 24h without payment: AlertUnpaidImmediateInvoicesJob runs hourly, logs warnings for unpaid immediate invoices
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - InvoiceType enum already encapsulates immediate payment logic via requiresDueDate() and defaultDueDateDays()
+  - Invoice model helper expectsImmediatePayment() delegates to enum for consistency
+  - AlertUnpaidImmediateInvoicesJob handles all immediate types (INV1, INV2, INV4) but logs INV1 specially
+  - Static query helpers on job class (getUnpaidImmediateInvoicesQuery, getUnpaidInv1Query) enable dashboard/UI reuse
+  - PHPStan: Use explicit null check `$obj !== null ? $obj->field : 'default'` instead of `$obj?->field ?? 'default'`
+  - Hourly scheduling is appropriate for payment alerts (balances timeliness vs resource usage)
+---
