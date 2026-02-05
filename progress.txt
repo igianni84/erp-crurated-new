@@ -1196,3 +1196,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - applyPaymentWithOverpaymentHandling() returns associative array with invoice_payment, customer_credit, amount_applied, credit_amount
   - Credits can have optional expires_at date and scopeExpiredButNotMarked() helps find credits needing status update
 ---
+
+## 2026-02-05 - US-E059
+- What was implemented: Payment failure handling for Stripe webhooks
+- Files changed:
+  - app/Events/Finance/StripePaymentFailed.php (new event class for payment failures)
+  - app/Listeners/Finance/HandleStripePaymentFailure.php (new listener to process payment_intent.payment_failed webhooks)
+  - app/Notifications/Finance/PaymentFailedNotification.php (new notification for internal follow-up)
+  - app/Models/AuditLog.php (added EVENT_PAYMENT_FAILED, EVENT_PAYMENT_CONFIRMED, EVENT_PAYMENT_RECONCILED constants)
+- **Acceptance criteria verification:**
+  - ✅ Webhook payment_intent.payment_failed creates/updates Payment with status = failed: HandleStripePaymentFailure.handleWebhook() processes webhook and creates/updates Payment
+  - ✅ Log failure reason (metadata): Failure code, message, decline code stored in Payment.metadata
+  - ✅ Invoice remains issued (not paid): Listener does NOT modify invoice status - failed payments leave invoices as-is
+  - ✅ Internal notification for follow-up: PaymentFailedNotification sent to configured recipients via on-demand notification
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Finance notifications go in app/Notifications/Finance/ directory
+  - Use on-demand notifications (Notification::route()) for system alerts without a specific User model
+  - PaymentStatus::Failed is a terminal state per PaymentStatus enum (no further transitions allowed)
+  - StripeWebhook.getPayloadValue() returns mixed - must cast/validate before using
+  - Payment reference for failed payments uses format: FAIL-{first12charsOfPaymentIntentId}
+  - Audit log events for Finance: EVENT_PAYMENT_FAILED, EVENT_PAYMENT_CONFIRMED, EVENT_PAYMENT_RECONCILED
+  - Config key finance.payment_failure_notification_recipients used for notification routing
+---
