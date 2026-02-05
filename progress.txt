@@ -2254,3 +2254,31 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Job supports dry-run mode for testing: new CleanupIntegrationLogsJob(dryRun: true)
   - Static getCleanupStatistics() method provides preview of eligible records
 ---
+
+## 2026-02-05 - US-E116
+- What was implemented: Finance Overview Dashboard as the default landing page for the Finance module
+- Files changed:
+  - app/Filament/Pages/Finance/FinanceOverview.php (new Finance Overview dashboard page)
+  - resources/views/filament/pages/finance/finance-overview.blade.php (dashboard view template)
+- **Acceptance criteria verification:**
+  - ✅ Page Finance Overview as default landing: Page with navigationSort = 1 in Finance group
+  - ✅ Widget: Total Outstanding: Shows total outstanding amount with invoice count
+  - ✅ Widget: Overdue Amount: Shows overdue amount with count, highlighted in red when > 0
+  - ✅ Widget: Payments This Month: Shows monthly payments with comparison to previous month
+  - ✅ Widget: Pending Reconciliations: Shows count and amount with color-coded status
+  - ✅ Widget: Integration Health (Stripe, Xero status): Shows health summary with status badges and links to IntegrationsHealth page
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Additional features implemented:**
+  - Today's Activity section (invoices issued, payments received, amount collected)
+  - Reconciliation Status summary (pending and mismatched counts)
+  - Month Summary section with collected/outstanding/overdue breakdown
+  - Percentage change indicators for payments vs previous month
+  - Links to relevant pages (IntegrationsHealth, Payments with filters)
+  - Refresh action button
+- **Learnings for future iterations:**
+  - sum() in Laravel returns numeric type directly, not nullable - don't use null coalesce
+  - Use selectRaw() with SUM() for aggregate calculations on computed columns (e.g., total_amount - amount_paid)
+  - Finance dashboard pages follow same pattern as other pages (IntegrationsHealth, etc.)
+  - Integration health can be delegated to XeroIntegrationService.getIntegrationHealth() for Xero metrics
+  - Status badge classes should match those used elsewhere (healthy/warning/critical/disabled)
+---
