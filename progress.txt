@@ -2073,3 +2073,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Navigation can have parent items (navigationParentItem) to group related pages under Reports
   - bccomp() returns -1, 0, or 1 for comparison, not boolean - use explicit comparison with 0 for conditionals
 ---
+
+## 2026-02-05 - US-E107
+- What was implemented: Created Revenue by Invoice Type Report page for Finance module
+- Files changed:
+  - app/Filament/Pages/Finance/RevenueByTypeReport.php (main Filament Page with report logic)
+  - resources/views/filament/pages/finance/revenue-by-type-report.blade.php (blade view with UI)
+- **Features implemented:**
+  - Period selector (monthly, quarterly, yearly)
+  - Breakdown by invoice type (INV0-INV4)
+  - Amounts tracking: issued count/amount, paid count/amount, outstanding count/amount
+  - CSS-based horizontal bar chart showing revenue distribution
+  - Summary cards for total issued, paid, and outstanding
+  - Export to CSV functionality
+  - Responsive table with color-coded type badges
+- **Learnings for future iterations:**
+  - Follow same pattern as InvoiceAgingReport for Finance report pages
+  - Use Livewire wire:model.live for reactive filters
+  - Use bcadd/bcsub/bcmul/bcdiv for all currency calculations
+  - Cast sum() results to string explicitly: `(string) $query->sum('field')` instead of `?? '0'` for PHPStan
+  - Use CSS-based charts (div with dynamic width %) for simple visualizations without external JS libraries
+  - Navigation hierarchy: navigationGroup='Finance', navigationParentItem='Reports' for sub-pages
+---
