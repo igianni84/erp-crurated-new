@@ -1238,3 +1238,38 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Duplicate payments marked with MISMATCH_DUPLICATE constant can be automatically flagged for refund
   - When marking as duplicate, store original_payment_id and original_payment_reference for traceability
 ---
+
+## 2026-02-05 - US-E061
+- What was implemented: PaymentService already fully implemented from previous iterations
+- Files verified:
+  - app/Services/Finance/PaymentService.php (already has createFromStripe, createBankPayment, applyToInvoice, autoReconcile, markReconciled)
+- **Acceptance criteria verification:**
+  - ✅ PaymentService in app/Services/Finance/: exists
+  - ✅ createFromStripe(PaymentIntent): line 57
+  - ✅ createBankPayment(amount, reference, customer): line 153
+  - ✅ applyToInvoice(Payment, Invoice, amount): line 222
+  - ✅ autoReconcile(Payment): line 282
+  - ✅ markReconciled(Payment, status): line 405
+  - ✅ Typecheck passes
+- **Learnings for future iterations:**
+  - PaymentService was built incrementally across US-E053 through US-E060
+  - Mark completed stories that were already implemented as passes:true
+---
+
+## 2026-02-05 - US-E062
+- What was implemented: Payment audit trail with Auditable trait on InvoicePayment and immutable AuditLog
+- Files changed:
+  - app/Models/Finance/InvoicePayment.php (added Auditable trait, auditExcludeFields, auditLogs() relationship)
+  - app/Models/AuditLog.php (added boot() with updating/deleting hooks to enforce immutability)
+  - database/migrations/2026_02_05_084632_add_audit_columns_to_invoice_payments_table.php (new migration for created_by, updated_by)
+- **Acceptance criteria verification:**
+  - ✅ Auditable trait on Payment, InvoicePayment: Both models now have trait
+  - ✅ Events logged: creation, application, reconciliation, status_change: Auditable logs create/update/delete; PaymentService logs custom events
+  - ✅ Audit visible in Payment Detail: getAuditSection() in ViewPayment
+  - ✅ Immutable logs: AuditLog boot() throws exceptions on update/delete attempts
+  - ✅ Typecheck passes
+- **Learnings for future iterations:**
+  - AuditLog immutability enforced via boot() hooks throwing InvalidArgumentException
+  - UPDATED_AT = null alone doesn't prevent updates, need explicit boot() hooks
+  - InvoicePayment is a pivot model but can still use Auditable trait for compliance
+---
