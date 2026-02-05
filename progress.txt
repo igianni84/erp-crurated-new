@@ -1648,3 +1648,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Services can be injected into controllers or used from other modules
   - Financial summary method provides convenient aggregated view
 ---
+
+## 2026-02-05 - US-E083
+- What was implemented: Created SubscriptionResource in Filament for managing subscriptions
+- Files changed:
+  - app/Filament/Resources/Finance/SubscriptionResource.php (new file)
+  - app/Filament/Resources/Finance/SubscriptionResource/Pages/ListSubscriptions.php (new file)
+  - app/Filament/Resources/Finance/SubscriptionResource/Pages/ViewSubscription.php (new file)
+- List columns: subscription_id (truncated), customer (linked), plan_name, plan_type, billing_cycle, amount, status, next_billing_date (with overdue indicator), started_at (toggleable), stripe_subscription_id (toggleable)
+- Filters: plan_type, status, billing_cycle, overdue_billing, trashed
+- Search: customer name/email via searchable column
+- Tabs: All, Active, Suspended, Cancelled, Due for Billing
+- Bulk actions: Export to CSV
+- **Learnings for future iterations:**
+  - Subscription fields started_at and next_billing_date are non-nullable (Carbon), don't use nullsafe operator
+  - Navigation sort 10 places it after main finance resources (Invoices=1, Payments=2, etc.)
+  - Billing status filter uses ternary filter with custom queries
+---
