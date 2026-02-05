@@ -1490,3 +1490,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - After updating a model in an action, redirect to the same page to refresh the view: $this->redirect(Resource::getUrl('view', ['record' => $model]))
   - Audit logging pattern: create audit log with EVENT_UPDATED, old_values (previous state), new_values (new state), and user_id
 ---
+
+## 2026-02-05 - US-E073
+- What was implemented: Verified Refund operational warning - all functionality already implemented in US-E070
+- Files verified (no changes needed):
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (getCreateRefundAction() method)
+- **Acceptance criteria verification:**
+  - ✅ Prominent warning in Create Refund form: Styled warning box with yellow background, warning icon, and clear text at top of form
+  - ✅ Text: "Refunding does not automatically reverse operational effects...": Warning text present in Placeholder component (lines 1671-1688)
+  - ✅ Checkbox confirmation: "I understand this is a financial transaction only": Checkbox with required + accepted validation (lines 1817-1823)
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - US-E073 validates functionality already built in US-E070 (Create Refund from Invoice)
+  - When a story's acceptance criteria are already met by prior implementations, verify and document rather than duplicate code
+  - Warning placeholders use HtmlString with styled HTML for prominent visual appearance
+  - Checkbox->accepted() validation ensures the checkbox must be checked before form submission
+---
