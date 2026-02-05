@@ -8,6 +8,10 @@ use App\Enums\Finance\RefundType;
 use App\Filament\Resources\Finance\RefundResource;
 use App\Models\AuditLog;
 use App\Models\Finance\Refund;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -16,6 +20,7 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
@@ -822,12 +827,131 @@ class ViewRefund extends ViewRecord
     }
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
         return [
-            // Actions will be implemented in US-E070, US-E071, US-E072
+            $this->getMarkBankRefundProcessedAction(),
         ];
+    }
+
+    /**
+     * Mark Bank Refund Processed action - visible for bank transfer refunds in pending status.
+     *
+     * US-E072: Bank refund tracking
+     * - If method = bank_transfer: Form requires bank_reference (post-processing)
+     * - Status flow: pending to processed (after reference input)
+     * - Action "Mark Processed" with bank_reference input
+     */
+    protected function getMarkBankRefundProcessedAction(): Action
+    {
+        return Action::make('markProcessed')
+            ->label('Mark Processed')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->visible(fn (): bool => $this->getRefund()->canMarkBankRefundProcessed())
+            ->form([
+                Placeholder::make('info')
+                    ->label('')
+                    ->content(new \Illuminate\Support\HtmlString(
+                        '<div class="p-4 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-700">'.
+                        '<div class="flex items-start gap-3">'.
+                        '<svg class="w-6 h-6 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">'.
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'.
+                        '</svg>'.
+                        '<div>'.
+                        '<h4 class="font-semibold text-info-800 dark:text-info-200">Bank Transfer Refund</h4>'.
+                        '<p class="text-sm text-info-700 dark:text-info-300 mt-1">'.
+                        'Enter the bank reference after you have completed the bank transfer to mark this refund as processed.'.
+                        '</p>'.
+                        '</div>'.
+                        '</div>'.
+                        '</div>'
+                    )),
+                Placeholder::make('refund_details')
+                    ->label('Refund Details')
+                    ->content(function (): string {
+                        $refund = $this->getRefund();
+
+                        return "Refund ID: #{$refund->id}\n".
+                            "Amount: {$refund->currency} {$refund->amount}\n".
+                            'Invoice: '.($refund->invoice !== null ? $refund->invoice->invoice_number : 'N/A')."\n".
+                            'Customer: '.($refund->invoice !== null && $refund->invoice->customer !== null ? $refund->invoice->customer->name : 'N/A');
+                    }),
+                TextInput::make('bank_reference')
+                    ->label('Bank Reference')
+                    ->required()
+                    ->maxLength(255)
+                    ->placeholder('Enter the bank transfer reference number...')
+                    ->helperText('The reference number from the bank transfer confirmation')
+                    ->rules(['required', 'string', 'min:3', 'max:255']),
+                DateTimePicker::make('processed_at')
+                    ->label('Processed At')
+                    ->required()
+                    ->default(now())
+                    ->maxDate(now())
+                    ->helperText('The date and time when the bank transfer was completed. Defaults to now.'),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Mark Refund as Processed')
+            ->modalDescription(function (): string {
+                $refund = $this->getRefund();
+
+                return "Mark this bank transfer refund of {$refund->currency} {$refund->amount} as processed?\n\n".
+                    'This will update the status from Pending to Processed.';
+            })
+            ->modalSubmitActionLabel('Mark as Processed')
+            ->action(function (array $data): void {
+                $refund = $this->getRefund();
+
+                // Validate refund can be marked as processed
+                if (! $refund->canMarkBankRefundProcessed()) {
+                    Notification::make()
+                        ->title('Cannot Mark as Processed')
+                        ->body('This refund cannot be marked as processed. It may already be processed or is not a bank transfer refund.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $oldStatus = $refund->status->value;
+
+                // Update the refund
+                $refund->update([
+                    'bank_reference' => $data['bank_reference'],
+                    'status' => RefundStatus::Processed,
+                    'processed_at' => $data['processed_at'],
+                    'processed_by' => auth()->id(),
+                ]);
+
+                // Log the status change in the audit trail
+                $refund->auditLogs()->create([
+                    'event' => AuditLog::EVENT_UPDATED,
+                    'old_values' => [
+                        'status' => $oldStatus,
+                        'bank_reference' => null,
+                        'processed_at' => null,
+                        'processed_by' => null,
+                    ],
+                    'new_values' => [
+                        'status' => RefundStatus::Processed->value,
+                        'bank_reference' => $data['bank_reference'],
+                        'processed_at' => $data['processed_at'],
+                        'processed_by' => auth()->id(),
+                    ],
+                    'user_id' => auth()->id(),
+                ]);
+
+                Notification::make()
+                    ->title('Refund Marked as Processed')
+                    ->body("Bank transfer refund has been marked as processed with reference: {$data['bank_reference']}")
+                    ->success()
+                    ->send();
+
+                // Refresh the page to show updated status
+                $this->redirect(RefundResource::getUrl('view', ['record' => $refund]));
+            });
     }
 }
