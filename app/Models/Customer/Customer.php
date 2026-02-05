@@ -112,6 +112,26 @@ class Customer extends Model
     }
 
     /**
+     * Get the subscriptions for this customer.
+     *
+     * @return HasMany<\App\Models\Finance\Subscription, $this>
+     */
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(\App\Models\Finance\Subscription::class);
+    }
+
+    /**
+     * Get the invoices for this customer.
+     *
+     * @return HasMany<\App\Models\Finance\Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(\App\Models\Finance\Invoice::class);
+    }
+
+    /**
      * Check if the customer is active.
      */
     public function isActive(): bool

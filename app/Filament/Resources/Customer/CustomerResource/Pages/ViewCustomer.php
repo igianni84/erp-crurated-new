@@ -4,16 +4,22 @@ namespace App\Filament\Resources\Customer\CustomerResource\Pages;
 
 use App\Enums\Allocation\CaseEntitlementStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Finance\InvoiceStatus;
+use App\Enums\Finance\InvoiceType;
+use App\Enums\Finance\SubscriptionStatus;
 use App\Enums\Fulfillment\ShipmentStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Filament\Resources\Allocation\CaseEntitlementResource;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
+use App\Filament\Resources\Finance\InvoiceResource;
 use App\Filament\Resources\Fulfillment\ShipmentResource;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
+use App\Models\Finance\Invoice;
+use App\Models\Finance\Subscription;
 use App\Models\Fulfillment\Shipment;
 use App\Models\Fulfillment\ShippingOrder;
 use Filament\Actions;
@@ -43,17 +49,138 @@ class ViewCustomer extends ViewRecord
 
     public function infolist(Infolist $infolist): Infolist
     {
-        return $infolist
-            ->schema([
-                Tabs::make('Customer Details')
-                    ->tabs([
-                        $this->getOverviewTab(),
-                        $this->getVouchersTab(),
-                        $this->getShippingOrdersTab(),
-                    ])
-                    ->persistTabInQueryString()
-                    ->columnSpanFull(),
-            ]);
+        /** @var Customer $record */
+        $record = $this->record;
+        $warningsSection = $this->getFinancialWarningsSection($record);
+
+        $schema = [];
+
+        // Add warnings section at the top if there are warnings
+        if ($warningsSection !== null) {
+            $schema[] = $warningsSection;
+        }
+
+        $schema[] = Tabs::make('Customer Details')
+            ->tabs([
+                $this->getOverviewTab(),
+                $this->getVouchersTab(),
+                $this->getShippingOrdersTab(),
+            ])
+            ->persistTabInQueryString()
+            ->columnSpanFull();
+
+        return $infolist->schema($schema);
+    }
+
+    /**
+     * Get the Financial Warnings section if there are active warnings.
+     * Shows prominent warnings for suspended subscriptions due to overdue payments.
+     */
+    protected function getFinancialWarningsSection(Customer $record): ?Section
+    {
+        // Get suspended subscriptions with overdue invoices
+        $suspendedSubscriptions = $record->subscriptions()
+            ->where('status', SubscriptionStatus::Suspended)
+            ->get();
+
+        // Get overdue INV0 invoices
+        $overdueInvoices = $record->invoices()
+            ->where('invoice_type', InvoiceType::MembershipService)
+            ->where('status', InvoiceStatus::Issued)
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->startOfDay())
+            ->get();
+
+        // No warnings if nothing to show
+        if ($suspendedSubscriptions->isEmpty() && $overdueInvoices->isEmpty()) {
+            return null;
+        }
+
+        $warningItems = [];
+
+        // Add suspended subscription warnings
+        foreach ($suspendedSubscriptions as $subscription) {
+            /** @var Subscription $subscription */
+            $warningItems[] = Grid::make(4)
+                ->schema([
+                    TextEntry::make('subscription_warning_'.$subscription->id)
+                        ->label('Subscription Suspended')
+                        ->getStateUsing(fn (): string => $subscription->plan_name)
+                        ->icon('heroicon-o-exclamation-triangle')
+                        ->color('danger')
+                        ->weight(FontWeight::Bold),
+                    TextEntry::make('subscription_status_'.$subscription->id)
+                        ->label('Status')
+                        ->getStateUsing(fn (): string => 'Suspended')
+                        ->badge()
+                        ->color('danger'),
+                    TextEntry::make('subscription_reason_'.$subscription->id)
+                        ->label('Reason')
+                        ->getStateUsing(fn (): string => 'Overdue INV0 payment')
+                        ->color('gray'),
+                    TextEntry::make('subscription_action_'.$subscription->id)
+                        ->label('Resolution')
+                        ->getStateUsing(fn (): string => 'Pay outstanding invoice to resume')
+                        ->color('gray'),
+                ]);
+        }
+
+        // Add overdue invoice warnings
+        foreach ($overdueInvoices as $invoice) {
+            /** @var Invoice $invoice */
+            $daysOverdue = $invoice->getDaysOverdue() ?? 0;
+            $thresholdDays = (int) config('finance.subscription_overdue_suspension_days', 14);
+            $daysUntilSuspension = max(0, $thresholdDays - $daysOverdue);
+
+            $warningItems[] = Grid::make(5)
+                ->schema([
+                    TextEntry::make('invoice_warning_'.$invoice->id)
+                        ->label('Overdue Invoice')
+                        ->getStateUsing(fn (): string => $invoice->invoice_number ?? 'Draft')
+                        ->icon('heroicon-o-document-text')
+                        ->color('warning')
+                        ->weight(FontWeight::Bold)
+                        ->url(fn (): string => InvoiceResource::getUrl('view', ['record' => $invoice]))
+                        ->openUrlInNewTab(),
+                    TextEntry::make('invoice_amount_'.$invoice->id)
+                        ->label('Amount Due')
+                        ->getStateUsing(fn (): string => $invoice->currency.' '.number_format((float) $invoice->getOutstandingAmount(), 2))
+                        ->color('danger')
+                        ->weight(FontWeight::Bold),
+                    TextEntry::make('invoice_due_date_'.$invoice->id)
+                        ->label('Due Date')
+                        ->getStateUsing(fn (): string => $invoice->due_date !== null ? $invoice->due_date->format('Y-m-d') : 'N/A')
+                        ->color('danger'),
+                    TextEntry::make('invoice_overdue_'.$invoice->id)
+                        ->label('Days Overdue')
+                        ->getStateUsing(fn (): string => $daysOverdue.' days')
+                        ->badge()
+                        ->color($daysOverdue >= $thresholdDays ? 'danger' : 'warning'),
+                    TextEntry::make('invoice_suspension_'.$invoice->id)
+                        ->label('Suspension')
+                        ->getStateUsing(function () use ($daysOverdue, $thresholdDays, $daysUntilSuspension): string {
+                            if ($daysOverdue >= $thresholdDays) {
+                                return 'Eligible for suspension';
+                            }
+
+                            return "In {$daysUntilSuspension} days";
+                        })
+                        ->badge()
+                        ->color($daysOverdue >= $thresholdDays ? 'danger' : 'warning'),
+                ]);
+        }
+
+        return Section::make('Financial Warnings')
+            ->description('Action required: This customer has financial issues that need attention.')
+            ->icon('heroicon-o-exclamation-triangle')
+            ->iconColor('danger')
+            ->collapsed(false)
+            ->collapsible(false)
+            ->extraAttributes([
+                'class' => 'bg-danger-50 dark:bg-danger-950 border-danger-300 dark:border-danger-700',
+            ])
+            ->schema($warningItems)
+            ->columnSpanFull();
     }
 
     /**
