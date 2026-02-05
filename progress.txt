@@ -1373,3 +1373,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Query scopes scopeOfOriginalInvoiceType() and scopeOfOriginalInvoiceTypeCode() enable filtering by invoice type in queries
   - Include original invoice type in CSV export for complete reporting capability
 ---
+
+## 2026-02-05 - US-E068
+- What was implemented: Created RefundResource in Filament with list view, filters, search, and status tabs
+- Files changed:
+  - app/Filament/Resources/Finance/RefundResource.php (main resource with table configuration)
+  - app/Filament/Resources/Finance/RefundResource/Pages/ListRefunds.php (list page with status tabs)
+  - app/Filament/Resources/Finance/RefundResource/Pages/ViewRefund.php (basic view page for detail)
+- **Acceptance criteria verification:**
+  - ✅ RefundResource in Filament with navigation group Finance: navigationGroup = 'Finance', navigationSort = 4
+  - ✅ List columns: refund_id (#prefix), invoice_number (with link), amount (with currency), method (badge), status (badge), processed_at
+  - ✅ Filters: method (SelectFilter), status (SelectFilter), date range (processed_at and created_at)
+  - ✅ Search by: invoice_number (via invoice.invoice_number), stripe_refund_id
+  - ✅ Status tabs: All, Pending (warning), Processed (success), Failed (danger) with badge counts
+  - ✅ Global search integration with invoice_number and stripe_refund_id
+  - ✅ CSV export bulk action for comprehensive data export
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Refund resource follows same patterns as CreditNoteResource and InvoiceResource
+  - Use id column with #prefix for refund identification (no uuid display)
+  - Invoice number is searchable via relationship attribute 'invoice.invoice_number'
+  - Status tabs with badge counts provide quick visibility into refund processing state
+  - created_at is never null on Eloquent models, so don't use nullsafe operator
+---
