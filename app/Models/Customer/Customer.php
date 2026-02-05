@@ -134,6 +134,48 @@ class Customer extends Model
     }
 
     /**
+     * Get the customer credits for this customer.
+     *
+     * @return HasMany<\App\Models\Finance\CustomerCredit, $this>
+     */
+    public function customerCredits(): HasMany
+    {
+        return $this->hasMany(\App\Models\Finance\CustomerCredit::class);
+    }
+
+    /**
+     * Get the usable customer credits (available or partially used, not expired).
+     *
+     * @return HasMany<\App\Models\Finance\CustomerCredit, $this>
+     */
+    public function usableCredits(): HasMany
+    {
+        return $this->customerCredits()
+            ->whereIn('status', ['available', 'partially_used'])
+            ->where(function ($query) {
+                $query->whereNull('expires_at')
+                    ->orWhere('expires_at', '>', now());
+            })
+            ->where('remaining_amount', '>', 0);
+    }
+
+    /**
+     * Get total available credit balance for this customer.
+     */
+    public function getTotalAvailableCredit(): string
+    {
+        return \App\Models\Finance\CustomerCredit::getTotalAvailableForCustomer($this);
+    }
+
+    /**
+     * Check if customer has any available credit.
+     */
+    public function hasAvailableCredit(): bool
+    {
+        return bccomp($this->getTotalAvailableCredit(), '0', 2) > 0;
+    }
+
+    /**
      * Check if the customer is active.
      */
     public function isActive(): bool

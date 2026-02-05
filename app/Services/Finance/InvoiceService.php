@@ -4,9 +4,11 @@ namespace App\Services\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
+use App\Enums\Finance\OverpaymentHandling;
 use App\Events\Finance\InvoicePaid;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
+use App\Models\Finance\CustomerCredit;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
@@ -269,6 +271,184 @@ class InvoiceService
 
             return $invoicePayment;
         });
+    }
+
+    /**
+     * Apply a payment to an invoice with overpayment handling.
+     *
+     * When payment amount exceeds the invoice outstanding, this method handles
+     * the overpayment according to the specified handling option:
+     *
+     * - ApplyPartial: Only apply the outstanding amount, leave remainder on payment
+     * - CreateCredit: Apply full amount and create customer credit for the excess
+     *
+     * @param  string  $amount  The amount to apply from the payment
+     * @param  OverpaymentHandling  $overpaymentHandling  How to handle overpayment
+     * @return array{invoice_payment: InvoicePayment, customer_credit: CustomerCredit|null, amount_applied: string, credit_amount: string}
+     *
+     * @throws InvalidArgumentException If invoice cannot receive payments or amount is invalid
+     */
+    public function applyPaymentWithOverpaymentHandling(
+        Invoice $invoice,
+        Payment $payment,
+        string $amount,
+        OverpaymentHandling $overpaymentHandling = OverpaymentHandling::ApplyPartial
+    ): array {
+        // Validate invoice can receive payment
+        if (! $invoice->canReceivePayment()) {
+            throw new InvalidArgumentException(
+                "Cannot apply payment: invoice status '{$invoice->status->label()}' does not accept payments."
+            );
+        }
+
+        // Validate amount is positive
+        if (bccomp($amount, '0', 2) <= 0) {
+            throw new InvalidArgumentException(
+                'Cannot apply payment: amount must be greater than zero.'
+            );
+        }
+
+        // Validate currencies match
+        if ($invoice->currency !== $payment->currency) {
+            throw new InvalidArgumentException(
+                "Cannot apply payment: currency mismatch. Invoice: {$invoice->currency}, Payment: {$payment->currency}."
+            );
+        }
+
+        $outstanding = $this->getOutstandingAmount($invoice);
+        $isOverpayment = bccomp($amount, $outstanding, 2) > 0;
+
+        // If not an overpayment, use regular applyPayment
+        if (! $isOverpayment) {
+            $invoicePayment = $this->applyPayment($invoice, $payment, $amount);
+
+            return [
+                'invoice_payment' => $invoicePayment,
+                'customer_credit' => null,
+                'amount_applied' => $amount,
+                'credit_amount' => '0.00',
+            ];
+        }
+
+        // Handle overpayment according to specified option
+        return match ($overpaymentHandling) {
+            OverpaymentHandling::ApplyPartial => $this->handleOverpaymentPartial($invoice, $payment, $outstanding),
+            OverpaymentHandling::CreateCredit => $this->handleOverpaymentCreateCredit($invoice, $payment, $amount, $outstanding),
+        };
+    }
+
+    /**
+     * Handle overpayment by applying only the outstanding amount.
+     *
+     * The remaining payment amount stays unapplied and can be used for other invoices.
+     *
+     * @return array{invoice_payment: InvoicePayment, customer_credit: null, amount_applied: string, credit_amount: string}
+     */
+    protected function handleOverpaymentPartial(
+        Invoice $invoice,
+        Payment $payment,
+        string $outstanding
+    ): array {
+        $invoicePayment = $this->applyPayment($invoice, $payment, $outstanding);
+
+        return [
+            'invoice_payment' => $invoicePayment,
+            'customer_credit' => null,
+            'amount_applied' => $outstanding,
+            'credit_amount' => '0.00',
+        ];
+    }
+
+    /**
+     * Handle overpayment by creating customer credit for the excess.
+     *
+     * The full payment amount is applied to the invoice (up to outstanding),
+     * and the excess is converted to a customer credit.
+     *
+     * @return array{invoice_payment: InvoicePayment, customer_credit: CustomerCredit, amount_applied: string, credit_amount: string}
+     */
+    protected function handleOverpaymentCreateCredit(
+        Invoice $invoice,
+        Payment $payment,
+        string $requestedAmount,
+        string $outstanding
+    ): array {
+        $creditAmount = bcsub($requestedAmount, $outstanding, 2);
+
+        return DB::transaction(function () use ($invoice, $payment, $outstanding, $creditAmount): array {
+            // Apply the outstanding amount to the invoice
+            $invoicePayment = $this->applyPayment($invoice, $payment, $outstanding);
+
+            // Create customer credit for the excess
+            $customer = $invoice->customer;
+            $customerCredit = CustomerCredit::createFromOverpayment(
+                customer: $customer,
+                payment: $payment,
+                invoice: $invoice,
+                amount: $creditAmount,
+                createdBy: Auth::id()
+            );
+
+            // Log the credit creation
+            $this->logInvoiceEvent(
+                $invoice,
+                'overpayment_credit_created',
+                [],
+                [
+                    'payment_id' => $payment->id,
+                    'credit_id' => $customerCredit->id,
+                    'credit_amount' => $creditAmount,
+                    'reason' => 'Overpayment on invoice',
+                ]
+            );
+
+            Log::channel('finance')->info('Customer credit created from overpayment', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'customer_id' => $customer->id,
+                'credit_id' => $customerCredit->id,
+                'credit_amount' => $creditAmount,
+                'currency' => $payment->currency,
+            ]);
+
+            return [
+                'invoice_payment' => $invoicePayment,
+                'customer_credit' => $customerCredit,
+                'amount_applied' => $outstanding,
+                'credit_amount' => $creditAmount,
+            ];
+        });
+    }
+
+    /**
+     * Check if a payment amount would be an overpayment for an invoice.
+     *
+     * @param  string  $amount  The payment amount to check
+     */
+    public function isOverpayment(Invoice $invoice, string $amount): bool
+    {
+        $outstanding = $this->getOutstandingAmount($invoice);
+
+        return bccomp($amount, $outstanding, 2) > 0;
+    }
+
+    /**
+     * Calculate the overpayment amount (excess over outstanding).
+     *
+     * @param  string  $amount  The payment amount
+     * @return string The excess amount (0.00 if not an overpayment)
+     */
+    public function calculateOverpaymentAmount(Invoice $invoice, string $amount): string
+    {
+        $outstanding = $this->getOutstandingAmount($invoice);
+
+        if (bccomp($amount, $outstanding, 2) <= 0) {
+            return '0.00';
+        }
+
+        return bcsub($amount, $outstanding, 2);
     }
 
     /**
