@@ -1442,3 +1442,33 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Checkbox::make()->accepted() is used for required confirmations
   - Refund model validates invoice-payment link in boot() creating hook
 ---
+
+## 2026-02-05 - US-E071
+- What was implemented: Created RefundService for Stripe refund processing with API integration
+- Files changed:
+  - app/Services/Finance/RefundService.php (new service with full refund lifecycle management)
+  - config/services.php (added Stripe configuration)
+- **Methods implemented:**
+  - create(): creates refund with validation of invoice/payment link and amount constraints
+  - processStripeRefund(): calls Stripe Refund API, handles retry logic, updates status
+  - markProcessed(): for bank transfer refunds, requires bank_reference
+  - retryRefund(): resets failed refund to pending and retries Stripe processing
+  - markRefundProcessed(): internal method to update status to processed
+  - markRefundFailed(): internal method to update status to failed
+  - callStripeRefundApi(): HTTP client call to Stripe Refund API
+  - verifyStripeRefund(): idempotency check for existing stripe_refund_id
+  - isRetryableError(): determines if error should trigger retry
+  - updatePaymentStatusIfFullyRefunded(): updates payment to refunded when all applied amounts refunded
+  - Query helpers: getPendingRefunds, getFailedRefunds, getRefundsForInvoice, getRefundsForPayment, etc.
+- **Learnings for future iterations:**
+  - RefundService follows same patterns as CreditNoteService and PaymentService
+  - Use HTTP client (Illuminate\Support\Facades\Http) for direct Stripe API calls without requiring Stripe PHP SDK
+  - Stripe API uses Basic Auth with secret key as username and empty password
+  - Convert amounts to cents for Stripe (bcmul by 100)
+  - Retry logic uses exponential backoff: delay = RETRY_DELAY_MS * 1000 * attempt
+  - Retryable errors: timeout, connection, network, rate_limit, 429, 5xx status codes
+  - Non-retryable errors fail immediately (card_declined, invalid_request, etc.)
+  - PHPStan: avoid unnecessary null checks when variable is guaranteed to be set - use @var annotation instead
+  - Stripe refund endpoint: POST https://api.stripe.com/v1/refunds with charge, amount, reason, metadata
+  - Stripe config goes in config/services.php with STRIPE_KEY, STRIPE_SECRET, STRIPE_WEBHOOK_SECRET env vars
+---
