@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Finance\StripeWebhookController;
 use App\Http\Controllers\Api\VoucherController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,4 +25,22 @@ Route::prefix('vouchers')->group(function (): void {
     // Trading completion callback from external trading platforms
     Route::post('/{voucher}/trading-complete', [VoucherController::class, 'tradingComplete'])
         ->name('api.vouchers.trading-complete');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Webhook Routes
+|--------------------------------------------------------------------------
+|
+| Webhook endpoints for external service integrations.
+| These routes are typically not authenticated via standard API auth
+| but use signature verification specific to each service.
+|
+*/
+
+Route::prefix('webhooks')->group(function (): void {
+    // Stripe webhook endpoint
+    // Signature verification is handled in the controller
+    Route::post('/stripe', [StripeWebhookController::class, 'handle'])
+        ->name('api.webhooks.stripe');
 });
