@@ -1715,3 +1715,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Pro-rata calculations use bcdiv/bcmul for precision with 6 decimal places for daily rate
   - Billing period calculation handles any start date by walking through periods from subscription start
 ---
+
+## 2026-02-05 - US-E087
+- What was implemented: Created StorageBillingResource in Filament for storage billing periods
+- Files changed:
+  - app/Filament/Resources/Finance/StorageBillingResource.php (new file)
+  - app/Filament/Resources/Finance/StorageBillingResource/Pages/ListStorageBilling.php (new file)
+  - app/Filament/Resources/Finance/StorageBillingResource/Pages/ViewStorageBilling.php (new file)
+- List columns: period (computed from period_start/end), customer (linked), bottle_count, bottle_days (with avg/day), amount, status, invoice (linked), location (toggleable)
+- Filters: period date range, status, customer, trashed
+- Tabs: All, Current Period, Past Periods, Pending, Blocked
+- Bulk actions: Export to CSV
+- **Learnings for future iterations:**
+  - StorageBillingPeriod model has rich helper methods for period calculations
+  - Navigation sort 11 places it after Subscriptions (10) in Finance group
+  - Current/past period tabs use Carbon::now()->startOfMonth()/endOfMonth() for monthly cycles
+---
