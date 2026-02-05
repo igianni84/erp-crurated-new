@@ -489,6 +489,7 @@ class ViewInvoice extends ViewRecord
         return Tab::make('Accounting')
             ->icon('heroicon-o-calculator')
             ->schema([
+                $this->getTaxBreakdownSection(),
                 Section::make('Xero Integration')
                     ->description('Synchronization status with Xero accounting system')
                     ->schema([
@@ -688,6 +689,188 @@ class ViewInvoice extends ViewRecord
     protected function getTaxClassification(Invoice $record): string
     {
         return 'Standard VAT ('.$record->currency.')';
+    }
+
+    /**
+     * Get the tax breakdown section for the Accounting tab.
+     */
+    protected function getTaxBreakdownSection(): Section
+    {
+        return Section::make('Tax Breakdown')
+            ->description('VAT/Tax amounts by rate')
+            ->schema([
+                // Summary row
+                Grid::make(4)
+                    ->schema([
+                        TextEntry::make('tax_subtotal')
+                            ->label('Subtotal (excl. Tax)')
+                            ->getStateUsing(fn (Invoice $record): string => $record->getTaxBreakdown()['total_subtotal'])
+                            ->money(fn (Invoice $record): string => $record->currency),
+                        TextEntry::make('tax_total')
+                            ->label('Total Tax')
+                            ->getStateUsing(fn (Invoice $record): string => $record->getTaxBreakdown()['total_tax'])
+                            ->money(fn (Invoice $record): string => $record->currency)
+                            ->color('warning'),
+                        TextEntry::make('destination_info')
+                            ->label('Destination Country')
+                            ->getStateUsing(fn (Invoice $record): string => $this->getDestinationCountryDisplay($record))
+                            ->visible(fn (Invoice $record): bool => $record->isShippingInvoice()),
+                        TextEntry::make('cross_border_status')
+                            ->label('Cross-Border')
+                            ->getStateUsing(fn (Invoice $record): string => $record->isCrossBorderShipment() ? 'Yes - Cross-border shipment' : 'No - Domestic')
+                            ->badge()
+                            ->color(fn (Invoice $record): string => $record->isCrossBorderShipment() ? 'info' : 'gray')
+                            ->visible(fn (Invoice $record): bool => $record->isShippingInvoice()),
+                    ]),
+
+                // Tax rate breakdown
+                Section::make('Tax by Rate')
+                    ->description('Breakdown of taxable amounts and tax by rate')
+                    ->collapsed(fn (Invoice $record): bool => ! $record->hasMixedTaxRates())
+                    ->schema([
+                        TextEntry::make('tax_breakdown_display')
+                            ->label('')
+                            ->getStateUsing(fn (Invoice $record): string => $this->formatTaxBreakdown($record))
+                            ->html(),
+                    ]),
+
+                // Duties section (for cross-border shipping)
+                Section::make('Customs Duties')
+                    ->description('Customs duties for cross-border shipments')
+                    ->visible(fn (Invoice $record): bool => $record->hasDuties())
+                    ->collapsed()
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextEntry::make('duties_amount')
+                                    ->label('Duties Amount')
+                                    ->getStateUsing(function (Invoice $record): string {
+                                        $breakdown = $record->getTaxBreakdown();
+
+                                        return $breakdown['duty_summary']['duty_amount'] ?? '0.00';
+                                    })
+                                    ->money(fn (Invoice $record): string => $record->currency)
+                                    ->color('danger'),
+                                TextEntry::make('duties_info')
+                                    ->label('Note')
+                                    ->getStateUsing(fn (): string => 'Customs duties are typically not subject to VAT. They are charged as a pass-through cost.')
+                                    ->color('gray'),
+                            ]),
+                    ]),
+            ]);
+    }
+
+    /**
+     * Format the tax breakdown for display.
+     */
+    protected function formatTaxBreakdown(Invoice $record): string
+    {
+        $breakdown = $record->getTaxBreakdown();
+
+        if (empty($breakdown['tax_breakdown'])) {
+            return '<span class="text-gray-500">No tax information available</span>';
+        }
+
+        $currency = $record->currency;
+        $currencySymbol = $record->getCurrencySymbol();
+        $lines = [];
+
+        $lines[] = '<div class="overflow-x-auto">';
+        $lines[] = '<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">';
+        $lines[] = '<thead class="bg-gray-50 dark:bg-gray-800">';
+        $lines[] = '<tr>';
+        $lines[] = '<th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tax Rate</th>';
+        $lines[] = '<th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Taxable Amount</th>';
+        $lines[] = '<th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tax Amount</th>';
+        $lines[] = '<th class="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lines</th>';
+        $lines[] = '</tr>';
+        $lines[] = '</thead>';
+        $lines[] = '<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">';
+
+        foreach ($breakdown['tax_breakdown'] as $rateData) {
+            $rate = $rateData['rate'];
+            $taxableAmount = number_format((float) $rateData['taxable_amount'], 2);
+            $taxAmount = number_format((float) $rateData['tax_amount'], 2);
+            $lineCount = $rateData['line_count'];
+            $description = $rateData['description'];
+
+            // Determine badge color based on rate
+            $badgeColor = bccomp($rate, '0', 2) === 0 ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800';
+
+            $lines[] = '<tr>';
+            $lines[] = '<td class="px-4 py-2 text-sm">';
+            $lines[] = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium '.$badgeColor.'">';
+            $lines[] = e($description);
+            $lines[] = '</span>';
+            $lines[] = '</td>';
+            $lines[] = '<td class="px-4 py-2 text-sm text-right font-mono">'.$currencySymbol.' '.$taxableAmount.'</td>';
+            $lines[] = '<td class="px-4 py-2 text-sm text-right font-mono font-semibold">'.$currencySymbol.' '.$taxAmount.'</td>';
+            $lines[] = '<td class="px-4 py-2 text-sm text-center">'.$lineCount.'</td>';
+            $lines[] = '</tr>';
+        }
+
+        $lines[] = '</tbody>';
+
+        // Footer with totals
+        $lines[] = '<tfoot class="bg-gray-50 dark:bg-gray-800">';
+        $lines[] = '<tr class="font-semibold">';
+        $lines[] = '<td class="px-4 py-2 text-sm">Total</td>';
+        $lines[] = '<td class="px-4 py-2 text-sm text-right font-mono">'.$currencySymbol.' '.number_format((float) $breakdown['total_subtotal'], 2).'</td>';
+        $lines[] = '<td class="px-4 py-2 text-sm text-right font-mono">'.$currencySymbol.' '.number_format((float) $breakdown['total_tax'], 2).'</td>';
+        $lines[] = '<td class="px-4 py-2 text-sm text-center">-</td>';
+        $lines[] = '</tr>';
+        $lines[] = '</tfoot>';
+
+        $lines[] = '</table>';
+        $lines[] = '</div>';
+
+        // Add cross-border notice if applicable
+        if ($breakdown['is_cross_border']) {
+            $destination = $breakdown['destination_country'] ?? 'unknown';
+            $lines[] = '<div class="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm">';
+            $lines[] = '<span class="font-semibold text-blue-700 dark:text-blue-300">Cross-Border Shipment:</span> ';
+            $lines[] = '<span class="text-blue-600 dark:text-blue-400">Tax rate determined by destination country ('.$destination.'). ';
+
+            if ($breakdown['duty_summary'] !== null && $breakdown['duty_summary']['has_duties']) {
+                $lines[] = 'Customs duties included in invoice.';
+            }
+
+            $lines[] = '</span>';
+            $lines[] = '</div>';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Get destination country display string.
+     */
+    protected function getDestinationCountryDisplay(Invoice $record): string
+    {
+        $destination = $record->getDestinationCountry();
+
+        if ($destination === null) {
+            return 'Not specified';
+        }
+
+        // Map country codes to names
+        $countryNames = [
+            'IT' => 'Italy',
+            'FR' => 'France',
+            'DE' => 'Germany',
+            'ES' => 'Spain',
+            'GB' => 'United Kingdom',
+            'US' => 'United States',
+            'CH' => 'Switzerland',
+            'AT' => 'Austria',
+            'BE' => 'Belgium',
+            'NL' => 'Netherlands',
+            'PT' => 'Portugal',
+        ];
+
+        $countryName = $countryNames[$destination] ?? $destination;
+
+        return "{$countryName} ({$destination})";
     }
 
     /**

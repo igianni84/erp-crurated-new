@@ -701,4 +701,152 @@ class Invoice extends Model
             'CHF' => 'CHF - Swiss Franc',
         ];
     }
+
+    // =========================================================================
+    // Tax Breakdown Methods
+    // =========================================================================
+
+    /**
+     * Get the tax breakdown for this invoice.
+     *
+     * Groups invoice lines by tax rate and returns breakdown showing
+     * taxable amounts and tax amounts per rate.
+     *
+     * @return array{
+     *     total_subtotal: string,
+     *     total_tax: string,
+     *     tax_breakdown: array<string, array{rate: string, taxable_amount: string, tax_amount: string, line_count: int, description: string}>,
+     *     has_mixed_rates: bool,
+     *     destination_country: string|null,
+     *     is_cross_border: bool,
+     *     duty_summary: array{has_duties: bool, duty_amount: string}|null
+     * }
+     */
+    public function getTaxBreakdown(): array
+    {
+        $lines = $this->invoiceLines()->get();
+        $taxBreakdown = [];
+        $totalSubtotal = '0.00';
+        $totalTax = '0.00';
+        $dutyAmount = '0.00';
+        $hasDuties = false;
+        $destinationCountry = null;
+        $originCountry = null;
+
+        foreach ($lines as $line) {
+            $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
+            $lineTax = $line->tax_amount;
+            $taxRate = $line->tax_rate;
+
+            $totalSubtotal = bcadd($totalSubtotal, $lineSubtotal, 2);
+            $totalTax = bcadd($totalTax, $lineTax, 2);
+
+            // Check for duty lines and extract cross-border info from metadata
+            $metadata = $line->metadata ?? [];
+            $lineType = $metadata['line_type'] ?? null;
+
+            if ($lineType === 'duties') {
+                $hasDuties = true;
+                $dutyAmount = bcadd($dutyAmount, $lineSubtotal, 2);
+            }
+
+            // Extract country information
+            if ($destinationCountry === null && isset($metadata['destination_country'])) {
+                $destinationCountry = $metadata['destination_country'];
+            }
+            if ($originCountry === null && isset($metadata['origin_country'])) {
+                $originCountry = $metadata['origin_country'];
+            }
+
+            // Group by tax rate
+            $rateKey = $taxRate;
+            if (! isset($taxBreakdown[$rateKey])) {
+                $taxBreakdown[$rateKey] = [
+                    'rate' => $taxRate,
+                    'taxable_amount' => '0.00',
+                    'tax_amount' => '0.00',
+                    'line_count' => 0,
+                    'description' => $this->getTaxRateDescription($taxRate),
+                ];
+            }
+
+            $taxBreakdown[$rateKey]['taxable_amount'] = bcadd($taxBreakdown[$rateKey]['taxable_amount'], $lineSubtotal, 2);
+            $taxBreakdown[$rateKey]['tax_amount'] = bcadd($taxBreakdown[$rateKey]['tax_amount'], $lineTax, 2);
+            $taxBreakdown[$rateKey]['line_count']++;
+        }
+
+        // Sort by tax rate (highest first)
+        uasort($taxBreakdown, fn (array $a, array $b): int => bccomp($b['rate'], $a['rate'], 2));
+
+        $isCrossBorder = $originCountry !== null && $destinationCountry !== null && $originCountry !== $destinationCountry;
+
+        return [
+            'total_subtotal' => $totalSubtotal,
+            'total_tax' => $totalTax,
+            'tax_breakdown' => $taxBreakdown,
+            'has_mixed_rates' => count($taxBreakdown) > 1,
+            'destination_country' => $destinationCountry,
+            'is_cross_border' => $isCrossBorder,
+            'duty_summary' => $hasDuties ? ['has_duties' => true, 'duty_amount' => $dutyAmount] : null,
+        ];
+    }
+
+    /**
+     * Get description for a tax rate.
+     */
+    protected function getTaxRateDescription(string $taxRate): string
+    {
+        if (bccomp($taxRate, '0', 2) === 0) {
+            return 'Zero-rated (0%)';
+        }
+
+        return "VAT at {$taxRate}%";
+    }
+
+    /**
+     * Check if this invoice has mixed tax rates (multiple VAT rates applied).
+     */
+    public function hasMixedTaxRates(): bool
+    {
+        return $this->getTaxBreakdown()['has_mixed_rates'];
+    }
+
+    /**
+     * Check if this invoice is for a cross-border shipment (INV2).
+     */
+    public function isCrossBorderShipment(): bool
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return false;
+        }
+
+        return $this->getTaxBreakdown()['is_cross_border'];
+    }
+
+    /**
+     * Check if this invoice includes customs duties (INV2 cross-border).
+     */
+    public function hasDuties(): bool
+    {
+        $breakdown = $this->getTaxBreakdown();
+
+        return $breakdown['duty_summary'] !== null && $breakdown['duty_summary']['has_duties'];
+    }
+
+    /**
+     * Get the destination country from invoice line metadata.
+     * Primarily for INV2 (shipping) invoices.
+     */
+    public function getDestinationCountry(): ?string
+    {
+        return $this->getTaxBreakdown()['destination_country'];
+    }
+
+    /**
+     * Check if this is a shipping invoice (INV2).
+     */
+    public function isShippingInvoice(): bool
+    {
+        return $this->invoice_type === InvoiceType::ShippingRedemption;
+    }
 }

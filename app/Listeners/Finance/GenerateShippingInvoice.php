@@ -5,6 +5,7 @@ namespace App\Listeners\Finance;
 use App\Enums\Finance\InvoiceType;
 use App\Events\Finance\ShipmentExecuted;
 use App\Services\Finance\InvoiceService;
+use App\Services\Finance\ShippingTaxService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\Log;
  * - Creates an invoice with type INV2
  * - Links the invoice to the shipping order (source_type='shipping_order')
  * - Creates invoice lines for shipping fees, handling, duties/taxes
+ * - Determines tax rate based on destination country
  * - Sets status to issued immediately (INV2 expects immediate payment)
  *
  * Line Types:
@@ -34,7 +36,8 @@ class GenerateShippingInvoice implements ShouldQueue
     use InteractsWithQueue;
 
     public function __construct(
-        protected InvoiceService $invoiceService
+        protected InvoiceService $invoiceService,
+        protected ShippingTaxService $shippingTaxService
     ) {}
 
     /**
@@ -111,11 +114,35 @@ class GenerateShippingInvoice implements ShouldQueue
     /**
      * Build invoice lines from shipment items.
      *
+     * Uses ShippingTaxService to determine appropriate tax rates based on
+     * destination country when not explicitly provided in the item.
+     *
      * @return array<int, array{description: string, quantity: string, unit_price: string, tax_rate: string, sellable_sku_id: int|null, metadata: array<string, mixed>}>
      */
     protected function buildInvoiceLines(ShipmentExecuted $event): array
     {
         $lines = [];
+
+        // Determine tax rate based on destination country
+        $destinationCountry = $event->getDestinationCountry();
+        $originCountry = $event->getOriginCountry();
+        $determinedTaxInfo = null;
+
+        if ($destinationCountry !== null) {
+            $determinedTaxInfo = $this->shippingTaxService->determineTaxRate(
+                destinationCountry: $destinationCountry,
+                originCountry: $originCountry
+            );
+
+            Log::channel('finance')->debug('Determined tax rate for shipping invoice', [
+                'shipping_order_id' => $event->shippingOrderId,
+                'destination_country' => $destinationCountry,
+                'origin_country' => $originCountry,
+                'tax_rate' => $determinedTaxInfo['tax_rate'],
+                'tax_type' => $determinedTaxInfo['tax_type'],
+                'is_export' => $determinedTaxInfo['is_export'],
+            ]);
+        }
 
         foreach ($event->items as $item) {
             // Build metadata with shipment information
@@ -128,6 +155,7 @@ class GenerateShippingInvoice implements ShouldQueue
             if ($event->isCrossBorder()) {
                 $metadata['origin_country'] = $event->getOriginCountry();
                 $metadata['destination_country'] = $event->getDestinationCountry();
+                $metadata['is_cross_border'] = true;
             }
 
             // Add carrier information
@@ -139,6 +167,32 @@ class GenerateShippingInvoice implements ShouldQueue
                 $metadata['tracking_number'] = $event->getTrackingNumber();
             }
 
+            // Determine tax rate for this line
+            // Use provided tax rate, or fall back to destination-based rate
+            $lineType = $item['line_type'] ?? 'shipping';
+            $taxRate = $item['tax_rate'];
+
+            // For duties and import taxes, always use 0% (they ARE the tax)
+            if (in_array($lineType, ['duties', 'taxes', 'customs_duties', 'import_taxes'], true)) {
+                $taxRate = '0.00';
+                $metadata['tax_note'] = 'Duties/taxes are not subject to additional VAT';
+            } elseif ($determinedTaxInfo !== null) {
+                // Use destination-based tax rate for shipping costs
+                // Item metadata can contain 'use_provided_rate' => true to keep the original rate
+                $itemMetadata = $item['metadata'] ?? [];
+                $useProvidedRate = isset($itemMetadata['use_provided_rate']) && $itemMetadata['use_provided_rate'] === true;
+
+                if (! $useProvidedRate) {
+                    $taxRate = $determinedTaxInfo['tax_rate'];
+                    $metadata['tax_jurisdiction'] = $determinedTaxInfo['tax_jurisdiction'];
+                    $metadata['tax_type'] = $determinedTaxInfo['tax_type'];
+
+                    if ($determinedTaxInfo['zero_rated_reason'] !== null) {
+                        $metadata['zero_rated_reason'] = $determinedTaxInfo['zero_rated_reason'];
+                    }
+                }
+            }
+
             // Merge item-level metadata if present
             if (isset($item['metadata'])) {
                 $metadata = array_merge($metadata, $item['metadata']);
@@ -148,7 +202,7 @@ class GenerateShippingInvoice implements ShouldQueue
                 'description' => $item['description'],
                 'quantity' => $item['quantity'],
                 'unit_price' => $item['unit_price'],
-                'tax_rate' => $item['tax_rate'],
+                'tax_rate' => $taxRate,
                 'sellable_sku_id' => null, // Shipping lines don't reference sellable SKUs
                 'metadata' => $metadata,
             ];

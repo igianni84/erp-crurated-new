@@ -125,4 +125,31 @@ return [
         // Require valid VAT number for reverse charge
         'require_vat_number_for_reverse_charge' => env('FINANCE_REQUIRE_VAT_NUMBER', true),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Shipping Tax Configuration (INV2)
+    |--------------------------------------------------------------------------
+    |
+    | Settings for shipping invoice VAT/duty calculation.
+    | Tax rates are determined by destination country.
+    |
+    */
+    'shipping' => [
+        // Default shipping service VAT rate when destination is unknown
+        'default_shipping_vat_rate' => env('FINANCE_DEFAULT_SHIPPING_VAT', '22.00'),
+
+        // Enable duty calculation for cross-border shipments
+        'enable_duty_calculation' => env('FINANCE_ENABLE_DUTY_CALCULATION', true),
+
+        // De minimis threshold for duty exemption (in EUR)
+        'de_minimis_threshold_eur' => env('FINANCE_DE_MINIMIS_EUR', '150.00'),
+
+        // EU countries list (for intra-community vs export determination)
+        'eu_countries' => [
+            'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
+            'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
+            'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
+        ],
+    ],
 ];
