@@ -1665,3 +1665,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Navigation sort 10 places it after main finance resources (Invoices=1, Payments=2, etc.)
   - Billing status filter uses ternary filter with custom queries
 ---
+
+## 2026-02-05 - US-E084
+- What was implemented: Enhanced Subscription Detail view with full infolist and actions
+- Files changed:
+  - app/Filament/Resources/Finance/SubscriptionResource/Pages/ViewSubscription.php (major update)
+- Features implemented:
+  - Header section: subscription_id, plan_name, customer (linked), status, amount, billing_cycle
+  - Tab 1 - Plan Details: plan_type with helper text, billing_cycle, amount per cycle, started_at, cancellation info
+  - Tab 2 - Billing: next_billing_date with overdue indicators, billing status, Stripe integration info
+  - Tab 3 - Invoices: RepeatableEntry showing generated invoices with links
+  - Tab 4 - Audit: timeline of changes using AuditLog model
+  - Header actions: Suspend (with reason), Resume, Cancel (with reason) - respecting valid transitions
+- **Learnings for future iterations:**
+  - Filament actions need explicit type casting for $this->record when using canTransitionTo()
+  - diffForHumans() has changed signatures in newer Carbon versions - use default params
+  - RepeatableEntry is excellent for showing related records in read-only view
+  - Action visibility can be controlled with visible() and model transition methods
+---
