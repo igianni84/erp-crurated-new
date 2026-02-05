@@ -2,10 +2,13 @@
 
 namespace App\Models\Finance;
 
+use App\Models\AuditLog;
 use App\Models\User;
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use InvalidArgumentException;
 
 /**
@@ -24,11 +27,14 @@ use InvalidArgumentException;
  * @property string $amount_applied
  * @property \Carbon\Carbon $applied_at
  * @property int|null $applied_by
+ * @property int|null $created_by
+ * @property int|null $updated_by
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  */
 class InvoicePayment extends Model
 {
+    use Auditable;
     use HasFactory;
 
     protected $table = 'invoice_payments';
@@ -39,6 +45,18 @@ class InvoicePayment extends Model
         'amount_applied',
         'applied_at',
         'applied_by',
+        'created_by',
+        'updated_by',
+    ];
+
+    /**
+     * Fields to exclude from audit logging.
+     *
+     * @var list<string>
+     */
+    public array $auditExcludeFields = [
+        'updated_at',
+        'updated_by',
     ];
 
     protected function casts(): array
@@ -90,6 +108,14 @@ class InvoicePayment extends Model
     public function appliedByUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'applied_by');
+    }
+
+    /**
+     * @return MorphMany<AuditLog, $this>
+     */
+    public function auditLogs(): MorphMany
+    {
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     // =========================================================================

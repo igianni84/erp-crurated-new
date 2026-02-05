@@ -12,6 +12,30 @@ class AuditLog extends Model
     use HasUuid;
 
     /**
+     * Boot the model.
+     *
+     * Enforces immutability: audit logs cannot be updated or deleted.
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        // Prevent updates - audit logs are immutable
+        static::updating(function (): void {
+            throw new \InvalidArgumentException(
+                'Audit logs are immutable and cannot be updated.'
+            );
+        });
+
+        // Prevent deletions - audit logs are immutable
+        static::deleting(function (): void {
+            throw new \InvalidArgumentException(
+                'Audit logs are immutable and cannot be deleted.'
+            );
+        });
+    }
+
+    /**
      * Event types for audit logs.
      */
     public const EVENT_CREATED = 'created';
