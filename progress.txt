@@ -688,3 +688,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - PHPStan: Use explicit null check `$obj !== null ? $obj->field : 'default'` instead of `$obj?->field ?? 'default'`
   - Hourly scheduling is appropriate for payment alerts (balances timeliness vs resource usage)
 ---
+
+## 2026-02-05 - US-E036
+- What was implemented: INV2 auto-generation from shipping execution - event and listener for shipping invoices
+- Files changed:
+  - app/Events/Finance/ShipmentExecuted.php (new event class for shipment execution triggers)
+  - app/Listeners/Finance/GenerateShippingInvoice.php (new listener to create INV2 invoices)
+  - app/Providers/EventServiceProvider.php (registered ShipmentExecuted → GenerateShippingInvoice mapping)
+- **Acceptance criteria verification:**
+  - ✅ Listener for ShipmentExecuted event: GenerateShippingInvoice listener
+  - ✅ Creates Invoice with type = INV2: Uses InvoiceType::ShippingRedemption
+  - ✅ Source reference: source_type='shipping_order', source_id=shippingOrderId
+  - ✅ Invoice lines: shipping fees, handling fees, duties/taxes: buildInvoiceLines() supports line_type metadata (shipping, insurance, packaging, handling, duties, taxes)
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - ShipmentExecuted event defined in Finance module (same pattern as VoucherSaleConfirmed)
+  - INV2 invoices expect immediate payment (no due_date), autoIssue=true by default
+  - Event carries: customer, shippingOrderId, items array with line_type metadata, currency, metadata with cross-border info
+  - GenerateShippingInvoice implements ShouldQueue for async processing
+  - Idempotency check uses shippingOrderId to prevent duplicate invoices
+  - Cross-border helper methods: isCrossBorder(), getOriginCountry(), getDestinationCountry(), hasDuties()
+  - Invoice notes include carrier name, tracking number, and cross-border details when available
+  - Line types (shipping, insurance, packaging, handling, duties, taxes) stored in metadata for reporting
+---
