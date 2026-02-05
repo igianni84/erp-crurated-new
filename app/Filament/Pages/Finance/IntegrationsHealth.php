@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Finance;
 
 use App\Enums\Finance\ReconciliationStatus;
 use App\Jobs\Finance\ProcessStripeWebhookJob;
+use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
 use App\Models\Finance\StripeWebhook;
 use App\Models\Finance\XeroSyncLog;
@@ -489,6 +490,125 @@ class IntegrationsHealth extends Page
         Notification::make()
             ->title('Bulk retry completed')
             ->body("{$successCount} of {$count} failed syncs were retried successfully.")
+            ->success()
+            ->send();
+    }
+
+    // =========================================================================
+    // US-E104: Invoice Xero Sync Pending
+    // =========================================================================
+
+    /**
+     * Get invoices with pending Xero sync.
+     *
+     * @return Collection<int, Invoice>
+     */
+    public function getInvoicesPendingXeroSync(): Collection
+    {
+        return app(XeroIntegrationService::class)->getInvoicesWithPendingSync(20);
+    }
+
+    /**
+     * Get the count of invoices with pending Xero sync.
+     */
+    public function getInvoicesPendingSyncCount(): int
+    {
+        return Invoice::xeroSyncPending()->count();
+    }
+
+    /**
+     * Get the count of issued invoices without Xero ID (invariant violations).
+     */
+    public function getInvoicesNotSyncedCount(): int
+    {
+        return Invoice::xeroNotSynced()->count();
+    }
+
+    /**
+     * Check if there are any invoice sync issues.
+     */
+    public function hasInvoiceSyncIssues(): bool
+    {
+        return $this->getInvoicesPendingSyncCount() > 0
+            || $this->getInvoicesNotSyncedCount() > 0;
+    }
+
+    /**
+     * Retry Xero sync for a single invoice.
+     */
+    public function retryInvoiceSync(string $invoiceId): void
+    {
+        $invoice = Invoice::find($invoiceId);
+
+        if ($invoice === null) {
+            Notification::make()
+                ->title('Invoice not found')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        Log::channel('finance')->info('Invoice Xero sync retry initiated from UI (US-E104)', [
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
+            'initiated_by' => auth()->id(),
+        ]);
+
+        try {
+            $xeroService = app(XeroIntegrationService::class);
+            $syncLog = $xeroService->syncInvoice($invoice);
+
+            if ($syncLog->isSynced()) {
+                Notification::make()
+                    ->title('Sync successful')
+                    ->body("Invoice {$invoice->invoice_number} has been synced to Xero.")
+                    ->success()
+                    ->send();
+            } else {
+                Notification::make()
+                    ->title('Sync pending')
+                    ->body('The sync is still pending. Check the error message.')
+                    ->warning()
+                    ->send();
+            }
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Sync failed')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Retry Xero sync for all invoices with pending sync.
+     */
+    public function retryAllInvoiceSyncs(): void
+    {
+        $xeroService = app(XeroIntegrationService::class);
+        $pendingCount = $this->getInvoicesPendingSyncCount();
+
+        if ($pendingCount === 0) {
+            Notification::make()
+                ->title('No pending syncs')
+                ->body('There are no invoices with pending Xero sync.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        Log::channel('finance')->info('Bulk invoice Xero sync retry initiated from UI (US-E104)', [
+            'count' => $pendingCount,
+            'initiated_by' => auth()->id(),
+        ]);
+
+        $successCount = $xeroService->retryAllPendingInvoiceSyncs();
+
+        Notification::make()
+            ->title('Bulk retry completed')
+            ->body("{$successCount} of {$pendingCount} invoices were synced successfully.")
             ->success()
             ->send();
     }

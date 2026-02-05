@@ -4,6 +4,9 @@
         $failedWebhooks = $this->getFailedWebhooks();
         $xeroSummary = $this->getXeroHealthSummary();
         $failedXeroSyncs = $this->getFailedXeroSyncs();
+        $invoicesPendingSync = $this->getInvoicesPendingXeroSync();
+        $invoicesPendingSyncCount = $this->getInvoicesPendingSyncCount();
+        $invoicesNotSyncedCount = $this->getInvoicesNotSyncedCount();
     @endphp
 
     {{-- Stripe Integration Section --}}
@@ -421,6 +424,131 @@
                 </div>
             </div>
         </div>
+
+        {{-- US-E104: Invoices Pending Xero Sync --}}
+        @if($invoicesPendingSyncCount > 0 || $invoicesNotSyncedCount > 0)
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
+                        <x-heroicon-o-document-text class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
+                        Invoices Pending Xero Sync
+                        <span class="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-400/20 dark:text-warning-400">
+                            {{ $invoicesPendingSyncCount + $invoicesNotSyncedCount }}
+                        </span>
+                    </h3>
+                    @if($invoicesPendingSync->count() > 0)
+                        <button
+                            wire:click="retryAllInvoiceSyncs"
+                            wire:confirm="Are you sure you want to retry Xero sync for all {{ $invoicesPendingSyncCount }} pending invoices?"
+                            type="button"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 dark:focus:ring-offset-gray-900"
+                        >
+                            <x-heroicon-o-arrow-path class="h-4 w-4 mr-1.5" />
+                            Retry All ({{ $invoicesPendingSyncCount }})
+                        </button>
+                    @endif
+                </div>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Invoices that have been issued but not yet synced to Xero. This violates the mandatory sync requirement.
+                </p>
+            </div>
+            <div class="fi-section-content">
+                @if($invoicesPendingSync->count() > 0)
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Invoice
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Type
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Customer
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Amount
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Issued
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                @foreach($invoicesPendingSync as $invoice)
+                                    @php
+                                        $syncStatus = $invoice->getXeroSyncStatusDisplay();
+                                    @endphp
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <a href="{{ route('filament.admin.resources.finance.invoices.view', $invoice) }}" class="text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                                                {{ $invoice->invoice_number }}
+                                            </a>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style="background-color: {{ $invoice->invoice_type->color() === 'primary' ? 'rgb(99, 102, 241)' : '' }}; color: white;">
+                                                {{ $invoice->invoice_type->code() }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm text-gray-900 dark:text-white">
+                                                {{ Str::limit($invoice->customer?->name ?? 'Unknown', 25) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm font-medium text-gray-900 dark:text-white">
+                                                {{ $invoice->currency }} {{ number_format((float) $invoice->total_amount, 2) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-gray-900 dark:text-white">
+                                                {{ $invoice->issued_at?->format('M j, Y') }}
+                                            </div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $invoice->issued_at?->diffForHumans() }}
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $syncStatus['color'] === 'warning' ? 'bg-warning-100 text-warning-800 dark:bg-warning-400/20 dark:text-warning-400' : 'bg-danger-100 text-danger-800 dark:bg-danger-400/20 dark:text-danger-400' }}">
+                                                <x-dynamic-component :component="$syncStatus['icon']" class="h-3.5 w-3.5 mr-1" />
+                                                {{ ucfirst($syncStatus['status']) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <button
+                                                wire:click="retryInvoiceSync('{{ $invoice->id }}')"
+                                                type="button"
+                                                class="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                                            >
+                                                <x-heroicon-o-arrow-path class="h-3.5 w-3.5 mr-1" />
+                                                Retry
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="text-center py-12">
+                        <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-400" />
+                        <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">All invoices synced</h3>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                            All issued invoices have been synced to Xero.
+                        </p>
+                    </div>
+                @endif
+            </div>
+        </div>
+        @endif
 
         {{-- Failed Xero Syncs List --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">

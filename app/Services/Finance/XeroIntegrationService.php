@@ -124,8 +124,10 @@ class XeroIntegrationService
             }
 
             // Update the Invoice model with Xero ID
+            // US-E104: Also clear the sync_pending flag on successful sync
             $invoice->xero_invoice_id = $xeroInvoiceId;
             $invoice->xero_synced_at = now();
+            $invoice->xero_sync_pending = false;
             $invoice->save();
 
             // Mark sync log as successful
@@ -627,6 +629,7 @@ class XeroIntegrationService
      * - Pending/failed/synced counts
      * - Recent sync activity
      * - Active alerts
+     * - US-E104: Invoices pending sync count
      *
      * @return array{
      *     status: string,
@@ -638,7 +641,9 @@ class XeroIntegrationService
      *     last_sync: \Carbon\Carbon|null,
      *     last_sync_type: string|null,
      *     alerts: array<string>,
-     *     is_healthy: bool
+     *     is_healthy: bool,
+     *     invoices_pending_sync: int,
+     *     invoices_not_synced: int
      * }
      */
     public function getIntegrationHealth(): array
@@ -652,6 +657,12 @@ class XeroIntegrationService
         $lastSync = XeroSyncLog::synced()
             ->orderBy('synced_at', 'desc')
             ->first();
+
+        // US-E104: Count invoices with pending Xero sync
+        $invoicesPendingSync = Invoice::xeroSyncPending()->count();
+
+        // US-E104: Count issued invoices without Xero ID (invariant violations)
+        $invoicesNotSynced = Invoice::xeroNotSynced()->count();
 
         // Determine status and alerts
         $alerts = [];
@@ -676,6 +687,18 @@ class XeroIntegrationService
             $alerts[] = "{$pendingCount} sync(s) are pending. Check queue processing.";
         }
 
+        // US-E104: Alert for invoices issued without xero_invoice_id
+        if ($invoicesNotSynced > 0) {
+            $status = $status === 'healthy' ? 'warning' : $status;
+            $statusColor = $statusColor === 'success' ? 'warning' : $statusColor;
+            $alerts[] = "{$invoicesNotSynced} issued invoice(s) are not synced to Xero. This violates the mandatory sync invariant.";
+        }
+
+        // US-E104: Warning for invoices with pending sync
+        if ($invoicesPendingSync > 0 && $invoicesNotSynced === 0) {
+            $alerts[] = "{$invoicesPendingSync} invoice(s) have pending Xero sync. Retry the failed syncs.";
+        }
+
         return [
             'status' => $status,
             'status_color' => $statusColor,
@@ -687,6 +710,8 @@ class XeroIntegrationService
             'last_sync_type' => $lastSync?->sync_type->label(),
             'alerts' => $alerts,
             'is_healthy' => $status === 'healthy',
+            'invoices_pending_sync' => $invoicesPendingSync,
+            'invoices_not_synced' => $invoicesNotSynced,
         ];
     }
 
@@ -716,5 +741,80 @@ class XeroIntegrationService
             ->with('syncable')
             ->orderBy('created_at', 'asc')
             ->get();
+    }
+
+    // =========================================================================
+    // US-E104: Invoice Sync Pending Management
+    // =========================================================================
+
+    /**
+     * Get invoices with pending Xero sync.
+     *
+     * US-E104: Returns invoices that have been issued but have the
+     * xero_sync_pending flag set (sync failed and needs retry).
+     *
+     * @param  int  $limit  Maximum number of invoices to return
+     * @return \Illuminate\Database\Eloquent\Collection<int, Invoice>
+     */
+    public function getInvoicesWithPendingSync(int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    {
+        return Invoice::xeroSyncPending()
+            ->with('customer')
+            ->orderBy('issued_at', 'asc')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * Get issued invoices without Xero ID.
+     *
+     * US-E104: Returns invoices that violate the invariant - they are issued
+     * but don't have a xero_invoice_id.
+     *
+     * @param  int  $limit  Maximum number of invoices to return
+     * @return \Illuminate\Database\Eloquent\Collection<int, Invoice>
+     */
+    public function getInvoicesNotSyncedToXero(int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    {
+        return Invoice::xeroNotSynced()
+            ->with('customer')
+            ->orderBy('issued_at', 'asc')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * Retry sync for all invoices with pending sync.
+     *
+     * US-E104: Attempts to sync all invoices that have the xero_sync_pending flag.
+     *
+     * @return int Number of successfully synced invoices
+     */
+    public function retryAllPendingInvoiceSyncs(): int
+    {
+        $invoices = Invoice::xeroSyncPending()->get();
+        $successCount = 0;
+
+        foreach ($invoices as $invoice) {
+            try {
+                $syncLog = $this->syncInvoice($invoice);
+                if ($syncLog->isSynced()) {
+                    $successCount++;
+                }
+            } catch (\Exception $e) {
+                Log::channel('finance')->warning('Failed to retry invoice sync', [
+                    'invoice_id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        Log::channel('finance')->info('Bulk invoice sync retry completed (US-E104)', [
+            'total_pending' => $invoices->count(),
+            'successful_syncs' => $successCount,
+        ]);
+
+        return $successCount;
     }
 }

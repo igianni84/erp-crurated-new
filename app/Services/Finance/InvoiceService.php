@@ -885,21 +885,37 @@ class InvoiceService
     /**
      * Trigger Xero sync for an issued invoice.
      *
-     * This method is called after invoice issuance to sync the invoice to Xero.
-     * Errors are logged but do not prevent the invoice from being issued.
-     * Failed syncs can be retried via the Xero integration management UI.
+     * US-E104: This method is called after invoice issuance to sync the invoice to Xero.
+     * Every issued invoice MUST have a XeroSyncLog entry (invariant).
+     *
+     * If sync fails:
+     * - Invoice remains issued (not rolled back)
+     * - Invoice is flagged as xero_sync_pending
+     * - Failed syncs can be retried via the Integrations Health page
      */
     protected function triggerXeroSync(Invoice $invoice): void
     {
+        // Mark as pending sync before attempting
+        $invoice->xero_sync_pending = true;
+        $invoice->save();
+
         try {
             $xeroService = app(XeroIntegrationService::class);
-            $xeroService->syncInvoice($invoice);
+            $syncLog = $xeroService->syncInvoice($invoice);
+
+            // If sync was successful, clear the pending flag
+            if ($syncLog->isSynced()) {
+                $invoice->xero_sync_pending = false;
+                $invoice->save();
+            }
         } catch (\Exception $e) {
             // Log the error but don't fail the invoice issuance
             // The sync can be retried later via the Integrations Health page
-            Log::channel('finance')->warning('Xero sync failed after invoice issuance', [
+            // Invoice remains flagged as xero_sync_pending
+            Log::channel('finance')->warning('Xero sync failed after invoice issuance (US-E104)', [
                 'invoice_id' => $invoice->id,
                 'invoice_number' => $invoice->invoice_number,
+                'xero_sync_pending' => true,
                 'error' => $e->getMessage(),
             ]);
         }

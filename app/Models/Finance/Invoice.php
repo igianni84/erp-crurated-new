@@ -48,6 +48,7 @@ use InvalidArgumentException;
  * @property string|null $notes
  * @property string|null $xero_invoice_id
  * @property \Carbon\Carbon|null $xero_synced_at
+ * @property bool $xero_sync_pending
  * @property bool $is_disputed
  * @property \Carbon\Carbon|null $disputed_at
  * @property string|null $dispute_reason
@@ -58,6 +59,8 @@ use InvalidArgumentException;
  * @property \Carbon\Carbon|null $deleted_at
  * @property-read bool $is_overdue
  *
+ * @method static \Illuminate\Database\Eloquent\Builder<static> xeroSyncPending()
+ * @method static \Illuminate\Database\Eloquent\Builder<static> xeroNotSynced()
  * @method static \Illuminate\Database\Eloquent\Builder<static> overdue()
  * @method static \Illuminate\Database\Eloquent\Builder<static> notOverdue()
  * @method static \Illuminate\Database\Eloquent\Builder<static> unpaidImmediate(?int $thresholdHours = null)
@@ -90,6 +93,7 @@ class Invoice extends Model
         'notes',
         'xero_invoice_id',
         'xero_synced_at',
+        'xero_sync_pending',
         'is_disputed',
         'disputed_at',
         'dispute_reason',
@@ -102,6 +106,7 @@ class Invoice extends Model
         'total_amount' => 0,
         'amount_paid' => 0,
         'status' => 'draft',
+        'xero_sync_pending' => false,
         'is_disputed' => false,
     ];
 
@@ -128,6 +133,7 @@ class Invoice extends Model
             'is_disputed' => 'boolean',
             'disputed_at' => 'datetime',
             'xero_synced_at' => 'datetime',
+            'xero_sync_pending' => 'boolean',
             // Note: source_id is a string to support both int IDs and UUIDs
         ];
     }
@@ -514,6 +520,36 @@ class Invoice extends Model
             ->where('issued_at', '<=', $cutoffTime);
     }
 
+    /**
+     * Scope to get invoices with pending Xero sync.
+     *
+     * US-E104: Returns invoices that are issued but haven't been synced to Xero yet.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public function scopeXeroSyncPending(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where('xero_sync_pending', true);
+    }
+
+    /**
+     * Scope to get issued invoices without Xero invoice ID.
+     *
+     * US-E104: Invariant check - every issued invoice should have xero_invoice_id.
+     * This scope finds violations of that invariant.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public function scopeXeroNotSynced(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query
+            ->where('status', '!=', InvoiceStatus::Draft)
+            ->where('status', '!=', InvoiceStatus::Cancelled)
+            ->whereNull('xero_invoice_id');
+    }
+
     // =========================================================================
     // Computed Properties
     // =========================================================================
@@ -710,6 +746,129 @@ class Invoice extends Model
             'GBP' => 'GBP - British Pound',
             'USD' => 'USD - US Dollar',
             'CHF' => 'CHF - Swiss Franc',
+        ];
+    }
+
+    // =========================================================================
+    // Xero Sync Status Methods (US-E104)
+    // =========================================================================
+
+    /**
+     * Check if the invoice has been synced to Xero.
+     *
+     * An invoice is considered synced if it has a xero_invoice_id.
+     */
+    public function isSyncedToXero(): bool
+    {
+        return $this->xero_invoice_id !== null;
+    }
+
+    /**
+     * Check if the invoice has a pending Xero sync.
+     *
+     * US-E104: Invoice is flagged as sync_pending when issuance sync fails.
+     */
+    public function hasXeroSyncPending(): bool
+    {
+        return $this->xero_sync_pending;
+    }
+
+    /**
+     * Check if this invoice needs Xero sync attention.
+     *
+     * Returns true if:
+     * - Invoice is issued (not draft/cancelled)
+     * - Invoice does not have a xero_invoice_id
+     *
+     * This represents a violation of the invariant that all issued invoices
+     * must be synced to Xero.
+     */
+    public function needsXeroSyncAttention(): bool
+    {
+        // Draft and cancelled invoices don't need syncing
+        if ($this->isDraft() || $this->isCancelled()) {
+            return false;
+        }
+
+        // If already synced, no attention needed
+        if ($this->isSyncedToXero()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Mark the invoice as having pending Xero sync.
+     *
+     * Called when Xero sync fails after invoice issuance.
+     */
+    public function markXeroSyncPending(): void
+    {
+        $this->xero_sync_pending = true;
+        $this->save();
+    }
+
+    /**
+     * Clear the pending Xero sync flag.
+     *
+     * Called when Xero sync succeeds.
+     */
+    public function clearXeroSyncPending(): void
+    {
+        $this->xero_sync_pending = false;
+        $this->save();
+    }
+
+    /**
+     * Get the Xero sync status for display.
+     *
+     * @return array{status: string, color: string, icon: string, message: string}
+     */
+    public function getXeroSyncStatusDisplay(): array
+    {
+        if ($this->isDraft()) {
+            return [
+                'status' => 'not_applicable',
+                'color' => 'gray',
+                'icon' => 'heroicon-o-minus-circle',
+                'message' => 'Draft invoices are not synced to Xero',
+            ];
+        }
+
+        if ($this->isCancelled()) {
+            return [
+                'status' => 'not_applicable',
+                'color' => 'gray',
+                'icon' => 'heroicon-o-minus-circle',
+                'message' => 'Cancelled invoices are not synced to Xero',
+            ];
+        }
+
+        if ($this->isSyncedToXero()) {
+            return [
+                'status' => 'synced',
+                'color' => 'success',
+                'icon' => 'heroicon-o-check-circle',
+                'message' => 'Synced to Xero',
+            ];
+        }
+
+        if ($this->hasXeroSyncPending()) {
+            return [
+                'status' => 'pending',
+                'color' => 'warning',
+                'icon' => 'heroicon-o-clock',
+                'message' => 'Xero sync pending - retry needed',
+            ];
+        }
+
+        // Issued but not synced and not marked as pending - invariant violation
+        return [
+            'status' => 'failed',
+            'color' => 'danger',
+            'icon' => 'heroicon-o-exclamation-triangle',
+            'message' => 'Not synced to Xero - requires attention',
         ];
     }
 
