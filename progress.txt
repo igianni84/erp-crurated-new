@@ -979,3 +979,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - getServiceFeeTypeSummaries() provides per-type breakdown with subtotals for reporting
   - isAdHocServiceInvoice() distinguishes manual INV4 from event-triggered INV4
 ---
+
+## 2026-02-05 - US-E049
+- What was implemented: INV4 manual creation support - CreateInvoice form allows INV4 without source reference for ad-hoc services
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/CreateInvoice.php (added INV4 ad-hoc warning, required notes for INV4, afterValidation check)
+- **Acceptance criteria verification:**
+  - ✅ Create Invoice form allows INV4 without required source reference: InvoiceType::ServiceEvents.requiresSourceReference() already returns false
+  - ✅ Warning: INV4 without event reference is for ad-hoc services only: New inv4_adhoc_warning Placeholder visible when INV4 selected
+  - ✅ Reason/description required: Notes field is required when invoice_type is INV4, with custom validation for min 10 chars
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - InvoiceType enum already had requiresSourceReference()=false for ServiceEvents from US-E001 implementation
+  - Dynamic form field attributes (label, placeholder, required, helperText) can use closures with Get $get
+  - afterValidation hook enforces custom business rules beyond Filament's built-in validation
+  - Warning banner pattern uses Placeholder component with conditional visibility
+  - Minimum character requirement (10 chars) ensures meaningful description for ad-hoc services
+---
