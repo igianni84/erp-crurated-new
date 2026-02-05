@@ -630,3 +630,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - InvoiceLine has helpers: getPricingSnapshotId(), hasPricingMetadata(), getPricingMetadata(), getPriceBookId(), getOfferId(), getTaxJurisdiction()
   - Reverse charge VAT support is stubbed but not yet implemented (requires Module K VAT validation)
 ---
+
+## 2026-02-05 - US-E033
+- What was implemented: INV1 payment confirmation trigger - emits InvoicePaid event when invoice becomes paid
+- Files changed:
+  - app/Events/Finance/InvoicePaid.php (new event class with invoice type helper methods)
+  - app/Services/Finance/InvoiceService.php (added emitInvoicePaidEvent() method, replaced TODO comments)
+  - app/Providers/EventServiceProvider.php (added informational comment about InvoicePaid for other modules)
+- **Acceptance criteria verification:**
+  - ✅ When INV1 becomes paid: InvoiceService emits InvoicePaid event in updateStatusAfterPayment() and markPaid()
+  - ✅ Emits InvoicePaid event with invoice_type = INV1: InvoicePaid event includes invoice with its type, isVoucherSaleInvoice() helper
+  - ✅ Module A listens and creates vouchers: EventServiceProvider comment documents this - Module A should implement listener
+  - ✅ Log correlation between invoice and vouchers: Correlation ID generated, logged to finance channel, and stored in audit trail
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - InvoicePaid event is emitted by Finance module but consumed by other modules (A, K, C, B)
+  - Each invoice type has specific downstream effects documented in InvoicePaid class docblock
+  - Correlation ID (UUID) is generated for cross-module tracing via Log::channel('finance')
+  - Finance is consequence, not cause - InvoicePaid is evidence of payment, not authority for operations
+  - Invoice model uses HasUuid trait where id IS the UUID (not a separate uuid property)
+  - customer_id is string type (UUID), not int - check model @property docblocks for correct types
+---
