@@ -15,10 +15,12 @@ use App\Services\Finance\PaymentService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -29,6 +31,7 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 
 class ViewPayment extends ViewRecord
@@ -600,6 +603,7 @@ class ViewPayment extends ViewRecord
     {
         return [
             $this->getApplyToInvoiceAction(),
+            $this->getApplyToMultipleInvoicesAction(),
             $this->getForceMatchAction(),
             $this->getCreateExceptionAction(),
             $this->getMarkForRefundAction(),
@@ -1005,6 +1009,471 @@ class ViewPayment extends ViewRecord
         $record = $this->record;
 
         return $record;
+    }
+
+    // =========================================================================
+    // Apply to Multiple Invoices Action (US-E057)
+    // =========================================================================
+
+    /**
+     * Action to apply this payment to multiple invoices at once.
+     *
+     * Visible only when:
+     * - Payment status is confirmed (can be applied)
+     * - Payment has unapplied amount > 0
+     */
+    protected function getApplyToMultipleInvoicesAction(): Action
+    {
+        return Action::make('applyToMultipleInvoices')
+            ->label('Apply to Multiple Invoices')
+            ->icon('heroicon-o-rectangle-stack')
+            ->color('primary')
+            ->visible(fn (): bool => $this->canApplyToMultipleInvoices())
+            ->requiresConfirmation()
+            ->modalHeading('Apply Payment to Multiple Invoices')
+            ->modalDescription(fn (): string => $this->getApplyToMultipleModalDescription())
+            ->modalIcon('heroicon-o-rectangle-stack')
+            ->modalWidth('4xl')
+            ->form([
+                Placeholder::make('multi_payment_info')
+                    ->label('')
+                    ->content(fn (): HtmlString => new HtmlString($this->getMultiPaymentInfoHtml()))
+                    ->columnSpanFull(),
+
+                Repeater::make('applications')
+                    ->label('Invoice Applications')
+                    ->schema([
+                        Select::make('invoice_id')
+                            ->label('Invoice')
+                            ->required()
+                            ->searchable()
+                            ->preload()
+                            ->options(fn (): array => $this->getAvailableInvoicesForPayment())
+                            ->helperText('Select an invoice')
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set, Get $get, ?string $state) => $this->onMultiInvoiceSelected($set, $get, $state))
+                            ->columnSpan(2),
+
+                        TextInput::make('amount')
+                            ->label('Amount')
+                            ->required()
+                            ->numeric()
+                            ->step('0.01')
+                            ->minValue(0.01)
+                            ->prefix(fn (): string => $this->getPayment()->currency)
+                            ->live(debounce: 500)
+                            ->columnSpan(1),
+                    ])
+                    ->columns(3)
+                    ->addActionLabel('Add Invoice')
+                    ->minItems(1)
+                    ->maxItems(10)
+                    ->reorderable(false)
+                    ->defaultItems(1)
+                    ->live()
+                    ->afterStateUpdated(fn (Set $set, Get $get) => $this->updateMultiTotals($set, $get)),
+
+                Placeholder::make('multi_totals')
+                    ->label('')
+                    ->content(fn (Get $get): HtmlString => new HtmlString($this->getMultiTotalsHtml($get('applications'))))
+                    ->columnSpanFull(),
+
+                Placeholder::make('multi_validation_warning')
+                    ->label('')
+                    ->content(fn (Get $get): HtmlString => new HtmlString($this->getMultiValidationWarning($get('applications'))))
+                    ->visible(fn (Get $get): bool => $this->hasMultiValidationWarning($get('applications')))
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data): void {
+                $this->applyPaymentToMultipleInvoices($data);
+            });
+    }
+
+    /**
+     * Check if the current payment can be applied to multiple invoices.
+     */
+    protected function canApplyToMultipleInvoices(): bool
+    {
+        $payment = $this->getPayment();
+
+        // Must be able to be applied (confirmed status)
+        if (! $payment->canBeAppliedToInvoice()) {
+            return false;
+        }
+
+        // Must have unapplied amount
+        if (bccomp($payment->getUnappliedAmount(), '0', 2) <= 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the modal description for the Apply to Multiple Invoices action.
+     */
+    protected function getApplyToMultipleModalDescription(): string
+    {
+        $payment = $this->getPayment();
+
+        return "Split payment {$payment->payment_reference} across multiple invoices. The sum of amounts cannot exceed the payment amount.";
+    }
+
+    /**
+     * Get HTML for multi-payment info in the modal.
+     */
+    protected function getMultiPaymentInfoHtml(): string
+    {
+        $payment = $this->getPayment();
+
+        $lines = [];
+        $lines[] = '<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">';
+        $lines[] = '<div class="flex items-start gap-3">';
+        $lines[] = '<div class="flex-shrink-0">';
+        $lines[] = '<svg class="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">';
+        $lines[] = '<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>';
+        $lines[] = '</svg>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<h4 class="font-semibold text-blue-800 dark:text-blue-200">Payment Details</h4>';
+        $lines[] = '<p class="mt-1 text-sm text-blue-700 dark:text-blue-300">';
+        $lines[] = 'Add invoices and specify amounts for each. The total applied cannot exceed the unapplied payment balance.';
+        $lines[] = '</p>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        $lines[] = '<div class="mt-3 grid grid-cols-3 gap-4 text-sm">';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-blue-600 dark:text-blue-400">Reference:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->payment_reference).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-blue-600 dark:text-blue-400">Total Amount:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->getFormattedAmount()).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-blue-600 dark:text-blue-400">Available to Apply:</span>';
+        $lines[] = '<span class="font-semibold ml-2 text-success-600">'.e($payment->getFormattedUnappliedAmount()).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Handle invoice selection in multi-invoice mode - auto-fill amount.
+     */
+    protected function onMultiInvoiceSelected(Set $set, Get $get, ?string $invoiceId): void
+    {
+        if ($invoiceId === null) {
+            return;
+        }
+
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice === null) {
+            return;
+        }
+
+        $payment = $this->getPayment();
+
+        // Calculate remaining unapplied amount after other applications in the form
+        /** @var array<int, array{invoice_id?: string, amount?: string}>|null $applications */
+        $applications = $get('../../applications');
+        $otherApplicationsTotal = '0';
+
+        if ($applications !== null) {
+            foreach ($applications as $app) {
+                // Skip the current item (don't count its amount)
+                if (($app['invoice_id'] ?? null) !== $invoiceId && isset($app['amount']) && $app['amount'] !== '') {
+                    $otherApplicationsTotal = bcadd($otherApplicationsTotal, (string) $app['amount'], 2);
+                }
+            }
+        }
+
+        $remaining = bcsub($payment->getUnappliedAmount(), $otherApplicationsTotal, 2);
+        $outstanding = $invoice->getOutstandingAmount();
+
+        // Set default to the lesser of: invoice outstanding or remaining unapplied
+        $defaultAmount = bccomp($outstanding, $remaining, 2) <= 0 ? $outstanding : $remaining;
+        $defaultAmount = bccomp($defaultAmount, '0', 2) > 0 ? $defaultAmount : '0';
+
+        $set('amount', $defaultAmount);
+    }
+
+    /**
+     * Update totals when applications change.
+     */
+    protected function updateMultiTotals(Set $set, Get $get): void
+    {
+        // Totals are recalculated via Placeholder content callback
+        // This method exists for future enhancements
+    }
+
+    /**
+     * Get HTML for displaying totals in multi-invoice mode.
+     *
+     * @param  array<int, array{invoice_id?: string, amount?: string}>|null  $applications
+     */
+    protected function getMultiTotalsHtml(?array $applications): string
+    {
+        $payment = $this->getPayment();
+        $unapplied = $payment->getUnappliedAmount();
+
+        // Calculate total being applied
+        $totalApplying = '0';
+        $validCount = 0;
+
+        if ($applications !== null) {
+            foreach ($applications as $application) {
+                $amount = $application['amount'] ?? '';
+                if ($amount !== '' && bccomp((string) $amount, '0', 2) > 0) {
+                    $totalApplying = bcadd($totalApplying, (string) $amount, 2);
+                    $validCount++;
+                }
+            }
+        }
+
+        $remaining = bcsub($unapplied, $totalApplying, 2);
+        $isOverBudget = bccomp($totalApplying, $unapplied, 2) > 0;
+
+        $lines = [];
+        $lines[] = '<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-4">';
+        $lines[] = '<h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-3">Application Summary</h4>';
+        $lines[] = '<div class="grid grid-cols-4 gap-4 text-sm">';
+
+        // Available
+        $lines[] = '<div class="text-center p-3 bg-white dark:bg-gray-700 rounded">';
+        $lines[] = '<div class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Available</div>';
+        $lines[] = '<div class="font-bold text-lg text-gray-900 dark:text-gray-100">'.e($payment->currency).' '.e($unapplied).'</div>';
+        $lines[] = '</div>';
+
+        // Total Applying
+        $applyingColor = $isOverBudget ? 'text-red-600' : 'text-primary-600';
+        $lines[] = '<div class="text-center p-3 bg-white dark:bg-gray-700 rounded">';
+        $lines[] = '<div class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Applying</div>';
+        $lines[] = '<div class="font-bold text-lg '.$applyingColor.'">'.e($payment->currency).' '.e($totalApplying).'</div>';
+        $lines[] = '</div>';
+
+        // Remaining
+        $remainingColor = bccomp($remaining, '0', 2) < 0 ? 'text-red-600' : (bccomp($remaining, '0', 2) > 0 ? 'text-amber-600' : 'text-success-600');
+        $lines[] = '<div class="text-center p-3 bg-white dark:bg-gray-700 rounded">';
+        $lines[] = '<div class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Remaining</div>';
+        $lines[] = '<div class="font-bold text-lg '.$remainingColor.'">'.e($payment->currency).' '.e($remaining).'</div>';
+        $lines[] = '</div>';
+
+        // Invoice Count
+        $lines[] = '<div class="text-center p-3 bg-white dark:bg-gray-700 rounded">';
+        $lines[] = '<div class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Invoices</div>';
+        $lines[] = '<div class="font-bold text-lg text-gray-900 dark:text-gray-100">'.$validCount.'</div>';
+        $lines[] = '</div>';
+
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Check if there's a validation warning for multi-invoice applications.
+     *
+     * @param  array<int, array{invoice_id?: string, amount?: string}>|null  $applications
+     */
+    protected function hasMultiValidationWarning(?array $applications): bool
+    {
+        if ($applications === null) {
+            return false;
+        }
+
+        $payment = $this->getPayment();
+        $unapplied = $payment->getUnappliedAmount();
+
+        // Check if total exceeds unapplied amount
+        $totalApplying = '0';
+        foreach ($applications as $application) {
+            $amount = $application['amount'] ?? '';
+            if ($amount !== '') {
+                $totalApplying = bcadd($totalApplying, (string) $amount, 2);
+            }
+        }
+
+        if (bccomp($totalApplying, $unapplied, 2) > 0) {
+            return true;
+        }
+
+        // Check for duplicate invoices
+        $invoiceIds = [];
+        foreach ($applications as $application) {
+            $invoiceId = $application['invoice_id'] ?? null;
+            if ($invoiceId !== null) {
+                if (in_array($invoiceId, $invoiceIds, true)) {
+                    return true;
+                }
+                $invoiceIds[] = $invoiceId;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get validation warning HTML for multi-invoice applications.
+     *
+     * @param  array<int, array{invoice_id?: string, amount?: string}>|null  $applications
+     */
+    protected function getMultiValidationWarning(?array $applications): string
+    {
+        if ($applications === null) {
+            return '';
+        }
+
+        $warnings = [];
+        $payment = $this->getPayment();
+        $unapplied = $payment->getUnappliedAmount();
+
+        // Check if total exceeds unapplied amount
+        $totalApplying = '0';
+        foreach ($applications as $application) {
+            $amount = $application['amount'] ?? '';
+            if ($amount !== '') {
+                $totalApplying = bcadd($totalApplying, (string) $amount, 2);
+            }
+        }
+
+        if (bccomp($totalApplying, $unapplied, 2) > 0) {
+            $over = bcsub($totalApplying, $unapplied, 2);
+            $warnings[] = "Total amount ({$payment->currency} {$totalApplying}) exceeds available balance ({$payment->currency} {$unapplied}) by {$payment->currency} {$over}.";
+        }
+
+        // Check for duplicate invoices
+        $invoiceIds = [];
+        foreach ($applications as $application) {
+            $invoiceId = $application['invoice_id'] ?? null;
+            if ($invoiceId !== null) {
+                if (in_array($invoiceId, $invoiceIds, true)) {
+                    $warnings[] = 'Same invoice selected multiple times. Each invoice can only appear once.';
+                    break;
+                }
+                $invoiceIds[] = $invoiceId;
+            }
+        }
+
+        if (empty($warnings)) {
+            return '';
+        }
+
+        $lines = [];
+        $lines[] = '<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">';
+        $lines[] = '<div class="flex items-start gap-3">';
+        $lines[] = '<div class="flex-shrink-0">';
+        $lines[] = '<svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">';
+        $lines[] = '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>';
+        $lines[] = '</svg>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<h4 class="font-semibold text-red-800 dark:text-red-200">Validation Errors</h4>';
+        $lines[] = '<ul class="mt-1 text-sm text-red-700 dark:text-red-300 list-disc list-inside">';
+        foreach ($warnings as $warning) {
+            $lines[] = '<li>'.e($warning).'</li>';
+        }
+        $lines[] = '</ul>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Execute applying payment to multiple invoices.
+     *
+     * @param  array{applications: array<int, array{invoice_id: string, amount: string}>}  $data
+     */
+    protected function applyPaymentToMultipleInvoices(array $data): void
+    {
+        $payment = $this->getPayment();
+
+        /** @var array<int, array<string, mixed>> $applications */
+        $applications = $data['applications'];
+
+        // Filter out any empty entries
+        $validApplications = [];
+        foreach ($applications as $application) {
+            $invoiceId = $application['invoice_id'] ?? null;
+            $amount = $application['amount'] ?? null;
+
+            if (
+                $invoiceId !== null &&
+                $amount !== null &&
+                $invoiceId !== '' &&
+                $amount !== '' &&
+                bccomp((string) $amount, '0', 2) > 0
+            ) {
+                $validApplications[] = [
+                    'invoice_id' => (string) $invoiceId,
+                    'amount' => (string) $amount,
+                ];
+            }
+        }
+
+        if (empty($validApplications)) {
+            Notification::make()
+                ->title('No Valid Applications')
+                ->body('Please add at least one invoice with a valid amount.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        // Check for duplicate invoices
+        $invoiceIds = array_column($validApplications, 'invoice_id');
+        if (count($invoiceIds) !== count(array_unique($invoiceIds))) {
+            Notification::make()
+                ->title('Duplicate Invoices')
+                ->body('Each invoice can only be selected once.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        try {
+            /** @var PaymentService $paymentService */
+            $paymentService = app(PaymentService::class);
+
+            // Apply the payment to multiple invoices
+            $invoicePayments = $paymentService->applyToMultipleInvoices($payment, $validApplications);
+
+            // Mark payment as reconciled if fully applied
+            $freshPayment = $payment->fresh();
+            if ($freshPayment !== null && $freshPayment->isFullyApplied()) {
+                $paymentService->markReconciled($freshPayment, ReconciliationStatus::Matched);
+            }
+
+            $totalApplied = array_reduce(
+                $validApplications,
+                fn ($carry, $app) => bcadd($carry, $app['amount'], 2),
+                '0'
+            );
+
+            Notification::make()
+                ->title('Payment Applied Successfully')
+                ->body("{$payment->currency} {$totalApplied} applied across ".count($invoicePayments).' invoices.')
+                ->success()
+                ->send();
+
+            // Refresh the page to show updated data
+            $this->redirect(PaymentResource::getUrl('view', ['record' => $payment]));
+
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Failed to Apply Payment')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 
     // =========================================================================

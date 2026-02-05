@@ -871,4 +871,142 @@ class PaymentService
 
         return $payment;
     }
+
+    // =========================================================================
+    // Multi-Invoice Application (US-E057)
+    // =========================================================================
+
+    /**
+     * Apply a payment to multiple invoices at once.
+     *
+     * Creates multiple InvoicePayment records, one for each invoice.
+     * Validates that the sum of amounts doesn't exceed the payment amount.
+     *
+     * @param  array<array{invoice_id: string, amount: string}>  $applications  Array of invoice applications
+     * @return array<InvoicePayment> Array of created InvoicePayment records
+     *
+     * @throws InvalidArgumentException If validation fails
+     */
+    public function applyToMultipleInvoices(Payment $payment, array $applications): array
+    {
+        // Validate payment can be applied
+        if (! $payment->canBeAppliedToInvoice()) {
+            throw new InvalidArgumentException(
+                "Payment with status '{$payment->status->label()}' cannot be applied to invoices."
+            );
+        }
+
+        // Validate applications is not empty
+        if (empty($applications)) {
+            throw new InvalidArgumentException('At least one invoice application is required.');
+        }
+
+        // Calculate total amount to apply
+        $totalToApply = '0';
+        foreach ($applications as $application) {
+            $amount = $application['amount'];
+            if (bccomp($amount, '0', 2) <= 0) {
+                throw new InvalidArgumentException('All amounts must be greater than zero.');
+            }
+            $totalToApply = bcadd($totalToApply, $amount, 2);
+        }
+
+        // Validate total doesn't exceed unapplied payment amount
+        $unapplied = $payment->getUnappliedAmount();
+        if (bccomp($totalToApply, $unapplied, 2) > 0) {
+            throw new InvalidArgumentException(
+                "Total amount to apply ({$payment->currency} {$totalToApply}) exceeds unapplied payment balance ({$payment->currency} {$unapplied})."
+            );
+        }
+
+        // Validate all invoices exist and have matching currency
+        $invoiceIds = array_column($applications, 'invoice_id');
+        $invoices = Invoice::whereIn('id', $invoiceIds)->get()->keyBy('id');
+
+        foreach ($applications as $application) {
+            $invoiceId = $application['invoice_id'];
+            $amount = $application['amount'];
+
+            if (! $invoices->has($invoiceId)) {
+                throw new InvalidArgumentException("Invoice with ID {$invoiceId} not found.");
+            }
+
+            $invoice = $invoices->get($invoiceId);
+
+            // Validate currency matches
+            if ($invoice->currency !== $payment->currency) {
+                throw new InvalidArgumentException(
+                    "Currency mismatch: payment is in {$payment->currency}, invoice {$invoice->invoice_number} is in {$invoice->currency}."
+                );
+            }
+
+            // Validate amount doesn't exceed invoice outstanding
+            $outstanding = $invoice->getOutstandingAmount();
+            if (bccomp($amount, $outstanding, 2) > 0) {
+                throw new InvalidArgumentException(
+                    "Amount ({$amount}) exceeds invoice {$invoice->invoice_number} outstanding amount ({$outstanding})."
+                );
+            }
+        }
+
+        // All validations passed, apply payments in a transaction
+        return DB::transaction(function () use ($payment, $applications, $invoices): array {
+            $invoicePayments = [];
+
+            foreach ($applications as $application) {
+                $invoiceId = $application['invoice_id'];
+                $amount = $application['amount'];
+                $invoice = $invoices->get($invoiceId);
+
+                $invoicePayment = $this->invoiceService->applyPayment($invoice, $payment, $amount);
+                $invoicePayments[] = $invoicePayment;
+            }
+
+            // Log the multi-application
+            $this->logPaymentEvent(
+                $payment,
+                'applied_to_multiple_invoices',
+                [],
+                [
+                    'invoice_count' => count($applications),
+                    'total_applied' => array_reduce($applications, fn ($carry, $app) => bcadd($carry, $app['amount'], 2), '0'),
+                    'invoices' => array_map(function (array $app) use ($invoices): array {
+                        $inv = $invoices->get($app['invoice_id']);
+
+                        return [
+                            'invoice_id' => $app['invoice_id'],
+                            'invoice_number' => $inv !== null ? $inv->invoice_number : null,
+                            'amount' => $app['amount'],
+                        ];
+                    }, $applications),
+                ]
+            );
+
+            Log::channel('finance')->info('Payment applied to multiple invoices', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'invoice_count' => count($applications),
+                'total_applied' => array_reduce($applications, fn ($carry, $app) => bcadd($carry, $app['amount'], 2), '0'),
+            ]);
+
+            return $invoicePayments;
+        });
+    }
+
+    /**
+     * Get the remaining unapplied amount after proposed applications.
+     *
+     * @param  array<array{invoice_id: string, amount: string}>  $applications
+     */
+    public function getRemainingAfterApplications(Payment $payment, array $applications): string
+    {
+        $totalToApply = '0';
+        foreach ($applications as $application) {
+            $totalToApply = bcadd($totalToApply, $application['amount'], 2);
+        }
+
+        $unapplied = $payment->getUnappliedAmount();
+
+        return bcsub($unapplied, $totalToApply, 2);
+    }
 }
