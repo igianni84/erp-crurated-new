@@ -381,4 +381,103 @@ class Payment extends Model
     {
         return $this->currency.' '.number_format((float) $this->getUnappliedAmount(), 2);
     }
+
+    // =========================================================================
+    // Mismatch Helper Methods
+    // =========================================================================
+
+    /**
+     * Get the mismatch reason from metadata.
+     */
+    public function getMismatchReason(): string
+    {
+        if (! $this->hasMismatch()) {
+            return 'No mismatch';
+        }
+
+        // Check metadata for stored reason
+        if ($this->metadata !== null && isset($this->metadata['mismatch_reason'])) {
+            return (string) $this->metadata['mismatch_reason'];
+        }
+
+        // Infer reason based on payment state
+        if ($this->customer === null) {
+            return 'Customer not identified - unable to match to invoices';
+        }
+
+        if (! $this->hasApplications()) {
+            return 'Payment amount does not match any open invoice for this customer';
+        }
+
+        return 'Unknown mismatch reason - review payment details';
+    }
+
+    /**
+     * Get additional mismatch details from metadata.
+     *
+     * @return array<string, mixed>
+     */
+    public function getMismatchDetails(): array
+    {
+        if (! $this->hasMismatch()) {
+            return [];
+        }
+
+        $details = [];
+
+        // Include any mismatch-related metadata
+        if ($this->metadata !== null) {
+            if (isset($this->metadata['mismatch_details'])) {
+                $mismatchDetails = $this->metadata['mismatch_details'];
+                if (is_array($mismatchDetails)) {
+                    $details = array_merge($details, $mismatchDetails);
+                }
+            }
+
+            if (isset($this->metadata['expected_amount'])) {
+                $details['expected_amount'] = $this->metadata['expected_amount'];
+            }
+
+            if (isset($this->metadata['expected_customer'])) {
+                $details['expected_customer'] = $this->metadata['expected_customer'];
+            }
+
+            if (isset($this->metadata['duplicate_of'])) {
+                $details['possible_duplicate'] = $this->metadata['duplicate_of'];
+            }
+        }
+
+        return $details;
+    }
+
+    /**
+     * Set mismatch information in metadata.
+     *
+     * @param  array<string, mixed>  $details
+     */
+    public function setMismatchInfo(string $reason, array $details = []): void
+    {
+        $metadata = $this->metadata ?? [];
+        $metadata['mismatch_reason'] = $reason;
+
+        if (! empty($details)) {
+            $metadata['mismatch_details'] = $details;
+        }
+
+        $this->metadata = $metadata;
+    }
+
+    /**
+     * Clear mismatch information from metadata.
+     */
+    public function clearMismatchInfo(): void
+    {
+        if ($this->metadata === null) {
+            return;
+        }
+
+        $metadata = $this->metadata;
+        unset($metadata['mismatch_reason'], $metadata['mismatch_details'], $metadata['expected_amount'], $metadata['expected_customer'], $metadata['duplicate_of']);
+        $this->metadata = empty($metadata) ? null : $metadata;
+    }
 }
