@@ -298,12 +298,45 @@ class CreateInvoice extends CreateRecord
                                     }),
                             ]),
 
+                        // INV4 ad-hoc service warning
+                        Forms\Components\Placeholder::make('inv4_adhoc_warning')
+                            ->label('')
+                            ->visible(fn (Get $get): bool => $get('invoice_type') === InvoiceType::ServiceEvents->value)
+                            ->content(new HtmlString(<<<'HTML'
+                                <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
+                                    <div class="flex">
+                                        <div class="flex-shrink-0">
+                                            <svg class="h-5 w-5 text-warning-600 dark:text-warning-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-medium text-warning-800 dark:text-warning-200">INV4 Without Event Reference</h3>
+                                            <p class="mt-1 text-sm text-warning-700 dark:text-warning-300">
+                                                This INV4 invoice will be created without an event booking reference.
+                                                Manual INV4 invoices should only be used for <strong>ad-hoc services</strong> that are not linked to a specific event booking
+                                                (e.g., one-time consultations, special service requests).
+                                                A detailed description/reason is <strong>required</strong> in the Notes field below.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            HTML))
+                            ->columnSpanFull(),
+
                         Forms\Components\Textarea::make('notes')
-                            ->label('Notes')
-                            ->placeholder('Optional internal notes or comments...')
+                            ->label(fn (Get $get): string => $get('invoice_type') === InvoiceType::ServiceEvents->value
+                                ? 'Description / Reason (Required for ad-hoc INV4)'
+                                : 'Notes')
+                            ->placeholder(fn (Get $get): string => $get('invoice_type') === InvoiceType::ServiceEvents->value
+                                ? 'Describe the ad-hoc service (required)...'
+                                : 'Optional internal notes or comments...')
                             ->rows(3)
                             ->maxLength(2000)
-                            ->helperText('Internal notes (not shown on invoice)'),
+                            ->required(fn (Get $get): bool => $get('invoice_type') === InvoiceType::ServiceEvents->value)
+                            ->helperText(fn (Get $get): string => $get('invoice_type') === InvoiceType::ServiceEvents->value
+                                ? 'Required: Describe the ad-hoc service being invoiced (not linked to an event booking)'
+                                : 'Internal notes (not shown on invoice)'),
                     ])
                     ->columns(1),
             ])
@@ -326,12 +359,24 @@ class CreateInvoice extends CreateRecord
                 // Validate due date if required
                 $typeValue = $get('invoice_type');
                 $dueDate = $get('due_date');
+                $notes = $get('notes');
                 if ($typeValue) {
                     $type = InvoiceType::tryFrom($typeValue);
                     if ($type !== null && $type->requiresDueDate() && $dueDate === null) {
                         Notification::make()
                             ->title('Due date required')
                             ->body("Due date is required for {$type->code()} invoices.")
+                            ->danger()
+                            ->send();
+
+                        throw new \Filament\Support\Exceptions\Halt;
+                    }
+
+                    // Validate INV4 requires notes/description for ad-hoc services
+                    if ($type === InvoiceType::ServiceEvents && (empty($notes) || strlen(trim($notes)) < 10)) {
+                        Notification::make()
+                            ->title('Description required')
+                            ->body('INV4 without event reference requires a detailed description (at least 10 characters) explaining the ad-hoc service.')
                             ->danger()
                             ->send();
 
