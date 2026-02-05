@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * @property string $name
  * @property string $email
+ * @property string|null $stripe_customer_id
  * @property string $status
  */
 class Customer extends Model
@@ -49,6 +50,7 @@ class Customer extends Model
     protected $fillable = [
         'name',
         'email',
+        'stripe_customer_id',
         'status',
     ];
 
