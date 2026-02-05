@@ -37,5 +37,15 @@ class EventServiceProvider extends ServiceProvider
             VoucherSaleConfirmed::class,
             GenerateVoucherSaleInvoice::class
         );
+
+        // InvoicePaid event (emitted by InvoiceService)
+        // This event is dispatched when an invoice becomes fully paid.
+        // No Finance listeners - downstream modules should listen to this event:
+        // - Module A: Listens for INV1 (VoucherSale) to create/activate vouchers
+        // - Module K: Listens for INV0 (MembershipService) to update membership
+        // - Module C: Listens for INV2 (ShippingRedemption) to confirm shipment
+        // - Module B: Listens for INV3 (StorageFee) to unlock custody operations
+        // Example listener registration in other modules:
+        // Event::listen(InvoicePaid::class, HandleVoucherIssuance::class);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
+use App\Events\Finance\InvoicePaid;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
@@ -13,6 +14,8 @@ use App\Models\Finance\Payment;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 /**
@@ -305,8 +308,8 @@ class InvoiceService
             ['status' => InvoiceStatus::Paid->value]
         );
 
-        // TODO: Emit InvoicePaid event for downstream modules
-        // event(new InvoicePaid($invoice));
+        // Emit InvoicePaid event for downstream modules
+        $this->emitInvoicePaidEvent($invoice);
 
         return $invoice;
     }
@@ -509,8 +512,8 @@ class InvoiceService
                     ['status' => InvoiceStatus::Paid->value]
                 );
 
-                // TODO: Emit InvoicePaid event
-                // event(new InvoicePaid($invoice));
+                // Emit InvoicePaid event for downstream modules
+                $this->emitInvoicePaidEvent($invoice);
             }
         } elseif (bccomp($invoice->amount_paid, '0', 2) > 0 && $invoice->status === InvoiceStatus::Issued) {
             // Partially paid
@@ -589,5 +592,77 @@ class InvoiceService
                 "Currency '{$currency}' is not supported. Supported currencies: ".implode(', ', $supportedCurrencies)
             );
         }
+    }
+
+    /**
+     * Emit InvoicePaid event for downstream modules.
+     *
+     * This method dispatches the InvoicePaid event which signals to other
+     * modules that an invoice has been fully paid. Each invoice type
+     * triggers different downstream effects:
+     *
+     * - INV1 (Voucher Sale): Module A creates/activates vouchers
+     * - INV0 (Membership): Module K updates membership status
+     * - INV2 (Shipping): Module C confirms shipment execution
+     * - INV3 (Storage): Module B unlocks custody operations
+     * - INV4 (Service Events): Module handles event confirmation
+     *
+     * IMPORTANT: Finance is consequence, not cause. This event is evidence
+     * of payment, not authority for operational actions.
+     */
+    protected function emitInvoicePaidEvent(Invoice $invoice): void
+    {
+        // Generate a correlation ID for tracing across modules
+        $correlationId = Str::uuid()->toString();
+
+        // Log the event emission for correlation tracking
+        Log::channel('finance')->info('InvoicePaid event emitted', [
+            'invoice_id' => $invoice->id,
+            'invoice_number' => $invoice->invoice_number,
+            'invoice_type' => $invoice->invoice_type->value,
+            'customer_id' => $invoice->customer_id,
+            'source_type' => $invoice->source_type,
+            'source_id' => $invoice->source_id,
+            'total_amount' => $invoice->total_amount,
+            'amount_paid' => $invoice->amount_paid,
+            'currency' => $invoice->currency,
+            'correlation_id' => $correlationId,
+        ]);
+
+        // Dispatch the event
+        event(new InvoicePaid(
+            invoice: $invoice,
+            totalPaid: $invoice->amount_paid,
+            correlationId: $correlationId
+        ));
+
+        // Log the correlation in the audit trail
+        $this->logInvoiceEvent(
+            $invoice,
+            'payment_confirmed',
+            [],
+            [
+                'correlation_id' => $correlationId,
+                'invoice_type' => $invoice->invoice_type->value,
+                'source_type' => $invoice->source_type,
+                'source_id' => $invoice->source_id,
+                'total_paid' => $invoice->amount_paid,
+                'downstream_trigger' => $this->getDownstreamDescription($invoice),
+            ]
+        );
+    }
+
+    /**
+     * Get a description of what downstream module should be triggered.
+     */
+    protected function getDownstreamDescription(Invoice $invoice): string
+    {
+        return match ($invoice->invoice_type) {
+            InvoiceType::VoucherSale => 'Module A: Voucher creation/activation',
+            InvoiceType::MembershipService => 'Module K: Membership status update',
+            InvoiceType::ShippingRedemption => 'Module C: Shipment confirmation',
+            InvoiceType::StorageFee => 'Module B: Custody operations unlock',
+            InvoiceType::ServiceEvents => 'Event booking confirmation',
+        };
     }
 }
