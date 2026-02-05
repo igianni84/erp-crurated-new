@@ -29,6 +29,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Immediate Invoice Alert Hours
+    |--------------------------------------------------------------------------
+    |
+    | The number of hours after which an immediate payment invoice (INV1, INV2, INV4)
+    | should trigger an alert if still unpaid. These invoice types expect payment
+    | immediately at the time of transaction.
+    |
+    | INV1 (Voucher Sale) is the primary concern as it expects payment via Stripe
+    | at checkout. An unpaid INV1 after 24h typically indicates a payment failure
+    | or abandoned checkout that needs follow-up.
+    |
+    | Default: 24 hours
+    |
+    */
+    'immediate_invoice_alert_hours' => env('FINANCE_IMMEDIATE_INVOICE_ALERT_HOURS', 24),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Due Date Days by Invoice Type
     |--------------------------------------------------------------------------
     |

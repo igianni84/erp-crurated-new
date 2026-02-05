@@ -56,6 +56,7 @@ use InvalidArgumentException;
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static> overdue()
  * @method static \Illuminate\Database\Eloquent\Builder<static> notOverdue()
+ * @method static \Illuminate\Database\Eloquent\Builder<static> unpaidImmediate(?int $thresholdHours = null)
  */
 class Invoice extends Model
 {
@@ -363,6 +364,52 @@ class Invoice extends Model
     }
 
     /**
+     * Check if this is an unpaid immediate invoice past the alert threshold.
+     *
+     * Returns true if:
+     * - Invoice type expects immediate payment (INV1, INV2, INV4)
+     * - Invoice status is 'issued' (not paid)
+     * - Invoice was issued more than threshold hours ago
+     *
+     * @param  int|null  $thresholdHours  Hours since issuance (default: config value or 24)
+     */
+    public function isUnpaidPastThreshold(?int $thresholdHours = null): bool
+    {
+        // Must be immediate payment type
+        if (! $this->expectsImmediatePayment()) {
+            return false;
+        }
+
+        // Must be in issued status (not paid yet)
+        if ($this->status !== InvoiceStatus::Issued) {
+            return false;
+        }
+
+        // Must have issued_at
+        if ($this->issued_at === null) {
+            return false;
+        }
+
+        $thresholdHours = $thresholdHours ?? (int) config('finance.immediate_invoice_alert_hours', 24);
+        $cutoffTime = now()->subHours($thresholdHours);
+
+        return $this->issued_at->lte($cutoffTime);
+    }
+
+    /**
+     * Get hours since this invoice was issued.
+     * Returns null if not issued.
+     */
+    public function getHoursSinceIssuance(): ?int
+    {
+        if ($this->issued_at === null) {
+            return null;
+        }
+
+        return (int) $this->issued_at->diffInHours(now());
+    }
+
+    /**
      * Check if invoice is overdue.
      * Invoice is overdue when: status = issued AND due_date < today
      */
@@ -431,6 +478,29 @@ class Invoice extends Model
                 ->orWhereNull('due_date')
                 ->orWhere('due_date', '>=', now()->startOfDay());
         });
+    }
+
+    /**
+     * Scope to get unpaid immediate invoices (INV1, INV2, INV4) past threshold.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @param  int|null  $thresholdHours  Hours since issuance (default: config value or 24)
+     * @return \Illuminate\Database\Eloquent\Builder<self>
+     */
+    public function scopeUnpaidImmediate(\Illuminate\Database\Eloquent\Builder $query, ?int $thresholdHours = null): \Illuminate\Database\Eloquent\Builder
+    {
+        $thresholdHours = $thresholdHours ?? (int) config('finance.immediate_invoice_alert_hours', 24);
+        $cutoffTime = now()->subHours($thresholdHours);
+
+        $immediateTypes = collect(InvoiceType::cases())
+            ->filter(fn (InvoiceType $type): bool => ! $type->requiresDueDate())
+            ->values()
+            ->all();
+
+        return $query
+            ->where('status', InvoiceStatus::Issued)
+            ->whereIn('invoice_type', $immediateTypes)
+            ->where('issued_at', '<=', $cutoffTime);
     }
 
     // =========================================================================
