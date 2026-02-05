@@ -2032,3 +2032,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - When adding new metrics to getIntegrationHealth(), update the PHPDoc return type annotation
   - Filament TableWidgets can use static canView() to conditionally show/hide based on data presence
 ---
+
+## 2026-02-05 - US-E105
+- What was implemented: Integration webhook logging with payload storage, retention policy, and sanitization
+- Files changed:
+  - config/finance.php (added logs retention config and sensitive fields list)
+  - app/Services/Finance/LogSanitizer.php (new service for redacting sensitive data from log payloads)
+  - app/Jobs/Finance/CleanupIntegrationLogsJob.php (new job for retention-based cleanup)
+  - app/Models/Finance/StripeWebhook.php (added payload sanitization on creation)
+  - app/Models/Finance/XeroSyncLog.php (added request/response payload sanitization)
+  - routes/console.php (scheduled cleanup job at 03:00 daily)
+- **Learnings for future iterations:**
+  - StripeWebhook already stores complete payload in JSON 'payload' field
+  - XeroSyncLog already stores request_payload and response_payload in JSON fields
+  - Log sanitization uses recursive array processing to redact sensitive keys
+  - Retention cleanup uses raw DB delete to bypass model's delete protection (authorized admin operation)
+  - Only processed/synced logs are cleaned up; failed logs are retained indefinitely for debugging
+  - Sensitive fields are configurable via config/finance.php 'logs.sensitive_fields'
+  - Use `isset($model->attributes['field'])` to check if attribute is set before cast is applied
+---

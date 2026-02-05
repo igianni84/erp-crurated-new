@@ -1660,8 +1660,8 @@
         "Typecheck passes"
       ],
       "priority": 105,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "LogSanitizer service handles redaction, CleanupIntegrationLogsJob handles retention, 90 days configurable via finance.logs config"
     },
     {
       "id": "US-E106",
