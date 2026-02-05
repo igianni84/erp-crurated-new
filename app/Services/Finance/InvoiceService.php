@@ -372,7 +372,7 @@ class InvoiceService
      *
      * @param  array<int, array{description: string, quantity: string|float, unit_price: string|float, tax_rate?: string|float, tax_amount?: string|float, sellable_sku_id?: int|null, metadata?: array<string, mixed>}>  $lines
      *
-     * @throws InvalidArgumentException If invoice is not a draft
+     * @throws InvalidArgumentException If invoice is not a draft or lines violate invoice type restrictions
      */
     public function addLines(Invoice $invoice, array $lines): Invoice
     {
@@ -381,6 +381,9 @@ class InvoiceService
                 'Cannot add lines: invoice is not in draft status.'
             );
         }
+
+        // Pre-validate INV4 restrictions before processing any lines
+        $this->validateLinesForInvoiceType($invoice, $lines);
 
         DB::transaction(function () use ($invoice, $lines): void {
             foreach ($lines as $lineData) {
@@ -409,6 +412,39 @@ class InvoiceService
         });
 
         return $invoice->fresh();
+    }
+
+    /**
+     * Validate lines for invoice type restrictions.
+     *
+     * INV4 (Service Events) invoices cannot include wine/inventory products.
+     * Only service fees (attendance, tasting, consultation, etc.) are allowed.
+     *
+     * @param  array<int, array{description: string, quantity: string|float, unit_price: string|float, tax_rate?: string|float, tax_amount?: string|float, sellable_sku_id?: int|null, metadata?: array<string, mixed>}>  $lines
+     *
+     * @throws InvalidArgumentException If lines violate invoice type restrictions
+     */
+    protected function validateLinesForInvoiceType(Invoice $invoice, array $lines): void
+    {
+        // INV4 restriction: no wine/inventory products (sellable_sku_id)
+        if ($invoice->invoice_type === InvoiceType::ServiceEvents) {
+            $linesWithProducts = [];
+            foreach ($lines as $index => $lineData) {
+                $sellableSkuId = $lineData['sellable_sku_id'] ?? null;
+                if ($sellableSkuId !== null) {
+                    $linesWithProducts[] = $lineData['description'];
+                }
+            }
+
+            if (! empty($linesWithProducts)) {
+                throw new InvalidArgumentException(
+                    'INV4 (Service Events) invoices cannot include wine/inventory products. '.
+                    'The following lines have product references: '.implode(', ', $linesWithProducts).'. '.
+                    'Service event invoices are for attendance fees, service fees, and handling only. '.
+                    'Wine/inventory costs should be billed via INV1 (Voucher Sale) invoices.'
+                );
+            }
+        }
     }
 
     /**

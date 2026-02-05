@@ -1747,4 +1747,59 @@ class Invoice extends Model
 
         return ! $this->hasEventReference();
     }
+
+    // =========================================================================
+    // INV4 Line Validation Methods
+    // =========================================================================
+
+    /**
+     * Check if any lines on this INV4 invoice have wine/inventory products.
+     *
+     * INV4 invoices should only contain service fees (attendance, tasting, etc.)
+     * and NOT wine/inventory products (which should be on INV1 invoices).
+     *
+     * @return bool True if any lines have sellable_sku_id (wine products)
+     */
+    public function hasWineProductLines(): bool
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return false;
+        }
+
+        return $this->invoiceLines()->whereNotNull('sellable_sku_id')->exists();
+    }
+
+    /**
+     * Get any lines that violate the INV4 service-only policy.
+     *
+     * Returns invoice lines that have sellable_sku_id (wine products),
+     * which should not be present on INV4 (Service Events) invoices.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, InvoiceLine>
+     */
+    public function getInvalidInv4Lines(): \Illuminate\Database\Eloquent\Collection
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return new \Illuminate\Database\Eloquent\Collection;
+        }
+
+        return $this->invoiceLines()->whereNotNull('sellable_sku_id')->get();
+    }
+
+    /**
+     * Validate that this INV4 invoice only contains service fees.
+     *
+     * This is an invariant check that can be called to verify the invoice
+     * state is valid (no wine/inventory products on service event invoices).
+     *
+     * @return bool True if all lines are valid service fees
+     */
+    public function validateInv4LinesAreServiceOnly(): bool
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return true;
+        }
+
+        return ! $this->hasWineProductLines();
+    }
 }

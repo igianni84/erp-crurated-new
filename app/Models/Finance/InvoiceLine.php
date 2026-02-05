@@ -3,6 +3,7 @@
 namespace App\Models\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
+use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\ServiceFeeType;
 use App\Models\Pim\SellableSku;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -71,6 +72,11 @@ class InvoiceLine extends Model
     {
         parent::boot();
 
+        // Validate INV4 lines cannot have sellable_sku_id (no wine/inventory costs)
+        static::creating(function (InvoiceLine $line): void {
+            $line->validateInv4LineRestrictions();
+        });
+
         // Auto-calculate line_total before saving if not set
         static::saving(function (InvoiceLine $line): void {
             $line->line_total = $line->calculateLineTotal();
@@ -85,6 +91,9 @@ class InvoiceLine extends Model
                     'Invoice lines cannot be modified after invoice is issued. Use credit notes for corrections.'
                 );
             }
+
+            // Also validate INV4 restrictions on update
+            $line->validateInv4LineRestrictions();
         });
 
         // Prevent deletion after invoice issuance
@@ -97,6 +106,34 @@ class InvoiceLine extends Model
                 );
             }
         });
+    }
+
+    /**
+     * Validate INV4 (Service Events) line restrictions.
+     *
+     * INV4 invoices are for service fees only (attendance, tasting, consultation, etc.)
+     * and must NOT include wine/inventory costs. This means lines with sellable_sku_id
+     * (which represent wine products) are not allowed on INV4 invoices.
+     *
+     * @throws InvalidArgumentException If line violates INV4 restrictions
+     */
+    protected function validateInv4LineRestrictions(): void
+    {
+        $invoice = $this->invoice;
+
+        // Only validate for INV4 invoices
+        if ($invoice === null || $invoice->invoice_type !== InvoiceType::ServiceEvents) {
+            return;
+        }
+
+        // INV4 lines cannot have sellable_sku_id (wine/inventory products)
+        if ($this->sellable_sku_id !== null) {
+            throw new InvalidArgumentException(
+                'INV4 (Service Events) invoice lines cannot include wine/inventory products. '.
+                'Service event invoices are for attendance fees, service fees, and handling only. '.
+                'Wine/inventory costs should be billed via INV1 (Voucher Sale) invoices.'
+            );
+        }
     }
 
     // =========================================================================
@@ -184,6 +221,42 @@ class InvoiceLine extends Model
     public function hasSellableSku(): bool
     {
         return $this->sellable_sku_id !== null;
+    }
+
+    /**
+     * Check if this line represents a wine/bottle product.
+     *
+     * In this ERP, all SellableSKUs are wine products (linked to WineVariants).
+     * Therefore, any line with a sellable_sku_id is a wine/bottle product line.
+     *
+     * This is used for validation - INV4 (Service Events) invoices cannot include
+     * wine/bottle products, only service fees.
+     */
+    public function isWineProductLine(): bool
+    {
+        return $this->sellable_sku_id !== null;
+    }
+
+    /**
+     * Check if this line is a service fee (not linked to a product).
+     *
+     * Service fee lines do NOT have a sellable_sku_id because they represent
+     * service charges (attendance, tasting, consultation, etc.) rather than
+     * physical products.
+     */
+    public function isServiceFeeLine(): bool
+    {
+        return $this->sellable_sku_id === null;
+    }
+
+    /**
+     * Check if this line would be valid on an INV4 (Service Events) invoice.
+     *
+     * INV4 invoices can only contain service fees, not wine/inventory products.
+     */
+    public function isValidForInv4Invoice(): bool
+    {
+        return ! $this->isWineProductLine();
     }
 
     // =========================================================================
