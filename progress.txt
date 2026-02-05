@@ -651,3 +651,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice model uses HasUuid trait where id IS the UUID (not a separate uuid property)
   - customer_id is string type (UUID), not int - check model @property docblocks for correct types
 ---
+
+## 2026-02-05 - US-E034
+- What was implemented: INV1 multi-item support - verified existing implementation and added test coverage
+- Files changed:
+  - tests/Unit/Services/Finance/InvoiceMultiItemTest.php (new file - comprehensive test coverage for multi-item INV1)
+- **Acceptance criteria verification:**
+  - ✅ Multiple invoice lines per INV1: VoucherSaleConfirmed accepts array of items, GenerateVoucherSaleInvoice creates line per item
+  - ✅ Each line linkable to different sellable_sku: Each item has sellable_sku_id field stored in invoice line
+  - ✅ Totals aggregate all lines: InvoiceService.recalculateTotals() iterates all lines and aggregates subtotal, tax_amount, total_amount
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Multi-item support was already implemented in prior stories (US-E031) - this story validates and documents it
+  - Test coverage confirms: multiple lines, different sellable_sku per line, correct aggregation, mixed tax rates
+  - InvoiceLine.hasSellableSku() helper checks if line is linked to a sellable SKU
+  - Metadata is preserved independently per line - useful for pricing audit trail
+---
