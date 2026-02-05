@@ -2231,3 +2231,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - AuditLog uses UPDATED_AT = null constant to disable updated_at timestamp
   - Boot method hooks (updating/deleting) are the standard pattern for model immutability enforcement
 ---
+## 2026-02-05 - US-E115
+- What was implemented: Verified audit log retention policy is already fully implemented
+- Files verified (no changes needed):
+  - app/Models/AuditLog.php (immutability enforcement in boot() - throws on update/delete)
+  - app/Jobs/Finance/CleanupIntegrationLogsJob.php (only cleans Stripe/Xero logs, NOT AuditLog)
+  - config/finance.php (retention config: stripe_webhook_retention_days, xero_sync_retention_days = 90 days)
+  - routes/console.php (CleanupIntegrationLogsJob scheduled at configurable time)
+  - tests/Unit/Models/AuditLogImmutabilityTest.php (20 tests verifying immutability)
+- **Acceptance criteria verification:**
+  - ✅ Audit logs: retained indefinitely (statutory requirement): AuditLog model throws exception on update/delete, CleanupIntegrationLogsJob EXCLUDES AuditLog
+  - ✅ Integration logs (Stripe, Xero): 90 days retention: Configured in finance.logs.stripe_webhook_retention_days and finance.logs.xero_sync_retention_days
+  - ✅ Job for cleanup of expired logs: CleanupIntegrationLogsJob exists with cleanupStripeWebhooks() and cleanupXeroSyncLogs() methods
+  - ✅ Config for retention periods: Environment variables FINANCE_STRIPE_LOG_RETENTION_DAYS, FINANCE_XERO_LOG_RETENTION_DAYS, FINANCE_LOG_CLEANUP_TIME
+  - ✅ Typecheck passes: PHPStan returns no errors, all 20 AuditLog immutability tests pass
+- **Learnings for future iterations:**
+  - Retention policy was implemented as part of US-E105 (Integration webhook logging)
+  - AuditLog immutability was implemented in US-E114 with comprehensive test coverage
+  - CleanupIntegrationLogsJob only deletes processed StripeWebhook and synced XeroSyncLog records
+  - Failed/pending logs are retained indefinitely for debugging purposes
+  - Raw DB queries bypass model delete protection for authorized cleanup operations
+  - Job supports dry-run mode for testing: new CleanupIntegrationLogsJob(dryRun: true)
+  - Static getCleanupStatistics() method provides preview of eligible records
+---
