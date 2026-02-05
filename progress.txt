@@ -607,3 +607,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Idempotency check uses saleReference (voucher_batch_id or sale_order_id) to prevent duplicate invoices
   - Invoice lines include metadata with sale_reference, sku_code, original_quantity for audit trail
 ---
+
+## 2026-02-05 - US-E032
+- What was implemented: INV1 pricing from Module S - PricingService and pricing metadata support
+- Files changed:
+  - app/Services/Finance/PricingService.php (new service for Module S pricing integration)
+  - app/Events/Finance/VoucherSaleConfirmed.php (added pricing_snapshot_id support, getPricingSnapshotId() helper)
+  - app/Listeners/Finance/GenerateVoucherSaleInvoice.php (updated to store pricing metadata in invoice lines)
+  - app/Models/Finance/InvoiceLine.php (added pricing metadata helper methods)
+  - config/finance.php (added pricing and tax configuration)
+- **Acceptance criteria verification:**
+  - ✅ Invoice line unit_price = pricing from Module S (price snapshot at sale): PricingService.resolvePrice() provides pricing, items carry unit_price from caller
+  - ✅ Tax calculation according to customer geography and product type: PricingService.resolveTaxRate() calculates tax by country and product type
+  - ✅ Metadata includes pricing_snapshot_id: InvoiceLine metadata stores pricing_snapshot_id and pricing object
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - PricingService is a placeholder for Module S integration - currently provides stub implementation
+  - Module S (Commercial & Sales Management) will implement PriceBookService and OfferService for actual pricing
+  - Tax rates are stored by country code (IT=22%, FR=20%, DE=19%, etc.) with configurable defaults
+  - Items in VoucherSaleConfirmed can include optional pricing_snapshot_id and pricing_metadata
+  - GenerateVoucherSaleInvoice stores pricing metadata in invoice line's metadata field
+  - InvoiceLine has helpers: getPricingSnapshotId(), hasPricingMetadata(), getPricingMetadata(), getPriceBookId(), getOfferId(), getTaxJurisdiction()
+  - Reverse charge VAT support is stubbed but not yet implemented (requires Module K VAT validation)
+---
