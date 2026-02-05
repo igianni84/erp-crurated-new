@@ -747,4 +747,145 @@ class RefundService
     {
         return Refund::where('stripe_refund_id', $stripeRefundId)->first();
     }
+
+    /**
+     * Create a refund record from Stripe webhook data (charge.refunded event).
+     *
+     * This is used when Stripe processes a refund (either via dashboard or API)
+     * and we receive a webhook notification. Creates a Refund record to track it.
+     *
+     * @param  array{
+     *     id: string,
+     *     amount: int,
+     *     currency: string,
+     *     charge: string,
+     *     status: string,
+     *     reason?: string|null,
+     *     metadata?: array<string, mixed>
+     * }  $stripeRefundData  The Stripe refund data from webhook
+     * @param  Payment  $payment  The payment that was refunded
+     *
+     * @throws InvalidArgumentException If payment has no linked invoices
+     */
+    public function createFromStripeWebhook(array $stripeRefundData, Payment $payment): Refund
+    {
+        $stripeRefundId = $stripeRefundData['id'];
+
+        // Idempotency check - return existing refund if already processed
+        $existing = $this->findByStripeRefundId($stripeRefundId);
+        if ($existing !== null) {
+            Log::channel('finance')->info('Refund already exists for Stripe refund', [
+                'stripe_refund_id' => $stripeRefundId,
+                'refund_id' => $existing->id,
+            ]);
+
+            return $existing;
+        }
+
+        // Convert amount from cents to currency units
+        $amount = bcdiv((string) $stripeRefundData['amount'], '100', 2);
+        $currency = strtoupper($stripeRefundData['currency']);
+
+        // Determine reason from Stripe data or use default
+        $reason = $stripeRefundData['reason'] ?? 'Refund processed via Stripe';
+        if (isset($stripeRefundData['metadata']['erp_reason'])) {
+            $reason = (string) $stripeRefundData['metadata']['erp_reason'];
+        }
+
+        // Find the invoice payment to link the refund
+        // Use the first invoice payment for this payment (typically there's only one)
+        $invoicePayment = InvoicePayment::where('payment_id', $payment->id)->first();
+
+        if ($invoicePayment === null) {
+            // Payment not applied to any invoice - create a standalone record
+            Log::channel('finance')->warning('Creating refund for payment not applied to invoice', [
+                'payment_id' => $payment->id,
+                'stripe_refund_id' => $stripeRefundId,
+            ]);
+
+            throw new InvalidArgumentException(
+                'Cannot create refund: payment has not been applied to any invoice.'
+            );
+        }
+
+        $invoice = Invoice::find($invoicePayment->invoice_id);
+
+        if ($invoice === null) {
+            throw new InvalidArgumentException(
+                'Cannot create refund: linked invoice not found.'
+            );
+        }
+
+        // Determine refund type based on amount
+        $isFullRefund = bccomp($amount, $invoicePayment->amount_applied, 2) >= 0;
+        $refundType = $isFullRefund ? RefundType::Full : RefundType::Partial;
+
+        return DB::transaction(function () use (
+            $invoice,
+            $payment,
+            $refundType,
+            $amount,
+            $currency,
+            $reason,
+            $stripeRefundId,
+            $stripeRefundData
+        ): Refund {
+            // Create the refund record directly (bypassing validation since Stripe already processed it)
+            $refund = new Refund;
+            $refund->invoice_id = (int) $invoice->id;
+            $refund->payment_id = (int) $payment->id;
+            $refund->refund_type = $refundType;
+            $refund->method = RefundMethod::Stripe;
+            $refund->amount = $amount;
+            $refund->currency = $currency;
+            $refund->reason = $reason;
+            $refund->stripe_refund_id = $stripeRefundId;
+
+            // Mark as processed since Stripe already processed it
+            if ($stripeRefundData['status'] === 'succeeded') {
+                $refund->status = RefundStatus::Processed;
+                $refund->processed_at = now();
+            } else {
+                $refund->status = RefundStatus::Pending;
+            }
+
+            $refund->save();
+
+            // Log creation
+            $this->logRefundEvent(
+                $refund,
+                AuditLog::EVENT_CREATED,
+                [],
+                [
+                    'source' => 'stripe_webhook',
+                    'stripe_refund_id' => $stripeRefundId,
+                    'invoice_id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'payment_id' => $payment->id,
+                    'payment_reference' => $payment->payment_reference,
+                    'refund_type' => $refundType->value,
+                    'amount' => $amount,
+                    'currency' => $currency,
+                    'reason' => $reason,
+                ]
+            );
+
+            Log::channel('finance')->info('Refund created from Stripe webhook', [
+                'refund_id' => $refund->id,
+                'stripe_refund_id' => $stripeRefundId,
+                'invoice_id' => $invoice->id,
+                'payment_id' => $payment->id,
+                'refund_type' => $refundType->value,
+                'amount' => $amount,
+                'currency' => $currency,
+            ]);
+
+            // Update payment status if fully refunded
+            if ($refund->status === RefundStatus::Processed) {
+                $this->updatePaymentStatusIfFullyRefunded($refund);
+            }
+
+            return $refund;
+        });
+    }
 }

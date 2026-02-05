@@ -48,6 +48,9 @@ use InvalidArgumentException;
  * @property string|null $notes
  * @property string|null $xero_invoice_id
  * @property \Carbon\Carbon|null $xero_synced_at
+ * @property bool $is_disputed
+ * @property \Carbon\Carbon|null $disputed_at
+ * @property string|null $dispute_reason
  * @property int|null $created_by
  * @property int|null $updated_by
  * @property \Carbon\Carbon $created_at
@@ -58,6 +61,7 @@ use InvalidArgumentException;
  * @method static \Illuminate\Database\Eloquent\Builder<static> overdue()
  * @method static \Illuminate\Database\Eloquent\Builder<static> notOverdue()
  * @method static \Illuminate\Database\Eloquent\Builder<static> unpaidImmediate(?int $thresholdHours = null)
+ * @method static \Illuminate\Database\Eloquent\Builder<static> disputed()
  */
 class Invoice extends Model
 {
@@ -86,6 +90,9 @@ class Invoice extends Model
         'notes',
         'xero_invoice_id',
         'xero_synced_at',
+        'is_disputed',
+        'disputed_at',
+        'dispute_reason',
     ];
 
     protected $attributes = [
@@ -95,6 +102,7 @@ class Invoice extends Model
         'total_amount' => 0,
         'amount_paid' => 0,
         'status' => 'draft',
+        'is_disputed' => false,
     ];
 
     /**
@@ -117,6 +125,8 @@ class Invoice extends Model
             'fx_rate_at_issuance' => 'decimal:6',
             'issued_at' => 'datetime',
             'due_date' => 'date',
+            'is_disputed' => 'boolean',
+            'disputed_at' => 'datetime',
             'xero_synced_at' => 'datetime',
             // Note: source_id is a string to support both int IDs and UUIDs
         ];
@@ -1801,5 +1811,53 @@ class Invoice extends Model
         }
 
         return ! $this->hasWineProductLines();
+    }
+
+    // =========================================================================
+    // Dispute Methods
+    // =========================================================================
+
+    /**
+     * Check if invoice is disputed.
+     */
+    public function isDisputed(): bool
+    {
+        return $this->is_disputed;
+    }
+
+    /**
+     * Mark invoice as disputed.
+     *
+     * @param  string  $reason  The dispute reason
+     * @param  string|null  $stripeDisputeId  The Stripe dispute ID if from Stripe
+     */
+    public function markDisputed(string $reason, ?string $stripeDisputeId = null): void
+    {
+        $this->is_disputed = true;
+        $this->disputed_at = now();
+        $this->dispute_reason = $stripeDisputeId !== null
+            ? "[Stripe Dispute: {$stripeDisputeId}] ".$reason
+            : $reason;
+        $this->save();
+    }
+
+    /**
+     * Mark invoice dispute as resolved.
+     */
+    public function resolveDispute(): void
+    {
+        $this->is_disputed = false;
+        $this->save();
+    }
+
+    /**
+     * Scope to get only disputed invoices.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Invoice>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     */
+    public function scopeDisputed($query)
+    {
+        return $query->where('is_disputed', true);
     }
 }
