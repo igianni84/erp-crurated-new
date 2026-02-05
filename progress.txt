@@ -1831,3 +1831,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Full event processing logic will be implemented in US-E094 via StripeIntegrationService
   - finance log channel used for all webhook and processing logs
 ---
+
+## 2026-02-05 - US-E094
+- What was implemented: Stripe webhook event processing with handlers for payment_intent.succeeded, payment_intent.payment_failed, charge.refunded, and charge.dispute.created
+- Files changed:
+  - app/Jobs/Finance/ProcessStripeWebhookJob.php (implemented full event handlers with service integration)
+  - app/Models/Finance/Invoice.php (added is_disputed, disputed_at, dispute_reason fields; markDisputed(), resolveDispute(), isDisputed(), scopeDisputed() methods)
+  - app/Services/Finance/RefundService.php (added createFromStripeWebhook() method)
+  - database/migrations/2026_02_05_300100_add_disputed_fields_to_invoices_table.php (new migration for disputed fields)
+- **Learnings for future iterations:**
+  - ProcessStripeWebhookJob already had stub handlers from US-E093; US-E094 implements the actual logic
+  - payment_intent.succeeded uses PaymentService.createFromStripe() which includes auto-reconciliation
+  - charge.refunded extracts refund data from data.object.refunds.data array in the payload
+  - charge.dispute.created finds payment by charge_id, then finds invoices via InvoicePayment pivot
+  - Invoice model needed new fields (is_disputed, disputed_at, dispute_reason) to track disputes
+  - RefundService.createFromStripeWebhook() bypasses validation since Stripe already processed the refund
+  - PHPStan requires explicit (int) cast when assigning string UUID to int-typed model property
+---
