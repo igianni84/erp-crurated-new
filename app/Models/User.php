@@ -114,4 +114,13 @@ class User extends Authenticatable implements FilamentUser
     {
         return $this->role?->canConsumeCommittedInventory() ?? false;
     }
+
+    /**
+     * Check if the user can approve price books.
+     * Requires at least Manager role.
+     */
+    public function canApprovePriceBooks(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
 }
