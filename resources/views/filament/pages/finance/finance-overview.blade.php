@@ -15,7 +15,94 @@
         $invoicesToday = $this->getInvoicesIssuedToday();
         $paymentsToday = $this->getPaymentsReceivedToday();
         $paymentsAmountToday = $this->getPaymentsAmountToday();
+        $alerts = $this->getAlerts();
     @endphp
+
+    {{-- Alerts and Warnings Section (US-E119) --}}
+    @if(count($alerts) > 0)
+        <div class="space-y-3 mb-6">
+            @foreach($alerts as $alert)
+                <div
+                    x-data="{ dismissed: false }"
+                    x-show="!dismissed"
+                    x-transition:leave="transition ease-in duration-200"
+                    x-transition:leave-start="opacity-100 scale-100"
+                    x-transition:leave-end="opacity-0 scale-95"
+                    class="rounded-xl border p-4 {{ $this->getAlertColorClasses($alert['color']) }}"
+                    role="alert"
+                >
+                    <div class="flex items-start gap-3">
+                        {{-- Alert Icon --}}
+                        <div class="flex-shrink-0">
+                            <x-dynamic-component
+                                :component="$alert['icon']"
+                                class="h-5 w-5 {{ $this->getAlertIconColorClass($alert['color']) }}"
+                            />
+                        </div>
+
+                        {{-- Alert Content --}}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-semibold {{ $this->getAlertTextColorClass($alert['color']) }}">
+                                    {{ $alert['title'] }}
+                                </h3>
+                                @if($alert['count'] !== null)
+                                    <span class="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full
+                                        @if($alert['color'] === 'danger') bg-danger-200 dark:bg-danger-800 text-danger-800 dark:text-danger-200
+                                        @elseif($alert['color'] === 'warning') bg-warning-200 dark:bg-warning-800 text-warning-800 dark:text-warning-200
+                                        @else bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200
+                                        @endif
+                                    ">
+                                        {{ $alert['count'] }}
+                                    </span>
+                                @endif
+                            </div>
+                            <p class="mt-1 text-sm {{ $this->getAlertTextColorClass($alert['color']) }} opacity-80">
+                                {{ $alert['message'] }}
+                            </p>
+                            @if($alert['url'])
+                                <a
+                                    href="{{ $alert['url'] }}"
+                                    class="inline-flex items-center gap-1 mt-2 text-sm font-medium {{ $this->getAlertIconColorClass($alert['color']) }} hover:underline"
+                                >
+                                    View details
+                                    <x-heroicon-m-arrow-right class="h-4 w-4" />
+                                </a>
+                            @endif
+                        </div>
+
+                        {{-- Dismiss Button --}}
+                        @if($alert['dismissible'])
+                            <div class="flex-shrink-0">
+                                <button
+                                    type="button"
+                                    x-on:click="dismissed = true; $wire.dismissAlert('{{ $alert['id'] }}')"
+                                    class="inline-flex items-center justify-center rounded-lg p-1.5 {{ $this->getAlertIconColorClass($alert['color']) }} hover:bg-black/5 dark:hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-{{ $alert['color'] }}-500"
+                                    title="Dismiss alert"
+                                >
+                                    <span class="sr-only">Dismiss</span>
+                                    <x-heroicon-s-x-mark class="h-4 w-4" />
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+
+            {{-- Clear All Alerts Button --}}
+            @if(count($alerts) > 1)
+                <div class="flex justify-end">
+                    <button
+                        type="button"
+                        wire:click="clearDismissedAlerts"
+                        class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:underline"
+                    >
+                        Reset dismissed alerts
+                    </button>
+                </div>
+            @endif
+        </div>
+    @endif
 
     {{-- Main Metrics Grid --}}
     <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6">

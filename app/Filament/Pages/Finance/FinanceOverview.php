@@ -14,6 +14,7 @@ use App\Models\Finance\Refund;
 use App\Services\Finance\XeroIntegrationService;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * US-E116: Finance Overview Dashboard
@@ -40,6 +41,13 @@ use Filament\Pages\Page;
  * - Credit notes issued in last 24 hours
  * - Refunds processed in last 24 hours
  * - Click to navigate to detail pages
+ *
+ * Alerts and Warnings (US-E119):
+ * - Overdue invoices alert
+ * - Pending reconciliations alert
+ * - Xero sync failures alert
+ * - Stripe webhook issues alert
+ * - Dismissible with persistence
  */
 class FinanceOverview extends Page
 {
@@ -54,6 +62,268 @@ class FinanceOverview extends Page
     protected static ?string $title = 'Finance Overview';
 
     protected static string $view = 'filament.pages.finance.finance-overview';
+
+    /**
+     * Track dismissed alerts for this session.
+     * Uses Livewire property to persist across renders within same session.
+     *
+     * @var array<string>
+     */
+    public array $dismissedAlerts = [];
+
+    // =========================================================================
+    // Alerts and Warnings (US-E119)
+    // =========================================================================
+
+    /**
+     * Get all active dashboard alerts.
+     *
+     * @return array<array{
+     *     id: string,
+     *     type: string,
+     *     title: string,
+     *     message: string,
+     *     icon: string,
+     *     color: string,
+     *     count: int|null,
+     *     url: string|null,
+     *     dismissible: bool
+     * }>
+     */
+    public function getAlerts(): array
+    {
+        $alerts = [];
+
+        // Load dismissed alerts from cache for persistence
+        $this->loadDismissedAlerts();
+
+        // Alert: Overdue invoices
+        $overdueCount = $this->getOverdueInvoicesCount();
+        if ($overdueCount > 0 && ! $this->isAlertDismissed('overdue_invoices')) {
+            $alerts[] = [
+                'id' => 'overdue_invoices',
+                'type' => 'warning',
+                'title' => 'Overdue Invoices',
+                'message' => $overdueCount.' '.($overdueCount === 1 ? 'invoice is' : 'invoices are').' past due date and require attention.',
+                'icon' => 'heroicon-o-exclamation-triangle',
+                'color' => 'warning',
+                'count' => $overdueCount,
+                'url' => $this->getOverdueInvoicesUrl(),
+                'dismissible' => true,
+            ];
+        }
+
+        // Alert: Pending reconciliations
+        $pendingCount = $this->getPendingReconciliationsCount();
+        if ($pendingCount > 0 && ! $this->isAlertDismissed('pending_reconciliations')) {
+            $alerts[] = [
+                'id' => 'pending_reconciliations',
+                'type' => 'info',
+                'title' => 'Pending Reconciliations',
+                'message' => $pendingCount.' '.($pendingCount === 1 ? 'payment needs' : 'payments need').' to be reconciled with invoices.',
+                'icon' => 'heroicon-o-document-magnifying-glass',
+                'color' => 'warning',
+                'count' => $pendingCount,
+                'url' => $this->getPendingReconciliationsUrl(),
+                'dismissible' => true,
+            ];
+        }
+
+        // Alert: Xero sync failures
+        $xeroHealth = $this->getXeroHealthSummary();
+        if ($xeroHealth['failed_count'] > 0 && ! $this->isAlertDismissed('xero_sync_failures')) {
+            $alerts[] = [
+                'id' => 'xero_sync_failures',
+                'type' => 'error',
+                'title' => 'Xero Sync Failures',
+                'message' => $xeroHealth['failed_count'].' '.($xeroHealth['failed_count'] === 1 ? 'sync has' : 'syncs have').' failed. Review and retry to ensure accounting accuracy.',
+                'icon' => 'heroicon-o-arrow-path-rounded-square',
+                'color' => 'danger',
+                'count' => $xeroHealth['failed_count'],
+                'url' => $this->getFailedSyncsUrl(),
+                'dismissible' => true,
+            ];
+        }
+
+        // Alert: Stripe webhook issues
+        $stripeHealth = $this->getStripeHealthSummary();
+        if ($stripeHealth['status'] === 'critical') {
+            if (! $this->isAlertDismissed('stripe_webhook_issues')) {
+                $alerts[] = [
+                    'id' => 'stripe_webhook_issues',
+                    'type' => 'error',
+                    'title' => 'Stripe Integration Issues',
+                    'message' => 'Stripe integration has critical issues. '.$stripeHealth['failed_count'].' failed events require immediate attention.',
+                    'icon' => 'heroicon-o-signal-slash',
+                    'color' => 'danger',
+                    'count' => $stripeHealth['failed_count'],
+                    'url' => $this->getFailedSyncsUrl(),
+                    'dismissible' => true,
+                ];
+            }
+        } elseif ($stripeHealth['status'] === 'warning') {
+            if (! $this->isAlertDismissed('stripe_webhook_issues')) {
+                $message = $stripeHealth['failed_count'] > 0
+                    ? $stripeHealth['failed_count'].' failed events.'
+                    : 'No webhooks received recently.';
+
+                $alerts[] = [
+                    'id' => 'stripe_webhook_issues',
+                    'type' => 'warning',
+                    'title' => 'Stripe Integration Issues',
+                    'message' => 'Stripe integration may have issues. '.$message,
+                    'icon' => 'heroicon-o-signal-slash',
+                    'color' => 'warning',
+                    'count' => $stripeHealth['failed_count'],
+                    'url' => $this->getFailedSyncsUrl(),
+                    'dismissible' => true,
+                ];
+            }
+        }
+
+        // Alert: Mismatched reconciliations (additional alert for more severe case)
+        $mismatchedCount = $this->getMismatchedReconciliationsCount();
+        if ($mismatchedCount > 0 && ! $this->isAlertDismissed('mismatched_reconciliations')) {
+            $alerts[] = [
+                'id' => 'mismatched_reconciliations',
+                'type' => 'error',
+                'title' => 'Payment Mismatches',
+                'message' => $mismatchedCount.' '.($mismatchedCount === 1 ? 'payment has' : 'payments have').' reconciliation mismatches requiring manual resolution.',
+                'icon' => 'heroicon-o-exclamation-circle',
+                'color' => 'danger',
+                'count' => $mismatchedCount,
+                'url' => route('filament.admin.resources.finance.payments.index', [
+                    'tableFilters' => ['reconciliation_status' => ['value' => 'mismatched']],
+                ]),
+                'dismissible' => true,
+            ];
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * Check if there are any active alerts.
+     */
+    public function hasAlerts(): bool
+    {
+        return count($this->getAlerts()) > 0;
+    }
+
+    /**
+     * Get count of active alerts.
+     */
+    public function getAlertCount(): int
+    {
+        return count($this->getAlerts());
+    }
+
+    /**
+     * Dismiss an alert by ID.
+     * Persists the dismissal for 24 hours.
+     */
+    public function dismissAlert(string $alertId): void
+    {
+        if (! in_array($alertId, $this->dismissedAlerts, true)) {
+            $this->dismissedAlerts[] = $alertId;
+            $this->saveDismissedAlerts();
+        }
+    }
+
+    /**
+     * Check if an alert is dismissed.
+     */
+    public function isAlertDismissed(string $alertId): bool
+    {
+        return in_array($alertId, $this->dismissedAlerts, true);
+    }
+
+    /**
+     * Load dismissed alerts from cache.
+     */
+    protected function loadDismissedAlerts(): void
+    {
+        $userId = auth()->id();
+        if ($userId === null) {
+            return;
+        }
+
+        $cacheKey = 'finance_dashboard_dismissed_alerts_'.$userId;
+        /** @var array<string> $cached */
+        $cached = Cache::get($cacheKey, []);
+        $this->dismissedAlerts = array_unique(array_merge($this->dismissedAlerts, $cached));
+    }
+
+    /**
+     * Save dismissed alerts to cache.
+     * Alerts remain dismissed for 24 hours.
+     */
+    protected function saveDismissedAlerts(): void
+    {
+        $userId = auth()->id();
+        if ($userId === null) {
+            return;
+        }
+
+        $cacheKey = 'finance_dashboard_dismissed_alerts_'.$userId;
+        Cache::put($cacheKey, $this->dismissedAlerts, now()->addHours(24));
+    }
+
+    /**
+     * Clear all dismissed alerts.
+     * Useful for testing or manual reset.
+     */
+    public function clearDismissedAlerts(): void
+    {
+        $this->dismissedAlerts = [];
+        $userId = auth()->id();
+        if ($userId !== null) {
+            $cacheKey = 'finance_dashboard_dismissed_alerts_'.$userId;
+            Cache::forget($cacheKey);
+        }
+    }
+
+    /**
+     * Get alert badge color class based on type.
+     */
+    public function getAlertColorClasses(string $color): string
+    {
+        return match ($color) {
+            'danger' => 'bg-danger-50 dark:bg-danger-400/10 border-danger-200 dark:border-danger-400/20',
+            'warning' => 'bg-warning-50 dark:bg-warning-400/10 border-warning-200 dark:border-warning-400/20',
+            'success' => 'bg-success-50 dark:bg-success-400/10 border-success-200 dark:border-success-400/20',
+            'info', 'primary' => 'bg-primary-50 dark:bg-primary-400/10 border-primary-200 dark:border-primary-400/20',
+            default => 'bg-gray-50 dark:bg-gray-400/10 border-gray-200 dark:border-gray-400/20',
+        };
+    }
+
+    /**
+     * Get alert icon color class based on type.
+     */
+    public function getAlertIconColorClass(string $color): string
+    {
+        return match ($color) {
+            'danger' => 'text-danger-600 dark:text-danger-400',
+            'warning' => 'text-warning-600 dark:text-warning-400',
+            'success' => 'text-success-600 dark:text-success-400',
+            'info', 'primary' => 'text-primary-600 dark:text-primary-400',
+            default => 'text-gray-600 dark:text-gray-400',
+        };
+    }
+
+    /**
+     * Get alert text color class based on type.
+     */
+    public function getAlertTextColorClass(string $color): string
+    {
+        return match ($color) {
+            'danger' => 'text-danger-800 dark:text-danger-200',
+            'warning' => 'text-warning-800 dark:text-warning-200',
+            'success' => 'text-success-800 dark:text-success-200',
+            'info', 'primary' => 'text-primary-800 dark:text-primary-200',
+            default => 'text-gray-800 dark:text-gray-200',
+        };
+    }
 
     // =========================================================================
     // Header Actions
