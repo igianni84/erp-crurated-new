@@ -1212,4 +1212,246 @@ class Invoice extends Model
 
         return false;
     }
+
+    // =========================================================================
+    // Storage Fee Methods (INV3)
+    // =========================================================================
+
+    /**
+     * Check if this is a storage fee invoice (INV3).
+     */
+    public function isStorageFeeInvoice(): bool
+    {
+        return $this->invoice_type === InvoiceType::StorageFee;
+    }
+
+    /**
+     * Check if this storage invoice has multiple locations.
+     *
+     * A storage invoice with location breakdown will have separate invoice lines
+     * for each storage location, identified by location_id in line metadata.
+     */
+    public function hasLocationBreakdown(): bool
+    {
+        if ($this->invoice_type !== InvoiceType::StorageFee) {
+            return false;
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $locationIds = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            $lineType = $metadata['line_type'] ?? null;
+
+            if ($lineType === 'storage_fee' && isset($metadata['location_id'])) {
+                $locationIds[] = $metadata['location_id'];
+            }
+        }
+
+        // Has location breakdown if there are 2+ unique location IDs
+        return count(array_unique($locationIds)) > 1;
+    }
+
+    /**
+     * Get the number of locations in this storage invoice.
+     */
+    public function getStorageLocationCount(): int
+    {
+        if ($this->invoice_type !== InvoiceType::StorageFee) {
+            return 0;
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $locationIds = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            $lineType = $metadata['line_type'] ?? null;
+
+            if ($lineType === 'storage_fee' && isset($metadata['location_id'])) {
+                $locationIds[] = $metadata['location_id'];
+            }
+        }
+
+        $uniqueLocations = array_unique($locationIds);
+
+        // If no location_id found but has storage lines, count as 1 location (aggregated)
+        if (count($uniqueLocations) === 0 && $lines->isNotEmpty()) {
+            return 1;
+        }
+
+        return count($uniqueLocations);
+    }
+
+    /**
+     * Get invoice lines grouped by storage location.
+     *
+     * For storage invoices with location breakdown, lines are grouped by
+     * location_id in their metadata.
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, InvoiceLine>>
+     */
+    public function getLinesByStorageLocation(): array
+    {
+        if (! $this->isStorageFeeInvoice()) {
+            return [];
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $grouped = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            $locationId = $metadata['location_id'] ?? 'all_locations';
+            $locationName = $metadata['location_name'] ?? 'All Locations';
+
+            $key = $locationId;
+            if (! isset($grouped[$key])) {
+                $grouped[$key] = collect();
+            }
+            $grouped[$key]->push($line);
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Get a summary of storage usage by location.
+     *
+     * Returns an array of location summaries for display purposes.
+     *
+     * @return array<string, array{
+     *     location_id: string|null,
+     *     location_name: string,
+     *     bottle_count: int,
+     *     bottle_days: int,
+     *     unit_rate: string,
+     *     subtotal: string,
+     *     tax: string,
+     *     total: string,
+     *     rate_tier: string|null,
+     *     lines: \Illuminate\Support\Collection<int, InvoiceLine>
+     * }>
+     */
+    public function getStorageLocationSummaries(): array
+    {
+        if (! $this->isStorageFeeInvoice()) {
+            return [];
+        }
+
+        $linesByLocation = $this->getLinesByStorageLocation();
+        $summaries = [];
+
+        foreach ($linesByLocation as $locationKey => $lines) {
+            $subtotal = '0.00';
+            $tax = '0.00';
+            $total = '0.00';
+            $bottleCount = 0;
+            $bottleDays = 0;
+            $unitRate = '0.0000';
+            $rateTier = null;
+            $locationName = 'All Locations';
+            $locationId = null;
+
+            foreach ($lines as $line) {
+                $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
+                $subtotal = bcadd($subtotal, $lineSubtotal, 2);
+                $tax = bcadd($tax, $line->tax_amount, 2);
+                $total = bcadd($total, $line->line_total, 2);
+
+                $metadata = $line->metadata ?? [];
+                $bottleCount = max($bottleCount, (int) ($metadata['bottle_count'] ?? 0));
+                $bottleDays += (int) ($metadata['bottle_days'] ?? (int) $line->quantity);
+                $unitRate = $metadata['unit_rate'] ?? $line->unit_price;
+                $rateTier = $metadata['rate_tier'] ?? null;
+                $locationName = $metadata['location_name'] ?? 'All Locations';
+                $locationId = $metadata['location_id'] ?? null;
+            }
+
+            $summaries[$locationKey] = [
+                'location_id' => $locationId,
+                'location_name' => $locationName,
+                'bottle_count' => $bottleCount,
+                'bottle_days' => $bottleDays,
+                'unit_rate' => $unitRate,
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'total' => $total,
+                'rate_tier' => $rateTier,
+                'lines' => $lines,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * Get total bottle-days for this storage invoice.
+     */
+    public function getTotalBottleDays(): int
+    {
+        if (! $this->isStorageFeeInvoice()) {
+            return 0;
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $totalBottleDays = 0;
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            $bottleDays = $metadata['bottle_days'] ?? (int) $line->quantity;
+            $totalBottleDays += (int) $bottleDays;
+        }
+
+        return $totalBottleDays;
+    }
+
+    /**
+     * Get the storage billing period for this INV3 invoice.
+     */
+    public function getStorageBillingPeriod(): ?StorageBillingPeriod
+    {
+        if ($this->source_type !== 'storage_billing_period' || $this->source_id === null) {
+            return null;
+        }
+
+        return StorageBillingPeriod::find($this->source_id);
+    }
+
+    /**
+     * Get the billing period dates for display.
+     *
+     * @return array{start: string|null, end: string|null, label: string}|null
+     */
+    public function getStoragePeriodDates(): ?array
+    {
+        // Try to get from storage billing period
+        $period = $this->getStorageBillingPeriod();
+        if ($period !== null) {
+            return [
+                'start' => $period->period_start->format('Y-m-d'),
+                'end' => $period->period_end->format('Y-m-d'),
+                'label' => $period->period_start->format('M j').' - '.$period->period_end->format('M j, Y'),
+            ];
+        }
+
+        // Try to get from first invoice line metadata
+        $firstLine = $this->invoiceLines()->first();
+        if ($firstLine !== null) {
+            $metadata = $firstLine->metadata ?? [];
+            $start = $metadata['period_start'] ?? null;
+            $end = $metadata['period_end'] ?? null;
+
+            if ($start !== null && $end !== null) {
+                return [
+                    'start' => $start,
+                    'end' => $end,
+                    'label' => date('M j', strtotime($start)).' - '.date('M j, Y', strtotime($end)),
+                ];
+            }
+        }
+
+        return null;
+    }
 }

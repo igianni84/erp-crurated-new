@@ -286,7 +286,7 @@ class ViewInvoice extends ViewRecord
 
         return Tab::make('Linked ERP Events')
             ->icon('heroicon-o-link')
-            ->badge(fn (): ?string => $record->isMultiShipmentInvoice() ? (string) $record->getShipmentCount() : null)
+            ->badge(fn (): ?string => $this->getLinkedErpEventsBadge($record))
             ->badgeColor('info')
             ->schema([
                 Section::make('Source Reference')
@@ -319,11 +319,13 @@ class ViewInvoice extends ViewRecord
                                     ->copyMessage('Source ID copied'),
                             ]),
                     ]),
-                // Multi-shipment section
+                // Multi-shipment section (INV2)
                 $this->getMultiShipmentSection(),
+                // Storage location breakdown section (INV3)
+                $this->getStorageLocationBreakdownSection(),
                 Section::make('Event Details')
                     ->description(fn (Invoice $record): string => $this->getSourceDescription($record))
-                    ->visible(fn (Invoice $record): bool => ! $record->isMultiShipmentInvoice())
+                    ->visible(fn (Invoice $record): bool => ! $record->isMultiShipmentInvoice() && ! $record->hasLocationBreakdown())
                     ->schema([
                         TextEntry::make('source_link')
                             ->label('View Source')
@@ -340,6 +342,194 @@ class ViewInvoice extends ViewRecord
                     ]),
                 $this->getSubscriptionDetailsSection(),
             ]);
+    }
+
+    /**
+     * Get the badge for Linked ERP Events tab.
+     */
+    protected function getLinkedErpEventsBadge(Invoice $record): ?string
+    {
+        if ($record->isMultiShipmentInvoice()) {
+            return (string) $record->getShipmentCount();
+        }
+
+        if ($record->hasLocationBreakdown()) {
+            return (string) $record->getStorageLocationCount();
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the storage location breakdown section for INV3 invoices.
+     */
+    protected function getStorageLocationBreakdownSection(): Section
+    {
+        return Section::make('Storage Location Breakdown')
+            ->description(fn (Invoice $record): string => $this->getStorageLocationDescription($record))
+            ->visible(fn (Invoice $record): bool => $record->isStorageFeeInvoice())
+            ->icon('heroicon-o-building-office-2')
+            ->schema([
+                TextEntry::make('storage_location_summary')
+                    ->label('')
+                    ->getStateUsing(fn (Invoice $record): string => $this->formatStorageLocationSummary($record))
+                    ->html(),
+            ]);
+    }
+
+    /**
+     * Get description for storage location section.
+     */
+    protected function getStorageLocationDescription(Invoice $record): string
+    {
+        $locationCount = $record->getStorageLocationCount();
+        $periodDates = $record->getStoragePeriodDates();
+        $periodLabel = $periodDates !== null ? $periodDates['label'] : 'Unknown period';
+
+        if ($locationCount > 1) {
+            return "Storage fees across {$locationCount} locations for {$periodLabel}";
+        }
+
+        return "Storage fees for {$periodLabel}";
+    }
+
+    /**
+     * Format the storage location summary for display.
+     */
+    protected function formatStorageLocationSummary(Invoice $record): string
+    {
+        $summaries = $record->getStorageLocationSummaries();
+
+        if (empty($summaries)) {
+            return '<span class="text-gray-500">No storage location details available</span>';
+        }
+
+        $currency = $record->currency;
+        $currencySymbol = $record->getCurrencySymbol();
+        $periodDates = $record->getStoragePeriodDates();
+        $periodLabel = $periodDates !== null ? $periodDates['label'] : '';
+        $hasMultipleLocations = count($summaries) > 1;
+        $totalBottleDays = $record->getTotalBottleDays();
+
+        $lines = [];
+        $lines[] = '<div class="space-y-4">';
+
+        // Period summary header
+        if ($periodLabel !== '') {
+            $lines[] = '<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 mb-4">';
+            $lines[] = '<div class="flex justify-between items-center">';
+            $lines[] = '<span class="text-sm text-gray-600 dark:text-gray-400">Billing Period:</span>';
+            $lines[] = '<span class="font-semibold">'.e($periodLabel).'</span>';
+            $lines[] = '</div>';
+            $lines[] = '<div class="flex justify-between items-center mt-1">';
+            $lines[] = '<span class="text-sm text-gray-600 dark:text-gray-400">Total Bottle-Days:</span>';
+            $lines[] = '<span class="font-semibold">'.number_format($totalBottleDays).'</span>';
+            $lines[] = '</div>';
+            $lines[] = '</div>';
+        }
+
+        // Location breakdown
+        foreach ($summaries as $locationKey => $summary) {
+            $locationName = $summary['location_name'];
+            $bottleCount = $summary['bottle_count'];
+            $bottleDays = $summary['bottle_days'];
+            $unitRate = $summary['unit_rate'];
+            $rateTier = $summary['rate_tier'] ?? 'Standard';
+            $subtotal = $summary['subtotal'];
+            $tax = $summary['tax'];
+            $total = $summary['total'];
+
+            $lines[] = '<div class="border rounded-lg p-4 bg-white dark:bg-gray-900">';
+
+            // Location header
+            $lines[] = '<div class="flex justify-between items-start mb-3">';
+            $lines[] = '<div>';
+            $lines[] = '<h4 class="font-semibold text-lg flex items-center gap-2">';
+            $lines[] = '<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">';
+            $lines[] = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>';
+            $lines[] = '</svg>';
+            $lines[] = e($locationName);
+            $lines[] = '</h4>';
+            $lines[] = '</div>';
+            $lines[] = '<div class="text-right">';
+            $lines[] = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">';
+            $lines[] = e($rateTier);
+            $lines[] = '</span>';
+            $lines[] = '</div>';
+            $lines[] = '</div>';
+
+            // Usage details table
+            $lines[] = '<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">';
+            $lines[] = '<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">';
+
+            // Bottle count row
+            $lines[] = '<tr>';
+            $lines[] = '<td class="px-2 py-2 text-gray-600 dark:text-gray-400">Average Bottles</td>';
+            $lines[] = '<td class="px-2 py-2 text-right font-mono font-semibold">'.number_format($bottleCount).'</td>';
+            $lines[] = '</tr>';
+
+            // Bottle-days row
+            $lines[] = '<tr>';
+            $lines[] = '<td class="px-2 py-2 text-gray-600 dark:text-gray-400">Bottle-Days</td>';
+            $lines[] = '<td class="px-2 py-2 text-right font-mono font-semibold">'.number_format($bottleDays).'</td>';
+            $lines[] = '</tr>';
+
+            // Rate row
+            $lines[] = '<tr>';
+            $lines[] = '<td class="px-2 py-2 text-gray-600 dark:text-gray-400">Rate per Bottle-Day</td>';
+            $lines[] = '<td class="px-2 py-2 text-right font-mono">'.$currencySymbol.' '.number_format((float) $unitRate, 4).'</td>';
+            $lines[] = '</tr>';
+
+            // Subtotal row
+            $lines[] = '<tr class="border-t border-gray-200 dark:border-gray-700">';
+            $lines[] = '<td class="px-2 py-2 text-gray-600 dark:text-gray-400">Subtotal</td>';
+            $lines[] = '<td class="px-2 py-2 text-right font-mono">'.$currencySymbol.' '.number_format((float) $subtotal, 2).'</td>';
+            $lines[] = '</tr>';
+
+            // Tax row
+            $lines[] = '<tr>';
+            $lines[] = '<td class="px-2 py-2 text-gray-600 dark:text-gray-400">Tax</td>';
+            $lines[] = '<td class="px-2 py-2 text-right font-mono">'.$currencySymbol.' '.number_format((float) $tax, 2).'</td>';
+            $lines[] = '</tr>';
+
+            // Total row
+            $lines[] = '<tr class="bg-gray-50 dark:bg-gray-800">';
+            $lines[] = '<td class="px-2 py-2 font-semibold">Location Total</td>';
+            $lines[] = '<td class="px-2 py-2 text-right font-mono font-bold">'.$currencySymbol.' '.number_format((float) $total, 2).'</td>';
+            $lines[] = '</tr>';
+
+            $lines[] = '</tbody>';
+            $lines[] = '</table>';
+
+            $lines[] = '</div>';
+        }
+
+        // Grand total summary (only if multiple locations)
+        if ($hasMultipleLocations) {
+            $lines[] = '<div class="border-t-2 border-gray-300 dark:border-gray-600 pt-4 mt-4">';
+            $lines[] = '<div class="flex justify-between items-center">';
+            $lines[] = '<span class="text-lg font-semibold">Combined Total ('.count($summaries).' locations):</span>';
+            $lines[] = '<span class="text-xl font-bold">'.$currencySymbol.' '.number_format((float) $record->total_amount, 2).'</span>';
+            $lines[] = '</div>';
+            $lines[] = '</div>';
+        }
+
+        // Link to storage billing period
+        if ($record->source_id !== null) {
+            $lines[] = '<div class="mt-4 text-right">';
+            $lines[] = '<a href="'.route('filament.admin.resources.finance.storage-billing-periods.view', ['record' => $record->source_id]).'" ';
+            $lines[] = 'class="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1">';
+            $lines[] = 'View Storage Billing Period';
+            $lines[] = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">';
+            $lines[] = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>';
+            $lines[] = '</svg>';
+            $lines[] = '</a>';
+            $lines[] = '</div>';
+        }
+
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
     }
 
     /**

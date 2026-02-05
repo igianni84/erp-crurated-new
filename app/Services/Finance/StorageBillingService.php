@@ -86,7 +86,8 @@ class StorageBillingService
      * @param  Customer  $customer  The customer to calculate for
      * @param  Carbon  $periodStart  The start of the billing period (inclusive)
      * @param  Carbon  $periodEnd  The end of the billing period (inclusive)
-     * @param  Location|null  $location  Optional specific location (null = all locations)
+     * @param  Location|null  $location  Optional specific location (null = all locations with breakdown)
+     * @param  bool  $includeLocationBreakdown  Whether to include per-location breakdown when location is null
      * @return array{
      *     bottle_count: int,
      *     bottle_days: int,
@@ -100,7 +101,8 @@ class StorageBillingService
         Customer $customer,
         Carbon $periodStart,
         Carbon $periodEnd,
-        ?Location $location = null
+        ?Location $location = null,
+        bool $includeLocationBreakdown = true
     ): array {
         $periodStartDay = $periodStart->startOfDay()->copy();
         $periodEndDay = $periodEnd->endOfDay()->copy();
@@ -123,28 +125,129 @@ class StorageBillingService
         // Get the rate tier label for metadata
         $rateTierLabel = $this->getRateTierLabel($usageDetails['average_bottle_count']);
 
+        // Build base metadata
+        $metadata = [
+            'calculation_method' => 'movement_based',
+            'period_start' => $periodStartDay->toDateString(),
+            'period_end' => $periodEndDay->toDateString(),
+            'period_days' => $usageDetails['period_days'],
+            'bottles_at_start' => $usageDetails['bottles_at_start'],
+            'bottles_at_end' => $usageDetails['bottles_at_end'],
+            'inbound_count' => $usageDetails['inbound_count'],
+            'outbound_count' => $usageDetails['outbound_count'],
+            'transfer_count' => $usageDetails['transfer_count'],
+            'average_bottles_per_day' => $usageDetails['average_bottle_count'],
+            'rate_tier' => $rateTierLabel,
+            'location_id' => $location?->id,
+            'calculated_at' => now()->toIso8601String(),
+        ];
+
+        // Add location breakdown if requested and no specific location was given
+        if ($includeLocationBreakdown && $location === null) {
+            $locationBreakdown = $this->calculateLocationBreakdown($customer, $periodStartDay, $periodEndDay);
+            if (count($locationBreakdown) > 1) {
+                $metadata['location_breakdown'] = $locationBreakdown;
+                $metadata['has_multiple_locations'] = true;
+            }
+        }
+
         return [
             'bottle_count' => $usageDetails['average_bottle_count'],
             'bottle_days' => $usageDetails['bottle_days'],
             'unit_rate' => $unitRate,
             'calculated_amount' => $calculatedAmount,
             'currency' => config('finance.pricing.base_currency', 'EUR'),
-            'metadata' => [
-                'calculation_method' => 'movement_based',
-                'period_start' => $periodStartDay->toDateString(),
-                'period_end' => $periodEndDay->toDateString(),
-                'period_days' => $usageDetails['period_days'],
-                'bottles_at_start' => $usageDetails['bottles_at_start'],
-                'bottles_at_end' => $usageDetails['bottles_at_end'],
-                'inbound_count' => $usageDetails['inbound_count'],
-                'outbound_count' => $usageDetails['outbound_count'],
-                'transfer_count' => $usageDetails['transfer_count'],
-                'average_bottles_per_day' => $usageDetails['average_bottle_count'],
-                'rate_tier' => $rateTierLabel,
-                'location_id' => $location?->id,
-                'calculated_at' => now()->toIso8601String(),
-            ],
+            'metadata' => $metadata,
         ];
+    }
+
+    /**
+     * Calculate usage breakdown per location for a customer.
+     *
+     * This method calculates storage usage separately for each location
+     * where the customer has bottles stored.
+     *
+     * @param  Customer  $customer  The customer to calculate for
+     * @param  Carbon  $periodStart  The start of the billing period
+     * @param  Carbon  $periodEnd  The end of the billing period
+     * @return array<string, array{location_id: string, location_name: string, bottle_count: int, bottle_days: int, unit_rate: string, amount: string}>
+     */
+    public function calculateLocationBreakdown(
+        Customer $customer,
+        Carbon $periodStart,
+        Carbon $periodEnd
+    ): array {
+        // Get all locations where the customer has or had bottles during the period
+        $locationIds = $this->getCustomerLocationsDuringPeriod($customer, $periodStart, $periodEnd);
+
+        $breakdown = [];
+
+        foreach ($locationIds as $locationId) {
+            $location = Location::find($locationId);
+            if ($location === null) {
+                continue;
+            }
+
+            // Calculate usage for this specific location (without further breakdown)
+            $locationUsage = $this->calculateUsage(
+                $customer,
+                $periodStart,
+                $periodEnd,
+                $location,
+                includeLocationBreakdown: false
+            );
+
+            // Skip locations with no usage
+            if ($locationUsage['bottle_days'] === 0) {
+                continue;
+            }
+
+            $breakdown[$locationId] = [
+                'location_id' => $locationId,
+                'location_name' => $location->name,
+                'bottle_count' => $locationUsage['bottle_count'],
+                'bottle_days' => $locationUsage['bottle_days'],
+                'unit_rate' => $locationUsage['unit_rate'],
+                'amount' => $locationUsage['calculated_amount'],
+            ];
+        }
+
+        return $breakdown;
+    }
+
+    /**
+     * Get all location IDs where a customer has bottles during a period.
+     *
+     * @return Collection<int, string>
+     */
+    protected function getCustomerLocationsDuringPeriod(
+        Customer $customer,
+        Carbon $periodStart,
+        Carbon $periodEnd
+    ): Collection {
+        // Get locations from current inventory
+        $currentLocations = SerializedBottle::query()
+            ->where('custody_holder', $customer->id)
+            ->whereIn('state', array_map(fn ($s) => $s->value, self::STORAGE_STATES))
+            ->whereNotNull('current_location_id')
+            ->distinct()
+            ->pluck('current_location_id');
+
+        // Get locations from movements during the period
+        $movementLocations = MovementItem::query()
+            ->whereHas('serializedBottle', function ($query) use ($customer) {
+                $query->where('custody_holder', $customer->id);
+            })
+            ->whereHas('inventoryMovement', function ($query) use ($periodStart, $periodEnd) {
+                $query->whereBetween('executed_at', [$periodStart, $periodEnd]);
+            })
+            ->join('inventory_movements', 'movement_items.inventory_movement_id', '=', 'inventory_movements.id')
+            ->whereNotNull('inventory_movements.destination_location_id')
+            ->distinct()
+            ->pluck('inventory_movements.destination_location_id');
+
+        // Merge and unique
+        return $currentLocations->merge($movementLocations)->unique()->values();
     }
 
     /**
@@ -492,6 +595,9 @@ class StorageBillingService
 
     /**
      * Create an INV3 invoice for a storage billing period.
+     *
+     * If the period has location breakdown data in metadata, separate invoice
+     * lines will be created for each location. Otherwise, a single line is created.
      */
     public function createInvoiceForPeriod(
         StorageBillingPeriod $period,
@@ -505,33 +611,14 @@ class StorageBillingService
         return DB::transaction(function () use ($period, $autoIssue): Invoice {
             $customer = $period->customer;
 
-            // Get the rate tier label for the description
-            $rateTierLabel = $this->getRateTierLabel($period->bottle_count);
+            // Check if we have location breakdown in metadata
+            $metadata = $period->metadata ?? [];
+            $locationBreakdown = $metadata['location_breakdown'] ?? null;
 
-            // Build invoice line description with rate tier
-            $periodLabel = $period->period_start->format('M j').' - '.$period->period_end->format('M j, Y');
-            $rateFormatted = number_format((float) $period->unit_rate, 4);
-            $description = "Wine Storage Services ({$periodLabel}) - {$period->bottle_count} bottles avg, {$period->bottle_days} bottle-days @ {$period->currency} {$rateFormatted}/bottle-day ({$rateTierLabel})";
-
-            // Build invoice lines
-            $lines = [
-                [
-                    'description' => $description,
-                    'quantity' => (string) $period->bottle_days,
-                    'unit_price' => $period->unit_rate,
-                    'tax_rate' => config('finance.pricing.default_vat_rate', '22.00'),
-                    'sellable_sku_id' => null,
-                    'metadata' => [
-                        'storage_billing_period_id' => $period->id,
-                        'bottle_count' => $period->bottle_count,
-                        'period_start' => $period->period_start->toDateString(),
-                        'period_end' => $period->period_end->toDateString(),
-                        'line_type' => 'storage_fee',
-                        'rate_tier' => $rateTierLabel,
-                        'unit_rate' => $period->unit_rate,
-                    ],
-                ],
-            ];
+            // Build invoice lines - either per-location or single aggregated line
+            $lines = $locationBreakdown !== null && count($locationBreakdown) > 0
+                ? $this->buildLocationBreakdownLines($period, $locationBreakdown)
+                : $this->buildSingleLine($period);
 
             // Create draft invoice
             $dueDate = now()->addDays(config('finance.default_due_date_days.storage_fee', 30));
@@ -558,6 +645,89 @@ class StorageBillingService
 
             return $invoice;
         });
+    }
+
+    /**
+     * Build invoice lines with location breakdown.
+     *
+     * Each location gets its own invoice line showing:
+     * - Location name
+     * - Bottle-days at that location
+     * - Rate and amount
+     *
+     * @param  array<string, array{location_id: string, location_name: string, bottle_count: int, bottle_days: int, unit_rate: string, amount: string}>  $locationBreakdown
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildLocationBreakdownLines(StorageBillingPeriod $period, array $locationBreakdown): array
+    {
+        $lines = [];
+        $periodLabel = $period->period_start->format('M j').' - '.$period->period_end->format('M j, Y');
+
+        foreach ($locationBreakdown as $locationData) {
+            $locationName = $locationData['location_name'];
+            $bottleCount = $locationData['bottle_count'];
+            $bottleDays = $locationData['bottle_days'];
+            $unitRate = $locationData['unit_rate'];
+            $locationId = $locationData['location_id'];
+            $rateTierLabel = $this->getRateTierLabel($bottleCount);
+            $rateFormatted = number_format((float) $unitRate, 4);
+
+            $description = "{$locationName}: Storage Services ({$periodLabel}) - {$bottleCount} bottles avg, {$bottleDays} bottle-days @ {$period->currency} {$rateFormatted}/bottle-day ({$rateTierLabel})";
+
+            $lines[] = [
+                'description' => $description,
+                'quantity' => (string) $bottleDays,
+                'unit_price' => $unitRate,
+                'tax_rate' => config('finance.pricing.default_vat_rate', '22.00'),
+                'sellable_sku_id' => null,
+                'metadata' => [
+                    'storage_billing_period_id' => $period->id,
+                    'location_id' => $locationId,
+                    'location_name' => $locationName,
+                    'bottle_count' => $bottleCount,
+                    'bottle_days' => $bottleDays,
+                    'period_start' => $period->period_start->toDateString(),
+                    'period_end' => $period->period_end->toDateString(),
+                    'line_type' => 'storage_fee',
+                    'rate_tier' => $rateTierLabel,
+                    'unit_rate' => $unitRate,
+                ],
+            ];
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Build a single invoice line (no location breakdown).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function buildSingleLine(StorageBillingPeriod $period): array
+    {
+        $rateTierLabel = $this->getRateTierLabel($period->bottle_count);
+        $periodLabel = $period->period_start->format('M j').' - '.$period->period_end->format('M j, Y');
+        $rateFormatted = number_format((float) $period->unit_rate, 4);
+        $description = "Wine Storage Services ({$periodLabel}) - {$period->bottle_count} bottles avg, {$period->bottle_days} bottle-days @ {$period->currency} {$rateFormatted}/bottle-day ({$rateTierLabel})";
+
+        return [
+            [
+                'description' => $description,
+                'quantity' => (string) $period->bottle_days,
+                'unit_price' => $period->unit_rate,
+                'tax_rate' => config('finance.pricing.default_vat_rate', '22.00'),
+                'sellable_sku_id' => null,
+                'metadata' => [
+                    'storage_billing_period_id' => $period->id,
+                    'bottle_count' => $period->bottle_count,
+                    'period_start' => $period->period_start->toDateString(),
+                    'period_end' => $period->period_end->toDateString(),
+                    'line_type' => 'storage_fee',
+                    'rate_tier' => $rateTierLabel,
+                    'unit_rate' => $period->unit_rate,
+                ],
+            ],
+        ];
     }
 
     // =========================================================================
