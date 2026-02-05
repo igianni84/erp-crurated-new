@@ -29,7 +29,7 @@ class FxImpactReport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 63;
+    protected static ?int $navigationSort = 93;
 
     protected static ?string $title = 'FX Impact Summary Report';
 

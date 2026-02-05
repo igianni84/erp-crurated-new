@@ -28,7 +28,7 @@ class EventToInvoiceTraceabilityReport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 65;
+    protected static ?int $navigationSort = 95;
 
     protected static ?string $title = 'Event-to-Invoice Traceability';
 

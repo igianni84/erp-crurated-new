@@ -33,7 +33,7 @@ class IntegrationsHealth extends Page
 
     protected static ?string $navigationGroup = 'Finance';
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 80;
 
     protected static ?string $title = 'Integrations Health';
 

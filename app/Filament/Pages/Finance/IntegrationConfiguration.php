@@ -30,7 +30,7 @@ class IntegrationConfiguration extends Page
 
     protected static ?string $navigationGroup = 'Finance';
 
-    protected static ?int $navigationSort = 70;
+    protected static ?int $navigationSort = 81;
 
     protected static ?string $title = 'Integration Configuration';
 

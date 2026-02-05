@@ -29,7 +29,7 @@ class OutstandingExposureReport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 62;
+    protected static ?int $navigationSort = 92;
 
     protected static ?string $title = 'Outstanding Exposure Report';
 

@@ -28,7 +28,7 @@ class InvoiceAgingReport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 60;
+    protected static ?int $navigationSort = 90;
 
     protected static ?string $title = 'Invoice Aging Report';
 

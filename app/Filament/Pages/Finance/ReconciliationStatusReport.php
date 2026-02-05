@@ -27,7 +27,7 @@ class ReconciliationStatusReport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 65;
+    protected static ?int $navigationSort = 96;
 
     protected static ?string $title = 'Reconciliation Status Report';
 

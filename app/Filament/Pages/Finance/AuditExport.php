@@ -26,7 +26,7 @@ class AuditExport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 65;
+    protected static ?int $navigationSort = 94;
 
     protected static ?string $title = 'Audit Export';
 

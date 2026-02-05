@@ -29,7 +29,7 @@ class RevenueByTypeReport extends Page
 
     protected static ?string $navigationParentItem = 'Reports';
 
-    protected static ?int $navigationSort = 61;
+    protected static ?int $navigationSort = 91;
 
     protected static ?string $title = 'Revenue by Invoice Type';
 

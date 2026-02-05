@@ -21,7 +21,7 @@ class CreditNoteResource extends Resource
 
     protected static ?string $navigationGroup = 'Finance';
 
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 30;
 
     protected static ?string $navigationLabel = 'Credit Notes';
 

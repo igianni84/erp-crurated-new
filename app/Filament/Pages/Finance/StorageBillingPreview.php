@@ -31,7 +31,7 @@ class StorageBillingPreview extends Page
 
     protected static ?string $navigationGroup = 'Finance';
 
-    protected static ?int $navigationSort = 50;
+    protected static ?int $navigationSort = 71;
 
     protected static ?string $title = 'Storage Billing Preview';
 
