@@ -1107,3 +1107,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - PaymentService handles both applyToInvoice() and markReconciled() for clean business logic
   - Show partial application warning using Placeholder with conditional visibility
 ---
+
+## 2026-02-05 - US-E055
+- What was implemented: Payment mismatch resolution with three resolution actions and visual highlighting
+- Files changed:
+  - app/Models/Finance/Payment.php (added mismatch type constants and helper methods: getMismatchType(), getMismatchTypeLabel(), isAmountMismatch(), isCustomerMismatch(), isDuplicateMismatch())
+  - app/Services/Finance/PaymentService.php (added resolution methods: forceMatch(), createException(), markForRefund(), markAsMismatched(), checkForDuplicates(), getExceptionTypes(), hasPendingRefundRequest(), hasActiveException())
+  - app/Filament/Resources/Finance/PaymentResource.php (added mismatch_type column with tooltip and visual highlighting)
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ViewPayment.php (added getForceMatchAction(), getCreateExceptionAction(), getMarkForRefundAction() with forms and validation)
+- **Acceptance criteria verification:**
+  - ✅ Payments with reconciliation_status = mismatched highlighted: New mismatch_type column shows type with danger badge and tooltip
+  - ✅ Mismatch reasons: amount difference, customer mismatch, duplicate: Constants added to Payment model with getMismatchTypes() helper
+  - ✅ Actions: Force Match, Create Exception, Refund: Three new header actions in ViewPayment with modal forms
+  - ✅ Each resolution requires reason: All actions require reason textarea with min 10 chars and confirmation checkbox
+  - ✅ Audit log of resolution: logPaymentEvent() called for each resolution type (mismatch_resolved, exception_created, refund_requested)
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Mismatch type constants defined on Payment model: MISMATCH_AMOUNT_DIFFERENCE, MISMATCH_CUSTOMER_MISMATCH, MISMATCH_DUPLICATE, MISMATCH_NO_CUSTOMER, MISMATCH_NO_MATCH, MISMATCH_MULTIPLE_MATCHES, MISMATCH_APPLICATION_FAILED
+  - PaymentService.forceMatch() overrides mismatch and applies payment to selected invoice with reason documentation
+  - PaymentService.createException() documents why a mismatch cannot be resolved (type: disputed, review_required, write_off_candidate, customer_contact, other)
+  - PaymentService.markForRefund() prepares payment for refund processing without actual refund execution
+  - Resolution info stored in payment.metadata['resolution'], payment.metadata['exception'], or payment.metadata['refund_request']
+  - Each resolution action requires both a reason and a confirmation checkbox for operator acknowledgment
+  - Force match allows selecting any invoice (not filtered by customer) since it's an override action
+  - Exception and refund actions keep payment as mismatched but add documentation metadata
+---
