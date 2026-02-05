@@ -1396,3 +1396,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Status tabs with badge counts provide quick visibility into refund processing state
   - created_at is never null on Eloquent models, so don't use nullsafe operator
 ---
+
+## 2026-02-05 - US-E069
+- What was implemented: Created comprehensive Refund Detail view in Filament with 6 tabs
+- Files changed:
+  - app/Filament/Resources/Finance/RefundResource/Pages/ViewRefund.php (full implementation with tabs)
+- **Tabs implemented:**
+  - Header: refund_id (with UUID), amount (with currency), method (badge), refund_type (badge), status (badge)
+  - Tab 1 - Linked Invoice: invoice number with link, type, status, amounts, customer details
+  - Tab 2 - Linked Payment: payment reference with link, source, status, amounts, Stripe/bank details
+  - Tab 3 - Linked Credit Note: credit note number with link if present, status, amount, reason
+  - Tab 4 - Processing: status, processed_at, stripe_refund_id (with Stripe dashboard link) or bank_reference, processing status indicators
+  - Tab 5 - Reason: full reason text (markdown), operational warning about financial vs operational actions
+  - Tab 6 - Audit: immutable event timeline using AuditLog model
+- **Learnings for future iterations:**
+  - Refund Detail view follows same pattern as CreditNote Detail view with tabs and helper methods
+  - Use conditional visibility for sections that apply to specific refund methods (Stripe vs Bank)
+  - Stripe dashboard link can be constructed as 'https://dashboard.stripe.com/refunds/{stripe_refund_id}'
+  - Include operational warning reminder that refunds don't automatically reverse operations (vouchers, shipments, etc.)
+  - Use calculateRefundPercentage() and calculateRefundVsPayment() helpers for relative amount displays
+  - Processing status helpers (getStripeProcessingStatus, getBankProcessingStatus) provide user-friendly status text
+---
