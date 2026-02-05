@@ -1593,3 +1593,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Group related stories in implementation to avoid duplicate work
   - The Customer Finance View in US-E076 covered tabs defined in US-E077, US-E078, US-E079
 ---
+
+## 2026-02-05 - US-E080
+- What was implemented: Added Exposure & Limits tab to Customer Financial Dashboard
+- Files changed:
+  - app/Filament/Pages/Finance/CustomerFinance.php (added getExposureMetrics() and getExposureTrendData() methods)
+  - resources/views/filament/pages/finance/customer-finance.blade.php (added Exposure & Limits tab UI)
+- Features implemented:
+  - Tab button for "Exposure & Limits" in navigation
+  - Exposure metrics cards: total outstanding, overdue amount, credit limit (placeholder), available credit
+  - Credit utilization progress bar (displayed when credit limit is set)
+  - 12-month exposure trend chart with outstanding and payments bars
+  - Data table showing monthly outstanding and payment amounts
+- **Learnings for future iterations:**
+  - Credit limit functionality will require integration with Customer model from Module K
+  - For simple charts, CSS-based bar charts work well without JavaScript dependencies
+  - Trend data calculation aggregates invoices and payments by month for historical view
+  - Use bccomp() for comparing decimal strings in Blade conditionals
+---

@@ -348,6 +348,123 @@ class CustomerFinance extends Page
     }
 
     // =========================================================================
+    // Exposure & Limits Tab
+    // =========================================================================
+
+    /**
+     * Get exposure metrics for the selected customer.
+     *
+     * @return array{
+     *     total_outstanding: string,
+     *     overdue_amount: string,
+     *     credit_limit: string|null,
+     *     available_credit: string|null,
+     *     exposure_percentage: float|null,
+     *     is_over_limit: bool
+     * }
+     */
+    public function getExposureMetrics(): array
+    {
+        if ($this->customerId === null) {
+            return [
+                'total_outstanding' => '0.00',
+                'overdue_amount' => '0.00',
+                'credit_limit' => null,
+                'available_credit' => null,
+                'exposure_percentage' => null,
+                'is_over_limit' => false,
+            ];
+        }
+
+        $balanceSummary = $this->getBalanceSummary();
+        $totalOutstanding = $balanceSummary['total_outstanding'];
+        $overdueAmount = $balanceSummary['overdue_amount'];
+
+        // Credit limit would be stored on the Customer model in Module K
+        // For now, we'll use null to indicate no limit is set
+        $creditLimit = null;
+        $availableCredit = null;
+        $exposurePercentage = null;
+        $isOverLimit = false;
+
+        // If we had a credit limit defined:
+        // $customer = $this->getSelectedCustomer();
+        // $creditLimit = $customer?->credit_limit;
+        // if ($creditLimit !== null && bccomp($creditLimit, '0', 2) > 0) {
+        //     $availableCredit = bcsub($creditLimit, $totalOutstanding, 2);
+        //     $exposurePercentage = (float) bcdiv(bcmul($totalOutstanding, '100', 2), $creditLimit, 2);
+        //     $isOverLimit = bccomp($totalOutstanding, $creditLimit, 2) > 0;
+        // }
+
+        return [
+            'total_outstanding' => $totalOutstanding,
+            'overdue_amount' => $overdueAmount,
+            'credit_limit' => $creditLimit,
+            'available_credit' => $availableCredit,
+            'exposure_percentage' => $exposurePercentage,
+            'is_over_limit' => $isOverLimit,
+        ];
+    }
+
+    /**
+     * Get exposure trend data for the chart.
+     *
+     * Returns monthly outstanding amounts for the last 12 months.
+     *
+     * @return array<int, array{month: string, outstanding: string, payments: string}>
+     */
+    public function getExposureTrendData(): array
+    {
+        if ($this->customerId === null) {
+            return [];
+        }
+
+        $trendData = [];
+        $now = Carbon::now();
+
+        // Get data for the last 12 months
+        for ($i = 11; $i >= 0; $i--) {
+            $monthStart = $now->copy()->subMonths($i)->startOfMonth();
+            $monthEnd = $now->copy()->subMonths($i)->endOfMonth();
+            $monthLabel = $monthStart->format('M Y');
+
+            // Calculate outstanding at end of month
+            // This is a simplified calculation - sum of invoices issued up to month end minus payments received up to month end
+            $invoicedAmount = Invoice::where('customer_id', $this->customerId)
+                ->where('issued_at', '<=', $monthEnd)
+                ->whereIn('status', [
+                    InvoiceStatus::Issued,
+                    InvoiceStatus::PartiallyPaid,
+                    InvoiceStatus::Paid,
+                    InvoiceStatus::Credited,
+                ])
+                ->sum('total_amount');
+
+            $paidAmount = Payment::where('customer_id', $this->customerId)
+                ->where('received_at', '<=', $monthEnd)
+                ->sum('amount');
+
+            $outstanding = bcsub((string) $invoicedAmount, (string) $paidAmount, 2);
+            if (bccomp($outstanding, '0', 2) < 0) {
+                $outstanding = '0.00';
+            }
+
+            // Get payments for this specific month
+            $monthlyPayments = Payment::where('customer_id', $this->customerId)
+                ->whereBetween('received_at', [$monthStart, $monthEnd])
+                ->sum('amount');
+
+            $trendData[] = [
+                'month' => $monthLabel,
+                'outstanding' => $outstanding,
+                'payments' => (string) $monthlyPayments,
+            ];
+        }
+
+        return $trendData;
+    }
+
+    // =========================================================================
     // Helper Methods
     // =========================================================================
 

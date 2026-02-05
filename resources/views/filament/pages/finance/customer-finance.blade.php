@@ -167,6 +167,13 @@
                     >
                         Credits & Refunds
                     </button>
+                    <button
+                        wire:click="setTab('exposure-limits')"
+                        type="button"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'exposure-limits' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                    >
+                        Exposure & Limits
+                    </button>
                 </nav>
             </div>
 
@@ -438,6 +445,188 @@
                                                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                                     {{ $refund->processed_at?->format('M j, Y') ?? '-' }}
                                                 </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                @endif
+
+                {{-- Exposure & Limits Tab --}}
+                @if($this->activeTab === 'exposure-limits')
+                    @php
+                        $exposureMetrics = $this->getExposureMetrics();
+                        $trendData = $this->getExposureTrendData();
+                    @endphp
+
+                    {{-- Exposure Metrics Cards --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        {{-- Total Outstanding --}}
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 rounded-lg bg-warning-50 dark:bg-warning-400/10 p-2">
+                                    <x-heroicon-o-document-text class="h-5 w-5 text-warning-600 dark:text-warning-400" />
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">Total Outstanding</p>
+                                    <p class="text-xl font-semibold text-warning-600 dark:text-warning-400">{{ $this->formatAmount($exposureMetrics['total_outstanding']) }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Overdue Amount --}}
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 rounded-lg {{ bccomp($exposureMetrics['overdue_amount'], '0', 2) > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-2">
+                                    <x-heroicon-o-exclamation-triangle class="h-5 w-5 {{ bccomp($exposureMetrics['overdue_amount'], '0', 2) > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">Overdue Amount</p>
+                                    <p class="text-xl font-semibold {{ bccomp($exposureMetrics['overdue_amount'], '0', 2) > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $this->formatAmount($exposureMetrics['overdue_amount']) }}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Credit Limit --}}
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 rounded-lg bg-info-50 dark:bg-info-400/10 p-2">
+                                    <x-heroicon-o-shield-check class="h-5 w-5 text-info-600 dark:text-info-400" />
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">Credit Limit</p>
+                                    @if($exposureMetrics['credit_limit'] !== null)
+                                        <p class="text-xl font-semibold text-info-600 dark:text-info-400">{{ $this->formatAmount($exposureMetrics['credit_limit']) }}</p>
+                                    @else
+                                        <p class="text-xl font-semibold text-gray-400 dark:text-gray-500">Not Set</p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Available Credit --}}
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 rounded-lg {{ $exposureMetrics['is_over_limit'] ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-2">
+                                    <x-heroicon-o-banknotes class="h-5 w-5 {{ $exposureMetrics['is_over_limit'] ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">Available Credit</p>
+                                    @if($exposureMetrics['available_credit'] !== null)
+                                        <p class="text-xl font-semibold {{ $exposureMetrics['is_over_limit'] ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $this->formatAmount($exposureMetrics['available_credit']) }}</p>
+                                    @else
+                                        <p class="text-xl font-semibold text-gray-400 dark:text-gray-500">N/A</p>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Exposure Percentage Bar (if credit limit is set) --}}
+                    @if($exposureMetrics['credit_limit'] !== null && $exposureMetrics['exposure_percentage'] !== null)
+                        <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4 mb-6">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Credit Utilization</span>
+                                <span class="text-sm font-medium {{ $exposureMetrics['is_over_limit'] ? 'text-danger-600 dark:text-danger-400' : ($exposureMetrics['exposure_percentage'] > 80 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400') }}">
+                                    {{ number_format($exposureMetrics['exposure_percentage'], 1) }}%
+                                </span>
+                            </div>
+                            <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                                <div
+                                    class="h-3 rounded-full {{ $exposureMetrics['is_over_limit'] ? 'bg-danger-500' : ($exposureMetrics['exposure_percentage'] > 80 ? 'bg-warning-500' : 'bg-success-500') }}"
+                                    style="width: {{ min($exposureMetrics['exposure_percentage'], 100) }}%"
+                                ></div>
+                            </div>
+                            @if($exposureMetrics['is_over_limit'])
+                                <p class="mt-2 text-sm text-danger-600 dark:text-danger-400">
+                                    <x-heroicon-o-exclamation-circle class="inline h-4 w-4 mr-1" />
+                                    This customer has exceeded their credit limit.
+                                </p>
+                            @endif
+                        </div>
+                    @endif
+
+                    {{-- Exposure Trend Chart --}}
+                    <div class="rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Exposure Trend (Last 12 Months)</h3>
+                        @if(empty($trendData))
+                            <div class="text-center py-8">
+                                <x-heroicon-o-chart-bar class="mx-auto h-12 w-12 text-gray-400" />
+                                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No trend data available.</p>
+                            </div>
+                        @else
+                            {{-- Simple bar chart using CSS --}}
+                            <div class="overflow-x-auto">
+                                <div class="min-w-[600px]">
+                                    @php
+                                        $maxOutstanding = collect($trendData)->max('outstanding');
+                                        $maxPayments = collect($trendData)->max('payments');
+                                        $maxValue = max((float) $maxOutstanding, (float) $maxPayments, 1);
+                                    @endphp
+
+                                    {{-- Chart Legend --}}
+                                    <div class="flex items-center gap-6 mb-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-4 h-4 rounded bg-warning-500"></div>
+                                            <span class="text-sm text-gray-600 dark:text-gray-400">Outstanding</span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-4 h-4 rounded bg-success-500"></div>
+                                            <span class="text-sm text-gray-600 dark:text-gray-400">Payments</span>
+                                        </div>
+                                    </div>
+
+                                    {{-- Chart Bars --}}
+                                    <div class="flex items-end justify-between gap-2 h-48 border-b border-l border-gray-300 dark:border-gray-600 pl-2 pb-2">
+                                        @foreach($trendData as $data)
+                                            <div class="flex-1 flex flex-col items-center gap-1">
+                                                <div class="w-full flex gap-1 items-end justify-center" style="height: 160px;">
+                                                    {{-- Outstanding Bar --}}
+                                                    <div
+                                                        class="w-3 bg-warning-500 rounded-t transition-all"
+                                                        style="height: {{ $maxValue > 0 ? ((float) $data['outstanding'] / $maxValue * 100) : 0 }}%"
+                                                        title="Outstanding: {{ $this->formatAmount($data['outstanding']) }}"
+                                                    ></div>
+                                                    {{-- Payments Bar --}}
+                                                    <div
+                                                        class="w-3 bg-success-500 rounded-t transition-all"
+                                                        style="height: {{ $maxValue > 0 ? ((float) $data['payments'] / $maxValue * 100) : 0 }}%"
+                                                        title="Payments: {{ $this->formatAmount($data['payments']) }}"
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+
+                                    {{-- Month Labels --}}
+                                    <div class="flex justify-between gap-2 pl-2 pt-2">
+                                        @foreach($trendData as $data)
+                                            <div class="flex-1 text-center">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ Str::limit($data['month'], 3, '') }}</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+
+                            {{-- Data Table --}}
+                            <div class="mt-6 overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead>
+                                        <tr>
+                                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Month</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Outstanding</th>
+                                            <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payments</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                        @foreach($trendData as $data)
+                                            <tr>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white">{{ $data['month'] }}</td>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right text-warning-600 dark:text-warning-400">{{ $this->formatAmount($data['outstanding']) }}</td>
+                                                <td class="px-4 py-2 whitespace-nowrap text-sm text-right text-success-600 dark:text-success-400">{{ $this->formatAmount($data['payments']) }}</td>
                                             </tr>
                                         @endforeach
                                     </tbody>
