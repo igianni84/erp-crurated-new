@@ -2383,3 +2383,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - For query results that need to be mapped to arrays with explicit types, use ->map()->toArray() pattern with PHPDoc annotation
   - Customer Finance page can be linked with ?customerId= query parameter
 ---
+
+## 2026-02-05 - US-E122
+- What was implemented: Finance navigation structure reorganization and role-based visibility infrastructure
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource.php (navigationSort = 10)
+  - app/Filament/Resources/Finance/PaymentResource.php (navigationSort = 20)
+  - app/Filament/Resources/Finance/CreditNoteResource.php (navigationSort = 30)
+  - app/Filament/Resources/Finance/RefundResource.php (navigationSort = 40)
+  - app/Filament/Pages/Finance/CustomerFinance.php (navigationSort = 50)
+  - app/Filament/Resources/Finance/SubscriptionResource.php (navigationSort = 60)
+  - app/Filament/Resources/Finance/StorageBillingResource.php (navigationSort = 70)
+  - app/Filament/Pages/Finance/StorageBillingPreview.php (navigationSort = 71)
+  - app/Filament/Pages/Finance/IntegrationsHealth.php (navigationSort = 80)
+  - app/Filament/Pages/Finance/IntegrationConfiguration.php (navigationSort = 81)
+  - app/Filament/Pages/Finance/InvoiceAgingReport.php and other reports (navigationSort = 90-96)
+  - app/Policies/Finance/*.php (new - 6 policy classes)
+  - app/Providers/AppServiceProvider.php (registered Finance policies)
+- **Learnings for future iterations:**
+  - Use consistent navigation sort ranges: Overview (1-9), Resources (10-49), Pages (50-89), Reports (90-99)
+  - Policies can be organized in subdirectories (app/Policies/Finance/) and registered via Gate::policy()
+  - Active state highlighting is provided automatically by Filament - no extra implementation needed
+  - Role-based visibility is achieved through Laravel policies registered in AppServiceProvider
+---

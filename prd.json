@@ -1928,8 +1928,8 @@
         "Typecheck passes"
       ],
       "priority": 122,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Navigation sort order reorganized (1-96), Finance policies added for role-based visibility (InvoicePolicy, PaymentPolicy, etc.). Active state highlighting provided by Filament."
     },
     {
       "id": "US-E123",
