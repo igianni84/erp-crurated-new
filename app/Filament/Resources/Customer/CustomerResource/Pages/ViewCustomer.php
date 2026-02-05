@@ -19,6 +19,7 @@ use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
+use App\Models\Finance\StorageBillingPeriod;
 use App\Models\Finance\Subscription;
 use App\Models\Fulfillment\Shipment;
 use App\Models\Fulfillment\ShippingOrder;
@@ -74,7 +75,7 @@ class ViewCustomer extends ViewRecord
 
     /**
      * Get the Financial Warnings section if there are active warnings.
-     * Shows prominent warnings for suspended subscriptions due to overdue payments.
+     * Shows prominent warnings for suspended subscriptions and blocked storage billing due to overdue payments.
      */
     protected function getFinancialWarningsSection(Customer $record): ?Section
     {
@@ -91,12 +92,61 @@ class ViewCustomer extends ViewRecord
             ->where('due_date', '<', now()->startOfDay())
             ->get();
 
+        // Get blocked storage billing periods
+        $blockedStoragePeriods = StorageBillingPeriod::blockedForCustomer($record->id)
+            ->with(['invoice', 'location'])
+            ->get();
+
+        // Get overdue INV3 invoices (at risk of custody block)
+        $overdueStorageInvoices = $record->invoices()
+            ->where('invoice_type', InvoiceType::StorageFee)
+            ->where('status', InvoiceStatus::Issued)
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->startOfDay())
+            ->get();
+
         // No warnings if nothing to show
-        if ($suspendedSubscriptions->isEmpty() && $overdueInvoices->isEmpty()) {
+        if ($suspendedSubscriptions->isEmpty() && $overdueInvoices->isEmpty()
+            && $blockedStoragePeriods->isEmpty() && $overdueStorageInvoices->isEmpty()) {
             return null;
         }
 
         $warningItems = [];
+
+        // Add blocked storage warnings (custody blocked - most severe for storage)
+        foreach ($blockedStoragePeriods as $period) {
+            /** @var StorageBillingPeriod $period */
+            $invoice = $period->invoice;
+            $location = $period->location;
+
+            $warningItems[] = Grid::make(5)
+                ->schema([
+                    TextEntry::make('storage_blocked_'.$period->id)
+                        ->label('Custody Blocked')
+                        ->getStateUsing(fn (): string => 'Storage Billing')
+                        ->icon('heroicon-o-no-symbol')
+                        ->color('danger')
+                        ->weight(FontWeight::Bold),
+                    TextEntry::make('storage_period_'.$period->id)
+                        ->label('Period')
+                        ->getStateUsing(fn (): string => $period->getPeriodLabel())
+                        ->color('gray'),
+                    TextEntry::make('storage_location_'.$period->id)
+                        ->label('Location')
+                        ->getStateUsing(fn (): string => $location !== null ? $location->name : 'All Locations')
+                        ->color('gray'),
+                    TextEntry::make('storage_invoice_'.$period->id)
+                        ->label('Invoice')
+                        ->getStateUsing(fn (): string => $invoice !== null ? ($invoice->invoice_number ?? 'Draft') : 'N/A')
+                        ->url(fn (): ?string => $invoice !== null ? InvoiceResource::getUrl('view', ['record' => $invoice]) : null)
+                        ->openUrlInNewTab()
+                        ->color('primary'),
+                    TextEntry::make('storage_action_'.$period->id)
+                        ->label('Resolution')
+                        ->getStateUsing(fn (): string => $period->getResolutionInstructions() ?? 'Pay outstanding invoice')
+                        ->color('gray'),
+                ]);
+        }
 
         // Add suspended subscription warnings
         foreach ($suspendedSubscriptions as $subscription) {
@@ -125,7 +175,7 @@ class ViewCustomer extends ViewRecord
                 ]);
         }
 
-        // Add overdue invoice warnings
+        // Add overdue INV0 invoice warnings
         foreach ($overdueInvoices as $invoice) {
             /** @var Invoice $invoice */
             $daysOverdue = $invoice->getDaysOverdue() ?? 0;
@@ -135,7 +185,7 @@ class ViewCustomer extends ViewRecord
             $warningItems[] = Grid::make(5)
                 ->schema([
                     TextEntry::make('invoice_warning_'.$invoice->id)
-                        ->label('Overdue Invoice')
+                        ->label('Overdue Invoice (INV0)')
                         ->getStateUsing(fn (): string => $invoice->invoice_number ?? 'Draft')
                         ->icon('heroicon-o-document-text')
                         ->color('warning')
@@ -167,6 +217,57 @@ class ViewCustomer extends ViewRecord
                         })
                         ->badge()
                         ->color($daysOverdue >= $thresholdDays ? 'danger' : 'warning'),
+                ]);
+        }
+
+        // Add overdue INV3 invoice warnings (at risk of custody block)
+        $storageBlockThresholdDays = (int) config('finance.storage_overdue_block_days', 30);
+        foreach ($overdueStorageInvoices as $invoice) {
+            /** @var Invoice $invoice */
+            $daysOverdue = $invoice->getDaysOverdue() ?? 0;
+            $daysUntilBlock = max(0, $storageBlockThresholdDays - $daysOverdue);
+
+            // Skip if already blocked (handled above via blocked periods)
+            $period = $invoice->getStorageBillingPeriod();
+            if ($period !== null && $period->isBlocked()) {
+                continue;
+            }
+
+            $warningItems[] = Grid::make(5)
+                ->schema([
+                    TextEntry::make('storage_invoice_warning_'.$invoice->id)
+                        ->label('Overdue Invoice (INV3)')
+                        ->getStateUsing(fn (): string => $invoice->invoice_number ?? 'Draft')
+                        ->icon('heroicon-o-archive-box')
+                        ->color('warning')
+                        ->weight(FontWeight::Bold)
+                        ->url(fn (): string => InvoiceResource::getUrl('view', ['record' => $invoice]))
+                        ->openUrlInNewTab(),
+                    TextEntry::make('storage_invoice_amount_'.$invoice->id)
+                        ->label('Amount Due')
+                        ->getStateUsing(fn (): string => $invoice->currency.' '.number_format((float) $invoice->getOutstandingAmount(), 2))
+                        ->color('danger')
+                        ->weight(FontWeight::Bold),
+                    TextEntry::make('storage_invoice_due_date_'.$invoice->id)
+                        ->label('Due Date')
+                        ->getStateUsing(fn (): string => $invoice->due_date !== null ? $invoice->due_date->format('Y-m-d') : 'N/A')
+                        ->color('danger'),
+                    TextEntry::make('storage_invoice_overdue_'.$invoice->id)
+                        ->label('Days Overdue')
+                        ->getStateUsing(fn (): string => $daysOverdue.' days')
+                        ->badge()
+                        ->color($daysOverdue >= $storageBlockThresholdDays ? 'danger' : 'warning'),
+                    TextEntry::make('storage_invoice_block_'.$invoice->id)
+                        ->label('Custody Block')
+                        ->getStateUsing(function () use ($daysOverdue, $storageBlockThresholdDays, $daysUntilBlock): string {
+                            if ($daysOverdue >= $storageBlockThresholdDays) {
+                                return 'Eligible for block';
+                            }
+
+                            return "In {$daysUntilBlock} days";
+                        })
+                        ->badge()
+                        ->color($daysOverdue >= $storageBlockThresholdDays ? 'danger' : 'warning'),
                 ]);
         }
 

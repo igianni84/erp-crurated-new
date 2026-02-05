@@ -3,6 +3,7 @@
 use App\Jobs\Allocation\ExpireReservationsJob;
 use App\Jobs\Allocation\ExpireTransfersJob;
 use App\Jobs\Finance\AlertUnpaidImmediateInvoicesJob;
+use App\Jobs\Finance\BlockOverdueStorageBillingJob;
 use App\Jobs\Finance\GenerateStorageBillingJob;
 use App\Jobs\Finance\IdentifyOverdueInvoicesJob;
 use App\Jobs\Finance\ProcessSubscriptionBillingJob;
@@ -41,3 +42,8 @@ Schedule::job(GenerateStorageBillingJob::forPreviousMonth(
     autoGenerateInvoices: config('finance.storage.auto_issue_invoices', true),
     autoIssue: config('finance.storage.auto_issue_invoices', true)
 ))->monthlyOn(1, '05:00');
+
+// Schedule the job to block storage billing periods with overdue INV3 daily at 10:00 AM
+// This runs after subscription suspension (9:00 AM) to check for overdue storage invoices
+// and block custody operations for customers with unpaid storage fees
+Schedule::job(new BlockOverdueStorageBillingJob)->dailyAt('10:00');

@@ -339,4 +339,174 @@ class StorageBillingPeriod extends Model
 
         return $this->getPeriodLabel().$locationName;
     }
+
+    // =========================================================================
+    // Block/Unblock Methods
+    // =========================================================================
+
+    /**
+     * Unblock this storage billing period after payment.
+     *
+     * This method transitions the period from blocked to paid status,
+     * removes the custody block, and logs the event.
+     *
+     * @param  int|null  $userId  The user who authorized the unblock (null for system)
+     * @param  string|null  $reason  Optional reason for the unblock
+     *
+     * @throws InvalidArgumentException if period is not currently blocked
+     */
+    public function unblock(?int $userId = null, ?string $reason = null): void
+    {
+        if (! $this->isBlocked()) {
+            throw new InvalidArgumentException(
+                "Cannot unblock storage billing period: current status is '{$this->status->value}', expected 'blocked'."
+            );
+        }
+
+        $this->status = StorageBillingStatus::Paid;
+        $this->save();
+
+        // Log the unblock in audit trail
+        $this->auditLogs()->create([
+            'event' => 'storage_billing_unblocked',
+            'old_values' => ['status' => StorageBillingStatus::Blocked->value],
+            'new_values' => [
+                'status' => StorageBillingStatus::Paid->value,
+                'reason' => $reason ?? 'Payment received - custody block removed',
+            ],
+            'user_id' => $userId,
+        ]);
+    }
+
+    /**
+     * Get the overdue invoice that caused this period to be blocked.
+     *
+     * Returns null if not blocked or if the invoice cannot be found.
+     */
+    public function getBlockingInvoice(): ?Invoice
+    {
+        if (! $this->isBlocked()) {
+            return null;
+        }
+
+        return $this->invoice;
+    }
+
+    /**
+     * Get the number of days this period has been blocked.
+     *
+     * Returns null if not blocked.
+     */
+    public function getDaysBlocked(): ?int
+    {
+        if (! $this->isBlocked()) {
+            return null;
+        }
+
+        // Look for the block event in audit logs
+        $blockEvent = $this->auditLogs()
+            ->where('event', 'storage_billing_blocked')
+            ->latest()
+            ->first();
+
+        if ($blockEvent === null) {
+            return null;
+        }
+
+        return (int) $blockEvent->created_at->diffInDays(now());
+    }
+
+    /**
+     * Get block reason from audit log.
+     */
+    public function getBlockReason(): ?string
+    {
+        if (! $this->isBlocked()) {
+            return null;
+        }
+
+        $blockEvent = $this->auditLogs()
+            ->where('event', 'storage_billing_blocked')
+            ->latest()
+            ->first();
+
+        if ($blockEvent === null) {
+            return null;
+        }
+
+        /** @var array<string, mixed>|null $newValues */
+        $newValues = $blockEvent->new_values;
+
+        if ($newValues === null || ! isset($newValues['reason'])) {
+            return null;
+        }
+
+        return (string) $newValues['reason'];
+    }
+
+    /**
+     * Check if custody operations should be blocked for the related customer.
+     *
+     * This is a convenience method that checks the status and provides
+     * a clear API for other modules (B, C) to use.
+     */
+    public function shouldBlockCustodyOperations(): bool
+    {
+        return $this->status === StorageBillingStatus::Blocked;
+    }
+
+    /**
+     * Get the resolution instructions for a blocked period.
+     */
+    public function getResolutionInstructions(): ?string
+    {
+        if (! $this->isBlocked()) {
+            return null;
+        }
+
+        $invoice = $this->invoice;
+        if ($invoice === null) {
+            return 'Pay the outstanding storage invoice to remove this block.';
+        }
+
+        $outstanding = $invoice->getOutstandingAmount();
+        $invoiceNumber = $invoice->invoice_number ?? 'Draft';
+
+        return "Pay invoice {$invoiceNumber} ({$invoice->currency} {$outstanding} outstanding) to remove this custody block.";
+    }
+
+    // =========================================================================
+    // Static Query Helpers
+    // =========================================================================
+
+    /**
+     * Get blocked storage billing periods for a specific customer.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<StorageBillingPeriod>
+     */
+    public static function blockedForCustomer(string $customerId): \Illuminate\Database\Eloquent\Builder
+    {
+        /** @var \Illuminate\Database\Eloquent\Builder<StorageBillingPeriod> $query */
+        $query = static::query()
+            ->where('customer_id', $customerId)
+            ->where('status', StorageBillingStatus::Blocked);
+
+        return $query;
+    }
+
+    /**
+     * Check if a customer has any blocked storage billing periods.
+     */
+    public static function customerHasBlockedPeriods(string $customerId): bool
+    {
+        return static::blockedForCustomer($customerId)->exists();
+    }
+
+    /**
+     * Get the count of blocked periods for a customer.
+     */
+    public static function getBlockedCountForCustomer(string $customerId): int
+    {
+        return static::blockedForCustomer($customerId)->count();
+    }
 }
