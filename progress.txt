@@ -777,3 +777,27 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice methods: hasRedemptionFee(), getRedemptionFeeAmount(), getRedemptionFeeLine(), isRedemptionShipment(), isShippingOnly(), getShipmentType(), getShipmentTypeLabel()
   - Module C should pass pricing_snapshot_id from Module S when creating redemption shipments
 ---
+
+## 2026-02-05 - US-E040
+- What was implemented: INV2 multi-shipment aggregation - aggregate multiple shipments into single INV2 invoice
+- Files changed:
+  - app/Events/Finance/ShipmentExecuted.php (added shippingOrderIds array parameter, static factory createForMultipleShipments(), helper methods for multi-shipment)
+  - app/Listeners/Finance/GenerateShippingInvoice.php (updated to use getSourceIdForInvoice(), idempotency checks for multi-shipment, metadata tagging per line)
+  - app/Models/Finance/Invoice.php (added multi-shipment helper methods: isMultiShipmentInvoice(), getShippingOrderIds(), getLinesByShippingOrder(), getShipmentSummaries())
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added getMultiShipmentSection(), formatMultiShipmentSummary() for Linked ERP Events tab)
+- **Acceptance criteria verification:**
+  - ✅ Source reference can be multiple shipping_order_ids (JSON): source_id stores JSON array of IDs for multi-shipment
+  - ✅ Separate invoice lines per shipment: Each line has shipping_order_id in metadata, grouped by getLinesByShippingOrder()
+  - ✅ Totals aggregate all shipments: getShipmentSummaries() calculates per-shipment and combined totals
+  - ✅ Linked ERP Events shows all shipments: getMultiShipmentSection() displays each shipment with its lines and links
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Multi-shipment aggregation uses ShipmentExecuted.createForMultipleShipments() static factory for convenience
+  - source_id stores JSON array for multi-shipment (e.g., '["order1","order2"]'), single string for normal
+  - Invoice.isMultiShipmentInvoice() checks if source_id is JSON array with >1 elements
+  - Each invoice line must include shipping_order_id in metadata for proper grouping
+  - getLinesByShippingOrder() groups InvoiceLine models by their shipping_order_id metadata
+  - Idempotency for multi-shipment: checks both the JSON source_id AND individual order IDs to prevent duplicates
+  - ViewInvoice shows badge count on Linked ERP Events tab when multi-shipment
+  - formatMultiShipmentSummary() renders HTML table for each shipment with lines, totals, and links
+---
