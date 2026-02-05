@@ -9,7 +9,9 @@ use App\Filament\Resources\Customer\PartyResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Party;
 use App\Models\Customer\PartyRole;
+use App\Models\Procurement\ProducerSupplierConfig;
 use Filament\Actions;
+use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\Grid;
@@ -138,6 +140,7 @@ class ViewParty extends ViewRecord
                     ->tabs([
                         $this->getOverviewTab(),
                         $this->getRolesTab(),
+                        $this->getSupplierConfigTab(),
                         $this->getLegalTab(),
                         $this->getAuditTab(),
                     ])
@@ -324,6 +327,211 @@ class ViewParty extends ViewRecord
     }
 
     /**
+     * Check if party is a supplier or producer.
+     */
+    protected function isSupplierOrProducer(): bool
+    {
+        /** @var Party $record */
+        $record = $this->record;
+
+        return $record->isSupplier() || $record->isProducer();
+    }
+
+    /**
+     * Tab Supplier Config: shows ProducerSupplierConfig for suppliers/producers.
+     * Only visible for parties with Supplier or Producer role.
+     */
+    protected function getSupplierConfigTab(): Tab
+    {
+        /** @var Party $record */
+        $record = $this->record;
+        $hasConfig = $record->hasSupplierConfig();
+
+        return Tab::make('Supplier Config')
+            ->icon('heroicon-o-cog-6-tooth')
+            ->badge(fn (): ?string => $hasConfig ? null : '!')
+            ->badgeColor('warning')
+            ->visible(fn (): bool => $this->isSupplierOrProducer())
+            ->schema([
+                // Section when config exists
+                Section::make('Supplier/Producer Configuration')
+                    ->description('Default configurations for this supplier/producer. These settings are used when creating Purchase Orders and Bottling Instructions.')
+                    ->visible(fn (): bool => $hasConfig)
+                    ->headerActions([
+                        \Filament\Infolists\Components\Actions\Action::make('edit_config')
+                            ->label('Edit Config')
+                            ->icon('heroicon-o-pencil')
+                            ->color('primary')
+                            ->url(fn (): string => route('filament.admin.resources.customer.parties.edit-supplier-config', ['record' => $record->id]))
+                            ->visible(fn (): bool => $hasConfig),
+                    ])
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                Group::make([
+                                    TextEntry::make('supplierConfig.default_bottling_deadline_days')
+                                        ->label('Default Bottling Deadline')
+                                        ->formatStateUsing(function (?int $state): string {
+                                            if ($state === null) {
+                                                return 'Not specified';
+                                            }
+
+                                            return "{$state} days";
+                                        })
+                                        ->icon('heroicon-o-calendar-days')
+                                        ->placeholder('Not specified')
+                                        ->helperText('Default number of days for bottling deadline when creating Bottling Instructions'),
+
+                                    TextEntry::make('supplierConfig.allowed_formats')
+                                        ->label('Allowed Formats')
+                                        ->formatStateUsing(function (?array $state): string {
+                                            if ($state === null || count($state) === 0) {
+                                                return 'No restrictions (all formats allowed)';
+                                            }
+
+                                            return implode(', ', $state);
+                                        })
+                                        ->icon('heroicon-o-beaker')
+                                        ->placeholder('No restrictions')
+                                        ->helperText('Allowed bottle formats for this supplier'),
+                                ])->columnSpan(1),
+
+                                Group::make([
+                                    TextEntry::make('supplierConfig.serialization_constraints')
+                                        ->label('Serialization Constraints')
+                                        ->formatStateUsing(function (?array $state): string {
+                                            if ($state === null || count($state) === 0) {
+                                                return 'No constraints configured';
+                                            }
+
+                                            $parts = [];
+
+                                            // Check for authorized locations
+                                            if (isset($state['authorized_locations']) && is_array($state['authorized_locations'])) {
+                                                $locations = $state['authorized_locations'];
+                                                $parts[] = 'Authorized locations: '.implode(', ', $locations);
+                                            }
+
+                                            // Check for required location
+                                            if (isset($state['required_location'])) {
+                                                $parts[] = 'Required location: '.$state['required_location'];
+                                            }
+
+                                            // Check for any other constraints
+                                            if (isset($state['notes'])) {
+                                                $parts[] = 'Notes: '.$state['notes'];
+                                            }
+
+                                            return count($parts) > 0 ? implode("\n", $parts) : 'No constraints configured';
+                                        })
+                                        ->icon('heroicon-o-qr-code')
+                                        ->placeholder('No constraints')
+                                        ->helperText('Serialization location constraints for this supplier'),
+
+                                    TextEntry::make('supplierConfig.notes')
+                                        ->label('Notes')
+                                        ->icon('heroicon-o-document-text')
+                                        ->placeholder('No notes')
+                                        ->helperText('General notes about this supplier configuration'),
+                                ])->columnSpan(1),
+                            ]),
+
+                        // Config metadata
+                        Section::make('Configuration Metadata')
+                            ->collapsed()
+                            ->collapsible()
+                            ->schema([
+                                Grid::make(3)
+                                    ->schema([
+                                        TextEntry::make('supplierConfig.id')
+                                            ->label('Config ID')
+                                            ->copyable()
+                                            ->copyMessage('Config ID copied'),
+                                        TextEntry::make('supplierConfig.created_at')
+                                            ->label('Created')
+                                            ->dateTime(),
+                                        TextEntry::make('supplierConfig.updated_at')
+                                            ->label('Last Updated')
+                                            ->dateTime(),
+                                    ]),
+                            ]),
+                    ]),
+
+                // Section when config does NOT exist
+                Section::make('No Configuration Found')
+                    ->description('This supplier/producer does not have a configuration yet.')
+                    ->visible(fn (): bool => ! $hasConfig)
+                    ->schema([
+                        TextEntry::make('no_config_message')
+                            ->label('')
+                            ->getStateUsing(fn (): string => 'A Supplier/Producer Configuration allows you to set default values that will be used when creating Purchase Orders and Bottling Instructions for this party.')
+                            ->icon('heroicon-o-information-circle')
+                            ->color('gray'),
+
+                        TextEntry::make('config_benefits')
+                            ->label('Benefits of creating a configuration')
+                            ->getStateUsing(fn (): string => '• Set default bottling deadline days for Bottling Instructions
+• Define allowed bottle formats
+• Configure serialization location constraints
+• Add general notes about working with this supplier')
+                            ->icon('heroicon-o-check-circle')
+                            ->color('success'),
+
+                        \Filament\Infolists\Components\Actions::make([
+                            \Filament\Infolists\Components\Actions\Action::make('create_config')
+                                ->label('Create Config')
+                                ->icon('heroicon-o-plus-circle')
+                                ->color('primary')
+                                ->form([
+                                    Forms\Components\TextInput::make('default_bottling_deadline_days')
+                                        ->label('Default Bottling Deadline (days)')
+                                        ->numeric()
+                                        ->minValue(1)
+                                        ->helperText('Number of days from intent creation to bottling deadline'),
+
+                                    Forms\Components\TagsInput::make('allowed_formats')
+                                        ->label('Allowed Formats')
+                                        ->helperText('Enter allowed bottle formats (e.g., 750ml, 1500ml)')
+                                        ->placeholder('Add formats...'),
+
+                                    Forms\Components\KeyValue::make('serialization_constraints')
+                                        ->label('Serialization Constraints')
+                                        ->keyLabel('Constraint Type')
+                                        ->valueLabel('Value')
+                                        ->helperText('e.g., authorized_locations: france,italy'),
+
+                                    Forms\Components\Textarea::make('notes')
+                                        ->label('Notes')
+                                        ->rows(3)
+                                        ->helperText('General notes about working with this supplier'),
+                                ])
+                                ->modalHeading('Create Supplier Configuration')
+                                ->modalDescription('Create a new configuration for this supplier/producer.')
+                                ->modalSubmitActionLabel('Create')
+                                ->action(function (array $data) use ($record): void {
+                                    ProducerSupplierConfig::create([
+                                        'party_id' => $record->id,
+                                        'default_bottling_deadline_days' => $data['default_bottling_deadline_days'] ?? null,
+                                        'allowed_formats' => ! empty($data['allowed_formats']) ? $data['allowed_formats'] : null,
+                                        'serialization_constraints' => ! empty($data['serialization_constraints']) ? $data['serialization_constraints'] : null,
+                                        'notes' => $data['notes'] ?? null,
+                                    ]);
+
+                                    Notification::make()
+                                        ->title('Configuration created')
+                                        ->body('The supplier/producer configuration has been created successfully.')
+                                        ->success()
+                                        ->send();
+
+                                    // Refresh the page to show the new config
+                                    redirect()->route('filament.admin.resources.customer.parties.view', ['record' => $record->id]);
+                                }),
+                        ])->fullWidth(),
+                    ]),
+            ]);
+    }
+
+    /**
      * Tab Legal: tax_id, vat_number, jurisdiction, compliance notes.
      */
     protected function getLegalTab(): Tab
@@ -453,7 +661,7 @@ class ViewParty extends ViewRecord
                                     $eventLabel = $log->getEventLabel();
                                     $user = $log->user;
                                     $userName = $user !== null ? $user->name : 'System';
-                                    $timestamp = $log->created_at?->format('M d, Y H:i:s') ?? 'Unknown';
+                                    $timestamp = $log->created_at->format('M d, Y H:i:s');
                                     $changes = self::formatAuditChanges($log);
 
                                     $colorClass = match ($eventColor) {

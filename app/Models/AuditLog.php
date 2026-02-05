@@ -134,6 +134,9 @@ class AuditLog extends Model
 
     public const EVENT_PAYMENT_RECONCILED = 'payment_reconciled';
 
+    // Procurement Module (Module D) event types
+    public const EVENT_DEFAULTS_APPLIED = 'defaults_applied';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -235,6 +238,8 @@ class AuditLog extends Model
             self::EVENT_PAYMENT_FAILED => 'Payment Failed',
             self::EVENT_PAYMENT_CONFIRMED => 'Payment Confirmed',
             self::EVENT_PAYMENT_RECONCILED => 'Payment Reconciled',
+            // Procurement Module events
+            self::EVENT_DEFAULTS_APPLIED => 'Defaults Applied',
             default => ucfirst((string) $this->event),
         };
     }
@@ -286,6 +291,8 @@ class AuditLog extends Model
             self::EVENT_PAYMENT_FAILED => 'heroicon-o-x-circle',
             self::EVENT_PAYMENT_CONFIRMED => 'heroicon-o-check-circle',
             self::EVENT_PAYMENT_RECONCILED => 'heroicon-o-link',
+            // Procurement Module events
+            self::EVENT_DEFAULTS_APPLIED => 'heroicon-o-cog-6-tooth',
             default => 'heroicon-o-document',
         };
     }
@@ -337,6 +344,8 @@ class AuditLog extends Model
             self::EVENT_PAYMENT_FAILED => 'danger',
             self::EVENT_PAYMENT_CONFIRMED => 'success',
             self::EVENT_PAYMENT_RECONCILED => 'info',
+            // Procurement Module events
+            self::EVENT_DEFAULTS_APPLIED => 'warning',
             default => 'gray',
         };
     }

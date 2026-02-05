@@ -214,6 +214,7 @@ class PartyResource extends Resource
             'create' => Pages\CreateParty::route('/create'),
             'view' => Pages\ViewParty::route('/{record}'),
             'edit' => Pages\EditParty::route('/{record}/edit'),
+            'edit-supplier-config' => Pages\EditSupplierConfig::route('/{record}/edit-supplier-config'),
         ];
     }
 

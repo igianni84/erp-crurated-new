@@ -3,6 +3,7 @@
 namespace App\Services\Allocation;
 
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Events\VoucherIssued;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
 use App\Models\AuditLog;
@@ -89,7 +90,7 @@ class VoucherService
             );
         }
 
-        return DB::transaction(function () use ($allocation, $customer, $sellableSku, $saleReference, $quantity): Collection {
+        $vouchers = DB::transaction(function () use ($allocation, $customer, $sellableSku, $saleReference, $quantity): Collection {
             // Consume the allocation (this handles locking and availability checks)
             $allocation = $this->allocationService->consumeAllocation($allocation, $quantity);
 
@@ -128,6 +129,12 @@ class VoucherService
 
             return $vouchers;
         });
+
+        // Dispatch VoucherIssued event after successful transaction
+        // This triggers Module D (Procurement) to auto-create ProcurementIntent
+        VoucherIssued::dispatch($vouchers, $allocation, $saleReference);
+
+        return $vouchers;
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Jobs\Finance\GenerateStorageBillingJob;
 use App\Jobs\Finance\IdentifyOverdueInvoicesJob;
 use App\Jobs\Finance\ProcessSubscriptionBillingJob;
 use App\Jobs\Finance\SuspendOverdueSubscriptionsJob;
+use App\Jobs\Procurement\ApplyBottlingDefaultsJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -53,3 +54,6 @@ Schedule::job(new BlockOverdueStorageBillingJob)->dailyAt('10:00');
 // This removes Stripe webhooks and Xero sync logs older than the retention period (default 90 days)
 // Only processed/synced logs are removed; failed logs are kept for debugging
 Schedule::job(new CleanupIntegrationLogsJob)->dailyAt(config('finance.logs.cleanup_job_time', '03:00'));
+
+// Schedule the job to apply bottling defaults when deadline expires (daily)
+Schedule::job(new ApplyBottlingDefaultsJob)->daily();
