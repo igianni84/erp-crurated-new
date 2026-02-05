@@ -958,3 +958,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice notes include event name, type, date, venue, attendee count, and service types summary
   - INV4 lines do NOT have sellable_sku_id (service fees are not linked to sellable SKUs - enforced in US-E050)
 ---
+
+## 2026-02-05 - US-E048
+- What was implemented: INV4 service fee types - ServiceFeeType enum and helper methods for categorizing service fees
+- Files changed:
+  - app/Enums/Finance/ServiceFeeType.php (new enum with event_attendance, tasting_fee, consultation, other_service)
+  - app/Events/Finance/EventBookingConfirmed.php (added ServiceFeeType integration, getServiceFeeTypes(), hasServiceFeeType(), hasEventRelatedFees(), hasAdvisoryFees(), getServiceTypesSummary(), getPrimaryServiceFeeType())
+  - app/Models/Finance/Invoice.php (added service fee methods: isServiceEventsInvoice(), getServiceFeeTypes(), hasServiceFeeType(), hasTastingFees(), hasConsultationFees(), getLinesByServiceFeeType(), getServiceFeeTypeSummaries(), getEventDetails(), hasEventReference(), isAdHocServiceInvoice())
+  - app/Models/Finance/InvoiceLine.php (added service fee methods: getServiceFeeType(), hasServiceFeeType(), isServiceFeeType(), getServiceFeeTypeLabel(), getServiceFeeTypeColor(), getServiceFeeTypeIcon(), isEventAttendanceFee(), isTastingFee(), isConsultationFee(), isEventRelatedFee(), isAdvisoryFee())
+- **Acceptance criteria verification:**
+  - ✅ Support for: event attendance, tasting fees, consultation, other services: ServiceFeeType enum with all four types
+  - ✅ Invoice line description specifies type: ServiceFeeType.getDescriptionPrefix() provides prefixes like "Event Attendance:", "Tasting:", etc.
+  - ✅ Metadata includes service_type: Already stored in metadata by GenerateEventServiceInvoice listener (US-E047), new helpers read it
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - ServiceFeeType enum follows same pattern as other Finance enums (label, color, icon, helper methods)
+  - Event-related types: event_attendance, tasting_fee; Advisory types: consultation
+  - Invoice model has comprehensive helpers for grouping and summarizing service fee types
+  - InvoiceLine model has helpers to check individual line service fee type from metadata
+  - getServiceFeeTypeSummaries() provides per-type breakdown with subtotals for reporting
+  - isAdHocServiceInvoice() distinguishes manual INV4 from event-triggered INV4
+---
