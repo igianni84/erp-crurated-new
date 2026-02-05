@@ -817,31 +817,6 @@ class PaymentService
     }
 
     /**
-     * Check possible duplicate payments.
-     *
-     * Returns payments that might be duplicates based on:
-     * - Same amount
-     * - Same customer (if known)
-     * - Within the same day
-     *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Payment>
-     */
-    public function checkForDuplicates(Payment $payment): \Illuminate\Database\Eloquent\Collection
-    {
-        $query = Payment::where('id', '!=', $payment->id)
-            ->where('amount', $payment->amount)
-            ->where('currency', $payment->currency)
-            ->whereDate('received_at', $payment->received_at->toDateString())
-            ->where('status', '!=', PaymentStatus::Failed);
-
-        if ($payment->customer_id !== null) {
-            $query->where('customer_id', $payment->customer_id);
-        }
-
-        return $query->orderBy('received_at', 'desc')->get();
-    }
-
-    /**
      * Mark a payment as mismatched with a specific reason.
      *
      * @param  array<string, mixed>  $details  Additional details about the mismatch
@@ -1008,5 +983,221 @@ class PaymentService
         $unapplied = $payment->getUnappliedAmount();
 
         return bcsub($unapplied, $totalToApply, 2);
+    }
+
+    // =========================================================================
+    // Duplicate Payment Detection (US-E060)
+    // =========================================================================
+
+    /**
+     * Confirm that a payment is not a duplicate.
+     *
+     * This stores a flag in metadata indicating the payment has been reviewed
+     * and confirmed as unique, dismissing future duplicate warnings.
+     */
+    public function confirmNotDuplicate(Payment $payment, ?string $reason = null): Payment
+    {
+        return DB::transaction(function () use ($payment, $reason): Payment {
+            $metadata = $payment->metadata ?? [];
+            $metadata['duplicate_check'] = [
+                'status' => 'confirmed_unique',
+                'reason' => $reason,
+                'confirmed_by' => Auth::id(),
+                'confirmed_at' => now()->toIso8601String(),
+            ];
+            $payment->metadata = $metadata;
+            $payment->save();
+
+            // Log the confirmation
+            $this->logPaymentEvent(
+                $payment,
+                'duplicate_check_confirmed',
+                [],
+                [
+                    'status' => 'confirmed_unique',
+                    'reason' => $reason,
+                ]
+            );
+
+            Log::channel('finance')->info('Payment confirmed as not duplicate', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'reason' => $reason,
+                'confirmed_by' => Auth::id(),
+            ]);
+
+            return $payment->fresh();
+        });
+    }
+
+    /**
+     * Mark a payment as a duplicate of another payment.
+     *
+     * This flags the payment as a duplicate and optionally initiates refund processing.
+     *
+     * @param  string  $originalPaymentId  The ID of the original (non-duplicate) payment
+     * @param  string  $reason  The reason for marking as duplicate
+     * @param  bool  $initiateRefund  Whether to mark for refund processing
+     *
+     * @throws InvalidArgumentException If original payment is not found or validation fails
+     */
+    public function markAsDuplicate(
+        Payment $payment,
+        string $originalPaymentId,
+        string $reason,
+        bool $initiateRefund = true
+    ): Payment {
+        // Validate reason is provided
+        if (trim($reason) === '') {
+            throw new InvalidArgumentException('A reason is required for marking a payment as duplicate.');
+        }
+
+        // Validate original payment exists
+        $originalPayment = Payment::find($originalPaymentId);
+        if ($originalPayment === null) {
+            throw new InvalidArgumentException('Original payment not found.');
+        }
+
+        // Cannot mark a payment as a duplicate of itself
+        if ($payment->id === $originalPayment->id) {
+            throw new InvalidArgumentException('A payment cannot be a duplicate of itself.');
+        }
+
+        return DB::transaction(function () use ($payment, $originalPayment, $reason, $initiateRefund): Payment {
+            // Store duplicate info in metadata
+            $metadata = $payment->metadata ?? [];
+            $metadata['duplicate_check'] = [
+                'status' => 'marked_duplicate',
+                'original_payment_id' => $originalPayment->id,
+                'original_payment_reference' => $originalPayment->payment_reference,
+                'reason' => $reason,
+                'marked_by' => Auth::id(),
+                'marked_at' => now()->toIso8601String(),
+                'refund_initiated' => $initiateRefund,
+            ];
+            $payment->metadata = $metadata;
+
+            // Mark as mismatched with duplicate reason
+            $payment->reconciliation_status = ReconciliationStatus::Mismatched;
+            $payment->setMismatchInfo('Duplicate of '.$originalPayment->payment_reference.': '.$reason, [
+                'reason' => Payment::MISMATCH_DUPLICATE,
+                'duplicate_of' => $originalPayment->id,
+                'duplicate_of_reference' => $originalPayment->payment_reference,
+            ]);
+
+            $payment->save();
+
+            // Log the duplicate marking
+            $this->logPaymentEvent(
+                $payment,
+                'marked_as_duplicate',
+                [],
+                [
+                    'original_payment_id' => $originalPayment->id,
+                    'original_payment_reference' => $originalPayment->payment_reference,
+                    'reason' => $reason,
+                    'refund_initiated' => $initiateRefund,
+                ]
+            );
+
+            Log::channel('finance')->warning('Payment marked as duplicate', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'original_payment_id' => $originalPayment->id,
+                'original_payment_reference' => $originalPayment->payment_reference,
+                'reason' => $reason,
+                'refund_initiated' => $initiateRefund,
+                'marked_by' => Auth::id(),
+            ]);
+
+            // If refund requested, mark the payment for refund
+            if ($initiateRefund && $payment->canBeRefunded()) {
+                $refundReason = "Duplicate payment of {$originalPayment->payment_reference}: {$reason}";
+                $this->markForRefund($payment, $refundReason);
+            }
+
+            return $payment->fresh();
+        });
+    }
+
+    /**
+     * Check if a payment has been confirmed as not a duplicate.
+     */
+    public function isConfirmedNotDuplicate(Payment $payment): bool
+    {
+        if ($payment->metadata === null) {
+            return false;
+        }
+
+        $duplicateCheck = $payment->metadata['duplicate_check'] ?? null;
+        if ($duplicateCheck === null || ! is_array($duplicateCheck)) {
+            return false;
+        }
+
+        return ($duplicateCheck['status'] ?? null) === 'confirmed_unique';
+    }
+
+    /**
+     * Check if a payment has been marked as a duplicate.
+     */
+    public function isMarkedAsDuplicate(Payment $payment): bool
+    {
+        if ($payment->metadata === null) {
+            return false;
+        }
+
+        $duplicateCheck = $payment->metadata['duplicate_check'] ?? null;
+        if ($duplicateCheck === null || ! is_array($duplicateCheck)) {
+            return false;
+        }
+
+        return ($duplicateCheck['status'] ?? null) === 'marked_duplicate';
+    }
+
+    /**
+     * Enhanced check for duplicates that respects confirmed status.
+     *
+     * Returns potential duplicates only if the payment hasn't been
+     * confirmed as unique.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Payment>
+     */
+    public function checkForDuplicates(Payment $payment): \Illuminate\Database\Eloquent\Collection
+    {
+        // If already confirmed as unique, return empty collection
+        if ($this->isConfirmedNotDuplicate($payment)) {
+            return new \Illuminate\Database\Eloquent\Collection;
+        }
+
+        // If already marked as duplicate, return empty collection
+        if ($this->isMarkedAsDuplicate($payment)) {
+            return new \Illuminate\Database\Eloquent\Collection;
+        }
+
+        $query = Payment::where('id', '!=', $payment->id)
+            ->where('amount', $payment->amount)
+            ->where('currency', $payment->currency)
+            ->whereDate('received_at', $payment->received_at->toDateString())
+            ->where('status', '!=', PaymentStatus::Failed);
+
+        if ($payment->customer_id !== null) {
+            $query->where('customer_id', $payment->customer_id);
+        }
+
+        // Exclude payments that have been confirmed as unique
+        $query->where(function ($q): void {
+            $q->whereNull('metadata')
+                ->orWhereRaw("JSON_EXTRACT(metadata, '$.duplicate_check.status') IS NULL")
+                ->orWhereRaw("JSON_EXTRACT(metadata, '$.duplicate_check.status') != 'confirmed_unique'");
+        });
+
+        // Exclude payments that have been marked as duplicate of this payment
+        $query->where(function ($q) use ($payment): void {
+            $q->whereNull('metadata')
+                ->orWhereRaw("JSON_EXTRACT(metadata, '$.duplicate_check.original_payment_id') IS NULL")
+                ->orWhereRaw("JSON_EXTRACT(metadata, '$.duplicate_check.original_payment_id') != ?", [$payment->id]);
+        });
+
+        return $query->orderBy('received_at', 'desc')->get();
     }
 }
