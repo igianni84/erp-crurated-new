@@ -4,6 +4,7 @@ use App\Jobs\Allocation\ExpireReservationsJob;
 use App\Jobs\Allocation\ExpireTransfersJob;
 use App\Jobs\Finance\AlertUnpaidImmediateInvoicesJob;
 use App\Jobs\Finance\BlockOverdueStorageBillingJob;
+use App\Jobs\Finance\CleanupIntegrationLogsJob;
 use App\Jobs\Finance\GenerateStorageBillingJob;
 use App\Jobs\Finance\IdentifyOverdueInvoicesJob;
 use App\Jobs\Finance\ProcessSubscriptionBillingJob;
@@ -47,3 +48,8 @@ Schedule::job(GenerateStorageBillingJob::forPreviousMonth(
 // This runs after subscription suspension (9:00 AM) to check for overdue storage invoices
 // and block custody operations for customers with unpaid storage fees
 Schedule::job(new BlockOverdueStorageBillingJob)->dailyAt('10:00');
+
+// Schedule the job to clean up old integration logs daily at the configured time (default 3:00 AM)
+// This removes Stripe webhooks and Xero sync logs older than the retention period (default 90 days)
+// Only processed/synced logs are removed; failed logs are kept for debugging
+Schedule::job(new CleanupIntegrationLogsJob)->dailyAt(config('finance.logs.cleanup_job_time', '03:00'));

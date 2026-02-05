@@ -89,6 +89,65 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Integration Logs Retention
+    |--------------------------------------------------------------------------
+    |
+    | Retention settings for integration logs (Stripe webhooks, Xero sync logs).
+    | Note: Audit logs are retained indefinitely per statutory requirements.
+    | Integration logs can be cleaned up after the retention period.
+    |
+    */
+    'logs' => [
+        // Days to retain Stripe webhook logs (default: 90 days)
+        'stripe_webhook_retention_days' => env('FINANCE_STRIPE_LOG_RETENTION_DAYS', 90),
+
+        // Days to retain Xero sync logs (default: 90 days)
+        'xero_sync_retention_days' => env('FINANCE_XERO_LOG_RETENTION_DAYS', 90),
+
+        // Time to run the cleanup job
+        'cleanup_job_time' => env('FINANCE_LOG_CLEANUP_TIME', '03:00'),
+
+        // Sensitive fields to redact from log payloads
+        'sensitive_fields' => [
+            // Stripe-specific sensitive fields
+            'card',
+            'card_number',
+            'cvc',
+            'cvv',
+            'exp_month',
+            'exp_year',
+            'number',
+            'security_code',
+            'bank_account',
+            'account_number',
+            'routing_number',
+            'iban',
+            'bic',
+            'swift',
+            // API keys and secrets
+            'api_key',
+            'api_secret',
+            'secret_key',
+            'private_key',
+            'access_token',
+            'refresh_token',
+            'bearer_token',
+            'authorization',
+            'password',
+            'secret',
+            // Personal data that may be in payloads
+            'ssn',
+            'social_security_number',
+            'tax_id',
+            'national_id',
+            'id_number',
+            'passport_number',
+            'drivers_license',
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Pricing Settings (Module S Integration)
     |--------------------------------------------------------------------------
     |

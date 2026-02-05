@@ -2,6 +2,7 @@
 
 namespace App\Models\Finance;
 
+use App\Services\Finance\LogSanitizer;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
@@ -70,6 +71,14 @@ class StripeWebhook extends Model
     protected static function boot(): void
     {
         parent::boot();
+
+        // Sanitize payload on creation to remove sensitive data
+        static::creating(function (StripeWebhook $webhook): void {
+            if (isset($webhook->attributes['payload'])) {
+                $sanitizer = app(LogSanitizer::class);
+                $webhook->payload = $sanitizer->sanitize($webhook->payload);
+            }
+        });
 
         // Prevent deletion of webhook logs - they must be retained
         static::deleting(function (StripeWebhook $webhook): void {

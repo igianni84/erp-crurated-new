@@ -4,6 +4,7 @@ namespace App\Models\Finance;
 
 use App\Enums\Finance\XeroSyncStatus;
 use App\Enums\Finance\XeroSyncType;
+use App\Services\Finance\LogSanitizer;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -79,10 +80,16 @@ class XeroSyncLog extends Model
     {
         parent::boot();
 
-        // Set default status on creation
+        // Set default status on creation and sanitize payloads
         static::creating(function (XeroSyncLog $log): void {
             if (! isset($log->attributes['status'])) {
                 $log->status = XeroSyncStatus::Pending;
+            }
+
+            // Sanitize request payload to remove sensitive data
+            if (isset($log->attributes['request_payload']) && is_array($log->request_payload)) {
+                $sanitizer = app(LogSanitizer::class);
+                $log->request_payload = $sanitizer->sanitize($log->request_payload);
             }
         });
 
@@ -202,10 +209,15 @@ class XeroSyncLog extends Model
      */
     public function markSynced(string $xeroId, ?array $responsePayload = null): void
     {
+        // Sanitize response payload to remove sensitive data
+        $sanitizedPayload = $responsePayload !== null
+            ? app(LogSanitizer::class)->sanitize($responsePayload)
+            : null;
+
         $this->update([
             'status' => XeroSyncStatus::Synced,
             'xero_id' => $xeroId,
-            'response_payload' => $responsePayload,
+            'response_payload' => $sanitizedPayload,
             'synced_at' => now(),
             'error_message' => null,
         ]);
@@ -218,10 +230,15 @@ class XeroSyncLog extends Model
      */
     public function markFailed(string $errorMessage, ?array $responsePayload = null): void
     {
+        // Sanitize response payload to remove sensitive data
+        $sanitizedPayload = $responsePayload !== null
+            ? app(LogSanitizer::class)->sanitize($responsePayload)
+            : null;
+
         $this->update([
             'status' => XeroSyncStatus::Failed,
             'error_message' => $errorMessage,
-            'response_payload' => $responsePayload,
+            'response_payload' => $sanitizedPayload,
             'retry_count' => $this->retry_count + 1,
         ]);
     }
