@@ -87,6 +87,13 @@ class AuditLog extends Model
 
     public const EVENT_BATCH_SERIALIZATION_COMPLETED = 'batch_serialization_completed';
 
+    // Finance Module (Module E) event types
+    public const EVENT_PAYMENT_FAILED = 'payment_failed';
+
+    public const EVENT_PAYMENT_CONFIRMED = 'payment_confirmed';
+
+    public const EVENT_PAYMENT_RECONCILED = 'payment_reconciled';
+
     /**
      * Indicates if the model should be timestamped.
      * We only use created_at for immutability.
@@ -184,6 +191,10 @@ class AuditLog extends Model
             self::EVENT_BATCH_DISCREPANCY_RESOLVED => 'Discrepancy Resolved',
             self::EVENT_BATCH_SERIALIZATION_STARTED => 'Serialization Started',
             self::EVENT_BATCH_SERIALIZATION_COMPLETED => 'Serialization Completed',
+            // Finance Module events
+            self::EVENT_PAYMENT_FAILED => 'Payment Failed',
+            self::EVENT_PAYMENT_CONFIRMED => 'Payment Confirmed',
+            self::EVENT_PAYMENT_RECONCILED => 'Payment Reconciled',
             default => ucfirst((string) $this->event),
         };
     }
@@ -231,6 +242,10 @@ class AuditLog extends Model
             self::EVENT_BATCH_DISCREPANCY_RESOLVED => 'heroicon-o-check-badge',
             self::EVENT_BATCH_SERIALIZATION_STARTED => 'heroicon-o-play-circle',
             self::EVENT_BATCH_SERIALIZATION_COMPLETED => 'heroicon-o-check-circle',
+            // Finance Module events
+            self::EVENT_PAYMENT_FAILED => 'heroicon-o-x-circle',
+            self::EVENT_PAYMENT_CONFIRMED => 'heroicon-o-check-circle',
+            self::EVENT_PAYMENT_RECONCILED => 'heroicon-o-link',
             default => 'heroicon-o-document',
         };
     }
@@ -278,6 +293,10 @@ class AuditLog extends Model
             self::EVENT_BATCH_DISCREPANCY_RESOLVED => 'success',
             self::EVENT_BATCH_SERIALIZATION_STARTED => 'info',
             self::EVENT_BATCH_SERIALIZATION_COMPLETED => 'success',
+            // Finance Module events
+            self::EVENT_PAYMENT_FAILED => 'danger',
+            self::EVENT_PAYMENT_CONFIRMED => 'success',
+            self::EVENT_PAYMENT_RECONCILED => 'info',
             default => 'gray',
         };
     }
