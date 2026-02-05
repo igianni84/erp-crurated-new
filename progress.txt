@@ -1132,3 +1132,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Force match allows selecting any invoice (not filtered by customer) since it's an override action
   - Exception and refund actions keep payment as mismatched but add documentation metadata
 ---
+
+## 2026-02-05 - US-E056
+- What was implemented: Record Bank Payment action in Invoice Detail view
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (updated getRecordBankPaymentAction() with full implementation)
+- **Acceptance criteria verification:**
+  - ✅ Action Record Bank Payment in Invoice Detail: getRecordBankPaymentAction() visible when canReceivePayment()
+  - ✅ Form: amount, bank_reference, received_date: All form fields with validation and defaults
+  - ✅ Creates Payment with source = bank_transfer: PaymentService.createBankPayment() with all parameters
+  - ✅ Auto-applies to current invoice: PaymentService.applyToInvoice() called after payment creation
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Record Bank Payment action was already scaffolded in US-E015, this story completed the implementation
+  - Use PaymentService.createBankPayment() then applyToInvoice() then markReconciled() for the full flow
+  - Partial payment warning uses Placeholder with HtmlString and conditional visibility via Get $get
+  - After payment applied, mark as Matched since we know exactly which invoice it's for
+  - Refresh $this->record and call refreshFormData() to update the UI after successful action
+---
