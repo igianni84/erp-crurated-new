@@ -413,7 +413,7 @@ class AuditExport extends Page
                         $this->getEntityTypeLabel($log->auditable_type),
                         $log->getEventLabel(),
                         $log->user !== null ? $log->user->name : 'System',
-                        $log->created_at?->format('Y-m-d H:i:s'),
+                        $log->created_at->format('Y-m-d H:i:s'),
                         $oldValues !== null ? json_encode($oldValues) : '',
                         $newValues !== null ? json_encode($newValues) : '',
                         $this->formatChanges($oldValues, $newValues),
@@ -476,7 +476,7 @@ class AuditExport extends Page
                             'name' => $log->user->name,
                             'email' => $log->user->email,
                         ] : null,
-                        'timestamp' => $log->created_at?->toIso8601String(),
+                        'timestamp' => $log->created_at->toIso8601String(),
                         'old_values' => $log->old_values,
                         'new_values' => $log->new_values,
                     ];

@@ -68,7 +68,7 @@ class VoucherTransferResource extends Resource
                     ->sortable()
                     ->description(fn (VoucherTransfer $record): ?string => $record->fromCustomer?->email)
                     ->url(fn (VoucherTransfer $record): ?string => $record->fromCustomer
-                        ? route('filament.admin.resources.customers.view', ['record' => $record->fromCustomer])
+                        ? route('filament.admin.resources.customer.customers.view', ['record' => $record->fromCustomer])
                         : null)
                     ->openUrlInNewTab(),
 
@@ -83,7 +83,7 @@ class VoucherTransferResource extends Resource
                     ->sortable()
                     ->description(fn (VoucherTransfer $record): ?string => $record->toCustomer?->email)
                     ->url(fn (VoucherTransfer $record): ?string => $record->toCustomer
-                        ? route('filament.admin.resources.customers.view', ['record' => $record->toCustomer])
+                        ? route('filament.admin.resources.customer.customers.view', ['record' => $record->toCustomer])
                         : null)
                     ->openUrlInNewTab(),
 

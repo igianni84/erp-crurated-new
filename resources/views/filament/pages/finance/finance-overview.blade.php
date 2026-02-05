@@ -225,7 +225,7 @@
                 </div>
             </dl>
             <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <a href="{{ route('filament.admin.pages.finance.integrations-health') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                <a href="{{ route('filament.admin.pages.integrations-health') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
                     View details &rarr;
                 </a>
             </div>
@@ -275,7 +275,7 @@
                 </div>
             </dl>
             <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <a href="{{ route('filament.admin.pages.finance.integrations-health') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                <a href="{{ route('filament.admin.pages.integrations-health') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
                     View details &rarr;
                 </a>
             </div>
@@ -347,16 +347,18 @@
                                             @else bg-gray-100 dark:bg-gray-700
                                             @endif
                                         ">
+                                            @php
+                                                $iconTextClass = match($activity['icon_color']) {
+                                                    'primary' => 'text-primary-600 dark:text-primary-400',
+                                                    'success' => 'text-success-600 dark:text-success-400',
+                                                    'warning' => 'text-warning-600 dark:text-warning-400',
+                                                    'danger' => 'text-danger-600 dark:text-danger-400',
+                                                    default => 'text-gray-600 dark:text-gray-400',
+                                                };
+                                            @endphp
                                             <x-dynamic-component
                                                 :component="$activity['icon']"
-                                                class="h-4 w-4
-                                                    @if($activity['icon_color'] === 'primary') text-primary-600 dark:text-primary-400
-                                                    @elseif($activity['icon_color'] === 'success') text-success-600 dark:text-success-400
-                                                    @elseif($activity['icon_color'] === 'warning') text-warning-600 dark:text-warning-400
-                                                    @elseif($activity['icon_color'] === 'danger') text-danger-600 dark:text-danger-400
-                                                    @else text-gray-600 dark:text-gray-400
-                                                    @endif
-                                                "
+                                                @class(['h-4 w-4', $iconTextClass])
                                             />
                                         </span>
                                     </div>

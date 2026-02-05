@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Enums\Customer\CustomerStatus;
 use App\Enums\Fulfillment\Carrier;
 use App\Enums\Fulfillment\Incoterms;
 use App\Enums\Fulfillment\PackagingPreference;
@@ -154,7 +155,7 @@ class CreateShippingOrder extends CreateRecord
                                 $isEligible = $customer->isActive();
                                 $statusBadge = $isEligible
                                     ? '<span class="px-2 py-0.5 rounded text-xs font-medium bg-success-100 text-success-800 dark:bg-success-900 dark:text-success-200">Active</span>'
-                                    : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-danger-100 text-danger-800 dark:bg-danger-900 dark:text-danger-200">'.ucfirst($customer->status).'</span>';
+                                    : '<span class="px-2 py-0.5 rounded text-xs font-medium bg-danger-100 text-danger-800 dark:bg-danger-900 dark:text-danger-200">'.$customer->status->label().'</span>';
 
                                 $emailHtml = $customer->email
                                     ? '<p class="text-gray-600 dark:text-gray-300"><strong>Email:</strong> '.e($customer->email).'</p>'
@@ -201,8 +202,8 @@ class CreateShippingOrder extends CreateRecord
                                 }
 
                                 $reason = match ($customer->status) {
-                                    Customer::STATUS_SUSPENDED => 'This customer account is suspended. Please resolve the suspension before creating a shipping order.',
-                                    Customer::STATUS_CLOSED => 'This customer account is closed. Shipping orders cannot be created for closed accounts.',
+                                    CustomerStatus::Suspended => 'This customer account is suspended. Please resolve the suspension before creating a shipping order.',
+                                    CustomerStatus::Closed => 'This customer account is closed. Shipping orders cannot be created for closed accounts.',
                                     default => 'This customer is not eligible for shipping orders.',
                                 };
 
@@ -279,7 +280,7 @@ class CreateShippingOrder extends CreateRecord
                 if (! $customer->isActive()) {
                     Notification::make()
                         ->title('Customer not eligible')
-                        ->body('The selected customer is not eligible for shipping orders. Status: '.ucfirst($customer->status))
+                        ->body('The selected customer is not eligible for shipping orders. Status: '.$customer->status->label())
                         ->danger()
                         ->send();
 

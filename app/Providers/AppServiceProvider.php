@@ -29,6 +29,7 @@ use App\Policies\Finance\StorageBillingPeriodPolicy;
 use App\Policies\Finance\SubscriptionPolicy;
 use App\Policies\VoucherPolicy;
 use App\Policies\VoucherTransferPolicy;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
@@ -48,6 +49,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Register morph map for polymorphic relationships
+        // This maps the short alias stored in DB to the full class names
+        Relation::morphMap([
+            'sellable_skus' => \App\Models\Pim\SellableSku::class,
+            'liquid_products' => \App\Models\Pim\LiquidProduct::class,
+        ]);
+
         // Register policies for models in subdirectories
         Gate::policy(Allocation::class, AllocationPolicy::class);
         Gate::policy(Voucher::class, VoucherPolicy::class);

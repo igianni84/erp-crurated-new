@@ -96,7 +96,7 @@ class ViewCaseEntitlement extends ViewRecord
                                 ->label('Customer')
                                 ->weight(FontWeight::Bold)
                                 ->url(fn (CaseEntitlement $record): ?string => $record->customer
-                                    ? route('filament.admin.resources.customers.view', ['record' => $record->customer])
+                                    ? route('filament.admin.resources.customer.customers.view', ['record' => $record->customer])
                                     : null)
                                 ->color('primary'),
                             TextEntry::make('customer.email')

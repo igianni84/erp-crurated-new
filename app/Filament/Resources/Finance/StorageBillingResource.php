@@ -63,7 +63,7 @@ class StorageBillingResource extends Resource
                     })
                     ->sortable()
                     ->url(fn (StorageBillingPeriod $record): ?string => $record->customer
-                        ? route('filament.admin.resources.customers.view', ['record' => $record->customer])
+                        ? route('filament.admin.resources.customer.customers.view', ['record' => $record->customer])
                         : null)
                     ->openUrlInNewTab(),
 

@@ -65,8 +65,8 @@ return new class extends Migration
             $table->softDeletes();
 
             // Indexes for common queries
-            $table->index(['product_reference_type', 'product_reference_id']);
-            $table->index(['status', 'expected_delivery_start']);
+            $table->index(['product_reference_type', 'product_reference_id'], 'po_product_ref_idx');
+            $table->index(['status', 'expected_delivery_start'], 'po_status_delivery_idx');
             $table->index('supplier_party_id');
             $table->index('procurement_intent_id');
         });

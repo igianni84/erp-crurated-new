@@ -527,7 +527,7 @@ class ViewPriceBook extends ViewRecord
                                     $eventLabel = $log->getEventLabel();
                                     $user = $log->user;
                                     $userName = $user !== null ? $user->name : 'System';
-                                    $timestamp = $log->created_at?->format('M d, Y H:i:s') ?? 'Unknown';
+                                    $timestamp = $log->created_at->format('M d, Y H:i:s');
                                     $changes = self::formatAuditChanges($log);
 
                                     $colorClass = match ($eventColor) {

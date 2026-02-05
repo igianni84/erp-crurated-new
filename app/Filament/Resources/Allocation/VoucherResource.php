@@ -57,7 +57,7 @@ class VoucherResource extends Resource
                     })
                     ->sortable()
                     ->url(fn (Voucher $record): ?string => $record->customer
-                        ? route('filament.admin.resources.customers.view', ['record' => $record->customer])
+                        ? route('filament.admin.resources.customer.customers.view', ['record' => $record->customer])
                         : null)
                     ->openUrlInNewTab(),
 
@@ -83,7 +83,7 @@ class VoucherResource extends Resource
                     ->label('Allocation')
                     ->searchable()
                     ->sortable()
-                    ->url(fn (Voucher $record): string => route('filament.admin.resources.allocations.view', ['record' => $record->allocation_id]))
+                    ->url(fn (Voucher $record): string => route('filament.admin.resources.allocation.allocations.view', ['record' => $record->allocation_id]))
                     ->openUrlInNewTab()
                     ->color('primary'),
 

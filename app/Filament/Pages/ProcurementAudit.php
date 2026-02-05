@@ -243,10 +243,10 @@ class ProcurementAudit extends Page implements HasTable
                         $auditableId = $auditable->getKey();
 
                         return match ($record->auditable_type) {
-                            'App\Models\Procurement\ProcurementIntent' => route('filament.admin.resources.procurement/procurement-intents.view', ['record' => $auditableId]),
-                            'App\Models\Procurement\PurchaseOrder' => route('filament.admin.resources.procurement/purchase-orders.view', ['record' => $auditableId]),
-                            'App\Models\Procurement\BottlingInstruction' => route('filament.admin.resources.procurement/bottling-instructions.view', ['record' => $auditableId]),
-                            'App\Models\Procurement\Inbound' => route('filament.admin.resources.procurement/inbounds.view', ['record' => $auditableId]),
+                            'App\Models\Procurement\ProcurementIntent' => route('filament.admin.resources.procurement.intents.view', ['record' => $auditableId]),
+                            'App\Models\Procurement\PurchaseOrder' => route('filament.admin.resources.procurement.purchase-orders.view', ['record' => $auditableId]),
+                            'App\Models\Procurement\BottlingInstruction' => route('filament.admin.resources.procurement.bottling-instructions.view', ['record' => $auditableId]),
+                            'App\Models\Procurement\Inbound' => route('filament.admin.resources.procurement.inbounds.view', ['record' => $auditableId]),
                             default => null,
                         };
                     })

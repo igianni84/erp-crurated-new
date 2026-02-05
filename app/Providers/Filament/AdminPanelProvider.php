@@ -44,12 +44,32 @@ class AdminPanelProvider extends PanelProvider
                     ->icon('heroicon-o-cube')
                     ->collapsed(false),
                 NavigationGroup::make()
+                    ->label('Allocations')
+                    ->icon('heroicon-o-rectangle-stack')
+                    ->collapsed(false),
+                NavigationGroup::make()
+                    ->label('Fulfillment')
+                    ->icon('heroicon-o-truck')
+                    ->collapsed(false),
+                NavigationGroup::make()
+                    ->label('Inventory')
+                    ->icon('heroicon-o-archive-box')
+                    ->collapsed(false),
+                NavigationGroup::make()
+                    ->label('Finance')
+                    ->icon('heroicon-o-banknotes')
+                    ->collapsed(false),
+                NavigationGroup::make()
+                    ->label('Vouchers')
+                    ->icon('heroicon-o-ticket')
+                    ->collapsed(false),
+                NavigationGroup::make()
                     ->label('Commercial')
                     ->icon('heroicon-o-currency-dollar')
                     ->collapsed(false),
                 NavigationGroup::make()
                     ->label('Procurement')
-                    ->icon('heroicon-o-truck')
+                    ->icon('heroicon-o-clipboard-document-list')
                     ->collapsed(false),
                 NavigationGroup::make()
                     ->label('Customers')

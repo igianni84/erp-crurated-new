@@ -23,7 +23,16 @@ class CustomerPreferenceCollectionWidget extends Widget
     /**
      * The bottling instruction to display preferences for.
      */
-    public BottlingInstruction $bottlingInstruction;
+    public ?BottlingInstruction $bottlingInstruction = null;
+
+    /**
+     * Determines if the widget should be visible.
+     * This widget requires a bottling instruction to be set.
+     */
+    public static function canView(): bool
+    {
+        return false; // Only show when explicitly added to a page with a bottling instruction
+    }
 
     /**
      * The sort order for the voucher list.
@@ -47,6 +56,10 @@ class CustomerPreferenceCollectionWidget extends Widget
      */
     public function getProgressData(): array
     {
+        if (! $this->bottlingInstruction) {
+            return ['collected' => 0, 'pending' => 0, 'total' => 0, 'percentage' => 0.0];
+        }
+
         $progress = $this->bottlingInstruction->getPreferenceProgress();
         $progress['percentage'] = $this->bottlingInstruction->getPreferenceProgressPercentage();
 
@@ -58,6 +71,10 @@ class CustomerPreferenceCollectionWidget extends Widget
      */
     public function getProgressColor(): string
     {
+        if (! $this->bottlingInstruction) {
+            return 'gray';
+        }
+
         $percentage = $this->bottlingInstruction->getPreferenceProgressPercentage();
 
         if ($percentage >= 100) {
@@ -82,6 +99,10 @@ class CustomerPreferenceCollectionWidget extends Widget
      */
     public function getVoucherList(): array
     {
+        if (! $this->bottlingInstruction) {
+            return [];
+        }
+
         $vouchers = $this->bottlingInstruction->getVoucherPreferenceList();
 
         // Filter based on sort order
@@ -122,6 +143,10 @@ class CustomerPreferenceCollectionWidget extends Widget
      */
     public function getPortalUrl(): string
     {
+        if (! $this->bottlingInstruction) {
+            return '';
+        }
+
         return $this->bottlingInstruction->getCustomerPortalUrl();
     }
 
@@ -130,6 +155,10 @@ class CustomerPreferenceCollectionWidget extends Widget
      */
     public function isDeadlinePassed(): bool
     {
+        if (! $this->bottlingInstruction) {
+            return false;
+        }
+
         return $this->bottlingInstruction->isDeadlinePassed();
     }
 
@@ -138,6 +167,10 @@ class CustomerPreferenceCollectionWidget extends Widget
      */
     public function canCollectPreferences(): bool
     {
+        if (! $this->bottlingInstruction) {
+            return false;
+        }
+
         return $this->bottlingInstruction->canCollectPreferences();
     }
 

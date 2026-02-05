@@ -517,7 +517,7 @@ class ViewVoucher extends ViewRecord
                                 ->label('Current Holder')
                                 ->weight(FontWeight::Bold)
                                 ->url(fn (Voucher $record): ?string => $record->customer
-                                    ? route('filament.admin.resources.customers.view', ['record' => $record->customer])
+                                    ? route('filament.admin.resources.customer.customers.view', ['record' => $record->customer])
                                     : null)
                                 ->color('primary'),
                             TextEntry::make('customer.email')
@@ -1249,7 +1249,7 @@ Attempting to fulfill this voucher with bottles from a different allocation will
                             $eventLabel = $log->getEventLabel();
                             $user = $log->user;
                             $userName = $user !== null ? $user->name : 'System';
-                            $timestamp = $log->created_at?->format('M d, Y H:i:s') ?? 'Unknown';
+                            $timestamp = $log->created_at->format('M d, Y H:i:s');
                             $changes = self::formatAuditChanges($log);
 
                             $colorClass = match ($eventColor) {

@@ -200,7 +200,7 @@ class ViewRefund extends ViewRecord
                                 TextEntry::make('invoice.customer.name')
                                     ->label('Customer Name')
                                     ->url(fn (Refund $record): ?string => $record->invoice !== null && $record->invoice->customer !== null
-                                        ? route('filament.admin.resources.customers.view', ['record' => $record->invoice->customer])
+                                        ? route('filament.admin.resources.customer.customers.view', ['record' => $record->invoice->customer])
                                         : null)
                                     ->color('primary')
                                     ->placeholder('N/A'),

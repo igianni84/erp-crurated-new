@@ -81,7 +81,7 @@ class ViewCreditNote extends ViewRecord
                             TextEntry::make('customer.name')
                                 ->label('Customer')
                                 ->url(fn (CreditNote $record): ?string => $record->customer
-                                    ? route('filament.admin.resources.customers.view', ['record' => $record->customer])
+                                    ? route('filament.admin.resources.customer.customers.view', ['record' => $record->customer])
                                     : null)
                                 ->color('primary'),
                             TextEntry::make('customer.email')

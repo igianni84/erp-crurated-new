@@ -86,7 +86,7 @@ class ViewPayment extends ViewRecord
                             TextEntry::make('customer.name')
                                 ->label('Customer')
                                 ->url(fn (Payment $record): ?string => $record->customer !== null
-                                    ? route('filament.admin.resources.customers.view', ['record' => $record->customer])
+                                    ? route('filament.admin.resources.customer.customers.view', ['record' => $record->customer])
                                     : null)
                                 ->color('primary')
                                 ->placeholder('Unassigned'),

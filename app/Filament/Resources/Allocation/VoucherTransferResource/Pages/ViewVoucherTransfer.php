@@ -144,7 +144,7 @@ class ViewVoucherTransfer extends ViewRecord
                                     Infolists\Components\TextEntry::make('fromCustomer.name')
                                         ->label('From Customer')
                                         ->url(fn (VoucherTransfer $record): ?string => $record->fromCustomer
-                                            ? route('filament.admin.resources.customers.view', ['record' => $record->fromCustomer])
+                                            ? route('filament.admin.resources.customer.customers.view', ['record' => $record->fromCustomer])
                                             : null)
                                         ->openUrlInNewTab()
                                         ->color('primary'),
@@ -156,7 +156,7 @@ class ViewVoucherTransfer extends ViewRecord
                                     Infolists\Components\TextEntry::make('toCustomer.name')
                                         ->label('To Customer')
                                         ->url(fn (VoucherTransfer $record): ?string => $record->toCustomer
-                                            ? route('filament.admin.resources.customers.view', ['record' => $record->toCustomer])
+                                            ? route('filament.admin.resources.customer.customers.view', ['record' => $record->toCustomer])
                                             : null)
                                         ->openUrlInNewTab()
                                         ->color('primary'),

@@ -280,7 +280,7 @@
                     <div class="divide-y divide-gray-200 dark:divide-gray-700">
                         @foreach($sosNearShipDate as $so)
                             @php
-                                $daysUntil = Carbon::now()->diffInDays($so->requested_ship_date, false);
+                                $daysUntil = \Carbon\Carbon::now()->diffInDays($so->requested_ship_date, false);
                                 $urgencyClass = $daysUntil <= 0 ? 'text-danger-600 dark:text-danger-400' : ($daysUntil <= 1 ? 'text-warning-600 dark:text-warning-400' : 'text-info-600 dark:text-info-400');
                                 $urgencyBgClass = $daysUntil <= 0 ? 'bg-danger-100 dark:bg-danger-900/30' : ($daysUntil <= 1 ? 'bg-warning-100 dark:bg-warning-900/30' : 'bg-info-100 dark:bg-info-900/30');
                             @endphp

@@ -432,7 +432,7 @@ class FinanceOverview extends Page
      */
     public function getFailedSyncsUrl(): string
     {
-        return route('filament.admin.pages.finance.integrations-health');
+        return route('filament.admin.pages.integrations-health');
     }
 
     /**
@@ -440,7 +440,7 @@ class FinanceOverview extends Page
      */
     public function getStorageBillingUrl(): string
     {
-        return route('filament.admin.pages.finance.storage-billing-preview');
+        return route('filament.admin.pages.storage-billing-preview');
     }
 
     /**

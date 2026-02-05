@@ -144,7 +144,7 @@ class SupplierProducerResource extends Resource
                 Tables\Actions\Action::make('view_party')
                     ->label('View Party')
                     ->icon('heroicon-o-eye')
-                    ->url(fn (Party $record): string => route('filament.admin.resources.customers.parties.view', ['record' => $record]))
+                    ->url(fn (Party $record): string => route('filament.admin.resources.customer.parties.view', ['record' => $record]))
                     ->openUrlInNewTab(false)
                     ->color('gray'),
 
@@ -155,7 +155,7 @@ class SupplierProducerResource extends Resource
                     ->icon(fn (Party $record): string => $record->hasSupplierConfig()
                         ? 'heroicon-o-pencil-square'
                         : 'heroicon-o-plus-circle')
-                    ->url(fn (Party $record): string => route('filament.admin.resources.customers.parties.edit-supplier-config', ['record' => $record]))
+                    ->url(fn (Party $record): string => route('filament.admin.resources.customer.parties.edit-supplier-config', ['record' => $record]))
                     ->openUrlInNewTab(false)
                     ->color(fn (Party $record): string => $record->hasSupplierConfig()
                         ? 'primary'

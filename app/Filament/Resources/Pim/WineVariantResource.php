@@ -1787,8 +1787,8 @@ class WineVariantResource extends Resource
                                 $userName = $user !== null ? htmlspecialchars($user->name) : 'System';
                                 $userEmail = $user !== null ? htmlspecialchars($user->email) : '';
                                 $createdAt = $log->created_at;
-                                $timeAgo = $createdAt !== null ? $createdAt->diffForHumans() : 'Unknown';
-                                $fullTime = $createdAt !== null ? $createdAt->format('M d, Y \\a\\t H:i:s') : 'Unknown';
+                                $timeAgo = $createdAt->diffForHumans();
+                                $fullTime = $createdAt->format('M d, Y \\a\\t H:i:s');
 
                                 $html .= '<div class="relative flex items-start gap-4 pl-10">';
 

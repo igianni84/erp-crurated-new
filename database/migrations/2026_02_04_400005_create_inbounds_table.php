@@ -89,7 +89,7 @@ return new class extends Migration
             $table->index('procurement_intent_id');
             $table->index('purchase_order_id');
             $table->index('warehouse');
-            $table->index(['product_reference_type', 'product_reference_id']);
+            $table->index(['product_reference_type', 'product_reference_id'], 'inbounds_product_ref_idx');
             $table->index('status');
             $table->index('ownership_flag');
             $table->index('received_date');

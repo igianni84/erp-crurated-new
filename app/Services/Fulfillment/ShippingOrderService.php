@@ -693,7 +693,7 @@ class ShippingOrderService
     {
         if (! $customer->isActive()) {
             throw new \InvalidArgumentException(
-                "Cannot create Shipping Order: customer is not active (status: {$customer->status})."
+                "Cannot create Shipping Order: customer is not active (status: {$customer->status->value})."
             );
         }
     }

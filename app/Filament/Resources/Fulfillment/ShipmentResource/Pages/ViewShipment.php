@@ -68,7 +68,7 @@ class ViewShipment extends ViewRecord
                                 TextEntry::make('shippingOrder.customer.name')
                                     ->label('Customer')
                                     ->url(fn (Shipment $record): ?string => $record->shippingOrder?->customer
-                                        ? route('filament.admin.resources.customers.view', ['record' => $record->shippingOrder->customer])
+                                        ? route('filament.admin.resources.customer.customers.view', ['record' => $record->shippingOrder->customer])
                                         : null)
                                     ->color('primary')
                                     ->placeholder('-'),

@@ -574,7 +574,7 @@ class InventoryAudit extends Page implements HasForms, HasTable
                 $changedFields = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
 
                 fputcsv($handle, [
-                    $log->created_at?->format('Y-m-d H:i:s'),
+                    $log->created_at->format('Y-m-d H:i:s'),
                     $entityType,
                     $log->auditable_id,
                     $serialNumber,

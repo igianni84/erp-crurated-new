@@ -298,7 +298,7 @@ class CommercialAudit extends Page implements HasTable
                 }
 
                 fputcsv($handle, [
-                    $record->created_at?->format('Y-m-d H:i:s') ?? '',
+                    $record->created_at->format('Y-m-d H:i:s'),
                     $record->getEventLabel(),
                     self::COMMERCIAL_ENTITY_TYPES[$record->auditable_type] ?? class_basename($record->auditable_type),
                     $record->auditable_id,

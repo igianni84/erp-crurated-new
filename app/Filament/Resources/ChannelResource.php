@@ -100,7 +100,7 @@ class ChannelResource extends Resource
                 Tables\Columns\TextColumn::make('allowed_commercial_models')
                     ->label('Allowed Models')
                     ->badge()
-                    ->formatStateUsing(fn (array $state): string => collect($state)
+                    ->formatStateUsing(fn (mixed $state): string => collect($state ?? [])
                         ->map(fn (string $model): string => match ($model) {
                             'voucher_based' => 'Voucher Based',
                             'sell_through' => 'Sell Through',

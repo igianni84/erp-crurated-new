@@ -1948,7 +1948,7 @@ class ViewCustomer extends ViewRecord
                 $html = '<div class="space-y-3">';
 
                 foreach ($auditLogs as $log) {
-                    $date = $log->created_at?->format('d M Y, H:i') ?? 'Unknown';
+                    $date = $log->created_at->format('d M Y, H:i');
                     $user = htmlspecialchars($log->user->name ?? 'System');
                     $event = htmlspecialchars($log->getEventLabel());
                     $eventColor = $log->getEventColor();
@@ -2898,7 +2898,7 @@ class ViewCustomer extends ViewRecord
                                     $eventLabel = $log->getEventLabel();
                                     $user = $log->user;
                                     $userName = $user !== null ? $user->name : 'System';
-                                    $timestamp = $log->created_at?->format('M d, Y H:i:s') ?? 'Unknown';
+                                    $timestamp = $log->created_at->format('M d, Y H:i:s');
                                     $changes = self::formatAuditChanges($log);
 
                                     $colorClass = match ($eventColor) {
