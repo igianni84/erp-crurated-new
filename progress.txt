@@ -1731,3 +1731,27 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Navigation sort 11 places it after Subscriptions (10) in Finance group
   - Current/past period tabs use Carbon::now()->startOfMonth()/endOfMonth() for monthly cycles
 ---
+
+## 2026-02-05 - US-E089
+- What was implemented: Verified StorageBillingService already exists with all required methods
+- Files verified:
+  - app/Services/Finance/StorageBillingService.php (1019 lines)
+- Methods found:
+  - ✅ calculateUsage(Customer, start, end): calculates bottle-days and amounts with movement-based tracking
+  - ✅ getBottleDays(Customer, start, end, Location?): returns bottle_days, period_days, bottles_at_start/end, movement counts
+  - ✅ getApplicableRate(Customer, Location?, volume): checks customer-specific > location-specific > volume tier rates
+  - ✅ generatePeriods(periodStart, periodEnd): creates StorageBillingPeriod for all customers with storage
+  - ✅ generateInvoices(autoIssue): creates INV3 invoices for pending periods with location breakdown support
+- Additional methods found:
+  - calculateLocationBreakdown(): per-location usage breakdown
+  - previewUsage(): preview without creating records
+  - createInvoiceForPeriod(): creates single INV3 with location breakdown lines
+  - getInventorySnapshot(): reconstructs inventory at point in time
+  - getMovementsDuringPeriod(): tracks inbound/outbound/transfer movements
+- **Learnings for future iterations:**
+  - Bottle-day calculation uses movement-based tracking, not simple daily snapshots
+  - Service considers ConsignmentPlacement (inbound), EventShipment/EventConsumption/ConsignmentReturn (outbound)
+  - Rate tiers default: 0-100 bottles @ 0.0060, 101-500 @ 0.0050, 501-1000 @ 0.0045, 1001+ @ 0.0040 per bottle-day
+  - Customer-specific rates stored in customer.metadata['storage_rate_override']
+  - Location breakdown creates separate invoice lines per location
+---
