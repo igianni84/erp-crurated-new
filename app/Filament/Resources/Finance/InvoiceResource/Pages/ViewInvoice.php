@@ -286,6 +286,8 @@ class ViewInvoice extends ViewRecord
 
         return Tab::make('Linked ERP Events')
             ->icon('heroicon-o-link')
+            ->badge(fn (): ?string => $record->isMultiShipmentInvoice() ? (string) $record->getShipmentCount() : null)
+            ->badgeColor('info')
             ->schema([
                 Section::make('Source Reference')
                     ->description('The ERP event that triggered this invoice')
@@ -309,15 +311,19 @@ class ViewInvoice extends ViewRecord
                                         'event_booking' => 'Event Booking',
                                         default => $state ?? 'Manual Invoice',
                                     }),
-                                TextEntry::make('source_id')
+                                TextEntry::make('source_id_display')
                                     ->label('Source ID')
+                                    ->getStateUsing(fn (Invoice $record): string => $this->formatSourceId($record))
                                     ->placeholder('N/A')
                                     ->copyable()
                                     ->copyMessage('Source ID copied'),
                             ]),
                     ]),
+                // Multi-shipment section
+                $this->getMultiShipmentSection(),
                 Section::make('Event Details')
                     ->description(fn (Invoice $record): string => $this->getSourceDescription($record))
+                    ->visible(fn (Invoice $record): bool => ! $record->isMultiShipmentInvoice())
                     ->schema([
                         TextEntry::make('source_link')
                             ->label('View Source')
@@ -334,6 +340,166 @@ class ViewInvoice extends ViewRecord
                     ]),
                 $this->getSubscriptionDetailsSection(),
             ]);
+    }
+
+    /**
+     * Get the multi-shipment section for INV2 invoices aggregating multiple shipments.
+     */
+    protected function getMultiShipmentSection(): Section
+    {
+        return Section::make('Aggregated Shipments')
+            ->description(fn (Invoice $record): string => "This invoice aggregates {$record->getShipmentCount()} shipments into a single invoice")
+            ->visible(fn (Invoice $record): bool => $record->isMultiShipmentInvoice())
+            ->icon('heroicon-o-truck')
+            ->schema([
+                TextEntry::make('multi_shipment_summary')
+                    ->label('')
+                    ->getStateUsing(fn (Invoice $record): string => $this->formatMultiShipmentSummary($record))
+                    ->html(),
+            ]);
+    }
+
+    /**
+     * Format the multi-shipment summary for display.
+     */
+    protected function formatMultiShipmentSummary(Invoice $record): string
+    {
+        $summaries = $record->getShipmentSummaries();
+
+        if (empty($summaries)) {
+            return '<span class="text-gray-500">No shipment details available</span>';
+        }
+
+        $currency = $record->currency;
+        $currencySymbol = $record->getCurrencySymbol();
+        $lines = [];
+
+        $lines[] = '<div class="space-y-4">';
+
+        foreach ($summaries as $orderId => $summary) {
+            $carrierInfo = $record->getCarrierInfoForShippingOrder($orderId);
+            $carrierName = $carrierInfo['carrier_name'] ?? 'N/A';
+            $trackingNumber = $carrierInfo['tracking_number'] ?? null;
+
+            $lines[] = '<div class="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800">';
+            $lines[] = '<div class="flex justify-between items-start mb-3">';
+            $lines[] = '<div>';
+            $lines[] = '<h4 class="font-semibold text-lg">Shipment: '.e($orderId).'</h4>';
+            $lines[] = '<p class="text-sm text-gray-600 dark:text-gray-400">';
+            $lines[] = 'Carrier: '.e($carrierName);
+            if ($trackingNumber !== null) {
+                $lines[] = ' | Tracking: '.e($trackingNumber);
+            }
+            $lines[] = '</p>';
+            $lines[] = '</div>';
+            $lines[] = '<div class="text-right">';
+            $lines[] = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">';
+            $lines[] = $summary['line_count'].' lines';
+            $lines[] = '</span>';
+            $lines[] = '</div>';
+            $lines[] = '</div>';
+
+            // Table of lines for this shipment
+            $lines[] = '<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">';
+            $lines[] = '<thead class="bg-white dark:bg-gray-900">';
+            $lines[] = '<tr>';
+            $lines[] = '<th class="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Description</th>';
+            $lines[] = '<th class="px-2 py-1 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Qty</th>';
+            $lines[] = '<th class="px-2 py-1 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Unit Price</th>';
+            $lines[] = '<th class="px-2 py-1 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Total</th>';
+            $lines[] = '</tr>';
+            $lines[] = '</thead>';
+            $lines[] = '<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-100 dark:divide-gray-800">';
+
+            foreach ($summary['lines'] as $invoiceLine) {
+                $lineType = $invoiceLine->metadata['line_type'] ?? 'shipping';
+                $lineTypeClass = $this->getLineTypeClass($lineType);
+
+                $lines[] = '<tr>';
+                $lines[] = '<td class="px-2 py-1">';
+                $lines[] = '<span class="'.$lineTypeClass.'">'.e($invoiceLine->description).'</span>';
+                $lines[] = '</td>';
+                $lines[] = '<td class="px-2 py-1 text-right font-mono">'.number_format((float) $invoiceLine->quantity, 2).'</td>';
+                $lines[] = '<td class="px-2 py-1 text-right font-mono">'.$currencySymbol.' '.number_format((float) $invoiceLine->unit_price, 2).'</td>';
+                $lines[] = '<td class="px-2 py-1 text-right font-mono font-semibold">'.$currencySymbol.' '.number_format((float) $invoiceLine->line_total, 2).'</td>';
+                $lines[] = '</tr>';
+            }
+
+            $lines[] = '</tbody>';
+
+            // Subtotals for this shipment
+            $lines[] = '<tfoot class="bg-gray-100 dark:bg-gray-800">';
+            $lines[] = '<tr class="font-semibold">';
+            $lines[] = '<td colspan="3" class="px-2 py-1 text-right">Shipment Total:</td>';
+            $lines[] = '<td class="px-2 py-1 text-right font-mono">'.$currencySymbol.' '.number_format((float) $summary['total'], 2).'</td>';
+            $lines[] = '</tr>';
+            $lines[] = '</tfoot>';
+
+            $lines[] = '</table>';
+
+            // View shipping order link
+            $lines[] = '<div class="mt-2 text-right">';
+            $lines[] = '<a href="'.route('filament.admin.resources.fulfillment.shipping-orders.view', ['record' => $orderId]).'" ';
+            $lines[] = 'class="text-sm text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1">';
+            $lines[] = 'View Shipping Order';
+            $lines[] = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">';
+            $lines[] = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>';
+            $lines[] = '</svg>';
+            $lines[] = '</a>';
+            $lines[] = '</div>';
+
+            $lines[] = '</div>';
+        }
+
+        // Grand total summary
+        $lines[] = '<div class="border-t-2 border-gray-300 dark:border-gray-600 pt-4 mt-4">';
+        $lines[] = '<div class="flex justify-between items-center">';
+        $lines[] = '<span class="text-lg font-semibold">Combined Total ('.$record->getShipmentCount().' shipments):</span>';
+        $lines[] = '<span class="text-xl font-bold">'.$currencySymbol.' '.number_format((float) $record->total_amount, 2).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Get CSS class for line type badges.
+     */
+    protected function getLineTypeClass(string $lineType): string
+    {
+        return match ($lineType) {
+            'shipping' => '',
+            'insurance' => 'text-blue-600 dark:text-blue-400',
+            'packaging' => 'text-amber-600 dark:text-amber-400',
+            'handling' => 'text-purple-600 dark:text-purple-400',
+            'duties' => 'text-red-600 dark:text-red-400',
+            'taxes' => 'text-orange-600 dark:text-orange-400',
+            'redemption' => 'text-green-600 dark:text-green-400 font-semibold',
+            default => '',
+        };
+    }
+
+    /**
+     * Format source ID for display.
+     *
+     * For multi-shipment invoices, shows count and first ID.
+     */
+    protected function formatSourceId(Invoice $record): string
+    {
+        if ($record->source_id === null) {
+            return 'N/A';
+        }
+
+        if ($record->isMultiShipmentInvoice()) {
+            $ids = $record->getShippingOrderIds();
+            $count = count($ids);
+
+            return "{$count} shipments (see below)";
+        }
+
+        return $record->source_id;
     }
 
     /**

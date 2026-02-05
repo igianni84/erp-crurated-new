@@ -1004,4 +1004,212 @@ class Invoice extends Model
             default => null,
         };
     }
+
+    // =========================================================================
+    // Multi-Shipment Aggregation Methods (INV2)
+    // =========================================================================
+
+    /**
+     * Check if this is a multi-shipment invoice (INV2 aggregating multiple shipments).
+     *
+     * Multi-shipment invoices have source_id as a JSON array of shipping order IDs.
+     */
+    public function isMultiShipmentInvoice(): bool
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return false;
+        }
+
+        if ($this->source_id === null) {
+            return false;
+        }
+
+        // Try to decode source_id as JSON array
+        $decoded = json_decode($this->source_id, true);
+
+        return is_array($decoded) && count($decoded) > 1;
+    }
+
+    /**
+     * Get all shipping order IDs for this invoice.
+     *
+     * For single-shipment invoices, returns array with the single source_id.
+     * For multi-shipment invoices, returns the decoded JSON array.
+     *
+     * @return array<string>
+     */
+    public function getShippingOrderIds(): array
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return [];
+        }
+
+        if ($this->source_id === null) {
+            return [];
+        }
+
+        // Try to decode as JSON array
+        $decoded = json_decode($this->source_id, true);
+
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        // Single shipping order ID
+        return [$this->source_id];
+    }
+
+    /**
+     * Get the count of shipments in this invoice.
+     */
+    public function getShipmentCount(): int
+    {
+        return count($this->getShippingOrderIds());
+    }
+
+    /**
+     * Get invoice lines grouped by shipping order ID.
+     *
+     * For multi-shipment invoices, lines should have shipping_order_id in metadata.
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, InvoiceLine>>
+     */
+    public function getLinesByShippingOrder(): array
+    {
+        if (! $this->isShippingInvoice()) {
+            return [];
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $grouped = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            $orderId = $metadata['shipping_order_id'] ?? $this->source_id ?? 'unknown';
+
+            if (! isset($grouped[$orderId])) {
+                $grouped[$orderId] = collect();
+            }
+            $grouped[$orderId]->push($line);
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Get the subtotal for a specific shipping order.
+     */
+    public function getSubtotalForShippingOrder(string $shippingOrderId): string
+    {
+        $linesByOrder = $this->getLinesByShippingOrder();
+        $lines = $linesByOrder[$shippingOrderId] ?? collect();
+
+        $subtotal = '0.00';
+        foreach ($lines as $line) {
+            $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
+            $subtotal = bcadd($subtotal, $lineSubtotal, 2);
+        }
+
+        return $subtotal;
+    }
+
+    /**
+     * Get the total (incl. tax) for a specific shipping order.
+     */
+    public function getTotalForShippingOrder(string $shippingOrderId): string
+    {
+        $linesByOrder = $this->getLinesByShippingOrder();
+        $lines = $linesByOrder[$shippingOrderId] ?? collect();
+
+        $total = '0.00';
+        foreach ($lines as $line) {
+            $total = bcadd($total, $line->line_total, 2);
+        }
+
+        return $total;
+    }
+
+    /**
+     * Get a summary of all shipments in this invoice.
+     *
+     * Returns an array of shipment summaries for display purposes.
+     *
+     * @return array<string, array{shipping_order_id: string, line_count: int, subtotal: string, tax: string, total: string, lines: \Illuminate\Support\Collection<int, InvoiceLine>}>
+     */
+    public function getShipmentSummaries(): array
+    {
+        if (! $this->isShippingInvoice()) {
+            return [];
+        }
+
+        $linesByOrder = $this->getLinesByShippingOrder();
+        $summaries = [];
+
+        foreach ($linesByOrder as $orderId => $lines) {
+            $subtotal = '0.00';
+            $tax = '0.00';
+            $total = '0.00';
+
+            foreach ($lines as $line) {
+                $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
+                $subtotal = bcadd($subtotal, $lineSubtotal, 2);
+                $tax = bcadd($tax, $line->tax_amount, 2);
+                $total = bcadd($total, $line->line_total, 2);
+            }
+
+            $summaries[$orderId] = [
+                'shipping_order_id' => $orderId,
+                'line_count' => $lines->count(),
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'total' => $total,
+                'lines' => $lines,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * Get carrier info for a specific shipping order from line metadata.
+     *
+     * @return array{carrier_name: string|null, tracking_number: string|null}|null
+     */
+    public function getCarrierInfoForShippingOrder(string $shippingOrderId): ?array
+    {
+        $linesByOrder = $this->getLinesByShippingOrder();
+        $lines = $linesByOrder[$shippingOrderId] ?? collect();
+
+        if ($lines->isEmpty()) {
+            return null;
+        }
+
+        // Get carrier info from first line's metadata
+        $firstLine = $lines->first();
+        $metadata = $firstLine->metadata ?? [];
+
+        return [
+            'carrier_name' => $metadata['carrier_name'] ?? null,
+            'tracking_number' => $metadata['tracking_number'] ?? null,
+        ];
+    }
+
+    /**
+     * Check if any of the shipments in this invoice is cross-border.
+     */
+    public function hasAnyCrossBorderShipment(): bool
+    {
+        $linesByOrder = $this->getLinesByShippingOrder();
+
+        foreach ($linesByOrder as $lines) {
+            foreach ($lines as $line) {
+                $metadata = $line->metadata ?? [];
+                if (isset($metadata['is_cross_border']) && $metadata['is_cross_border'] === true) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

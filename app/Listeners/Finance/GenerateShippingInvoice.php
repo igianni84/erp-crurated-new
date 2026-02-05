@@ -53,20 +53,39 @@ class GenerateShippingInvoice implements ShouldQueue
         $customer = $event->customer;
 
         // Check for existing invoice (idempotency)
-        $existingInvoice = $this->invoiceService->findBySource('shipping_order', $event->shippingOrderId);
+        // For multi-shipment aggregation, check using the source ID format
+        $sourceId = $event->getSourceIdForInvoice();
+        $existingInvoice = $this->invoiceService->findBySource('shipping_order', $sourceId);
         if ($existingInvoice !== null) {
-            Log::channel('finance')->info('Invoice already exists for shipping order', [
-                'shipping_order_id' => $event->shippingOrderId,
+            Log::channel('finance')->info('Invoice already exists for shipping order(s)', [
+                'shipping_order_ids' => $event->getAllShippingOrderIds(),
+                'source_id' => $sourceId,
                 'invoice_id' => $existingInvoice->id,
             ]);
 
             return;
         }
 
+        // For multi-shipment, also check if any individual order already has an invoice
+        if ($event->isMultiShipment()) {
+            foreach ($event->getAllShippingOrderIds() as $orderId) {
+                $existingForOrder = $this->invoiceService->findBySource('shipping_order', $orderId);
+                if ($existingForOrder !== null) {
+                    Log::channel('finance')->warning('Cannot aggregate: individual shipping order already invoiced', [
+                        'shipping_order_id' => $orderId,
+                        'existing_invoice_id' => $existingForOrder->id,
+                        'requested_order_ids' => $event->getAllShippingOrderIds(),
+                    ]);
+
+                    return;
+                }
+            }
+        }
+
         // Validate items
         if (empty($event->items)) {
             Log::channel('finance')->error('Cannot generate INV2: no items in shipment', [
-                'shipping_order_id' => $event->shippingOrderId,
+                'shipping_order_ids' => $event->getAllShippingOrderIds(),
                 'customer_id' => $customer->id,
             ]);
 
@@ -83,19 +102,23 @@ class GenerateShippingInvoice implements ShouldQueue
 
         // Create the draft invoice
         // Note: INV2 does not require a due date (immediate payment expected)
+        // For multi-shipment, source_id stores JSON array of all shipping order IDs
         $invoice = $this->invoiceService->createDraft(
             invoiceType: InvoiceType::ShippingRedemption,
             customer: $customer,
             lines: $lines,
             sourceType: 'shipping_order',
-            sourceId: $event->shippingOrderId,
+            sourceId: $sourceId,
             currency: $event->currency,
             dueDate: null, // INV2 expects immediate payment
             notes: $this->buildInvoiceNotes($event)
         );
 
-        Log::channel('finance')->info('Generated INV2 draft invoice for shipment', [
-            'shipping_order_id' => $event->shippingOrderId,
+        Log::channel('finance')->info('Generated INV2 draft invoice for shipment(s)', [
+            'shipping_order_ids' => $event->getAllShippingOrderIds(),
+            'shipment_count' => $event->getShipmentCount(),
+            'is_multi_shipment' => $event->isMultiShipment(),
+            'source_id' => $sourceId,
             'invoice_id' => $invoice->id,
             'total_amount' => $invoice->total_amount,
             'items_count' => count($event->items),
@@ -111,12 +134,13 @@ class GenerateShippingInvoice implements ShouldQueue
                 Log::channel('finance')->info('Auto-issued INV2 invoice', [
                     'invoice_id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
-                    'shipping_order_id' => $event->shippingOrderId,
+                    'shipping_order_ids' => $event->getAllShippingOrderIds(),
+                    'is_multi_shipment' => $event->isMultiShipment(),
                 ]);
             } catch (\Throwable $e) {
                 Log::channel('finance')->error('Failed to auto-issue INV2 invoice', [
                     'invoice_id' => $invoice->id,
-                    'shipping_order_id' => $event->shippingOrderId,
+                    'shipping_order_ids' => $event->getAllShippingOrderIds(),
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -157,11 +181,23 @@ class GenerateShippingInvoice implements ShouldQueue
         }
 
         foreach ($event->items as $item) {
+            // Determine shipping_order_id for this line
+            // For multi-shipment, items should specify their shipping_order_id
+            // Fall back to event's primary shippingOrderId if not specified
+            $lineShippingOrderId = $item['shipping_order_id']
+                ?? ($item['metadata']['shipping_order_id'] ?? $event->shippingOrderId);
+
             // Build metadata with shipment information
             $metadata = [
-                'shipping_order_id' => $event->shippingOrderId,
+                'shipping_order_id' => $lineShippingOrderId,
                 'line_type' => $item['line_type'] ?? 'shipping',
             ];
+
+            // For multi-shipment invoices, mark the line appropriately
+            if ($event->isMultiShipment()) {
+                $metadata['is_multi_shipment'] = true;
+                $metadata['all_shipping_order_ids'] = $event->getAllShippingOrderIds();
+            }
 
             // Add cross-border information if present
             if ($event->isCrossBorder()) {
@@ -230,7 +266,15 @@ class GenerateShippingInvoice implements ShouldQueue
     {
         // Distinguish shipping-only vs redemption+shipping
         $shipmentType = $event->isRedemptionShipment() ? 'Redemption' : 'Shipping';
-        $notes = "{$shipmentType} invoice for order {$event->shippingOrderId}.";
+
+        // Handle multi-shipment aggregation
+        if ($event->isMultiShipment()) {
+            $orderIds = $event->getAllShippingOrderIds();
+            $orderCount = count($orderIds);
+            $notes = "{$shipmentType} invoice aggregating {$orderCount} shipments: ".implode(', ', $orderIds).'.';
+        } else {
+            $notes = "{$shipmentType} invoice for order {$event->shippingOrderId}.";
+        }
 
         if ($event->getCarrierName() !== null) {
             $notes .= " Carrier: {$event->getCarrierName()}.";
