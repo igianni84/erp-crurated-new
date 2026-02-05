@@ -6,6 +6,8 @@ use App\Enums\Finance\CreditNoteStatus;
 use App\Filament\Resources\Finance\CreditNoteResource;
 use App\Models\AuditLog;
 use App\Models\Finance\CreditNote;
+use App\Services\Finance\CreditNoteService;
+use Filament\Actions\Action;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -14,9 +16,11 @@ use Filament\Infolists\Components\Tabs;
 use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewCreditNote extends ViewRecord
 {
@@ -643,11 +647,91 @@ class ViewCreditNote extends ViewRecord
     }
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
-        // Header actions will be implemented in US-E066 (Credit Note issuance)
-        return [];
+        return [
+            $this->getIssueAction(),
+        ];
+    }
+
+    /**
+     * Issue action - Issues a draft credit note.
+     *
+     * Visible only when credit note is in draft status.
+     * Generates sequential credit_note_number (format: CN-YYYY-NNNNNN),
+     * sets issued_at, triggers Xero sync, and updates invoice status if fully credited.
+     */
+    protected function getIssueAction(): Action
+    {
+        return Action::make('issue')
+            ->label('Issue Credit Note')
+            ->icon('heroicon-o-document-check')
+            ->color('success')
+            ->visible(fn (): bool => $this->getCreditNote()->isDraft())
+            ->requiresConfirmation()
+            ->modalHeading('Issue Credit Note')
+            ->modalDescription(fn (): string => $this->getIssueConfirmationMessage())
+            ->modalIcon('heroicon-o-document-check')
+            ->modalIconColor('success')
+            ->modalSubmitActionLabel('Issue Credit Note')
+            ->action(function (): void {
+                $creditNote = $this->getCreditNote();
+
+                try {
+                    /** @var CreditNoteService $service */
+                    $service = app(CreditNoteService::class);
+                    $service->issue($creditNote);
+
+                    Notification::make()
+                        ->title('Credit Note Issued')
+                        ->body("Credit note {$creditNote->credit_note_number} has been issued successfully.")
+                        ->success()
+                        ->send();
+
+                    // Refresh the page to show updated data
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $creditNote]));
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Failed to Issue Credit Note')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Get the confirmation message for the Issue action.
+     */
+    protected function getIssueConfirmationMessage(): string
+    {
+        $creditNote = $this->getCreditNote();
+        $invoice = $creditNote->invoice;
+
+        $message = "You are about to issue this credit note for {$creditNote->getFormattedAmount()}.";
+
+        if ($invoice !== null) {
+            $message .= " This credit note is against invoice {$invoice->invoice_number}.";
+
+            // Check if this would fully credit the invoice
+            /** @var CreditNoteService $service */
+            $service = app(CreditNoteService::class);
+            $totalCredited = $service->getTotalCreditedAmount($invoice);
+            $newTotal = bcadd($totalCredited, $creditNote->amount, 2);
+
+            if (bccomp($newTotal, $invoice->total_amount, 2) >= 0) {
+                $message .= "\n\n**Note:** This will mark the invoice as fully credited.";
+            }
+        }
+
+        $message .= "\n\nOnce issued:\n";
+        $message .= "- A sequential credit note number will be generated\n";
+        $message .= "- The credit note will be synced to Xero\n";
+        $message .= "- The credit note details become immutable\n";
+        $message .= "\nAre you sure you want to proceed?";
+
+        return $message;
     }
 }
