@@ -2406,3 +2406,31 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Active state highlighting is provided automatically by Filament - no extra implementation needed
   - Role-based visibility is achieved through Laravel policies registered in AppServiceProvider
 ---
+
+## 2026-02-05 - US-E123 through US-E132
+- What was implemented: Verified that these 10 immutability and policy enforcement stories were already implemented in earlier stories
+- Verification details:
+  - US-E123: Invoice type immutability - Already in Invoice model boot() hook (US-E002/US-E017)
+  - US-E124: No merge/split policy - No such actions exist in InvoiceResource
+  - US-E125: No VAT override post-issuance - tax_amount in immutableAfterIssuance array (US-E002/US-E003)
+  - US-E126: Amounts immutability - subtotal/tax_amount/total_amount protected in boot() (US-E002/US-E003/US-E017)
+  - US-E127: Payment evidence not authority - InvoicePaid event documents this principle
+  - US-E128: Refund requires invoice+payment link - Refund model boot() validates via validateInvoicePaymentLink()
+  - US-E129: Reconciliation before business logic - Payment.canTriggerBusinessEvents() checks reconciliation_status
+  - US-E130: Source reference requirements - InvoiceType.requiresSourceReference() and InvoiceService validation
+  - US-E131: Finance as consequence principle - Documented in InvoicePaid event and PRD description
+  - US-E132: Duplicate invoice prevention - InvoiceService.findBySource() prevents duplicates
+- Files reviewed (no changes needed):
+  - app/Models/Finance/Invoice.php (immutability in boot())
+  - app/Models/Finance/InvoiceLine.php (immutability after issuance)
+  - app/Models/Finance/Refund.php (invoice+payment validation)
+  - app/Models/Finance/Payment.php (canTriggerBusinessEvents)
+  - app/Services/Finance/InvoiceService.php (source validation, findBySource)
+  - app/Enums/Finance/InvoiceType.php (requiresSourceReference, expectedSourceType)
+  - app/Events/Finance/InvoicePaid.php (consequence principle documentation)
+- **Learnings for future iterations:**
+  - These policy/enforcement stories should be created alongside implementation stories, not as separate items
+  - Verification stories are quick to resolve when implementation is well-documented
+  - boot() hooks are the canonical place for model-level enforcement in Laravel
+  - Event class docblocks are good places to document architectural principles
+---
