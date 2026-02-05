@@ -2175,3 +2175,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - hasResolutionStatus() checks metadata for resolution_status or resolved_at keys
   - Urgency levels based on getDaysSinceReceived() for visual prioritization
 ---
+
+## 2026-02-05 - US-E113
+- What was implemented: Monthly Financial Summary dashboard widget for Finance module
+- Files changed:
+  - app/Filament/Widgets/Finance/MonthlyFinancialSummaryWidget.php (Filament widget class with metrics calculations)
+  - resources/views/filament/widgets/finance/monthly-financial-summary-widget.blade.php (Blade view template)
+- **Features implemented:**
+  - Dashboard widget with current month metrics
+  - Metrics: invoices issued, payments received, credit notes, refunds (count and amount)
+  - Comparison vs previous month with percentage change indicators
+  - Color-coded indicators: green for positive, red for negative (with inverse for credit notes/refunds)
+  - Breakdown by invoice type table with per-type counts, amounts, and changes
+  - Change direction icons (trending up/down/neutral)
+- **Learnings for future iterations:**
+  - Filament widgets go in app/Filament/Widgets/ directory and are auto-discovered
+  - Widget classes extend Filament\Widgets\Widget base class
+  - Widget views go in resources/views/filament/widgets/ matching namespace structure
+  - Use x-filament-widgets::widget wrapper component for proper styling
+  - Use x-filament::section for consistent section styling within widgets
+  - For inverse metrics (where increases are bad, like refunds), pass $inverse=true to color functions
+  - calculateChange() returns both value (float) and direction (string: up/down/neutral)
+  - Use x-dynamic-component for dynamic Heroicon selection based on direction
+  - Widgets use $columnSpan = 'full' for full-width display
+  - Widget $sort property controls display order on dashboard
+---
