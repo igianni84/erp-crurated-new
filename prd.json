@@ -1357,8 +1357,8 @@
         "Typecheck passes"
       ],
       "priority": 86,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented with comprehensive pro-rata calculation methods"
     },
     {
       "id": "US-E087",

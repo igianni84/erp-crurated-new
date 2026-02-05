@@ -1699,3 +1699,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Transition validation happens in model boot() using isDirty() check
   - Auditable trait automatically logs changes with user_id and timestamp
 ---
+
+## 2026-02-05 - US-E086
+- What was implemented: Verified SubscriptionBillingService already exists with all required methods
+- Files verified:
+  - app/Services/Finance/SubscriptionBillingService.php
+- Methods found:
+  - ✅ getSubscriptionsDue(): returns active subscriptions with next_billing_date <= today
+  - ✅ generateInvoice(Subscription, autoIssue): creates INV0 via SubscriptionBillingDue event
+  - ✅ calculateProRata(Subscription, startDate, endDate): comprehensive pro-rata calculation
+  - ✅ advanceNextBillingDate(Subscription): uses calculateNextBillingDate() and saves
+- Bonus methods found: calculateProRataForNewSignup, calculateProRataForCancellation, calculateProRataForUpgrade, calculateCancellationRefund
+- **Learnings for future iterations:**
+  - Service was likely implemented in an earlier story (US-E012 or related)
+  - Pro-rata calculations use bcdiv/bcmul for precision with 6 decimal places for daily rate
+  - Billing period calculation handles any start date by walking through periods from subscription start
+---
