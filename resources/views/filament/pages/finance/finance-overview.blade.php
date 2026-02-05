@@ -1,0 +1,295 @@
+<x-filament-panels::page>
+    @php
+        $totalOutstanding = $this->getTotalOutstanding();
+        $outstandingCount = $this->getOutstandingInvoicesCount();
+        $overdueAmount = $this->getOverdueAmount();
+        $overdueCount = $this->getOverdueInvoicesCount();
+        $paymentsThisMonth = $this->getPaymentsThisMonth();
+        $paymentsCount = $this->getPaymentsThisMonthCount();
+        $paymentsComparison = $this->getPaymentsComparison();
+        $pendingReconciliations = $this->getPendingReconciliationsCount();
+        $mismatchedReconciliations = $this->getMismatchedReconciliationsCount();
+        $pendingReconciliationAmount = $this->getPendingReconciliationAmount();
+        $stripeSummary = $this->getStripeHealthSummary();
+        $xeroSummary = $this->getXeroHealthSummary();
+        $invoicesToday = $this->getInvoicesIssuedToday();
+        $paymentsToday = $this->getPaymentsReceivedToday();
+        $paymentsAmountToday = $this->getPaymentsAmountToday();
+    @endphp
+
+    {{-- Main Metrics Grid --}}
+    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        {{-- Total Outstanding --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-3">
+                    <x-heroicon-o-banknotes class="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                </div>
+                <div class="ml-4 flex-1">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Outstanding</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $this->formatAmount($totalOutstanding) }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {{ $outstandingCount }} {{ Str::plural('invoice', $outstandingCount) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Overdue Amount --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 rounded-lg {{ $overdueCount > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
+                    <x-heroicon-o-exclamation-triangle class="h-6 w-6 {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
+                </div>
+                <div class="ml-4 flex-1">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Overdue Amount</p>
+                    <p class="text-2xl font-bold {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $this->formatAmount($overdueAmount) }}</p>
+                    <p class="text-xs {{ $overdueCount > 0 ? 'text-danger-500 dark:text-danger-400' : 'text-gray-500 dark:text-gray-400' }} mt-1">
+                        {{ $overdueCount }} {{ Str::plural('invoice', $overdueCount) }} overdue
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Payments This Month --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-3">
+                    <x-heroicon-o-arrow-trending-up class="h-6 w-6 text-success-600 dark:text-success-400" />
+                </div>
+                <div class="ml-4 flex-1">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Payments This Month</p>
+                    <p class="text-2xl font-bold text-success-600 dark:text-success-400">{{ $this->formatAmount($paymentsThisMonth) }}</p>
+                    <div class="flex items-center justify-between mt-1">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ $paymentsCount }} {{ Str::plural('payment', $paymentsCount) }}</span>
+                        @if($paymentsComparison['direction'] !== 'neutral')
+                            <span class="text-xs {{ $this->getChangeColorClass($paymentsComparison['direction']) }} flex items-center gap-0.5">
+                                <x-dynamic-component :component="$this->getChangeIcon($paymentsComparison['direction'])" class="h-3 w-3" />
+                                {{ number_format($paymentsComparison['change'], 1) }}%
+                            </span>
+                        @endif
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- Pending Reconciliations --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 rounded-lg {{ $pendingReconciliations > 0 ? 'bg-warning-50 dark:bg-warning-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
+                    <x-heroicon-o-document-magnifying-glass class="h-6 w-6 {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}" />
+                </div>
+                <div class="ml-4 flex-1">
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Reconciliations</p>
+                    <p class="text-2xl font-bold {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-gray-900 dark:text-white' }}">{{ $pendingReconciliations }}</p>
+                    @if($pendingReconciliations > 0)
+                        <p class="text-xs text-warning-500 dark:text-warning-400 mt-1">
+                            {{ $this->formatAmount($pendingReconciliationAmount) }} pending
+                        </p>
+                    @else
+                        <p class="text-xs text-success-500 dark:text-success-400 mt-1">All reconciled</p>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- Integration Health Section --}}
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-6">
+        {{-- Stripe Health --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-shrink-0 rounded-lg bg-purple-100 dark:bg-purple-900/20 p-2">
+                        <svg class="h-5 w-5 text-purple-600 dark:text-purple-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Stripe</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Payment processing</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $this->getStatusBadgeClasses($stripeSummary['status']) }}">
+                    @if($stripeSummary['status'] === 'healthy')
+                        <x-heroicon-s-check-circle class="h-3.5 w-3.5 mr-1" />
+                    @elseif($stripeSummary['status'] === 'warning')
+                        <x-heroicon-s-exclamation-triangle class="h-3.5 w-3.5 mr-1" />
+                    @elseif($stripeSummary['status'] === 'critical')
+                        <x-heroicon-s-x-circle class="h-3.5 w-3.5 mr-1" />
+                    @else
+                        <x-heroicon-s-question-mark-circle class="h-3.5 w-3.5 mr-1" />
+                    @endif
+                    {{ ucfirst($stripeSummary['status']) }}
+                </span>
+            </div>
+            <dl class="space-y-2 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Last webhook</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ $stripeSummary['last_webhook'] ?? 'Never' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Failed events</dt>
+                    <dd class="font-medium {{ $stripeSummary['failed_count'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $stripeSummary['failed_count'] }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Pending</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ $stripeSummary['pending_count'] }}</dd>
+                </div>
+            </dl>
+            <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <a href="{{ route('filament.admin.pages.finance.integrations-health') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                    View details &rarr;
+                </a>
+            </div>
+        </div>
+
+        {{-- Xero Health --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex-shrink-0 rounded-lg bg-blue-100 dark:bg-blue-900/20 p-2">
+                        <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.526.5H1.934a1.5 1.5 0 0 0-1.5 1.5v9.592a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5V2a1.5 1.5 0 0 0-1.5-1.5zm10.54 0h-9.592a1.5 1.5 0 0 0-1.5 1.5v9.592a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5V2a1.5 1.5 0 0 0-1.5-1.5zM11.526 11.408H1.934a1.5 1.5 0 0 0-1.5 1.5V22.5a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5v-9.592a1.5 1.5 0 0 0-1.5-1.5zm10.54 0h-9.592a1.5 1.5 0 0 0-1.5 1.5V22.5a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5v-9.592a1.5 1.5 0 0 0-1.5-1.5z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Xero</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Accounting sync</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $this->getStatusBadgeClasses($xeroSummary['status']) }}">
+                    @if($xeroSummary['status'] === 'healthy')
+                        <x-heroicon-s-check-circle class="h-3.5 w-3.5 mr-1" />
+                    @elseif($xeroSummary['status'] === 'warning')
+                        <x-heroicon-s-exclamation-triangle class="h-3.5 w-3.5 mr-1" />
+                    @elseif($xeroSummary['status'] === 'critical')
+                        <x-heroicon-s-x-circle class="h-3.5 w-3.5 mr-1" />
+                    @elseif($xeroSummary['status'] === 'disabled')
+                        <x-heroicon-s-pause-circle class="h-3.5 w-3.5 mr-1" />
+                    @else
+                        <x-heroicon-s-question-mark-circle class="h-3.5 w-3.5 mr-1" />
+                    @endif
+                    {{ ucfirst($xeroSummary['status']) }}
+                </span>
+            </div>
+            <dl class="space-y-2 text-sm">
+                <div class="flex items-center justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Last sync</dt>
+                    <dd class="font-medium text-gray-900 dark:text-white">{{ $xeroSummary['last_sync']?->diffForHumans() ?? 'Never' }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Pending syncs</dt>
+                    <dd class="font-medium {{ $xeroSummary['pending_count'] > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-gray-900 dark:text-white' }}">{{ $xeroSummary['pending_count'] }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-gray-500 dark:text-gray-400">Failed syncs</dt>
+                    <dd class="font-medium {{ $xeroSummary['failed_count'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $xeroSummary['failed_count'] }}</dd>
+                </div>
+            </dl>
+            <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <a href="{{ route('filament.admin.pages.finance.integrations-health') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                    View details &rarr;
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {{-- Today's Activity & Quick Stats --}}
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-6">
+        {{-- Today's Activity --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <x-heroicon-o-calendar-days class="h-5 w-5 text-gray-400" />
+                Today's Activity
+            </h3>
+            <dl class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <dt class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <x-heroicon-o-document-text class="h-4 w-4 mr-2 text-primary-400" />
+                        Invoices issued
+                    </dt>
+                    <dd class="text-sm font-semibold text-gray-900 dark:text-white">{{ $invoicesToday }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <x-heroicon-o-credit-card class="h-4 w-4 mr-2 text-success-400" />
+                        Payments received
+                    </dt>
+                    <dd class="text-sm font-semibold text-gray-900 dark:text-white">{{ $paymentsToday }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <x-heroicon-o-banknotes class="h-4 w-4 mr-2 text-success-400" />
+                        Amount collected
+                    </dt>
+                    <dd class="text-sm font-semibold text-success-600 dark:text-success-400">{{ $this->formatAmount($paymentsAmountToday) }}</dd>
+                </div>
+            </dl>
+        </div>
+
+        {{-- Reconciliation Summary --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <x-heroicon-o-scale class="h-5 w-5 text-gray-400" />
+                Reconciliation Status
+            </h3>
+            <dl class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <dt class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <span class="w-2 h-2 rounded-full bg-warning-400 mr-2"></span>
+                        Pending
+                    </dt>
+                    <dd class="text-sm font-semibold {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-gray-900 dark:text-white' }}">{{ $pendingReconciliations }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="flex items-center text-sm text-gray-500 dark:text-gray-400">
+                        <span class="w-2 h-2 rounded-full bg-danger-400 mr-2"></span>
+                        Mismatched
+                    </dt>
+                    <dd class="text-sm font-semibold {{ $mismatchedReconciliations > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $mismatchedReconciliations }}</dd>
+                </div>
+            </dl>
+            @if($pendingReconciliations > 0 || $mismatchedReconciliations > 0)
+                <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <a href="{{ route('filament.admin.resources.finance.payments.index', ['tableFilters' => ['reconciliation_status' => ['value' => 'pending']]]) }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                        View payments &rarr;
+                    </a>
+                </div>
+            @endif
+        </div>
+
+        {{-- Month Summary --}}
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <x-heroicon-o-chart-bar class="h-5 w-5 text-gray-400" />
+                {{ $this->getCurrentMonthLabel() }}
+            </h3>
+            <dl class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Collected</dt>
+                    <dd class="text-sm font-semibold text-success-600 dark:text-success-400">{{ $this->formatAmount($paymentsThisMonth) }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Outstanding</dt>
+                    <dd class="text-sm font-semibold text-gray-900 dark:text-white">{{ $this->formatAmount($totalOutstanding) }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                    <dt class="text-sm text-gray-500 dark:text-gray-400">Overdue</dt>
+                    <dd class="text-sm font-semibold {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $this->formatAmount($overdueAmount) }}</dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    {{-- Help Text --}}
+    <div class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="flex items-center">
+            <x-heroicon-o-information-circle class="h-5 w-5 mr-2 text-gray-400" />
+            <span>
+                This dashboard provides a real-time overview of your financial operations.
+                Use the refresh button to update the metrics.
+            </span>
+        </p>
+    </div>
+</x-filament-panels::page>
