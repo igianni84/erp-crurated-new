@@ -1683,3 +1683,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - RepeatableEntry is excellent for showing related records in read-only view
   - Action visibility can be controlled with visible() and model transition methods
 ---
+
+## 2026-02-05 - US-E085
+- What was implemented: Verified subscription status transitions are already in place
+- Files verified:
+  - app/Enums/Finance/SubscriptionStatus.php (allowedTransitions, canTransitionTo, isTerminal, allowsBilling, isBlocked)
+  - app/Models/Finance/Subscription.php (boot() validates transitions, sets cancelled_at automatically)
+- Acceptance criteria verified:
+  - ✅ Valid transitions: active → suspended, suspended → active, active → cancelled, suspended → cancelled
+  - ✅ Suspended: allowsBilling() returns false, isBlocked() returns true
+  - ✅ Cancelled: isTerminal() returns true, allowsBilling() returns false
+  - ✅ Transitions logged via Auditable trait, timestamps tracked
+- **Learnings for future iterations:**
+  - Subscription status transitions were implemented as part of US-E008 (SubscriptionStatus enum)
+  - Transition validation happens in model boot() using isDirty() check
+  - Auditable trait automatically logs changes with user_id and timestamp
+---

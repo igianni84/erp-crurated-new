@@ -1341,8 +1341,8 @@
         "Typecheck passes"
       ],
       "priority": 85,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Already implemented in SubscriptionStatus enum and Subscription model boot()"
     },
     {
       "id": "US-E086",
