@@ -11,6 +11,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Integrations Health page for Finance module.
@@ -214,13 +215,27 @@ class IntegrationsHealth extends Page
             return;
         }
 
-        // Clear the error and requeue for processing
-        $webhook->update(['error_message' => null]);
+        $previousRetryCount = $webhook->retry_count;
+
+        // Mark for retry (clears error, increments retry count, sets last_retry_at)
+        $webhook->markForRetry();
+
+        // Log the retry attempt
+        Log::channel('finance')->info('Stripe webhook retry initiated', [
+            'webhook_id' => $webhook->id,
+            'event_id' => $webhook->event_id,
+            'event_type' => $webhook->event_type,
+            'retry_count' => $webhook->retry_count,
+            'previous_retry_count' => $previousRetryCount,
+            'initiated_by' => auth()->id(),
+        ]);
+
+        // Dispatch job for reprocessing
         ProcessStripeWebhookJob::dispatch($webhook);
 
         Notification::make()
             ->title('Retry queued')
-            ->body("Webhook {$webhook->event_id} has been queued for reprocessing.")
+            ->body("Webhook {$webhook->event_id} has been queued for reprocessing (retry #{$webhook->retry_count}).")
             ->success()
             ->send();
     }
@@ -243,8 +258,26 @@ class IntegrationsHealth extends Page
             return;
         }
 
+        // Log bulk retry initiation
+        Log::channel('finance')->info('Stripe webhook bulk retry initiated', [
+            'count' => $count,
+            'initiated_by' => auth()->id(),
+            'webhook_ids' => $failedWebhooks->pluck('id')->toArray(),
+        ]);
+
         foreach ($failedWebhooks as $webhook) {
-            $webhook->update(['error_message' => null]);
+            // Mark for retry (clears error, increments retry count, sets last_retry_at)
+            $webhook->markForRetry();
+
+            // Log individual retry within bulk operation
+            Log::channel('finance')->info('Stripe webhook retry queued (bulk)', [
+                'webhook_id' => $webhook->id,
+                'event_id' => $webhook->event_id,
+                'event_type' => $webhook->event_type,
+                'retry_count' => $webhook->retry_count,
+            ]);
+
+            // Dispatch job for reprocessing
             ProcessStripeWebhookJob::dispatch($webhook);
         }
 

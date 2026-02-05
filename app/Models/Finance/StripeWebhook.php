@@ -21,6 +21,8 @@ use InvalidArgumentException;
  * @property bool $processed
  * @property \Carbon\Carbon|null $processed_at
  * @property string|null $error_message
+ * @property int $retry_count
+ * @property \Carbon\Carbon|null $last_retry_at
  * @property \Carbon\Carbon|null $created_at
  */
 class StripeWebhook extends Model
@@ -41,10 +43,13 @@ class StripeWebhook extends Model
         'processed',
         'processed_at',
         'error_message',
+        'retry_count',
+        'last_retry_at',
     ];
 
     protected $attributes = [
         'processed' => false,
+        'retry_count' => 0,
     ];
 
     protected function casts(): array
@@ -53,6 +58,8 @@ class StripeWebhook extends Model
             'payload' => 'array',
             'processed' => 'boolean',
             'processed_at' => 'datetime',
+            'retry_count' => 'integer',
+            'last_retry_at' => 'datetime',
         ];
     }
 
@@ -74,7 +81,7 @@ class StripeWebhook extends Model
         // Allow limited updates only for processing status
         static::updating(function (StripeWebhook $webhook): void {
             // Only allow updates to processing-related fields
-            $allowedFields = ['processed', 'processed_at', 'error_message'];
+            $allowedFields = ['processed', 'processed_at', 'error_message', 'retry_count', 'last_retry_at'];
             $changedFields = array_keys($webhook->getDirty());
 
             foreach ($changedFields as $field) {
@@ -155,6 +162,34 @@ class StripeWebhook extends Model
             'processed' => false,
             'error_message' => $errorMessage,
         ]);
+    }
+
+    /**
+     * Mark the webhook for retry (clears error, increments retry count).
+     */
+    public function markForRetry(): void
+    {
+        $this->update([
+            'error_message' => null,
+            'retry_count' => $this->retry_count + 1,
+            'last_retry_at' => now(),
+        ]);
+    }
+
+    /**
+     * Get the number of times this webhook has been retried.
+     */
+    public function getRetryCount(): int
+    {
+        return $this->retry_count;
+    }
+
+    /**
+     * Check if the webhook has been retried.
+     */
+    public function hasBeenRetried(): bool
+    {
+        return $this->retry_count > 0;
     }
 
     // =========================================================================

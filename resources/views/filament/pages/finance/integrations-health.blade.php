@@ -157,6 +157,9 @@
                                         Received
                                     </th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                        Retries
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                         Error
                                     </th>
                                     <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -192,6 +195,20 @@
                                             <div class="text-xs text-gray-500 dark:text-gray-400">
                                                 {{ $webhook->created_at->format('H:i:s') }}
                                             </div>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            @if($webhook->retry_count > 0)
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium {{ $webhook->retry_count >= 3 ? 'bg-danger-100 text-danger-800 dark:bg-danger-400/20 dark:text-danger-400' : 'bg-warning-100 text-warning-800 dark:bg-warning-400/20 dark:text-warning-400' }}">
+                                                    {{ $webhook->retry_count }} {{ Str::plural('retry', $webhook->retry_count) }}
+                                                </span>
+                                                @if($webhook->last_retry_at)
+                                                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        {{ $webhook->last_retry_at->diffForHumans() }}
+                                                    </div>
+                                                @endif
+                                            @else
+                                                <span class="text-xs text-gray-400 dark:text-gray-500">Never</span>
+                                            @endif
                                         </td>
                                         <td class="px-6 py-4">
                                             <p class="text-sm text-danger-600 dark:text-danger-400 max-w-xs truncate" title="{{ $webhook->error_message }}">
