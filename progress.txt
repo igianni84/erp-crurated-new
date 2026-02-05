@@ -1417,3 +1417,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Use calculateRefundPercentage() and calculateRefundVsPayment() helpers for relative amount displays
   - Processing status helpers (getStripeProcessingStatus, getBankProcessingStatus) provide user-friendly status text
 ---
+
+## 2026-02-05 - US-E070
+- What was implemented: Added Create Refund action to Invoice Detail view
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added getCreateRefundAction method)
+- **Features implemented:**
+  - Action visible only when invoice status is 'paid'
+  - Form includes: refund_type (full/partial), payment selection dropdown, amount input, method selection, reason textarea
+  - Prominent warning banner about operational effects not being reversed automatically
+  - Required checkbox confirmation for understanding the financial-only nature
+  - Auto-sets refund method based on payment type (Stripe/Bank Transfer)
+  - Auto-sets amount for Full refund type
+  - Validation: payment must be linked to invoice (enforced by Refund model)
+  - Validation: amount cannot exceed payment applied amount
+  - Creates Refund in Pending status
+  - Audit log entry created for the refund
+  - Success notification with link to view created refund
+- **Learnings for future iterations:**
+  - Refund action should be on paid invoices only (not issued or partially_paid) for clarity
+  - Use live() on Select components to enable dynamic form updates
+  - Use afterStateUpdated() to auto-populate related fields when selections change
+  - Include prominent warning about operational vs financial distinction (US-E073 requirement addressed here)
+  - Checkbox::make()->accepted() is used for required confirmations
+  - Refund model validates invoice-payment link in boot() creating hook
+---
