@@ -1848,3 +1848,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - RefundService.createFromStripeWebhook() bypasses validation since Stripe already processed the refund
   - PHPStan requires explicit (int) cast when assigning string UUID to int-typed model property
 ---
+
+## 2026-02-05 - US-E095
+- What was implemented: Created Integrations Health page for monitoring Stripe integration health
+- Files changed:
+  - app/Filament/Pages/Finance/IntegrationsHealth.php (new Filament page with health metrics and retry actions)
+  - resources/views/filament/pages/finance/integrations-health.blade.php (Blade view with metrics cards, alerts, and failed webhooks table)
+- **Learnings for future iterations:**
+  - Finance Filament pages go in app/Filament/Pages/Finance/ directory
+  - Page views use x-filament-panels::page component wrapper
+  - Metrics cards pattern: rounded-xl bg-white/dark:bg-gray-900 with flex items-center layout
+  - Color utilities: bg-{color}-50 dark:bg-{color}-400/10 for icon backgrounds
+  - Status badges use getStatusBadgeClasses() helper returning Tailwind classes
+  - Livewire wire:click for actions, wire:confirm for confirmations
+  - ProcessStripeWebhookJob already exists and accepts StripeWebhook model for retry
+  - StripeWebhook model has scopes: failed(), pending(), processed(), and helper methods for retry
+  - Payment model tracks reconciliation_status using ReconciliationStatus enum
+---
