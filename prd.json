@@ -1868,8 +1868,8 @@
         "Typecheck passes"
       ],
       "priority": 118,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Recent Activity widget added to FinanceOverview showing invoices, payments, credit notes, and refunds from last 24 hours with clickable links to detail pages"
     },
     {
       "id": "US-E119",

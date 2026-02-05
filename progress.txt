@@ -2302,3 +2302,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Route parameters for Filament tabs use 'activeTab' key
   - getQuickActions() returns array for flexible rendering in Blade template
 ---
+
+## 2026-02-05 - US-E118
+- What was implemented: Added Recent Activity feed widget to Finance Overview dashboard
+- Files changed:
+  - app/Filament/Pages/Finance/FinanceOverview.php (added getRecentActivityFeed() and supporting methods)
+  - resources/views/filament/pages/finance/finance-overview.blade.php (added activity timeline UI)
+- **Features implemented:**
+  - Widget showing last 24 hours of financial activity
+  - Displays invoices issued, payments received, credit notes issued, refunds processed
+  - Unified timeline sorted by timestamp (newest first)
+  - Color-coded icons by activity type (primary=invoice, success=payment, warning=credit note, danger=refund)
+  - Clickable links to navigate to detail pages
+  - Amount display with color coding (success for income, danger/warning for outgoing)
+  - Relative timestamps using diffForHumans()
+  - Empty state for when no recent activity exists
+- **Learnings for future iterations:**
+  - When querying with whereNotNull() for a nullable field, PHPStan still considers the field nullable - add null check before using
+  - For aggregate queries using value(), add @var type annotation to help PHPStan understand the return type
+  - Use continue statements in foreach loops for early filtering to satisfy type narrowing
+  - Blade templates can compute PHP values inline with @php blocks to avoid multiple method calls
+---
