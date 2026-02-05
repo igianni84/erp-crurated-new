@@ -1293,3 +1293,31 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Global search includes invoice.invoice_number and customer.name via eager loading
   - ViewCreditNote is placeholder - full detail implementation in US-E064
 ---
+
+## 2026-02-05 - US-E064
+- What was implemented: Credit Note Detail view with 5 tabs in Filament
+- Files changed:
+  - app/Filament/Resources/Finance/CreditNoteResource/Pages/ViewCreditNote.php (full implementation with tabs)
+- **Tabs implemented:**
+  - Tab 1 - Original Invoice: link to invoice, type badge, amounts, credit percentage calculation
+  - Tab 2 - Reason: full reason text with markdown support, creation context
+  - Tab 3 - Application: status description, applied_at, related refunds list
+  - Tab 4 - Accounting: xero_credit_note_id, sync status, financial reference, amounts summary
+  - Tab 5 - Audit: immutable event timeline using AuditLog model
+- **Header section:** credit_note_number, status badge, customer (linked), amount, currency, issued info
+- **Acceptance criteria verification:**
+  - ✅ Header: credit_note_number, amount, status: Shown in header section with weight/size emphasis
+  - ✅ Section 1 - Original Invoice: link to invoice, type, amount: getOriginalInvoiceTab() with linked invoice details
+  - ✅ Section 2 - Reason: full reason text: getReasonTab() with markdown support
+  - ✅ Section 3 - Application: applied_at, related refund (if any): getApplicationTab() with refunds RepeatableEntry
+  - ✅ Section 4 - Accounting: xero_credit_note_id, sync status: getAccountingTab() with Xero integration section
+  - ✅ Section 5 - Audit: timeline: getAuditTab() with immutable audit logs
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Use Tabs::make() with persistTabInQueryString() for multi-tab detail views
+  - RepeatableEntry for displaying HasMany relations (refunds, auditLogs)
+  - CreditNote model has getOriginalInvoiceType() helper to preserve invoice type from original invoice
+  - Credit percentage calculated as (credit_amount / invoice_total) * 100 with color coding
+  - Xero sync status determined by presence of xero_credit_note_id field
+  - Follow same pattern as ViewInvoice for consistent Finance module UX
+---
