@@ -82,7 +82,23 @@ class PaymentResource extends Resource
                     ->formatStateUsing(fn (ReconciliationStatus $state): string => $state->label())
                     ->color(fn (ReconciliationStatus $state): string => $state->color())
                     ->icon(fn (ReconciliationStatus $state): string => $state->icon())
-                    ->sortable(),
+                    ->sortable()
+                    ->tooltip(fn (Payment $record): ?string => $record->hasMismatch()
+                        ? 'Mismatch: '.$record->getMismatchReason()
+                        : null),
+
+                Tables\Columns\TextColumn::make('mismatch_type')
+                    ->label('Issue')
+                    ->getStateUsing(fn (Payment $record): ?string => $record->hasMismatch()
+                        ? $record->getMismatchTypeLabel()
+                        : null)
+                    ->badge()
+                    ->color(fn (Payment $record): string => $record->hasMismatch() ? 'danger' : 'gray')
+                    ->icon(fn (Payment $record): string => $record->hasMismatch()
+                        ? 'heroicon-o-exclamation-triangle'
+                        : 'heroicon-o-check')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: false),
 
                 Tables\Columns\TextColumn::make('customer.name')
                     ->label('Customer')

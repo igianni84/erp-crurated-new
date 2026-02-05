@@ -383,8 +383,138 @@ class Payment extends Model
     }
 
     // =========================================================================
+    // Mismatch Type Constants
+    // =========================================================================
+
+    /**
+     * Mismatch reason: Amount on payment doesn't match any invoice.
+     */
+    public const MISMATCH_AMOUNT_DIFFERENCE = 'amount_difference';
+
+    /**
+     * Mismatch reason: Customer on payment doesn't match invoice customer.
+     */
+    public const MISMATCH_CUSTOMER_MISMATCH = 'customer_mismatch';
+
+    /**
+     * Mismatch reason: Possible duplicate payment detected.
+     */
+    public const MISMATCH_DUPLICATE = 'duplicate';
+
+    /**
+     * Mismatch reason: No customer identified on payment.
+     */
+    public const MISMATCH_NO_CUSTOMER = 'no_customer';
+
+    /**
+     * Mismatch reason: No matching invoice found.
+     */
+    public const MISMATCH_NO_MATCH = 'no_match';
+
+    /**
+     * Mismatch reason: Multiple invoices match the payment.
+     */
+    public const MISMATCH_MULTIPLE_MATCHES = 'multiple_matches';
+
+    /**
+     * Mismatch reason: Application to invoice failed.
+     */
+    public const MISMATCH_APPLICATION_FAILED = 'application_failed';
+
+    /**
+     * Get the valid mismatch types.
+     *
+     * @return array<string, string>
+     */
+    public static function getMismatchTypes(): array
+    {
+        return [
+            self::MISMATCH_AMOUNT_DIFFERENCE => 'Amount Difference',
+            self::MISMATCH_CUSTOMER_MISMATCH => 'Customer Mismatch',
+            self::MISMATCH_DUPLICATE => 'Possible Duplicate',
+            self::MISMATCH_NO_CUSTOMER => 'No Customer',
+            self::MISMATCH_NO_MATCH => 'No Match',
+            self::MISMATCH_MULTIPLE_MATCHES => 'Multiple Matches',
+            self::MISMATCH_APPLICATION_FAILED => 'Application Failed',
+        ];
+    }
+
+    // =========================================================================
     // Mismatch Helper Methods
     // =========================================================================
+
+    /**
+     * Get the mismatch type from metadata.
+     */
+    public function getMismatchType(): ?string
+    {
+        if (! $this->hasMismatch()) {
+            return null;
+        }
+
+        // Check metadata for stored type
+        if ($this->metadata !== null && isset($this->metadata['mismatch_details']['reason'])) {
+            return (string) $this->metadata['mismatch_details']['reason'];
+        }
+
+        // Also check for legacy 'reason' in metadata root
+        if ($this->metadata !== null && isset($this->metadata['reason'])) {
+            return (string) $this->metadata['reason'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the human-readable label for the mismatch type.
+     */
+    public function getMismatchTypeLabel(): ?string
+    {
+        $type = $this->getMismatchType();
+
+        if ($type === null) {
+            // If no type but has mismatch, infer from state
+            if (! $this->hasMismatch()) {
+                return null;
+            }
+
+            if ($this->customer === null) {
+                return self::getMismatchTypes()[self::MISMATCH_NO_CUSTOMER];
+            }
+
+            if (! $this->hasApplications()) {
+                return self::getMismatchTypes()[self::MISMATCH_NO_MATCH];
+            }
+
+            return 'Unknown';
+        }
+
+        return self::getMismatchTypes()[$type] ?? 'Unknown';
+    }
+
+    /**
+     * Check if mismatch is due to amount difference.
+     */
+    public function isAmountMismatch(): bool
+    {
+        return $this->getMismatchType() === self::MISMATCH_AMOUNT_DIFFERENCE;
+    }
+
+    /**
+     * Check if mismatch is due to customer mismatch.
+     */
+    public function isCustomerMismatch(): bool
+    {
+        return $this->getMismatchType() === self::MISMATCH_CUSTOMER_MISMATCH;
+    }
+
+    /**
+     * Check if mismatch is due to possible duplicate.
+     */
+    public function isDuplicateMismatch(): bool
+    {
+        return $this->getMismatchType() === self::MISMATCH_DUPLICATE;
+    }
 
     /**
      * Get the mismatch reason from metadata.

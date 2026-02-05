@@ -549,4 +549,326 @@ class PaymentService
             ->orderBy('received_at', 'desc')
             ->get();
     }
+
+    // =========================================================================
+    // Mismatch Resolution Methods
+    // =========================================================================
+
+    /**
+     * Force match a mismatched payment to an invoice.
+     *
+     * This overrides the mismatch and applies the payment to the specified invoice.
+     * Requires a reason for the override.
+     *
+     * @param  string|null  $amountToApply  The amount to apply (defaults to invoice outstanding or payment amount)
+     *
+     * @throws InvalidArgumentException If validation fails
+     */
+    public function forceMatch(Payment $payment, Invoice $invoice, string $reason, ?string $amountToApply = null): InvoicePayment
+    {
+        // Validate payment status
+        if (! $payment->canBeAppliedToInvoice()) {
+            throw new InvalidArgumentException(
+                "Payment with status '{$payment->status->label()}' cannot be force-matched."
+            );
+        }
+
+        // Validate reason is provided
+        if (trim($reason) === '') {
+            throw new InvalidArgumentException('A reason is required for force matching.');
+        }
+
+        // Determine amount to apply
+        $unapplied = $payment->getUnappliedAmount();
+        $outstanding = $invoice->getOutstandingAmount();
+
+        if ($amountToApply === null) {
+            // Default to the lesser of unapplied payment and invoice outstanding
+            $amountToApply = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+        }
+
+        return DB::transaction(function () use ($payment, $invoice, $reason, $amountToApply): InvoicePayment {
+            // Apply the payment
+            $invoicePayment = $this->applyToInvoice($payment, $invoice, $amountToApply);
+
+            // Store resolution info in metadata
+            $metadata = $payment->metadata ?? [];
+            $metadata['resolution'] = [
+                'type' => 'force_match',
+                'reason' => $reason,
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'amount_applied' => $amountToApply,
+                'resolved_by' => Auth::id(),
+                'resolved_at' => now()->toIso8601String(),
+                'original_mismatch_reason' => $payment->getMismatchReason(),
+                'original_mismatch_type' => $payment->getMismatchType(),
+            ];
+            $payment->metadata = $metadata;
+
+            // Clear mismatch info and mark as matched
+            $payment->clearMismatchInfo();
+            $payment->reconciliation_status = ReconciliationStatus::Matched;
+            $payment->save();
+
+            // Log the resolution
+            $this->logPaymentEvent(
+                $payment,
+                'mismatch_resolved',
+                [
+                    'reconciliation_status' => ReconciliationStatus::Mismatched->value,
+                ],
+                [
+                    'reconciliation_status' => ReconciliationStatus::Matched->value,
+                    'resolution_type' => 'force_match',
+                    'reason' => $reason,
+                    'invoice_id' => $invoice->id,
+                    'invoice_number' => $invoice->invoice_number,
+                    'amount_applied' => $amountToApply,
+                ]
+            );
+
+            Log::channel('finance')->info('Payment mismatch resolved via force match', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'amount_applied' => $amountToApply,
+                'reason' => $reason,
+                'resolved_by' => Auth::id(),
+            ]);
+
+            return $invoicePayment;
+        });
+    }
+
+    /**
+     * Create an exception record for a mismatched payment.
+     *
+     * This marks the payment as having been reviewed but not matched,
+     * documenting why no action was taken.
+     *
+     * @param  string  $reason  The reason for creating the exception
+     * @param  string  $exceptionType  The type of exception (e.g., 'disputed', 'review_required', 'write_off_candidate')
+     *
+     * @throws InvalidArgumentException If validation fails
+     */
+    public function createException(Payment $payment, string $reason, string $exceptionType = 'review_required'): Payment
+    {
+        // Validate reason is provided
+        if (trim($reason) === '') {
+            throw new InvalidArgumentException('A reason is required for creating an exception.');
+        }
+
+        // Validate exception type
+        $validTypes = ['disputed', 'review_required', 'write_off_candidate', 'customer_contact', 'other'];
+        if (! in_array($exceptionType, $validTypes, true)) {
+            throw new InvalidArgumentException(
+                'Invalid exception type. Valid types are: '.implode(', ', $validTypes)
+            );
+        }
+
+        return DB::transaction(function () use ($payment, $reason, $exceptionType): Payment {
+            $oldMismatchReason = $payment->getMismatchReason();
+            $oldMismatchType = $payment->getMismatchType();
+
+            // Store exception info in metadata
+            $metadata = $payment->metadata ?? [];
+            $metadata['exception'] = [
+                'type' => $exceptionType,
+                'reason' => $reason,
+                'created_by' => Auth::id(),
+                'created_at' => now()->toIso8601String(),
+                'original_mismatch_reason' => $oldMismatchReason,
+                'original_mismatch_type' => $oldMismatchType,
+            ];
+            $payment->metadata = $metadata;
+
+            // Update mismatch info to reflect exception status
+            $payment->setMismatchInfo("Exception: {$reason}", [
+                'reason' => 'exception_created',
+                'exception_type' => $exceptionType,
+            ]);
+            $payment->save();
+
+            // Log the exception
+            $this->logPaymentEvent(
+                $payment,
+                'exception_created',
+                [],
+                [
+                    'exception_type' => $exceptionType,
+                    'reason' => $reason,
+                    'original_mismatch_reason' => $oldMismatchReason,
+                ]
+            );
+
+            Log::channel('finance')->info('Payment exception created', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'exception_type' => $exceptionType,
+                'reason' => $reason,
+                'created_by' => Auth::id(),
+            ]);
+
+            return $payment->fresh();
+        });
+    }
+
+    /**
+     * Mark a mismatched payment for refund.
+     *
+     * This doesn't process the refund, but prepares it and updates the payment status.
+     * Actual refund processing is handled by RefundService.
+     *
+     * @throws InvalidArgumentException If validation fails
+     */
+    public function markForRefund(Payment $payment, string $reason): Payment
+    {
+        // Validate payment can be refunded
+        if (! $payment->canBeRefunded()) {
+            throw new InvalidArgumentException(
+                "Payment with status '{$payment->status->label()}' cannot be marked for refund."
+            );
+        }
+
+        // Validate reason is provided
+        if (trim($reason) === '') {
+            throw new InvalidArgumentException('A reason is required for marking a payment for refund.');
+        }
+
+        return DB::transaction(function () use ($payment, $reason): Payment {
+            $oldMismatchReason = $payment->getMismatchReason();
+            $oldMismatchType = $payment->getMismatchType();
+
+            // Store refund request info in metadata
+            $metadata = $payment->metadata ?? [];
+            $metadata['refund_request'] = [
+                'reason' => $reason,
+                'requested_by' => Auth::id(),
+                'requested_at' => now()->toIso8601String(),
+                'original_mismatch_reason' => $oldMismatchReason,
+                'original_mismatch_type' => $oldMismatchType,
+            ];
+            $payment->metadata = $metadata;
+
+            // Update mismatch info to reflect refund pending status
+            $payment->setMismatchInfo("Refund requested: {$reason}", [
+                'reason' => 'refund_pending',
+                'original_mismatch_reason' => $oldMismatchReason,
+            ]);
+            $payment->save();
+
+            // Log the refund request
+            $this->logPaymentEvent(
+                $payment,
+                'refund_requested',
+                [],
+                [
+                    'reason' => $reason,
+                    'original_mismatch_reason' => $oldMismatchReason,
+                ]
+            );
+
+            Log::channel('finance')->info('Payment marked for refund', [
+                'payment_id' => $payment->id,
+                'payment_reference' => $payment->payment_reference,
+                'reason' => $reason,
+                'requested_by' => Auth::id(),
+            ]);
+
+            return $payment->fresh();
+        });
+    }
+
+    /**
+     * Get the exception types available for mismatch resolution.
+     *
+     * @return array<string, string>
+     */
+    public static function getExceptionTypes(): array
+    {
+        return [
+            'disputed' => 'Disputed - Customer disputes the payment',
+            'review_required' => 'Review Required - Needs further investigation',
+            'write_off_candidate' => 'Write-off Candidate - May need to be written off',
+            'customer_contact' => 'Customer Contact - Need to contact customer',
+            'other' => 'Other - See reason for details',
+        ];
+    }
+
+    /**
+     * Check if payment has a pending refund request.
+     */
+    public function hasPendingRefundRequest(Payment $payment): bool
+    {
+        return $payment->metadata !== null
+            && isset($payment->metadata['refund_request'])
+            && ! isset($payment->metadata['refund_processed']);
+    }
+
+    /**
+     * Check if payment has an active exception.
+     */
+    public function hasActiveException(Payment $payment): bool
+    {
+        return $payment->metadata !== null
+            && isset($payment->metadata['exception']);
+    }
+
+    /**
+     * Check possible duplicate payments.
+     *
+     * Returns payments that might be duplicates based on:
+     * - Same amount
+     * - Same customer (if known)
+     * - Within the same day
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Payment>
+     */
+    public function checkForDuplicates(Payment $payment): \Illuminate\Database\Eloquent\Collection
+    {
+        $query = Payment::where('id', '!=', $payment->id)
+            ->where('amount', $payment->amount)
+            ->where('currency', $payment->currency)
+            ->whereDate('received_at', $payment->received_at->toDateString())
+            ->where('status', '!=', PaymentStatus::Failed);
+
+        if ($payment->customer_id !== null) {
+            $query->where('customer_id', $payment->customer_id);
+        }
+
+        return $query->orderBy('received_at', 'desc')->get();
+    }
+
+    /**
+     * Mark a payment as mismatched with a specific reason.
+     *
+     * @param  array<string, mixed>  $details  Additional details about the mismatch
+     */
+    public function markAsMismatched(Payment $payment, string $mismatchType, string $reason, array $details = []): Payment
+    {
+        $payment->reconciliation_status = ReconciliationStatus::Mismatched;
+        $payment->setMismatchInfo($reason, array_merge(['reason' => $mismatchType], $details));
+        $payment->save();
+
+        $this->logPaymentEvent(
+            $payment,
+            'marked_mismatched',
+            [],
+            [
+                'mismatch_type' => $mismatchType,
+                'reason' => $reason,
+                'details' => $details,
+            ]
+        );
+
+        Log::channel('finance')->info('Payment marked as mismatched', [
+            'payment_id' => $payment->id,
+            'mismatch_type' => $mismatchType,
+            'reason' => $reason,
+        ]);
+
+        return $payment;
+    }
 }

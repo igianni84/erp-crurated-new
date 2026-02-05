@@ -13,8 +13,10 @@ use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Services\Finance\PaymentService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
 use Filament\Infolists\Components\Grid;
@@ -399,11 +401,11 @@ class ViewPayment extends ViewRecord
         $lines[] = '<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">';
         $lines[] = '<h4 class="font-semibold text-blue-800 dark:text-blue-200">Resolution Options</h4>';
         $lines[] = '<ul class="mt-2 space-y-1 text-sm text-blue-700 dark:text-blue-300">';
-        $lines[] = '<li>• <strong>Force Match:</strong> Override the mismatch and apply the payment</li>';
-        $lines[] = '<li>• <strong>Create Exception:</strong> Log this as an exception for review</li>';
-        $lines[] = '<li>• <strong>Refund:</strong> Process a refund for this payment</li>';
+        $lines[] = '<li>• <strong>Force Match:</strong> Override the mismatch and apply the payment to an invoice</li>';
+        $lines[] = '<li>• <strong>Create Exception:</strong> Document why this mismatch cannot be resolved</li>';
+        $lines[] = '<li>• <strong>Refund:</strong> Mark this payment for refund processing</li>';
         $lines[] = '</ul>';
-        $lines[] = '<p class="mt-2 text-xs text-blue-600 dark:text-blue-400">Resolution actions will be available in US-E055.</p>';
+        $lines[] = '<p class="mt-2 text-xs text-blue-600 dark:text-blue-400">Use the action buttons above to resolve this mismatch.</p>';
         $lines[] = '</div>';
 
         $lines[] = '</div>';
@@ -471,7 +473,6 @@ class ViewPayment extends ViewRecord
         $lines[] = '<li>• Review the payment amount against open invoices</li>';
         $lines[] = '<li>• Verify the customer is correct before applying</li>';
         $lines[] = '</ul>';
-        $lines[] = '<p class="mt-2 text-xs text-blue-600 dark:text-blue-400">Manual reconciliation actions will be available in US-E054.</p>';
         $lines[] = '</div>';
 
         $lines[] = '</div>';
@@ -599,6 +600,9 @@ class ViewPayment extends ViewRecord
     {
         return [
             $this->getApplyToInvoiceAction(),
+            $this->getForceMatchAction(),
+            $this->getCreateExceptionAction(),
+            $this->getMarkForRefundAction(),
         ];
     }
 
@@ -1001,5 +1005,488 @@ class ViewPayment extends ViewRecord
         $record = $this->record;
 
         return $record;
+    }
+
+    // =========================================================================
+    // Mismatch Resolution Actions (US-E055)
+    // =========================================================================
+
+    /**
+     * Action to force match a mismatched payment to an invoice.
+     *
+     * Visible only when payment has reconciliation_status = mismatched.
+     */
+    protected function getForceMatchAction(): Action
+    {
+        return Action::make('forceMatch')
+            ->label('Force Match')
+            ->icon('heroicon-o-link')
+            ->color('warning')
+            ->visible(fn (): bool => $this->canForceMatch())
+            ->requiresConfirmation()
+            ->modalHeading('Force Match Payment')
+            ->modalDescription(fn (): string => 'This will override the mismatch and apply the payment to the selected invoice.')
+            ->modalIcon('heroicon-o-exclamation-triangle')
+            ->form([
+                Placeholder::make('mismatch_info')
+                    ->label('')
+                    ->content(fn (): string => $this->getForceMatchInfoHtml())
+                    ->columnSpanFull(),
+
+                Select::make('invoice_id')
+                    ->label('Invoice to Match')
+                    ->required()
+                    ->searchable()
+                    ->preload()
+                    ->options(fn (): array => $this->getAvailableInvoicesForForceMatch())
+                    ->helperText('Select the invoice to force match this payment to')
+                    ->live()
+                    ->afterStateUpdated(fn (callable $set, ?string $state) => $this->onForceMatchInvoiceSelected($set, $state)),
+
+                Placeholder::make('invoice_info')
+                    ->label('')
+                    ->content(fn (Get $get): string => $this->getInvoiceInfoHtml($get('invoice_id')))
+                    ->visible(fn (Get $get): bool => $get('invoice_id') !== null)
+                    ->columnSpanFull(),
+
+                TextInput::make('amount')
+                    ->label('Amount to Apply')
+                    ->required()
+                    ->numeric()
+                    ->step('0.01')
+                    ->minValue(0.01)
+                    ->prefix(fn (): string => $this->getPayment()->currency)
+                    ->helperText('The amount to apply from this payment'),
+
+                Textarea::make('reason')
+                    ->label('Reason for Force Match')
+                    ->required()
+                    ->minLength(10)
+                    ->maxLength(1000)
+                    ->helperText('Explain why this payment is being force matched despite the mismatch')
+                    ->placeholder('Enter the reason for overriding the mismatch...'),
+
+                Checkbox::make('confirm_override')
+                    ->label('I confirm this override is appropriate and documented')
+                    ->required()
+                    ->accepted(),
+            ])
+            ->action(function (array $data): void {
+                $this->executeForceMatch($data);
+            });
+    }
+
+    /**
+     * Check if force match action should be visible.
+     */
+    protected function canForceMatch(): bool
+    {
+        $payment = $this->getPayment();
+
+        return $payment->hasMismatch()
+            && $payment->canBeAppliedToInvoice()
+            && bccomp($payment->getUnappliedAmount(), '0', 2) > 0;
+    }
+
+    /**
+     * Get HTML for force match info in the modal.
+     */
+    protected function getForceMatchInfoHtml(): string
+    {
+        $payment = $this->getPayment();
+
+        $lines = [];
+        $lines[] = '<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4">';
+        $lines[] = '<div class="flex items-start gap-3">';
+        $lines[] = '<div class="flex-shrink-0">';
+        $lines[] = '<svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">';
+        $lines[] = '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>';
+        $lines[] = '</svg>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<h4 class="font-semibold text-amber-800 dark:text-amber-200">Current Mismatch</h4>';
+        $lines[] = '<p class="mt-1 text-sm text-amber-700 dark:text-amber-300">'.e($payment->getMismatchReason()).'</p>';
+
+        $mismatchType = $payment->getMismatchTypeLabel();
+        if ($mismatchType !== null) {
+            $lines[] = '<p class="mt-1 text-xs text-amber-600 dark:text-amber-400">Type: '.e($mismatchType).'</p>';
+        }
+
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        // Payment summary
+        $lines[] = '<div class="grid grid-cols-2 gap-4 text-sm">';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Payment Reference:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->payment_reference).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Unapplied Amount:</span>';
+        $lines[] = '<span class="font-semibold ml-2 text-amber-600">'.e($payment->getFormattedUnappliedAmount()).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Get available invoices for force match (all open invoices, not filtered by customer).
+     *
+     * @return array<string, string>
+     */
+    protected function getAvailableInvoicesForForceMatch(): array
+    {
+        $payment = $this->getPayment();
+
+        // Get all open invoices in matching currency (not filtered by customer for force match)
+        $invoices = Invoice::where('currency', $payment->currency)
+            ->whereIn('status', [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid])
+            ->orderBy('due_date', 'asc')
+            ->orderBy('issued_at', 'asc')
+            ->with('customer')
+            ->get();
+
+        $options = [];
+        foreach ($invoices as $invoice) {
+            $outstanding = $invoice->getOutstandingAmount();
+            $customerName = $invoice->customer !== null ? $invoice->customer->name : 'Unknown';
+            $invoiceNumber = $invoice->invoice_number ?? 'Draft';
+            $dueInfo = $invoice->due_date !== null ? ' (Due: '.$invoice->due_date->format('M j, Y').')' : '';
+
+            $label = "{$invoiceNumber} - {$customerName} - {$invoice->currency} {$outstanding} outstanding{$dueInfo}";
+
+            if ($invoice->isOverdue()) {
+                $label .= ' [OVERDUE]';
+            }
+
+            $options[$invoice->id] = $label;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Handle invoice selection for force match.
+     */
+    protected function onForceMatchInvoiceSelected(callable $set, ?string $invoiceId): void
+    {
+        if ($invoiceId === null) {
+            return;
+        }
+
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice === null) {
+            return;
+        }
+
+        $payment = $this->getPayment();
+
+        // Set default amount to the lesser of: invoice outstanding or unapplied payment amount
+        $outstanding = $invoice->getOutstandingAmount();
+        $unapplied = $payment->getUnappliedAmount();
+
+        $defaultAmount = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+        $set('amount', $defaultAmount);
+    }
+
+    /**
+     * Execute the force match action.
+     *
+     * @param  array{invoice_id: string, amount: string, reason: string, confirm_override: bool}  $data
+     */
+    protected function executeForceMatch(array $data): void
+    {
+        $payment = $this->getPayment();
+        $invoice = Invoice::findOrFail($data['invoice_id']);
+        $amount = (string) $data['amount'];
+        $reason = (string) $data['reason'];
+
+        try {
+            /** @var PaymentService $paymentService */
+            $paymentService = app(PaymentService::class);
+
+            $paymentService->forceMatch($payment, $invoice, $reason, $amount);
+
+            Notification::make()
+                ->title('Payment Force Matched')
+                ->body("Payment force matched to invoice {$invoice->invoice_number}. Amount: {$payment->currency} {$amount}")
+                ->success()
+                ->send();
+
+            $this->redirect(PaymentResource::getUrl('view', ['record' => $payment]));
+
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Force Match Failed')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Action to create an exception for a mismatched payment.
+     *
+     * Visible only when payment has reconciliation_status = mismatched.
+     */
+    protected function getCreateExceptionAction(): Action
+    {
+        return Action::make('createException')
+            ->label('Create Exception')
+            ->icon('heroicon-o-flag')
+            ->color('gray')
+            ->visible(fn (): bool => $this->canCreateException())
+            ->requiresConfirmation()
+            ->modalHeading('Create Payment Exception')
+            ->modalDescription('Document why this mismatch cannot be resolved through normal means.')
+            ->modalIcon('heroicon-o-flag')
+            ->form([
+                Placeholder::make('mismatch_info')
+                    ->label('')
+                    ->content(fn (): string => $this->getExceptionInfoHtml())
+                    ->columnSpanFull(),
+
+                Select::make('exception_type')
+                    ->label('Exception Type')
+                    ->required()
+                    ->options(PaymentService::getExceptionTypes())
+                    ->helperText('Select the type of exception'),
+
+                Textarea::make('reason')
+                    ->label('Exception Reason')
+                    ->required()
+                    ->minLength(10)
+                    ->maxLength(1000)
+                    ->helperText('Explain why this payment cannot be reconciled through normal means')
+                    ->placeholder('Enter the reason for creating this exception...'),
+
+                Checkbox::make('confirm_exception')
+                    ->label('I confirm this exception has been properly reviewed')
+                    ->required()
+                    ->accepted(),
+            ])
+            ->action(function (array $data): void {
+                $this->executeCreateException($data);
+            });
+    }
+
+    /**
+     * Check if create exception action should be visible.
+     */
+    protected function canCreateException(): bool
+    {
+        $payment = $this->getPayment();
+
+        return $payment->hasMismatch();
+    }
+
+    /**
+     * Get HTML for exception info in the modal.
+     */
+    protected function getExceptionInfoHtml(): string
+    {
+        $payment = $this->getPayment();
+
+        $lines = [];
+        $lines[] = '<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">';
+        $lines[] = '<h4 class="font-semibold text-gray-900 dark:text-gray-100 mb-2">Payment Details</h4>';
+        $lines[] = '<div class="grid grid-cols-2 gap-2 text-sm">';
+        $lines[] = '<div><span class="text-gray-500 dark:text-gray-400">Reference:</span> <strong>'.e($payment->payment_reference).'</strong></div>';
+        $lines[] = '<div><span class="text-gray-500 dark:text-gray-400">Amount:</span> <strong>'.e($payment->getFormattedAmount()).'</strong></div>';
+        $lines[] = '<div><span class="text-gray-500 dark:text-gray-400">Current Mismatch:</span> '.e($payment->getMismatchReason()).'</div>';
+
+        $mismatchType = $payment->getMismatchTypeLabel();
+        if ($mismatchType !== null) {
+            $lines[] = '<div><span class="text-gray-500 dark:text-gray-400">Mismatch Type:</span> '.e($mismatchType).'</div>';
+        }
+
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        // Info about what exception means
+        $lines[] = '<div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">';
+        $lines[] = '<h4 class="font-semibold text-blue-800 dark:text-blue-200">What is an Exception?</h4>';
+        $lines[] = '<p class="mt-1 text-sm text-blue-700 dark:text-blue-300">';
+        $lines[] = 'Creating an exception documents that this payment mismatch has been reviewed but cannot be resolved ';
+        $lines[] = 'through normal means. The payment will remain as mismatched but with documentation explaining why.';
+        $lines[] = '</p>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Execute the create exception action.
+     *
+     * @param  array{exception_type: string, reason: string, confirm_exception: bool}  $data
+     */
+    protected function executeCreateException(array $data): void
+    {
+        $payment = $this->getPayment();
+        $reason = (string) $data['reason'];
+        $exceptionType = (string) $data['exception_type'];
+
+        try {
+            /** @var PaymentService $paymentService */
+            $paymentService = app(PaymentService::class);
+
+            $paymentService->createException($payment, $reason, $exceptionType);
+
+            Notification::make()
+                ->title('Exception Created')
+                ->body('Payment exception has been documented.')
+                ->success()
+                ->send();
+
+            $this->redirect(PaymentResource::getUrl('view', ['record' => $payment]));
+
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Failed to Create Exception')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Action to mark a mismatched payment for refund.
+     *
+     * Visible only when payment has reconciliation_status = mismatched and can be refunded.
+     */
+    protected function getMarkForRefundAction(): Action
+    {
+        return Action::make('markForRefund')
+            ->label('Refund')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('danger')
+            ->visible(fn (): bool => $this->canMarkForRefund())
+            ->requiresConfirmation()
+            ->modalHeading('Mark Payment for Refund')
+            ->modalDescription('This will mark the payment for refund processing. The actual refund will be processed separately.')
+            ->modalIcon('heroicon-o-arrow-uturn-left')
+            ->form([
+                Placeholder::make('refund_warning')
+                    ->label('')
+                    ->content(fn (): string => $this->getRefundWarningHtml())
+                    ->columnSpanFull(),
+
+                Textarea::make('reason')
+                    ->label('Refund Reason')
+                    ->required()
+                    ->minLength(10)
+                    ->maxLength(1000)
+                    ->helperText('Explain why this payment needs to be refunded')
+                    ->placeholder('Enter the reason for the refund...'),
+
+                Checkbox::make('confirm_refund')
+                    ->label('I understand this will initiate a refund process')
+                    ->required()
+                    ->accepted(),
+            ])
+            ->action(function (array $data): void {
+                $this->executeMarkForRefund($data);
+            });
+    }
+
+    /**
+     * Check if mark for refund action should be visible.
+     */
+    protected function canMarkForRefund(): bool
+    {
+        $payment = $this->getPayment();
+
+        return $payment->hasMismatch() && $payment->canBeRefunded();
+    }
+
+    /**
+     * Get HTML for refund warning in the modal.
+     */
+    protected function getRefundWarningHtml(): string
+    {
+        $payment = $this->getPayment();
+
+        $lines = [];
+
+        // Warning about refund
+        $lines[] = '<div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4">';
+        $lines[] = '<div class="flex items-start gap-3">';
+        $lines[] = '<div class="flex-shrink-0">';
+        $lines[] = '<svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">';
+        $lines[] = '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>';
+        $lines[] = '</svg>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<h4 class="font-semibold text-red-800 dark:text-red-200">Refund Warning</h4>';
+        $lines[] = '<p class="mt-1 text-sm text-red-700 dark:text-red-300">';
+        $lines[] = 'Marking this payment for refund will initiate the refund process. ';
+
+        if ($payment->isFromStripe()) {
+            $lines[] = 'For Stripe payments, the refund will be processed automatically.';
+        } else {
+            $lines[] = 'For bank transfers, a manual refund will need to be processed.';
+        }
+
+        $lines[] = '</p>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        // Payment details
+        $lines[] = '<div class="grid grid-cols-2 gap-4 text-sm">';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Payment Reference:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->payment_reference).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Amount to Refund:</span>';
+        $lines[] = '<span class="font-semibold ml-2 text-red-600">'.e($payment->getFormattedAmount()).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Payment Source:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->source->label()).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Current Mismatch:</span>';
+        $lines[] = '<span class="ml-2">'.e($payment->getMismatchReason()).'</span>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Execute the mark for refund action.
+     *
+     * @param  array{reason: string, confirm_refund: bool}  $data
+     */
+    protected function executeMarkForRefund(array $data): void
+    {
+        $payment = $this->getPayment();
+        $reason = (string) $data['reason'];
+
+        try {
+            /** @var PaymentService $paymentService */
+            $paymentService = app(PaymentService::class);
+
+            $paymentService->markForRefund($payment, $reason);
+
+            Notification::make()
+                ->title('Payment Marked for Refund')
+                ->body('The payment has been marked for refund processing.')
+                ->success()
+                ->send();
+
+            $this->redirect(PaymentResource::getUrl('view', ['record' => $payment]));
+
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Failed to Mark for Refund')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 }
