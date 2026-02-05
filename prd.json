@@ -1853,8 +1853,8 @@
         "Typecheck passes"
       ],
       "priority": 117,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Quick actions added to FinanceOverview page with badge counts for overdue invoices, pending reconciliations, and failed syncs"
     },
     {
       "id": "US-E118",

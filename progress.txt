@@ -2282,3 +2282,23 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Integration health can be delegated to XeroIntegrationService.getIntegrationHealth() for Xero metrics
   - Status badge classes should match those used elsewhere (healthy/warning/critical/disabled)
 ---
+
+## 2026-02-05 - US-E117
+- What was implemented: Dashboard quick actions for Finance Overview page
+- Files changed:
+  - app/Filament/Pages/Finance/FinanceOverview.php (added quick actions methods and URL generators)
+  - resources/views/filament/pages/finance/finance-overview.blade.php (added quick actions section with grid layout)
+- **Acceptance criteria verification:**
+  - ✅ Quick action: View Overdue Invoices - Links to invoice list with overdue tab filter
+  - ✅ Quick action: Pending Reconciliations - Links to payments list filtered by reconciliation_status=pending
+  - ✅ Quick action: Failed Syncs - Links to Integrations Health page
+  - ✅ Quick action: Generate Storage Billing - Links to Storage Billing Preview page
+  - ✅ Links to respective sections - All URLs properly constructed
+  - ✅ Typecheck passes - PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Quick actions use a consistent data structure with label, description, icon, url, color, and badge
+  - Badge counts show attention-requiring items (overdue count, pending reconciliations, failed syncs)
+  - Use dynamic Tailwind color classes (bg-{color}-50, text-{color}-600) for conditional styling
+  - Route parameters for Filament tabs use 'activeTab' key
+  - getQuickActions() returns array for flexible rendering in Blade template
+---
