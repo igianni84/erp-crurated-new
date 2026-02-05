@@ -2137,3 +2137,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Stream downloads use response()->streamDownload() with a closure writing to php://output
   - For JSON streaming with proper formatting, manually construct the JSON structure
 ---
+
+## 2026-02-05 - US-E111
+- What was implemented: Event-to-Invoice Traceability Report page for auditors to trace ERP events to invoices and payments
+- Files changed:
+  - app/Filament/Pages/Finance/EventToInvoiceTraceabilityReport.php (Filament page with filters, breakdown, traceability table, CSV export)
+  - resources/views/filament/pages/finance/event-to-invoice-traceability-report.blade.php (Blade view template)
+- **Features implemented:**
+  - Filter by event type: voucher_sale (INV1), shipping_order (INV2), storage_billing_period (INV3), subscription (INV0), event_booking (INV4)
+  - Filter by date range
+  - Toggle to show only unmatched events (incomplete traceability)
+  - Summary cards: total events, complete, pending payment, partial payment, outstanding amount
+  - Breakdown by event type showing invoiced/paid/outstanding amounts per type
+  - Full traceability table: Event -> Invoice -> Payment chain with status badges
+  - CSV export with complete traceability data
+- **Learnings for future iterations:**
+  - Invoice model uses source_type and source_id to link back to originating ERP events
+  - InvoiceType enum has expectedSourceType() method that maps invoice types to source types
+  - Traceability status is derived: 'complete' (fully paid), 'partial_payment', 'pending_payment', or 'no_invoice'
+  - For filtering unmatched events, filter based on traceability_status != 'complete'
+  - When looping through mixed array data, use PHPDoc @var annotations to tell PHPStan the expected types
+  - Use the pattern `/** @var string $sourceType */` before accessing mixed array values
+---
