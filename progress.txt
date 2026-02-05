@@ -1788,3 +1788,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Job logs to 'finance' channel for dedicated financial audit trail
   - Preview methods support the Storage Billing Preview page (US-E046) for confirming before generation
 ---
+
+## 2026-02-05 - US-E092
+- What was implemented: Added Generate Billing action to Storage Billing list page
+- Files changed:
+  - app/Filament/Resources/Finance/StorageBillingResource/Pages/ListStorageBilling.php (added getGenerateBillingAction)
+- Features implemented:
+  - ✅ Action Generate Billing in Storage Billing section header
+  - ✅ Select period (start, end) with DatePicker fields
+  - ✅ Preview affected customers and amounts using GenerateStorageBillingJob's getPreviewData/getPreviewSummary
+  - ✅ Confirm to generate with modal workflow
+  - ✅ Toggle options for auto_generate_invoices and auto_issue
+  - Preview shows: summary stats (customers, bottle-days, amount), customer breakdown table with status (New/Exists)
+- **Learnings for future iterations:**
+  - Use Placeholder with live() form data and HtmlString for dynamic preview content
+  - GenerateStorageBillingJob has getPreviewData() and getPreviewSummary() methods for previewing before generation
+  - Filament Actions support complex modal forms with live() updates
+  - Use ->visible() with Get $get to conditionally show fields based on other toggle values
+---
