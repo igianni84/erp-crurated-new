@@ -913,3 +913,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Resolution instructions computed from invoice: "Pay invoice {number} ({currency} {outstanding} outstanding) to remove this custody block"
   - Schedule order: storage billing (5:00 AM) → subscription billing (6:00 AM) → overdue check (8:00 AM) → subscription suspension (9:00 AM) → storage block (10:00 AM)
 ---
+
+## 2026-02-05 - US-E046
+- What was implemented: Storage Billing Preview page in Filament Finance section
+- Files changed:
+  - app/Filament/Pages/Finance/StorageBillingPreview.php (new Filament Page with preview, summary, and generation action)
+  - resources/views/filament/pages/finance/storage-billing-preview.blade.php (new blade view with summary cards, customer table, location breakdown)
+- **Acceptance criteria verification:**
+  - ✅ Page Storage Billing Preview in Finance: New page at app/Filament/Pages/Finance/ with navigation group "Finance"
+  - ✅ Shows projected invoices for current period: getPreviewData() and getPreviewSummary() display customer data with amounts
+  - ✅ Breakdown per customer and location: Table shows per-customer data with optional location breakdown rows (togglable via checkbox)
+  - ✅ Action Generate Invoices for confirmation: Header action with confirmation modal, form for period dates and auto-issue toggle
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Filament Pages can use blade views with direct method calls: $this->getPreviewData(), $this->formatAmount()
+  - Page reuses GenerateStorageBillingJob.getPreviewData() for consistent calculation with actual job
+  - wire:model.live.debounce.500ms enables reactive date filtering with debounce
+  - Export to CSV uses response()->streamDownload() with fputcsv() pattern
+  - Summary cards use grid layout with icon, label, and value similar to PimDashboard pattern
+  - Customer table includes expandable location breakdown rows when showLocationBreakdown is true and customer has multiple locations
+  - Status column distinguishes "Exists" (gray badge) vs "Pending" (warning badge) to show which periods are new
+  - Faded rows (opacity-60) visually indicate existing periods that will be skipped during generation
+---
