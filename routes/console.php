@@ -3,6 +3,7 @@
 use App\Jobs\Allocation\ExpireReservationsJob;
 use App\Jobs\Allocation\ExpireTransfersJob;
 use App\Jobs\Finance\AlertUnpaidImmediateInvoicesJob;
+use App\Jobs\Finance\GenerateStorageBillingJob;
 use App\Jobs\Finance\IdentifyOverdueInvoicesJob;
 use App\Jobs\Finance\ProcessSubscriptionBillingJob;
 use App\Jobs\Finance\SuspendOverdueSubscriptionsJob;
@@ -32,3 +33,11 @@ Schedule::job(new SuspendOverdueSubscriptionsJob)->dailyAt('09:00');
 // Schedule the job to alert on unpaid immediate invoices (INV1, INV2, INV4) hourly
 // This runs hourly to provide timely alerts for INV1 invoices that should have been paid immediately
 Schedule::job(new AlertUnpaidImmediateInvoicesJob)->hourly();
+
+// Schedule the job to generate storage billing (INV3) on the first day of each month
+// This runs at 5:00 AM on the 1st to process the previous month's storage billing
+// Uses forPreviousMonth() factory method to calculate the billing period automatically
+Schedule::job(GenerateStorageBillingJob::forPreviousMonth(
+    autoGenerateInvoices: config('finance.storage.auto_issue_invoices', true),
+    autoIssue: config('finance.storage.auto_issue_invoices', true)
+))->monthlyOn(1, '05:00');

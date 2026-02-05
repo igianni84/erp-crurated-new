@@ -128,6 +128,40 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Storage Billing Configuration (INV3)
+    |--------------------------------------------------------------------------
+    |
+    | Settings for storage billing calculation and invoicing.
+    |
+    */
+    'storage' => [
+        // Billing cycle for storage (monthly or quarterly)
+        'billing_cycle' => env('FINANCE_STORAGE_BILLING_CYCLE', 'monthly'),
+
+        // Default rate per bottle-day in EUR (used if no tier applies)
+        'default_rate_per_bottle_day' => env('FINANCE_STORAGE_DEFAULT_RATE', '0.0050'),
+
+        // Rate tiers based on bottle volume
+        // Higher volume = lower rate (volume discount)
+        'rate_tiers' => [
+            ['min_bottles' => 0, 'max_bottles' => 100, 'rate' => '0.0060'],
+            ['min_bottles' => 101, 'max_bottles' => 500, 'rate' => '0.0050'],
+            ['min_bottles' => 501, 'max_bottles' => 1000, 'rate' => '0.0045'],
+            ['min_bottles' => 1001, 'max_bottles' => null, 'rate' => '0.0040'],
+        ],
+
+        // Minimum charge per billing period (in base currency)
+        'minimum_charge' => env('FINANCE_STORAGE_MINIMUM_CHARGE', '5.00'),
+
+        // Time to run the billing job (first day of period)
+        'billing_job_time' => env('FINANCE_STORAGE_BILLING_TIME', '05:00'),
+
+        // Whether to auto-issue invoices when generating
+        'auto_issue_invoices' => env('FINANCE_STORAGE_AUTO_ISSUE', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Shipping Tax Configuration (INV2)
     |--------------------------------------------------------------------------
     |
