@@ -13,6 +13,7 @@ use Filament\Pages\Page;
 
 /**
  * US-E116: Finance Overview Dashboard
+ * US-E117: Dashboard quick actions
  *
  * The default landing page for the Finance module, providing a quick
  * overview of key financial metrics:
@@ -21,6 +22,12 @@ use Filament\Pages\Page;
  * - Payments This Month
  * - Pending Reconciliations
  * - Integration Health (Stripe, Xero status)
+ *
+ * Quick Actions (US-E117):
+ * - View Overdue Invoices
+ * - Pending Reconciliations
+ * - Failed Syncs
+ * - Generate Storage Billing
  */
 class FinanceOverview extends Page
 {
@@ -62,6 +69,106 @@ class FinanceOverview extends Page
             ->icon('heroicon-o-arrow-path')
             ->color('gray')
             ->action(fn () => $this->dispatch('$refresh'));
+    }
+
+    // =========================================================================
+    // Quick Actions (US-E117)
+    // =========================================================================
+
+    /**
+     * Get quick actions for the dashboard.
+     *
+     * @return array<array{label: string, description: string, icon: string, url: string, color: string, badge: int|null}>
+     */
+    public function getQuickActions(): array
+    {
+        $overdueCount = $this->getOverdueInvoicesCount();
+        $pendingReconciliations = $this->getPendingReconciliationsCount();
+        $failedSyncs = $this->getFailedSyncsCount();
+
+        return [
+            [
+                'label' => 'View Overdue Invoices',
+                'description' => 'Review invoices that are past due date',
+                'icon' => 'heroicon-o-exclamation-triangle',
+                'url' => $this->getOverdueInvoicesUrl(),
+                'color' => $overdueCount > 0 ? 'danger' : 'gray',
+                'badge' => $overdueCount > 0 ? $overdueCount : null,
+            ],
+            [
+                'label' => 'Pending Reconciliations',
+                'description' => 'Payments awaiting reconciliation',
+                'icon' => 'heroicon-o-document-magnifying-glass',
+                'url' => $this->getPendingReconciliationsUrl(),
+                'color' => $pendingReconciliations > 0 ? 'warning' : 'gray',
+                'badge' => $pendingReconciliations > 0 ? $pendingReconciliations : null,
+            ],
+            [
+                'label' => 'Failed Syncs',
+                'description' => 'Review failed Stripe/Xero integrations',
+                'icon' => 'heroicon-o-arrow-path-rounded-square',
+                'url' => $this->getFailedSyncsUrl(),
+                'color' => $failedSyncs > 0 ? 'danger' : 'gray',
+                'badge' => $failedSyncs > 0 ? $failedSyncs : null,
+            ],
+            [
+                'label' => 'Generate Storage Billing',
+                'description' => 'Preview and generate storage invoices',
+                'icon' => 'heroicon-o-archive-box',
+                'url' => $this->getStorageBillingUrl(),
+                'color' => 'primary',
+                'badge' => null,
+            ],
+        ];
+    }
+
+    /**
+     * Get URL for overdue invoices view.
+     */
+    public function getOverdueInvoicesUrl(): string
+    {
+        return route('filament.admin.resources.finance.invoices.index', [
+            'activeTab' => 'overdue',
+        ]);
+    }
+
+    /**
+     * Get URL for pending reconciliations view.
+     */
+    public function getPendingReconciliationsUrl(): string
+    {
+        return route('filament.admin.resources.finance.payments.index', [
+            'tableFilters' => [
+                'reconciliation_status' => ['value' => 'pending'],
+            ],
+        ]);
+    }
+
+    /**
+     * Get URL for failed syncs view.
+     */
+    public function getFailedSyncsUrl(): string
+    {
+        return route('filament.admin.pages.finance.integrations-health');
+    }
+
+    /**
+     * Get URL for storage billing preview.
+     */
+    public function getStorageBillingUrl(): string
+    {
+        return route('filament.admin.pages.finance.storage-billing-preview');
+    }
+
+    /**
+     * Get total count of failed syncs (Stripe + Xero).
+     */
+    public function getFailedSyncsCount(): int
+    {
+        $stripeHealth = $this->getStripeHealthSummary();
+        $xeroHealth = $this->getXeroHealthSummary();
+
+        return $stripeHealth['failed_count'] + $xeroHealth['failed_count'];
     }
 
     // =========================================================================

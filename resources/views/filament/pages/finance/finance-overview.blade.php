@@ -195,6 +195,37 @@
         </div>
     </div>
 
+    {{-- Quick Actions (US-E117) --}}
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <x-heroicon-o-bolt class="h-5 w-5 text-gray-400" />
+            Quick Actions
+        </h3>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach($this->getQuickActions() as $action)
+                <a href="{{ $action['url'] }}"
+                   class="group relative flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-{{ $action['color'] }}-300 dark:hover:border-{{ $action['color'] }}-700 hover:bg-{{ $action['color'] }}-50 dark:hover:bg-{{ $action['color'] }}-900/10 transition-all duration-150">
+                    <div class="flex-shrink-0 rounded-lg bg-{{ $action['color'] }}-50 dark:bg-{{ $action['color'] }}-400/10 p-2.5 group-hover:bg-{{ $action['color'] }}-100 dark:group-hover:bg-{{ $action['color'] }}-400/20 transition-colors">
+                        <x-dynamic-component :component="$action['icon']" class="h-5 w-5 text-{{ $action['color'] }}-600 dark:text-{{ $action['color'] }}-400" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 dark:text-white group-hover:text-{{ $action['color'] }}-700 dark:group-hover:text-{{ $action['color'] }}-300 transition-colors">
+                            {{ $action['label'] }}
+                        </p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {{ $action['description'] }}
+                        </p>
+                    </div>
+                    @if($action['badge'])
+                        <span class="absolute top-2 right-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-{{ $action['color'] }}-500 rounded-full">
+                            {{ $action['badge'] > 99 ? '99+' : $action['badge'] }}
+                        </span>
+                    @endif
+                </a>
+            @endforeach
+        </div>
+    </div>
+
     {{-- Today's Activity & Quick Stats --}}
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-6">
         {{-- Today's Activity --}}
