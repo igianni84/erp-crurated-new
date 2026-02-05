@@ -749,6 +749,203 @@ class FinanceOverview extends Page
     }
 
     // =========================================================================
+    // Period Comparison (US-E120)
+    // =========================================================================
+
+    /**
+     * Get period comparison data for This Month vs Last Month.
+     *
+     * Returns metrics with percentage changes for:
+     * - Invoices issued (count and amount)
+     * - Amount collected (payments)
+     * - Credit notes issued (count and amount)
+     *
+     * @return array{
+     *     current_month: string,
+     *     previous_month: string,
+     *     invoices: array{
+     *         current_count: int,
+     *         previous_count: int,
+     *         current_amount: string,
+     *         previous_amount: string,
+     *         count_change: array{value: float, direction: string},
+     *         amount_change: array{value: float, direction: string}
+     *     },
+     *     payments: array{
+     *         current_count: int,
+     *         previous_count: int,
+     *         current_amount: string,
+     *         previous_amount: string,
+     *         count_change: array{value: float, direction: string},
+     *         amount_change: array{value: float, direction: string}
+     *     },
+     *     credit_notes: array{
+     *         current_count: int,
+     *         previous_count: int,
+     *         current_amount: string,
+     *         previous_amount: string,
+     *         count_change: array{value: float, direction: string},
+     *         amount_change: array{value: float, direction: string}
+     *     }
+     * }
+     */
+    public function getPeriodComparison(): array
+    {
+        $currentStart = now()->startOfMonth();
+        $currentEnd = now()->endOfMonth();
+        $previousStart = now()->subMonth()->startOfMonth();
+        $previousEnd = now()->subMonth()->endOfMonth();
+
+        // Invoices issued
+        $currentInvoices = Invoice::query()
+            ->whereNotNull('issued_at')
+            ->whereBetween('issued_at', [$currentStart, $currentEnd]);
+        $currentInvoicesCount = $currentInvoices->count();
+        $currentInvoicesAmount = $currentInvoices->sum('total_amount');
+
+        $previousInvoices = Invoice::query()
+            ->whereNotNull('issued_at')
+            ->whereBetween('issued_at', [$previousStart, $previousEnd]);
+        $previousInvoicesCount = $previousInvoices->count();
+        $previousInvoicesAmount = $previousInvoices->sum('total_amount');
+
+        // Payments received (amount collected)
+        $currentPayments = Payment::query()
+            ->where('status', PaymentStatus::Confirmed)
+            ->whereBetween('received_at', [$currentStart, $currentEnd]);
+        $currentPaymentsCount = $currentPayments->count();
+        $currentPaymentsAmount = $currentPayments->sum('amount');
+
+        $previousPayments = Payment::query()
+            ->where('status', PaymentStatus::Confirmed)
+            ->whereBetween('received_at', [$previousStart, $previousEnd]);
+        $previousPaymentsCount = $previousPayments->count();
+        $previousPaymentsAmount = $previousPayments->sum('amount');
+
+        // Credit notes issued
+        $currentCreditNotes = CreditNote::query()
+            ->whereNotNull('issued_at')
+            ->whereBetween('issued_at', [$currentStart, $currentEnd]);
+        $currentCreditNotesCount = $currentCreditNotes->count();
+        $currentCreditNotesAmount = $currentCreditNotes->sum('amount');
+
+        $previousCreditNotes = CreditNote::query()
+            ->whereNotNull('issued_at')
+            ->whereBetween('issued_at', [$previousStart, $previousEnd]);
+        $previousCreditNotesCount = $previousCreditNotes->count();
+        $previousCreditNotesAmount = $previousCreditNotes->sum('amount');
+
+        return [
+            'current_month' => now()->format('F Y'),
+            'previous_month' => now()->subMonth()->format('F Y'),
+            'invoices' => [
+                'current_count' => $currentInvoicesCount,
+                'previous_count' => $previousInvoicesCount,
+                'current_amount' => number_format((float) $currentInvoicesAmount, 2, '.', ''),
+                'previous_amount' => number_format((float) $previousInvoicesAmount, 2, '.', ''),
+                'count_change' => $this->calculatePercentageChange($currentInvoicesCount, $previousInvoicesCount),
+                'amount_change' => $this->calculatePercentageChange((float) $currentInvoicesAmount, (float) $previousInvoicesAmount),
+            ],
+            'payments' => [
+                'current_count' => $currentPaymentsCount,
+                'previous_count' => $previousPaymentsCount,
+                'current_amount' => number_format((float) $currentPaymentsAmount, 2, '.', ''),
+                'previous_amount' => number_format((float) $previousPaymentsAmount, 2, '.', ''),
+                'count_change' => $this->calculatePercentageChange($currentPaymentsCount, $previousPaymentsCount),
+                'amount_change' => $this->calculatePercentageChange((float) $currentPaymentsAmount, (float) $previousPaymentsAmount),
+            ],
+            'credit_notes' => [
+                'current_count' => $currentCreditNotesCount,
+                'previous_count' => $previousCreditNotesCount,
+                'current_amount' => number_format((float) $currentCreditNotesAmount, 2, '.', ''),
+                'previous_amount' => number_format((float) $previousCreditNotesAmount, 2, '.', ''),
+                'count_change' => $this->calculatePercentageChange($currentCreditNotesCount, $previousCreditNotesCount),
+                'amount_change' => $this->calculatePercentageChange((float) $currentCreditNotesAmount, (float) $previousCreditNotesAmount),
+            ],
+        ];
+    }
+
+    /**
+     * Calculate percentage change between two values.
+     *
+     * @return array{value: float, direction: string}
+     */
+    protected function calculatePercentageChange(float|int $current, float|int $previous): array
+    {
+        $currentFloat = (float) $current;
+        $previousFloat = (float) $previous;
+
+        if ($previousFloat === 0.0) {
+            if ($currentFloat > 0) {
+                return ['value' => 100.0, 'direction' => 'up'];
+            }
+
+            return ['value' => 0.0, 'direction' => 'neutral'];
+        }
+
+        $change = (($currentFloat - $previousFloat) / $previousFloat) * 100;
+
+        $direction = 'neutral';
+        if ($change > 0.5) { // Use small threshold to avoid floating point issues
+            $direction = 'up';
+        } elseif ($change < -0.5) {
+            $direction = 'down';
+        }
+
+        return [
+            'value' => abs($change),
+            'direction' => $direction,
+        ];
+    }
+
+    /**
+     * Get change color class based on direction and metric type.
+     *
+     * For most metrics, up = green, down = red.
+     * For credit notes, up = red (more credit notes is typically unfavorable), down = green.
+     *
+     * @param  string  $direction  The change direction (up, down, neutral)
+     * @param  bool  $inverse  Whether to inverse the colors (true for credit notes)
+     */
+    public function getPeriodChangeColorClass(string $direction, bool $inverse = false): string
+    {
+        if ($direction === 'neutral') {
+            return 'text-gray-500 dark:text-gray-400';
+        }
+
+        $isPositive = $direction === 'up';
+        if ($inverse) {
+            $isPositive = ! $isPositive;
+        }
+
+        return $isPositive
+            ? 'text-success-600 dark:text-success-400'
+            : 'text-danger-600 dark:text-danger-400';
+    }
+
+    /**
+     * Get change background color class based on direction and metric type.
+     *
+     * @param  string  $direction  The change direction (up, down, neutral)
+     * @param  bool  $inverse  Whether to inverse the colors (true for credit notes)
+     */
+    public function getPeriodChangeBgColorClass(string $direction, bool $inverse = false): string
+    {
+        if ($direction === 'neutral') {
+            return 'bg-gray-100 dark:bg-gray-700';
+        }
+
+        $isPositive = $direction === 'up';
+        if ($inverse) {
+            $isPositive = ! $isPositive;
+        }
+
+        return $isPositive
+            ? 'bg-success-100 dark:bg-success-400/20'
+            : 'bg-danger-100 dark:bg-danger-400/20';
+    }
+
+    // =========================================================================
     // Display Helpers
     // =========================================================================
 

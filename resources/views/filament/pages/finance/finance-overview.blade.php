@@ -501,6 +501,220 @@
         </div>
     </div>
 
+    {{-- Period Comparison Widget (US-E120) --}}
+    @php
+        $periodComparison = $this->getPeriodComparison();
+    @endphp
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+        <div class="flex items-center justify-between mb-6">
+            <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <x-heroicon-o-scale class="h-5 w-5 text-gray-400" />
+                Period Comparison
+            </h3>
+            <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <span class="font-medium text-gray-700 dark:text-gray-300">{{ $periodComparison['current_month'] }}</span>
+                <span>vs</span>
+                <span>{{ $periodComparison['previous_month'] }}</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            {{-- Invoices Issued --}}
+            <div class="space-y-4">
+                <div class="flex items-center gap-2">
+                    <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-2">
+                        <x-heroicon-o-document-text class="h-4 w-4 text-primary-600 dark:text-primary-400" />
+                    </div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Invoices Issued</span>
+                </div>
+
+                <div class="space-y-3">
+                    {{-- Count comparison --}}
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Count</div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {{ $periodComparison['invoices']['current_count'] }}
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    vs {{ $periodComparison['invoices']['previous_count'] }}
+                                </div>
+                            </div>
+                            @if($periodComparison['invoices']['count_change']['direction'] !== 'neutral')
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium {{ $this->getPeriodChangeBgColorClass($periodComparison['invoices']['count_change']['direction']) }} {{ $this->getPeriodChangeColorClass($periodComparison['invoices']['count_change']['direction']) }}">
+                                    <x-dynamic-component :component="$this->getChangeIcon($periodComparison['invoices']['count_change']['direction'])" class="h-3 w-3" />
+                                    {{ number_format($periodComparison['invoices']['count_change']['value'], 1) }}%
+                                </div>
+                            @else
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    <x-heroicon-o-minus class="h-3 w-3" />
+                                    0%
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Amount comparison --}}
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Amount</div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {{ $this->formatAmount($periodComparison['invoices']['current_amount']) }}
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    vs {{ $this->formatAmount($periodComparison['invoices']['previous_amount']) }}
+                                </div>
+                            </div>
+                            @if($periodComparison['invoices']['amount_change']['direction'] !== 'neutral')
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium {{ $this->getPeriodChangeBgColorClass($periodComparison['invoices']['amount_change']['direction']) }} {{ $this->getPeriodChangeColorClass($periodComparison['invoices']['amount_change']['direction']) }}">
+                                    <x-dynamic-component :component="$this->getChangeIcon($periodComparison['invoices']['amount_change']['direction'])" class="h-3 w-3" />
+                                    {{ number_format($periodComparison['invoices']['amount_change']['value'], 1) }}%
+                                </div>
+                            @else
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    <x-heroicon-o-minus class="h-3 w-3" />
+                                    0%
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Amount Collected (Payments) --}}
+            <div class="space-y-4">
+                <div class="flex items-center gap-2">
+                    <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-2">
+                        <x-heroicon-o-banknotes class="h-4 w-4 text-success-600 dark:text-success-400" />
+                    </div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Amount Collected</span>
+                </div>
+
+                <div class="space-y-3">
+                    {{-- Count comparison --}}
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Payments</div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {{ $periodComparison['payments']['current_count'] }}
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    vs {{ $periodComparison['payments']['previous_count'] }}
+                                </div>
+                            </div>
+                            @if($periodComparison['payments']['count_change']['direction'] !== 'neutral')
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium {{ $this->getPeriodChangeBgColorClass($periodComparison['payments']['count_change']['direction']) }} {{ $this->getPeriodChangeColorClass($periodComparison['payments']['count_change']['direction']) }}">
+                                    <x-dynamic-component :component="$this->getChangeIcon($periodComparison['payments']['count_change']['direction'])" class="h-3 w-3" />
+                                    {{ number_format($periodComparison['payments']['count_change']['value'], 1) }}%
+                                </div>
+                            @else
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    <x-heroicon-o-minus class="h-3 w-3" />
+                                    0%
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Amount comparison --}}
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Amount</div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-success-600 dark:text-success-400">
+                                    {{ $this->formatAmount($periodComparison['payments']['current_amount']) }}
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    vs {{ $this->formatAmount($periodComparison['payments']['previous_amount']) }}
+                                </div>
+                            </div>
+                            @if($periodComparison['payments']['amount_change']['direction'] !== 'neutral')
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium {{ $this->getPeriodChangeBgColorClass($periodComparison['payments']['amount_change']['direction']) }} {{ $this->getPeriodChangeColorClass($periodComparison['payments']['amount_change']['direction']) }}">
+                                    <x-dynamic-component :component="$this->getChangeIcon($periodComparison['payments']['amount_change']['direction'])" class="h-3 w-3" />
+                                    {{ number_format($periodComparison['payments']['amount_change']['value'], 1) }}%
+                                </div>
+                            @else
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    <x-heroicon-o-minus class="h-3 w-3" />
+                                    0%
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- Credit Notes (inverse colors - more credit notes is typically bad) --}}
+            <div class="space-y-4">
+                <div class="flex items-center gap-2">
+                    <div class="flex-shrink-0 rounded-lg bg-warning-50 dark:bg-warning-400/10 p-2">
+                        <x-heroicon-o-document-minus class="h-4 w-4 text-warning-600 dark:text-warning-400" />
+                    </div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">Credit Notes</span>
+                </div>
+
+                <div class="space-y-3">
+                    {{-- Count comparison --}}
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Count</div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-gray-900 dark:text-white">
+                                    {{ $periodComparison['credit_notes']['current_count'] }}
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    vs {{ $periodComparison['credit_notes']['previous_count'] }}
+                                </div>
+                            </div>
+                            @if($periodComparison['credit_notes']['count_change']['direction'] !== 'neutral')
+                                {{-- Inverse colors for credit notes: up is red/bad, down is green/good --}}
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium {{ $this->getPeriodChangeBgColorClass($periodComparison['credit_notes']['count_change']['direction'], true) }} {{ $this->getPeriodChangeColorClass($periodComparison['credit_notes']['count_change']['direction'], true) }}">
+                                    <x-dynamic-component :component="$this->getChangeIcon($periodComparison['credit_notes']['count_change']['direction'])" class="h-3 w-3" />
+                                    {{ number_format($periodComparison['credit_notes']['count_change']['value'], 1) }}%
+                                </div>
+                            @else
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    <x-heroicon-o-minus class="h-3 w-3" />
+                                    0%
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Amount comparison --}}
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-500 dark:text-gray-400">Amount</div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-sm font-semibold text-warning-600 dark:text-warning-400">
+                                    {{ $this->formatAmount($periodComparison['credit_notes']['current_amount']) }}
+                                </div>
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    vs {{ $this->formatAmount($periodComparison['credit_notes']['previous_amount']) }}
+                                </div>
+                            </div>
+                            @if($periodComparison['credit_notes']['amount_change']['direction'] !== 'neutral')
+                                {{-- Inverse colors for credit notes: up is red/bad, down is green/good --}}
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium {{ $this->getPeriodChangeBgColorClass($periodComparison['credit_notes']['amount_change']['direction'], true) }} {{ $this->getPeriodChangeColorClass($periodComparison['credit_notes']['amount_change']['direction'], true) }}">
+                                    <x-dynamic-component :component="$this->getChangeIcon($periodComparison['credit_notes']['amount_change']['direction'])" class="h-3 w-3" />
+                                    {{ number_format($periodComparison['credit_notes']['amount_change']['value'], 1) }}%
+                                </div>
+                            @else
+                                <div class="flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                                    <x-heroicon-o-minus class="h-3 w-3" />
+                                    0%
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Help Text --}}
     <div class="text-sm text-gray-500 dark:text-gray-400">
         <p class="flex items-center">
