@@ -665,4 +665,279 @@ class InvoiceService
             InvoiceType::ServiceEvents => 'Event booking confirmation',
         };
     }
+
+    /**
+     * Calculate shipping costs for a shipping order.
+     *
+     * This method takes shipping order data and returns structured invoice lines
+     * with separate line items for:
+     * - Base shipping fee (carrier costs)
+     * - Insurance (if applicable)
+     * - Packaging (special handling/materials)
+     * - Handling fees (warehouse operations)
+     * - Duties (customs duties for cross-border)
+     * - Taxes (import taxes for cross-border)
+     *
+     * Line types are stored in metadata for reporting and analysis.
+     *
+     * @param  array{
+     *     shipping_order_id: string,
+     *     base_shipping_cost?: string,
+     *     insurance_cost?: string,
+     *     packaging_cost?: string,
+     *     handling_cost?: string,
+     *     duties_amount?: string,
+     *     taxes_amount?: string,
+     *     origin_country?: string,
+     *     destination_country?: string,
+     *     carrier_name?: string,
+     *     tracking_number?: string,
+     *     tax_rate?: string,
+     *     weight_kg?: string,
+     *     dimensions?: array{length: string, width: string, height: string},
+     *     service_level?: string,
+     *     metadata?: array<string, mixed>
+     * }  $shippingOrder  The shipping order data from Module C
+     * @return array<int, array{
+     *     description: string,
+     *     quantity: string,
+     *     unit_price: string,
+     *     tax_rate: string,
+     *     sellable_sku_id: int|null,
+     *     metadata: array<string, mixed>
+     * }>  Invoice lines for the shipping costs
+     */
+    public function calculateShippingCosts(array $shippingOrder): array
+    {
+        $lines = [];
+        $shippingOrderId = $shippingOrder['shipping_order_id'];
+        $defaultTaxRate = $shippingOrder['tax_rate'] ?? '0.00';
+
+        // Build base metadata that will be included in all lines
+        $baseMetadata = [
+            'shipping_order_id' => $shippingOrderId,
+        ];
+
+        // Add cross-border information if present
+        $originCountry = $shippingOrder['origin_country'] ?? null;
+        $destinationCountry = $shippingOrder['destination_country'] ?? null;
+        $isCrossBorder = $originCountry !== null && $destinationCountry !== null && $originCountry !== $destinationCountry;
+
+        if ($isCrossBorder) {
+            $baseMetadata['origin_country'] = $originCountry;
+            $baseMetadata['destination_country'] = $destinationCountry;
+            $baseMetadata['is_cross_border'] = true;
+        }
+
+        // Add carrier information
+        if (isset($shippingOrder['carrier_name'])) {
+            $baseMetadata['carrier_name'] = $shippingOrder['carrier_name'];
+        }
+
+        if (isset($shippingOrder['tracking_number'])) {
+            $baseMetadata['tracking_number'] = $shippingOrder['tracking_number'];
+        }
+
+        // Add shipping details if present
+        if (isset($shippingOrder['weight_kg'])) {
+            $baseMetadata['weight_kg'] = $shippingOrder['weight_kg'];
+        }
+
+        if (isset($shippingOrder['dimensions'])) {
+            $baseMetadata['dimensions'] = $shippingOrder['dimensions'];
+        }
+
+        if (isset($shippingOrder['service_level'])) {
+            $baseMetadata['service_level'] = $shippingOrder['service_level'];
+        }
+
+        // Add any custom metadata from the shipping order
+        if (isset($shippingOrder['metadata'])) {
+            $baseMetadata = array_merge($baseMetadata, $shippingOrder['metadata']);
+        }
+
+        // 1. Base Shipping Cost (required)
+        if (isset($shippingOrder['base_shipping_cost']) && bccomp($shippingOrder['base_shipping_cost'], '0', 2) > 0) {
+            $lines[] = $this->buildShippingLine(
+                description: $this->buildShippingDescription($shippingOrder),
+                unitPrice: $shippingOrder['base_shipping_cost'],
+                taxRate: $defaultTaxRate,
+                lineType: 'shipping',
+                baseMetadata: $baseMetadata
+            );
+        }
+
+        // 2. Insurance Cost (optional)
+        if (isset($shippingOrder['insurance_cost']) && bccomp($shippingOrder['insurance_cost'], '0', 2) > 0) {
+            $lines[] = $this->buildShippingLine(
+                description: 'Shipping Insurance',
+                unitPrice: $shippingOrder['insurance_cost'],
+                taxRate: $defaultTaxRate,
+                lineType: 'insurance',
+                baseMetadata: $baseMetadata
+            );
+        }
+
+        // 3. Packaging Cost (optional)
+        if (isset($shippingOrder['packaging_cost']) && bccomp($shippingOrder['packaging_cost'], '0', 2) > 0) {
+            $lines[] = $this->buildShippingLine(
+                description: 'Special Packaging & Materials',
+                unitPrice: $shippingOrder['packaging_cost'],
+                taxRate: $defaultTaxRate,
+                lineType: 'packaging',
+                baseMetadata: $baseMetadata
+            );
+        }
+
+        // 4. Handling Cost (optional - warehouse operations)
+        if (isset($shippingOrder['handling_cost']) && bccomp($shippingOrder['handling_cost'], '0', 2) > 0) {
+            $lines[] = $this->buildShippingLine(
+                description: 'Handling & Warehouse Operations',
+                unitPrice: $shippingOrder['handling_cost'],
+                taxRate: $defaultTaxRate,
+                lineType: 'handling',
+                baseMetadata: $baseMetadata
+            );
+        }
+
+        // 5. Customs Duties (for cross-border shipments)
+        if (isset($shippingOrder['duties_amount']) && bccomp($shippingOrder['duties_amount'], '0', 2) > 0) {
+            $dutiesDescription = 'Customs Duties';
+            if ($isCrossBorder) {
+                $dutiesDescription .= " ({$originCountry} → {$destinationCountry})";
+            }
+
+            $lines[] = $this->buildShippingLine(
+                description: $dutiesDescription,
+                unitPrice: $shippingOrder['duties_amount'],
+                taxRate: '0.00', // Duties typically don't have VAT applied on top
+                lineType: 'duties',
+                baseMetadata: $baseMetadata
+            );
+        }
+
+        // 6. Import Taxes (for cross-border shipments)
+        if (isset($shippingOrder['taxes_amount']) && bccomp($shippingOrder['taxes_amount'], '0', 2) > 0) {
+            $taxesDescription = 'Import Taxes';
+            if ($destinationCountry !== null) {
+                $taxesDescription .= " ({$destinationCountry})";
+            }
+
+            $lines[] = $this->buildShippingLine(
+                description: $taxesDescription,
+                unitPrice: $shippingOrder['taxes_amount'],
+                taxRate: '0.00', // Import taxes are the tax, don't apply VAT on top
+                lineType: 'taxes',
+                baseMetadata: $baseMetadata
+            );
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Build a single shipping invoice line.
+     *
+     * @param  array<string, mixed>  $baseMetadata
+     * @return array{description: string, quantity: string, unit_price: string, tax_rate: string, sellable_sku_id: int|null, metadata: array<string, mixed>}
+     */
+    protected function buildShippingLine(
+        string $description,
+        string $unitPrice,
+        string $taxRate,
+        string $lineType,
+        array $baseMetadata
+    ): array {
+        $metadata = array_merge($baseMetadata, [
+            'line_type' => $lineType,
+        ]);
+
+        return [
+            'description' => $description,
+            'quantity' => '1.00',
+            'unit_price' => $unitPrice,
+            'tax_rate' => $taxRate,
+            'sellable_sku_id' => null, // Shipping lines don't reference sellable SKUs
+            'metadata' => $metadata,
+        ];
+    }
+
+    /**
+     * Build description for the base shipping line.
+     *
+     * @param  array<string, mixed>  $shippingOrder
+     */
+    protected function buildShippingDescription(array $shippingOrder): string
+    {
+        $description = 'Shipping';
+
+        // Add service level if present
+        if (isset($shippingOrder['service_level'])) {
+            $serviceLevel = $shippingOrder['service_level'];
+            $description = ucfirst($serviceLevel).' Shipping';
+        }
+
+        // Add carrier if present
+        if (isset($shippingOrder['carrier_name'])) {
+            $description .= ' via '.$shippingOrder['carrier_name'];
+        }
+
+        // Add route for cross-border
+        $originCountry = $shippingOrder['origin_country'] ?? null;
+        $destinationCountry = $shippingOrder['destination_country'] ?? null;
+        if ($originCountry !== null && $destinationCountry !== null && $originCountry !== $destinationCountry) {
+            $description .= " ({$originCountry} → {$destinationCountry})";
+        }
+
+        return $description;
+    }
+
+    /**
+     * Get the total shipping cost from shipping order data.
+     *
+     * Returns the sum of all shipping cost components.
+     *
+     * @param  array{
+     *     base_shipping_cost?: string,
+     *     insurance_cost?: string,
+     *     packaging_cost?: string,
+     *     handling_cost?: string,
+     *     duties_amount?: string,
+     *     taxes_amount?: string
+     * }  $shippingOrder
+     */
+    public function getTotalShippingCost(array $shippingOrder): string
+    {
+        $total = '0.00';
+
+        $costFields = [
+            'base_shipping_cost',
+            'insurance_cost',
+            'packaging_cost',
+            'handling_cost',
+            'duties_amount',
+            'taxes_amount',
+        ];
+
+        foreach ($costFields as $field) {
+            if (isset($shippingOrder[$field])) {
+                $total = bcadd($total, $shippingOrder[$field], 2);
+            }
+        }
+
+        return $total;
+    }
+
+    /**
+     * Check if shipping order has duties or taxes (cross-border indicators).
+     *
+     * @param  array{duties_amount?: string, taxes_amount?: string}  $shippingOrder
+     */
+    public function hasShippingDutiesOrTaxes(array $shippingOrder): bool
+    {
+        $hasDuties = isset($shippingOrder['duties_amount']) && bccomp($shippingOrder['duties_amount'], '0', 2) > 0;
+        $hasTaxes = isset($shippingOrder['taxes_amount']) && bccomp($shippingOrder['taxes_amount'], '0', 2) > 0;
+
+        return $hasDuties || $hasTaxes;
+    }
 }
