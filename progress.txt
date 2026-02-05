@@ -889,3 +889,27 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - ViewInvoice page displays location breakdown in Linked ERP Events tab with styled HTML table showing per-location usage
   - Badge on Linked ERP Events tab shows location count (for multi-location) or shipment count (for multi-shipment)
 ---
+
+## 2026-02-05 - US-E045
+- What was implemented: INV3 custody block on non-payment - automatic blocking of custody operations when storage invoices are overdue
+- Files changed:
+  - app/Jobs/Finance/BlockOverdueStorageBillingJob.php (new job to check and block overdue storage billing periods)
+  - app/Events/Finance/StoragePaymentBlocked.php (new event for Module B/C eligibility updates)
+  - app/Models/Finance/StorageBillingPeriod.php (added unblock(), block helper methods, and static query helpers)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (added blocked storage warnings and overdue INV3 warnings)
+  - routes/console.php (scheduled BlockOverdueStorageBillingJob daily at 10:00 AM)
+- **Acceptance criteria verification:**
+  - ✅ If INV3 overdue > X days (configurable): Uses config('finance.storage_overdue_block_days', 30)
+  - ✅ Sets StorageBillingPeriod.status = blocked: BlockOverdueStorageBillingJob transitions Invoiced → Blocked
+  - ✅ Emits StoragePaymentBlocked event: Dispatched after blocking with period, invoice, days overdue, reason
+  - ✅ Warning visible in customer view: getFinancialWarningsSection() now shows blocked storage and overdue INV3
+  - ✅ Block removable only after payment: unblock() method transitions Blocked → Paid, validates current status
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - BlockOverdueStorageBillingJob follows same pattern as SuspendOverdueSubscriptionsJob (scheduled daily, configurable threshold)
+  - StoragePaymentBlocked event includes customer_id, location_id (if specific), and helper methods for downstream modules
+  - StorageBillingPeriod.blockedForCustomer() static query helper returns Builder for chaining
+  - Customer view now shows both blocked periods (custody blocked - most severe) and overdue INV3 (at risk of block)
+  - Resolution instructions computed from invoice: "Pay invoice {number} ({currency} {outstanding} outstanding) to remove this custody block"
+  - Schedule order: storage billing (5:00 AM) → subscription billing (6:00 AM) → overdue check (8:00 AM) → subscription suspension (9:00 AM) → storage block (10:00 AM)
+---
