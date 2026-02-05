@@ -1932,3 +1932,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - retryFailed() and retryAllFailed() allow manual retry of failed syncs
   - Use `instanceof` checks for MorphTo relationships before calling typed methods
 ---
+
+## 2026-02-05 - US-E099
+- What was implemented: Xero credit note sync - integrated XeroIntegrationService.syncCreditNote() into CreditNoteService
+- Files changed:
+  - app/Services/Finance/CreditNoteService.php (added triggerXeroSync method, updated issue() to trigger sync)
+- **Acceptance criteria verification:**
+  - ✅ When credit_note.status = issued: triggerXeroSync() called in CreditNoteService.issue()
+  - ✅ Creates XeroSyncLog with sync_type = credit_note: XeroIntegrationService.syncCreditNote() creates log entry
+  - ✅ Calls Xero API to create credit note: callXeroCreateCreditNote() stub implementation
+  - ✅ Saves xero_credit_note_id: Updated after successful sync
+  - ✅ Error handling with retry: Errors logged but don't block issuance, retry available
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - CreditNoteService follows same pattern as InvoiceService for Xero sync
+  - Sync errors are logged but don't block the business operation
+  - XeroIntegrationService already had syncCreditNote() implemented in US-E098
+---

@@ -163,8 +163,8 @@ class CreditNoteService
             // Check if invoice should be marked as credited
             $this->updateInvoiceStatusIfFullyCredited($creditNote);
 
-            // TODO: Trigger Xero sync event (US-E099)
-            // event(new CreditNoteIssued($creditNote));
+            // Trigger Xero sync (US-E099)
+            $this->triggerXeroSync($creditNote);
 
             return $creditNote;
         });
@@ -353,5 +353,28 @@ class CreditNoteService
             'new_values' => $newValues,
             'user_id' => Auth::id(),
         ]);
+    }
+
+    /**
+     * Trigger Xero sync for an issued credit note.
+     *
+     * This method is called after credit note issuance to sync the credit note to Xero.
+     * Errors are logged but do not prevent the credit note from being issued.
+     * Failed syncs can be retried via the Xero integration management UI.
+     */
+    protected function triggerXeroSync(CreditNote $creditNote): void
+    {
+        try {
+            $xeroService = app(XeroIntegrationService::class);
+            $xeroService->syncCreditNote($creditNote);
+        } catch (\Exception $e) {
+            // Log the error but don't fail the credit note issuance
+            // The sync can be retried later via the Integrations Health page
+            Log::channel('finance')->warning('Xero sync failed after credit note issuance', [
+                'credit_note_id' => $creditNote->id,
+                'credit_note_number' => $creditNote->credit_note_number,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
