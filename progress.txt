@@ -801,3 +801,27 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - ViewInvoice shows badge count on Linked ERP Events tab when multi-shipment
   - formatMultiShipmentSummary() renders HTML table for each shipment with lines, totals, and links
 ---
+
+## 2026-02-05 - US-E041
+- What was implemented: INV3 batch generation from storage billing - scheduled job for end of billing period
+- Files changed:
+  - app/Jobs/Finance/GenerateStorageBillingJob.php (new job with storage billing generation logic)
+  - config/finance.php (added storage billing configuration: rate tiers, billing cycle, minimum charge)
+  - routes/console.php (scheduled job to run on 1st of month at 5:00 AM)
+- **Acceptance criteria verification:**
+  - ✅ Scheduled job for end of period (monthly/quarterly): GenerateStorageBillingJob with forPreviousMonth() and forPreviousQuarter() factory methods
+  - ✅ For each customer with storage usage: generates StorageBillingPeriod: createBillingPeriod() creates period with bottle-days calculation
+  - ✅ Creates INV3 for each customer with usage > 0: createStorageInvoice() creates INV3 with InvoiceType::StorageFee
+  - ✅ Source reference: storage_billing_period_id: source_type='storage_billing_period', source_id=period.id
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Finance jobs go in app/Jobs/Finance/ directory
+  - GenerateStorageBillingJob supports both monthly and quarterly billing via factory methods
+  - bottle_days = bottle_count * period_days (simplified calculation - production would use movement history)
+  - Rate tiers based on volume provide volume discounts (more bottles = lower rate per bottle-day)
+  - Storage billing uses custody_holder field on SerializedBottle to identify customer's bottles
+  - Job includes getPreviewData() and getPreviewSummary() for Storage Billing Preview page (US-E046)
+  - Idempotency: checks for existing period before creating to prevent duplicates
+  - StorageBillingPeriod status transitions: pending → invoiced (when INV3 created) → paid (when paid)
+  - config/finance.php storage section includes: billing_cycle, rate_tiers, minimum_charge, billing_job_time, auto_issue_invoices
+---
