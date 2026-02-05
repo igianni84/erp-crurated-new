@@ -1064,3 +1064,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Mismatch details and pending reconciliation info use HTML formatted TextEntry with guidance for operators
   - Resolution actions are placeholder - will be implemented in US-E054 (manual reconciliation) and US-E055 (mismatch resolution)
 ---
+
+## 2026-02-05 - US-E053
+- What was implemented: Stripe payment auto-reconciliation via PaymentService
+- Files changed:
+  - app/Services/Finance/PaymentService.php (new service with createFromStripe, autoReconcile, applyToInvoice methods)
+  - app/Models/Customer/Customer.php (added stripe_customer_id to fillable and docblock)
+  - database/migrations/2026_02_05_400000_add_stripe_customer_id_to_customers_table.php (new migration for stripe_customer_id)
+- **Acceptance criteria verification:**
+  - ✅ Webhook payment_intent.succeeded creates Payment with status confirmed: createFromStripe() creates Payment with PaymentStatus::Confirmed
+  - ✅ Method autoReconcile(Payment): finds invoice with matching amount and customer: Implemented with findMatchingInvoices() helper
+  - ✅ If unique match: applies payment, sets reconciliation_status = matched: Uses applyToInvoice() and markReconciled()
+  - ✅ If no match or multi-match: sets reconciliation_status = pending: Stores mismatch info via setMismatchInfo()
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - PaymentService follows same patterns as InvoiceService - methods for lifecycle management with audit logging
+  - Auto-reconciliation requires customer identification via stripe_customer_id field
+  - Payment matching criteria: same customer + same currency + outstanding amount equals payment amount
+  - Mismatch reasons are stored in payment metadata: 'no_customer', 'no_match', 'multiple_matches', 'application_failed'
+  - Use bccomp() with precision 2 for comparing payment and invoice amounts
+  - createFromStripe() includes idempotency check via stripe_payment_intent_id unique constraint
+  - PaymentService depends on InvoiceService for applying payments (handles invoice-side validation)
+---
