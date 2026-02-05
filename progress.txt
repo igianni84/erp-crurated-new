@@ -996,3 +996,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Warning banner pattern uses Placeholder component with conditional visibility
   - Minimum character requirement (10 chars) ensures meaningful description for ad-hoc services
 ---
+
+## 2026-02-05 - US-E050
+- What was implemented: INV4 event cost pass-through validation - prevents wine/inventory products on service event invoices
+- Files changed:
+  - app/Models/Finance/InvoiceLine.php (added validateInv4LineRestrictions() in boot hooks, helper methods)
+  - app/Models/Finance/Invoice.php (added hasWineProductLines(), getInvalidInv4Lines(), validateInv4LinesAreServiceOnly())
+  - app/Services/Finance/InvoiceService.php (added validateLinesForInvoiceType() pre-validation)
+- **Acceptance criteria verification:**
+  - ✅ Invariant: INV4 lines do not include wine/inventory costs: validateInv4LineRestrictions() blocks sellable_sku_id on INV4 lines
+  - ✅ Only: attendance fees, service fees, handling: INV4 lines must have sellable_sku_id = null (service fees only)
+  - ✅ Validation blocks lines with sellable_sku type = bottle: All SellableSKUs are wine products in this ERP, so blocking sellable_sku_id blocks bottles
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - INV4 enforces service-only lines at multiple levels: InvoiceLine model boot() hooks and InvoiceService.addLines() pre-validation
+  - All SellableSKUs in this ERP are wine products (linked to WineVariant), so any line with sellable_sku_id is a wine/bottle product
+  - Helper methods isWineProductLine(), isServiceFeeLine(), isValidForInv4Invoice() provide clean API for checking line types
+  - Invoice model helpers hasWineProductLines(), getInvalidInv4Lines(), validateInv4LinesAreServiceOnly() for invoice-level validation
+  - Error messages explain what's wrong AND suggest the correct invoice type (INV1 for wine sales)
+---
