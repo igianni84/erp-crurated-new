@@ -566,3 +566,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Upgrade pro-rata returns both credit (for old plan) and charge (for new plan) with net_amount
   - Use bcdiv() with 6 decimal places for daily rate precision, bcmul() with 2 for final amounts
 ---
+
+## 2026-02-05 - US-E030
+- What was implemented: INV0 suspension on non-payment - scheduled job and customer warnings
+- Files changed:
+  - app/Jobs/Finance/SuspendOverdueSubscriptionsJob.php (new job to suspend subscriptions with overdue INV0 invoices)
+  - app/Events/Finance/SubscriptionSuspended.php (new event for Module K eligibility updates)
+  - config/finance.php (new config file with subscription_overdue_suspension_days and other finance settings)
+  - routes/console.php (scheduled SuspendOverdueSubscriptionsJob daily at 9:00 AM)
+  - app/Models/Customer/Customer.php (added subscriptions() and invoices() relationships)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (added Financial Warnings section)
+- **Learnings for future iterations:**
+  - SuspendOverdueSubscriptionsJob runs daily at 9:00 AM (after billing at 6:00 AM and overdue check at 8:00 AM)
+  - Threshold days configurable via config('finance.subscription_overdue_suspension_days', 14)
+  - SubscriptionSuspended event carries: subscription, overdueInvoice, daysOverdue, reason
+  - Customer warnings section dynamically displays suspended subscriptions and overdue INV0 invoices
+  - getFinancialWarningsSection() returns null when no warnings - allows conditional display
+  - Use Grid with multiple TextEntry components for structured warning display
+  - Show resolution guidance: "Pay outstanding invoice to resume" for operator clarity
+---
