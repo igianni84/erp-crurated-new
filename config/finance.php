@@ -68,4 +68,43 @@ return [
     'stripe' => [
         'webhook_tolerance' => env('STRIPE_WEBHOOK_TOLERANCE', 300),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pricing Settings (Module S Integration)
+    |--------------------------------------------------------------------------
+    |
+    | Settings for pricing resolution and tax calculation.
+    | These are used by PricingService for INV1 (voucher sales) invoices.
+    |
+    */
+    'pricing' => [
+        // Base currency for the business
+        'base_currency' => env('FINANCE_BASE_CURRENCY', 'EUR'),
+
+        // Default seller country for tax jurisdiction
+        'seller_country' => env('FINANCE_SELLER_COUNTRY', 'IT'),
+
+        // Whether to validate pricing from Module S before invoice creation
+        'validate_pricing' => env('FINANCE_VALIDATE_PRICING', false),
+
+        // Default VAT rate if country is unknown
+        'default_vat_rate' => env('FINANCE_DEFAULT_VAT_RATE', '22.00'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tax Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Settings for tax calculation based on customer geography.
+    |
+    */
+    'tax' => [
+        // Enable reverse charge for B2B EU sales
+        'enable_reverse_charge' => env('FINANCE_ENABLE_REVERSE_CHARGE', false),
+
+        // Require valid VAT number for reverse charge
+        'require_vat_number_for_reverse_charge' => env('FINANCE_REQUIRE_VAT_NUMBER', true),
+    ],
 ];

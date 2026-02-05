@@ -273,4 +273,94 @@ class InvoiceLine extends Model
 
         return $this;
     }
+
+    // =========================================================================
+    // Pricing Metadata Methods (US-E032)
+    // =========================================================================
+
+    /**
+     * Get the pricing snapshot ID used for this line.
+     *
+     * The pricing snapshot ID links to Module S pricing data for audit trail.
+     */
+    public function getPricingSnapshotId(): ?string
+    {
+        return $this->getMetadataValue('pricing_snapshot_id');
+    }
+
+    /**
+     * Check if this line has pricing metadata from Module S.
+     */
+    public function hasPricingMetadata(): bool
+    {
+        return $this->getPricingSnapshotId() !== null;
+    }
+
+    /**
+     * Get the pricing metadata array.
+     *
+     * Contains details from Module S including:
+     * - price_book_id: The Price Book that provided the price
+     * - price_book_entry_id: The specific entry used
+     * - offer_id: The Offer applied (if any)
+     * - discount_applied: Amount of discount (if any)
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getPricingMetadata(): ?array
+    {
+        return $this->getMetadataValue('pricing');
+    }
+
+    /**
+     * Get the Price Book ID used for this line.
+     */
+    public function getPriceBookId(): ?string
+    {
+        $pricing = $this->getPricingMetadata();
+
+        return $pricing['price_book_id'] ?? null;
+    }
+
+    /**
+     * Get the Offer ID applied to this line.
+     */
+    public function getOfferId(): ?string
+    {
+        $pricing = $this->getPricingMetadata();
+
+        return $pricing['offer_id'] ?? null;
+    }
+
+    /**
+     * Get the tax jurisdiction (country code) for this line.
+     */
+    public function getTaxJurisdiction(): ?string
+    {
+        return $this->getMetadataValue('tax_jurisdiction');
+    }
+
+    /**
+     * Get a formatted description of the pricing source.
+     */
+    public function getPricingSourceDescription(): string
+    {
+        $snapshotId = $this->getPricingSnapshotId();
+        if ($snapshotId === null) {
+            return 'Manual pricing';
+        }
+
+        $priceBookId = $this->getPriceBookId();
+        $offerId = $this->getOfferId();
+
+        if ($offerId !== null) {
+            return "Offer pricing (Snapshot: {$snapshotId})";
+        }
+
+        if ($priceBookId !== null) {
+            return "Price Book pricing (Snapshot: {$snapshotId})";
+        }
+
+        return "Module S pricing (Snapshot: {$snapshotId})";
+    }
 }

@@ -19,7 +19,15 @@ use Illuminate\Support\Facades\Log;
  * - Creates an invoice with type INV1
  * - Links the invoice to the sale (source_type='voucher_sale')
  * - Creates invoice lines from sellable_sku + quantity + price
+ * - Stores pricing_snapshot_id and pricing metadata from Module S (US-E032)
  * - Sets status to issued immediately (INV1 expects immediate payment)
+ *
+ * Pricing Integration (US-E032):
+ * Invoice lines include pricing metadata for audit trail:
+ * - pricing_snapshot_id: References the Module S pricing snapshot used
+ * - pricing.price_book_id: The Price Book that provided the price
+ * - pricing.offer_id: The Offer that was applied (if any)
+ * - tax_jurisdiction: The country used for tax calculation
  */
 class GenerateVoucherSaleInvoice implements ShouldQueue
 {
@@ -102,24 +110,52 @@ class GenerateVoucherSaleInvoice implements ShouldQueue
     /**
      * Build invoice lines from sale items.
      *
+     * Each line includes pricing metadata from Module S for audit trail:
+     * - pricing_snapshot_id: References the pricing snapshot used
+     * - pricing_metadata: Additional pricing details (price_book_id, offer_id, etc.)
+     *
      * @return array<int, array{description: string, quantity: string, unit_price: string, tax_rate: string, sellable_sku_id: int|null, metadata: array<string, mixed>}>
      */
     protected function buildInvoiceLines(VoucherSaleConfirmed $event): array
     {
         $lines = [];
 
+        // Get batch-level pricing snapshot ID if available
+        $batchPricingSnapshotId = $event->getPricingSnapshotId();
+
         foreach ($event->items as $item) {
+            // Build metadata with pricing information
+            $metadata = [
+                'sale_reference' => $event->saleReference,
+                'sku_code' => $item['sku_code'],
+                'original_quantity' => $item['quantity'],
+            ];
+
+            // Add pricing snapshot ID (item-level takes precedence over batch-level)
+            $pricingSnapshotId = $item['pricing_snapshot_id'] ?? $batchPricingSnapshotId;
+            if ($pricingSnapshotId !== null) {
+                $metadata['pricing_snapshot_id'] = $pricingSnapshotId;
+            }
+
+            // Add pricing metadata if available (from Module S)
+            if (isset($item['pricing_metadata'])) {
+                $metadata['pricing'] = $item['pricing_metadata'];
+            }
+
+            // Add tax calculation details if available (from extended item data)
+            /** @var array<string, mixed> $itemData */
+            $itemData = $item;
+            if (array_key_exists('tax_jurisdiction', $itemData) && isset($itemData['tax_jurisdiction'])) {
+                $metadata['tax_jurisdiction'] = $itemData['tax_jurisdiction'];
+            }
+
             $lines[] = [
                 'description' => $item['description'],
                 'quantity' => (string) $item['quantity'],
                 'unit_price' => $item['unit_price'],
                 'tax_rate' => $item['tax_rate'],
                 'sellable_sku_id' => $item['sellable_sku_id'],
-                'metadata' => [
-                    'sale_reference' => $event->saleReference,
-                    'sku_code' => $item['sku_code'],
-                    'original_quantity' => $item['quantity'],
-                ],
+                'metadata' => $metadata,
             ];
         }
 
