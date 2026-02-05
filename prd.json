@@ -1598,8 +1598,8 @@
         "Typecheck passes"
       ],
       "priority": 101,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented as part of US-E100 - retry actions in IntegrationsHealth page"
     },
     {
       "id": "US-E102",
@@ -1615,8 +1615,8 @@
         "Typecheck passes"
       ],
       "priority": 102,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented as part of US-E098 - XeroIntegrationService created with all methods"
     },
     {
       "id": "US-E103",

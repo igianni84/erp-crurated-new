@@ -1968,3 +1968,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - retryXeroSync() and retryAllFailedXeroSyncs() methods handle retry via XeroIntegrationService
   - Status levels: healthy, warning, critical, disabled (when sync is turned off)
 ---
+
+## 2026-02-05 - US-E101 (retroactive)
+- What was implemented: Xero failed sync retry - Already implemented in US-E100
+- Files changed: (see US-E100)
+- **Acceptance criteria verification:**
+  - ✅ List failed XeroSyncLogs: getFailedXeroSyncs() method in IntegrationsHealth.php
+  - ✅ Action Retry for single sync: retryXeroSync() method + UI button
+  - ✅ Action Retry All Failed for bulk: retryAllFailedXeroSyncs() method + UI button
+  - ✅ Increment retry_count: resetForRetry() in XeroSyncLog model increments count
+  - ✅ Max retries configurable: config('finance.xero.max_retry_count', 3) in XeroIntegrationService
+  - ✅ Typecheck passes
+---
+
+## 2026-02-05 - US-E102 (retroactive)
+- What was implemented: XeroIntegrationService - Already implemented in US-E098
+- Files changed: app/Services/Finance/XeroIntegrationService.php (see US-E098)
+- **Acceptance criteria verification:**
+  - ✅ Service class XeroIntegrationService in app/Services/Finance/
+  - ✅ Method syncInvoice(Invoice): lines 57-156
+  - ✅ Method syncCreditNote(CreditNote): lines 280-357
+  - ✅ Method syncPayment(Payment): lines 433-487
+  - ✅ Method retryFailed(XeroSyncLog): lines 538-592
+  - ✅ Method getIntegrationHealth(): lines 644-691
+  - ✅ Typecheck passes
+---
