@@ -2095,3 +2095,16 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Use CSS-based charts (div with dynamic width %) for simple visualizations without external JS libraries
   - Navigation hierarchy: navigationGroup='Finance', navigationParentItem='Reports' for sub-pages
 ---
+
+## 2026-02-05 - US-E108
+- What was implemented: Created Outstanding Exposure Report page for Finance module
+- Files changed:
+  - app/Filament/Pages/Finance/OutstandingExposureReport.php (full report page with summary stats, customer/type breakdown, trend chart, CSV export)
+  - resources/views/filament/pages/finance/outstanding-exposure-report.blade.php (Blade view with responsive layout)
+- **Learnings for future iterations:**
+  - Report pages follow pattern: extends Page, uses $view property, caches data in protected Collection properties
+  - Navigation parent items like 'Reports' group related sub-pages together
+  - For trend calculations over historical periods, a simplified approach using current outstanding for invoices issued before each date is acceptable
+  - PHPStan prefers `Collection<int, mixed>` over detailed array shapes when covariance issues arise
+  - Always use 0.0 instead of 0 when the return type expects float to avoid int|float union issues
+---
