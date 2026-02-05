@@ -1755,3 +1755,18 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Customer-specific rates stored in customer.metadata['storage_rate_override']
   - Location breakdown creates separate invoice lines per location
 ---
+
+## 2026-02-05 - US-E090
+- What was implemented: Verified storage billing configuration already exists in config/finance.php
+- Files verified:
+  - config/finance.php (lines 137-161 - storage section)
+- Configuration items found:
+  - ✅ billing_cycle: 'monthly' default via env('FINANCE_STORAGE_BILLING_CYCLE')
+  - ✅ rate_tiers: Volume-based array with 4 tiers (0-100, 101-500, 501-1000, 1001+)
+  - ✅ minimum_charge: '5.00' default via env('FINANCE_STORAGE_MINIMUM_CHARGE')
+  - Additional: default_rate_per_bottle_day, billing_job_time, auto_issue_invoices
+- **Learnings for future iterations:**
+  - Storage config uses env() for all settings allowing runtime configuration
+  - Rate tiers are hard-coded in config but could be moved to database for admin UI editing
+  - StorageBillingService reads these via config('finance.storage.*')
+---

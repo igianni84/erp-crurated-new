@@ -1422,8 +1422,8 @@
         "Typecheck passes"
       ],
       "priority": 90,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented in config/finance.php storage section with env variable support"
     },
     {
       "id": "US-E091",
