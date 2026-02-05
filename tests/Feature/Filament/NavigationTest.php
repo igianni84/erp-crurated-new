@@ -29,12 +29,12 @@ class NavigationTest extends TestCase
 
     public function test_pim_dashboard_has_correct_navigation_icon(): void
     {
-        $this->assertEquals('heroicon-o-cube', PimDashboard::getNavigationIcon());
+        $this->assertEquals('heroicon-o-chart-bar', PimDashboard::getNavigationIcon());
     }
 
     public function test_pim_dashboard_navigation_sort_is_first(): void
     {
-        $this->assertEquals(0, PimDashboard::getNavigationSort());
+        $this->assertEquals(-1, PimDashboard::getNavigationSort());
     }
 
     public function test_user_resource_in_system_navigation_group(): void

@@ -1,0 +1,1140 @@
+{
+  "project": "ERP4 - Module D Procurement & Inbound",
+  "branchName": "ralph/module-d-procurement",
+  "description": "Module D - Procurement & Inbound: The execution engine that transforms commercial commitments into physical wine. Governs Procurement Intents, Purchase Orders, Bottling Instructions, and Inbound flows.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Setup modello ProcurementIntent",
+      "description": "As an Admin, I want to define the base model for Procurement Intents as the central pre-sourcing entity.",
+      "acceptanceCriteria": [
+        "Tabella procurement_intents con campi: id, uuid, product_reference_type (enum: bottle_sku, liquid_product), product_reference_id (morphic FK), quantity (int), trigger_type (enum), sourcing_model (enum), preferred_inbound_location (string nullable), rationale (text nullable), status (enum), approved_at (timestamp nullable), approved_by (FK users nullable)",
+        "Soft deletes abilitati",
+        "Relazione morphica: ProcurementIntent belongsTo BottleSku OR LiquidProduct",
+        "quantity rappresenta bottiglie o bottle-equivalents",
+        "Vincolo: quantity > 0 sempre",
+        "Typecheck e lint passano"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Setup enums per Procurement",
+      "description": "As a Developer, I want well-defined enums for procurement entity types and statuses.",
+      "acceptanceCriteria": [
+        "Enum ProcurementTriggerType: voucher_driven, allocation_driven, strategic, contractual",
+        "Enum SourcingModel: purchase, passive_consignment, third_party_custody",
+        "Enum ProcurementIntentStatus: draft, approved, executed, closed",
+        "Enum PurchaseOrderStatus: draft, sent, confirmed, closed",
+        "Enum BottlingPreferenceStatus: pending, partial, complete, defaulted",
+        "Enum BottlingInstructionStatus: draft, active, executed",
+        "Enum InboundPackaging: cases, loose, mixed",
+        "Enum OwnershipFlag: owned, in_custody, pending",
+        "Enum InboundStatus: recorded, routed, completed",
+        "Enums in app/Enums/Procurement/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Setup modello PurchaseOrder",
+      "description": "As an Admin, I want to define Purchase Orders for contractual sourcing with ownership transfer.",
+      "acceptanceCriteria": [
+        "Tabella purchase_orders con: id, uuid, procurement_intent_id (FK required NOT NULL), supplier_party_id (FK parties), product_reference_type, product_reference_id, quantity, unit_cost (decimal 12,2), currency (string), incoterms (string nullable), ownership_transfer (boolean), expected_delivery_start (date nullable), expected_delivery_end (date nullable), destination_warehouse (string nullable), serialization_routing_note (text nullable), status (enum)",
+        "Soft deletes abilitati",
+        "Relazione: PurchaseOrder belongsTo ProcurementIntent (required)",
+        "Relazione: PurchaseOrder belongsTo Party (supplier)",
+        "Invariante: procurement_intent_id NOT NULL (enforced at DB level)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Setup modello BottlingInstruction",
+      "description": "As an Admin, I want to define Bottling Instructions for liquid products with deadlines.",
+      "acceptanceCriteria": [
+        "Tabella bottling_instructions con: id, uuid, procurement_intent_id (FK required), liquid_product_id (FK), bottle_equivalents (int), allowed_formats (JSON array), allowed_case_configurations (JSON array), default_bottling_rule (text nullable), bottling_deadline (date), preference_status (enum), personalised_bottling_required (boolean default false), early_binding_required (boolean default false), delivery_location (string nullable), status (enum), defaults_applied_at (timestamp nullable)",
+        "Soft deletes abilitati",
+        "Relazione: BottlingInstruction belongsTo ProcurementIntent",
+        "Relazione: BottlingInstruction belongsTo LiquidProduct",
+        "Vincolo: bottling_deadline required (non nullable)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Setup modello Inbound",
+      "description": "As an Admin, I want to define Inbound as a physical fact record without implying ownership.",
+      "acceptanceCriteria": [
+        "Tabella inbounds con: id, uuid, procurement_intent_id (FK nullable), purchase_order_id (FK nullable), warehouse (string), product_reference_type, product_reference_id, quantity (int), packaging (enum), ownership_flag (enum), received_date (date), condition_notes (text nullable), serialization_required (boolean default true), serialization_location_authorized (string nullable), serialization_routing_rule (text nullable), status (enum), handed_to_module_b (boolean default false), handed_to_module_b_at (timestamp nullable)",
+        "Soft deletes abilitati",
+        "Relazione: Inbound belongsTo ProcurementIntent (optional)",
+        "Relazione: Inbound belongsTo PurchaseOrder (optional)",
+        "Invariante: Inbound NON implica ownership (ownership_flag esplicito)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Setup modello ProducerSupplierConfig",
+      "description": "As an Admin, I want to store default configurations for producer/supplier.",
+      "acceptanceCriteria": [
+        "Tabella producer_supplier_configs con: id, party_id (FK unique), default_bottling_deadline_days (int nullable), allowed_formats (JSON array nullable), serialization_constraints (JSON nullable), notes (text nullable)",
+        "Relazione: ProducerSupplierConfig belongsTo Party (one-to-one)",
+        "Config è opzionale per party (non tutti i party sono supplier/producer)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "ProcurementService per gestione intents",
+      "description": "As a Developer, I want a service to centralize Procurement Intents logic.",
+      "acceptanceCriteria": [
+        "Service class ProcurementIntentService in app/Services/Procurement/",
+        "Metodo createFromVoucherSale(Voucher $voucher): crea Intent draft da voucher",
+        "Metodo createFromAllocation(Allocation $allocation, int $quantity): crea Intent draft da allocation",
+        "Metodo createManual(array $data): crea Intent draft manuale (strategic)",
+        "Metodo approve(ProcurementIntent $intent): draft → approved con validazioni",
+        "Metodo markExecuted(ProcurementIntent $intent): approved → executed",
+        "Metodo close(ProcurementIntent $intent): executed → closed con validazione linked objects",
+        "Metodo canClose(ProcurementIntent $intent): verifica tutti linked objects completed",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "InboundService per gestione inbound",
+      "description": "As a Developer, I want a service to centralize Inbound logic.",
+      "acceptanceCriteria": [
+        "Service class InboundService in app/Services/Procurement/",
+        "Metodo record(array $data): crea Inbound in status recorded",
+        "Metodo route(Inbound $inbound, string $location): recorded → routed con validazione serialization",
+        "Metodo complete(Inbound $inbound): routed → completed con validazione ownership clarity",
+        "Metodo handOffToModuleB(Inbound $inbound): marca handed_to_module_b = true",
+        "Metodo validateOwnershipClarity(Inbound $inbound): verifica ownership_flag != pending",
+        "Metodo validateSerializationRouting(Inbound $inbound): verifica location autorizzata",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Procurement Intent List in Filament",
+      "description": "As an Operator, I want a Procurement Intents list as the operational entry point for the module.",
+      "acceptanceCriteria": [
+        "ProcurementIntentResource in Filament con navigation group Procurement",
+        "Lista con colonne: intent_id, product (wine+vintage+format o liquid), quantity, trigger_type, sourcing_model, preferred_location, status, linked_objects_count (badge), updated_at",
+        "Filtri: status, trigger_type, sourcing_model",
+        "Ricerca per: intent_id, product name, wine name",
+        "Closed intents nascosti di default (filtro)",
+        "Indicatore visivo per intents senza linked objects (awaiting action)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Create Procurement Intent wizard - Step 1 (Product)",
+      "description": "As an Operator, I want to select the product as the first step of intent creation.",
+      "acceptanceCriteria": [
+        "Wizard step 1: selezione tipo prodotto (Bottle SKU o Liquid Product)",
+        "Se Bottle SKU: autocomplete Wine + Vintage + Format",
+        "Se Liquid Product: autocomplete Wine + Vintage (liquid)",
+        "Preview: product info, existing allocations count",
+        "Messaggio: Procurement Intent represents a decision to source this wine",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create Procurement Intent wizard - Step 2 (Source & Model)",
+      "description": "As an Operator, I want to define trigger type and sourcing model.",
+      "acceptanceCriteria": [
+        "Step 2 fields: trigger_type, sourcing_model, quantity",
+        "Trigger type con guidance: voucher_driven (linked to sale), allocation_driven (pre-emptive), strategic (speculative), contractual (committed)",
+        "Sourcing model con guidance: purchase (ownership transfer), passive_consignment (custody), third_party_custody (no ownership)",
+        "Inline explanation per ogni opzione",
+        "Validazione: quantity > 0",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Procurement Intent wizard - Step 3 (Delivery)",
+      "description": "As an Operator, I want to define delivery preferences.",
+      "acceptanceCriteria": [
+        "Step 3 fields: preferred_inbound_location (select), rationale (textarea)",
+        "Location options: lista warehouse autorizzate",
+        "Rationale: note operative per context (optional ma recommended)",
+        "Preview: serialization constraints per location selezionata",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create Procurement Intent wizard - Step 4 (Review)",
+      "description": "As an Operator, I want to see a summary before creating the intent.",
+      "acceptanceCriteria": [
+        "Step 4: read-only summary di tutti i dati inseriti",
+        "Mostra warnings se applicabili (es. no existing allocation)",
+        "Intent creato in status draft by default",
+        "Messaggio: Draft intents require approval before execution",
+        "CTA: Create as Draft (primary)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Procurement Intent Detail con 4 tabs",
+      "description": "As an Operator, I want to see all intent details organized in tabs.",
+      "acceptanceCriteria": [
+        "Tab Summary: demand source, rationale, quantities, sourcing model, status, approvals",
+        "Tab Downstream Execution: linked POs (lista), linked Bottling Instructions (lista), linked Inbound batches (lista)",
+        "Tab Allocation & Voucher Context: allocation IDs driving this intent (read-only), voucher count if voucher-driven (read-only)",
+        "Tab Audit: creation reason, approvals, status changes, timeline immutabile",
+        "Azioni contestuali role-based: Approve (Draft→Approved), Create PO, Create Bottling Instruction, Link Inbound",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Procurement Intent status transitions",
+      "description": "As an Admin, I want status transitions to follow precise rules.",
+      "acceptanceCriteria": [
+        "Transizioni valide: draft→approved, approved→executed, executed→closed",
+        "Transizione draft→approved: registra approved_at e approved_by",
+        "Transizione executed→closed: richiede tutti linked objects completed (POs closed, Bottling executed, Inbounds completed)",
+        "Transizione invalida genera errore user-friendly",
+        "Ogni transizione logga user_id, timestamp",
+        "Typecheck e lint passano"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Auto-create Intent from Voucher sale",
+      "description": "As a Developer, I want a Procurement Intent to be automatically created when a voucher is sold.",
+      "acceptanceCriteria": [
+        "Listener su VoucherIssued event (da Module A)",
+        "Crea ProcurementIntent in status draft con trigger_type = voucher_driven",
+        "Link a allocation_id e voucher_id in context",
+        "sourcing_model default basato su allocation.source_type",
+        "Notification/flag per Ops review",
+        "Typecheck e lint passano"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Intent Bulk Approval",
+      "description": "As an Operator, I want to approve multiple intents in bulk.",
+      "acceptanceCriteria": [
+        "Bulk action Approve Selected in Intent List",
+        "Solo intents in status draft selezionabili",
+        "Confirmation dialog con count",
+        "Ogni intent approvato individualmente con proprio audit log",
+        "Progress indicator durante operazione",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Intent Demand Aggregation view",
+      "description": "As an Operator, I want to see intents aggregated by product to identify volumes.",
+      "acceptanceCriteria": [
+        "Toggle view Aggregated by Product in Intent List",
+        "Raggruppa intents per product_reference_id",
+        "Mostra: product, total_quantity (sum), intents_count, status breakdown",
+        "Expand row per vedere intents individuali",
+        "Utile per decisioni di procurement bulk",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "PO List in Filament",
+      "description": "As an Operator, I want a Purchase Orders list for sourcing contract management.",
+      "acceptanceCriteria": [
+        "PurchaseOrderResource in Filament con navigation group Procurement",
+        "Lista con colonne: po_id, supplier, product, quantity, unit_cost, currency, ownership_transfer (badge), delivery_window, status, updated_at",
+        "Filtri: status, supplier, ownership_transfer, delivery_period",
+        "Ricerca per: po_id, supplier name, product name",
+        "Closed POs nascosti di default",
+        "Indicatore visivo per POs con delivery window passato",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Create PO wizard - Step 1 (Intent)",
+      "description": "As an Operator, I must select an existing Procurement Intent as a prerequisite.",
+      "acceptanceCriteria": [
+        "Step 1: procurement_intent_id selection (required)",
+        "Mostra solo intents in status approved o executed",
+        "Preview: intent summary (product, quantity, sourcing model)",
+        "Messaggio prominente: A PO cannot exist without a Procurement Intent",
+        "Validazione: intent.sourcing_model deve essere purchase per ownership_transfer = true",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Create PO wizard - Step 2 (Supplier)",
+      "description": "As an Operator, I want to select the supplier for the PO.",
+      "acceptanceCriteria": [
+        "Step 2: supplier_party_id selection",
+        "Autocomplete search tra Parties con role supplier/producer",
+        "Preview: supplier info, ProducerSupplierConfig se esistente",
+        "Se config esistente, mostra default constraints",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Create PO wizard - Step 3 (Commercial Terms)",
+      "description": "As an Operator, I want to define the commercial terms of the PO.",
+      "acceptanceCriteria": [
+        "Step 3 fields: quantity, unit_cost, currency, incoterms, ownership_transfer",
+        "quantity pre-filled da intent.quantity (modificabile)",
+        "Warning se quantity > intent.quantity",
+        "ownership_transfer checkbox con explanation: Check if ownership transfers to us on delivery",
+        "Validazione: quantity > 0, unit_cost > 0",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Create PO wizard - Step 4 (Delivery)",
+      "description": "As an Operator, I want to define delivery expectations.",
+      "acceptanceCriteria": [
+        "Step 4 fields: expected_delivery_start, expected_delivery_end, destination_warehouse, serialization_routing_note",
+        "destination_warehouse pre-filled da intent.preferred_inbound_location",
+        "serialization_routing_note per istruzioni speciali (es. France required)",
+        "Validazione: expected_delivery_end >= expected_delivery_start",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Create PO wizard - Step 5 (Review)",
+      "description": "As an Operator, I want to see a summary before creating the PO.",
+      "acceptanceCriteria": [
+        "Step 5: read-only summary di tutti i dati",
+        "Mostra intent linkato con summary",
+        "PO creato in status draft",
+        "Messaggio: Draft POs are not sent to suppliers until status changes to Sent",
+        "CTA: Create as Draft",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "PO Detail con 5 tabs",
+      "description": "As an Operator, I want to see all PO details organized in tabs.",
+      "acceptanceCriteria": [
+        "Tab Commercial Terms: supplier, product, quantity, pricing, incoterms, ownership flag",
+        "Tab Linked Intent: read-only link back, quantity coverage vs intent",
+        "Tab Delivery Expectations: delivery window, destination warehouse, serialization routing note",
+        "Tab Inbound Matching: linked inbound batches (may be empty), variance flags (qty/timing)",
+        "Tab Audit: approval trail, status changes, timeline",
+        "Azioni contestuali: Mark as Sent (Draft→Sent), Confirm (Sent→Confirmed), Close (Confirmed→Closed)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "PO status transitions",
+      "description": "As an Admin, I want PO status transitions to follow precise rules.",
+      "acceptanceCriteria": [
+        "Transizioni valide: draft→sent, sent→confirmed, confirmed→closed",
+        "Transizione sent→confirmed: registra confirmation date",
+        "Transizione confirmed→closed: può avere variance notes",
+        "Transizione invalida genera errore user-friendly",
+        "Ogni transizione logga user_id, timestamp",
+        "Typecheck e lint passano"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Inbound Variance tracking",
+      "description": "As an Operator, I want to see variances between PO and Inbound.",
+      "acceptanceCriteria": [
+        "Campo calculated variance su PO: (inbound_quantity - po_quantity)",
+        "Badge visivo: Exact Match, Over Delivery, Short Delivery",
+        "Filtro in PO List per varianze",
+        "Alert se variance > 10%",
+        "Variance non blocca closure (è informativo)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Bottling Instructions List",
+      "description": "As an Operator, I want a Bottling Instructions list to manage liquid products.",
+      "acceptanceCriteria": [
+        "BottlingInstructionResource in Filament con navigation group Procurement",
+        "Lista con colonne: instruction_id, wine+vintage, bottle_equivalents, allowed_formats (badges), bottling_deadline, preference_status, status, updated_at",
+        "Filtri: status, preference_status, deadline_range",
+        "Ricerca per: instruction_id, wine name",
+        "Indicatore urgenza per deadline < 30 giorni",
+        "Indicatore per preference_status = pending",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Create Bottling Instruction wizard - Step 1 (Liquid Product)",
+      "description": "As an Operator, I want to select the liquid product for the bottling instruction.",
+      "acceptanceCriteria": [
+        "Step 1: procurement_intent_id selection (required, solo intents con liquid product)",
+        "Preview: intent summary, liquid product info",
+        "Auto-fill liquid_product_id e bottle_equivalents da intent",
+        "Messaggio: Bottling Instructions manage post-sale bottling decisions",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Create Bottling Instruction wizard - Step 2 (Rules)",
+      "description": "As an Operator, I want to define bottling rules.",
+      "acceptanceCriteria": [
+        "Step 2 fields: allowed_formats (multi-select), allowed_case_configurations (multi-select), default_bottling_rule (textarea)",
+        "allowed_formats da ProducerSupplierConfig come suggestion",
+        "default_bottling_rule: Applied automatically if customer doesn't specify preferences by deadline",
+        "Preview: formula plain-language della regola",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Create Bottling Instruction wizard - Step 3 (Personalisation)",
+      "description": "As an Operator, I want to define personalisation flags.",
+      "acceptanceCriteria": [
+        "Step 3 fields: bottling_deadline (date required), delivery_location, personalised_bottling_required (boolean), early_binding_required (boolean)",
+        "bottling_deadline: default da ProducerSupplierConfig.default_bottling_deadline_days se presente",
+        "early_binding_required: explanation If true, voucher-bottle binding happens before bottling",
+        "Warning prominente: After deadline, defaults will be applied automatically",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Create Bottling Instruction wizard - Step 4 (Review)",
+      "description": "As an Operator, I want to see a summary with deadline warning.",
+      "acceptanceCriteria": [
+        "Step 4: read-only summary di tutti i dati",
+        "Countdown visivo a deadline",
+        "Warning se deadline < 30 giorni",
+        "BottlingInstruction creata in status draft",
+        "CTA: Create as Draft, Create and Activate",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Bottling Instruction Detail con 5 tabs",
+      "description": "As an Operator, I want to see all bottling instruction details.",
+      "acceptanceCriteria": [
+        "Tab Bottling Rules: allowed formats, case configurations, default rule, delivery location",
+        "Tab Customer Preferences: voucher count, preferences collected count, missing preferences count, countdown to deadline",
+        "Tab Allocation/Voucher Linkage: source allocations (read-only), voucher batch(es) (read-only)",
+        "Tab Personalisation Flags: personalised_bottling_required, early_binding_required, binding instruction preview",
+        "Tab Audit: deadline enforcement events, default application event, status changes",
+        "Azioni: Activate (Draft→Active), Mark Executed (Active→Executed)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Customer Preference Collection tracking",
+      "description": "As an Operator, I want to see the status of customer preference collection.",
+      "acceptanceCriteria": [
+        "Widget in Bottling Instruction Detail: preference collection progress",
+        "Progress bar: collected / total vouchers",
+        "Lista vouchers con preference status (collected, pending)",
+        "Link a customer portal per preference collection (external)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Bottling Deadline enforcement (job schedulato)",
+      "description": "As a Developer, I want a job that applies defaults when deadline expires.",
+      "acceptanceCriteria": [
+        "Job ApplyBottlingDefaultsJob in app/Jobs/Procurement/",
+        "Esegue daily",
+        "Trova BottlingInstructions con: status = active, deadline <= today, preference_status != complete",
+        "Per ogni instruction: applica default_bottling_rule, setta preference_status = defaulted, registra defaults_applied_at",
+        "Log per audit",
+        "Notification a Ops per defaults applicati",
+        "Typecheck e lint passano"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "BottlingInstructionService",
+      "description": "As a Developer, I want a service to centralize Bottling Instructions logic.",
+      "acceptanceCriteria": [
+        "Service class BottlingInstructionService in app/Services/Procurement/",
+        "Metodo activate(BottlingInstruction $instruction): draft → active",
+        "Metodo markExecuted(BottlingInstruction $instruction): active → executed",
+        "Metodo applyDefaults(BottlingInstruction $instruction): applica regola default",
+        "Metodo updatePreferenceStatus(BottlingInstruction $instruction): ricalcola preference_status",
+        "Metodo getPreferenceProgress(BottlingInstruction $instruction): restituisce collected/total",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Inbound List in Filament",
+      "description": "As an Operator, I want an Inbound list as a record of physical facts.",
+      "acceptanceCriteria": [
+        "InboundResource in Filament con navigation group Procurement",
+        "Lista con colonne: inbound_id, warehouse, product, quantity, packaging, ownership_flag (badge), received_date, serialization_required, status, updated_at",
+        "Filtri: status, warehouse, ownership_flag, packaging",
+        "Ricerca per: inbound_id, product name",
+        "Completed inbounds nascosti di default",
+        "Indicatore visivo per ownership_flag = pending (requires attention)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Create Inbound - Step 1 (Physical Receipt)",
+      "description": "As an Operator, I want to record the physical details of the inbound.",
+      "acceptanceCriteria": [
+        "Step 1 fields: warehouse (select), received_date, quantity, packaging, condition_notes",
+        "warehouse: lista warehouse autorizzate",
+        "packaging: cases, loose, mixed",
+        "condition_notes: textarea per note (damage, etc.)",
+        "Messaggio: Inbound records physical arrival - it does NOT imply ownership",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Create Inbound - Step 2 (Sourcing Context)",
+      "description": "As an Operator, I want to link the inbound to the sourcing context.",
+      "acceptanceCriteria": [
+        "Step 2 fields: procurement_intent_id (select nullable), purchase_order_id (select nullable), ownership_flag",
+        "Se PO selezionato, intent auto-filled da PO",
+        "ownership_flag: owned (we own it), in_custody (we hold but don't own), pending (to be determined)",
+        "Warning se ownership_flag = pending: Ownership must be clarified before hand-off to inventory",
+        "Se no intent/PO linked, warning Unlinked inbound requires manual validation",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Create Inbound - Step 3 (Serialization)",
+      "description": "As an Operator, I want to define serialization requirements.",
+      "acceptanceCriteria": [
+        "Step 3 fields: serialization_required (boolean), serialization_location_authorized (select), serialization_routing_rule (textarea)",
+        "serialization_location_authorized: lista locations autorizzate per serialization",
+        "serialization_routing_rule: regole speciali (es. France only for this wine)",
+        "Default serialization_required = true",
+        "Preview: blockers se location non autorizzata",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Create Inbound - Step 4 (Review)",
+      "description": "As an Operator, I want to see a summary before creating the inbound.",
+      "acceptanceCriteria": [
+        "Step 4: read-only summary di tutti i dati",
+        "Warning prominente se ownership_flag = pending",
+        "Warning se no intent linked",
+        "Inbound creato in status recorded",
+        "CTA: Record Inbound",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Inbound Detail con 5 tabs",
+      "description": "As an Operator, I want to see all inbound details.",
+      "acceptanceCriteria": [
+        "Tab Physical Receipt: warehouse, date, quantity, packaging, condition notes",
+        "Tab Sourcing Context: linked intent(s), linked PO, ownership status (badge prominente)",
+        "Tab Serialization Routing: authorized location, current rule, blockers if misrouted",
+        "Tab Downstream Hand-off: sent to Module B (Yes/No), serialized quantity once available",
+        "Tab Audit: WMS event references, manual adjustments, status changes",
+        "Azioni: Route (Recorded→Routed), Complete (Routed→Completed), Hand-off to Module B",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Inbound status transitions",
+      "description": "As an Admin, I want Inbound status transitions to follow precise rules.",
+      "acceptanceCriteria": [
+        "Transizioni valide: recorded→routed, routed→completed",
+        "Transizione recorded→routed: richiede serialization_location_authorized",
+        "Transizione routed→completed: richiede ownership_flag != pending",
+        "Transizione invalida genera errore user-friendly con explanation",
+        "Ogni transizione logga user_id, timestamp",
+        "Typecheck e lint passano"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Module B Hand-off",
+      "description": "As an Operator, I want to pass a completed inbound to Module B for inventory management.",
+      "acceptanceCriteria": [
+        "Azione Hand-off to Module B disponibile solo se status = completed",
+        "Verifica: ownership_flag clarified (not pending)",
+        "Verifica: serialization routing valid",
+        "Setta handed_to_module_b = true, handed_to_module_b_at = now",
+        "Event/notification per Module B",
+        "Azione non reversibile (hand-off è one-way)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "Inbound without Intent blocking",
+      "description": "As a Developer, I want inbounds without intent to be flagged but not blocked.",
+      "acceptanceCriteria": [
+        "Inbound può essere creato senza procurement_intent_id (warning, not error)",
+        "Badge prominente Unlinked Inbound in list e detail",
+        "Filtro per Unlinked Inbounds in list",
+        "Dashboard widget conta unlinked inbounds",
+        "Unlinked inbounds richiedono review manuale prima di hand-off",
+        "Typecheck e lint passano"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Config view in Party Detail",
+      "description": "As an Operator, I want to see the supplier/producer config in Party Detail.",
+      "acceptanceCriteria": [
+        "Tab Supplier Config in PartyResource (solo per parties con role supplier/producer)",
+        "Mostra ProducerSupplierConfig se esistente",
+        "Fields read-only: default_bottling_deadline_days, allowed_formats, serialization_constraints, notes",
+        "Link Edit Config per modifica",
+        "Se config non esiste, CTA Create Config",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "Edit ProducerSupplierConfig",
+      "description": "As an Operator, I want to modify a supplier/producer configuration.",
+      "acceptanceCriteria": [
+        "Form in modal o page separata",
+        "Fields editabili: default_bottling_deadline_days, allowed_formats, serialization_constraints, notes",
+        "Validazione: deadline_days > 0 se presente",
+        "Audit log per ogni modifica",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "Supplier List filtered view",
+      "description": "As an Operator, I want a filtered view of parties that are supplier/producer.",
+      "acceptanceCriteria": [
+        "Pagina Suppliers & Producers in navigation Procurement",
+        "Filtered view di PartyResource per role = supplier OR producer",
+        "Colonne: party name, role, has_config (badge), default_deadline, last_updated",
+        "Link a Party Detail con tab Supplier Config",
+        "Lightweight read-focused view",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "ProducerSupplierConfigService",
+      "description": "As a Developer, I want a service to manage supplier configs.",
+      "acceptanceCriteria": [
+        "Service class ProducerSupplierConfigService in app/Services/Procurement/",
+        "Metodo getOrCreate(Party $party): restituisce config esistente o crea nuova",
+        "Metodo update(ProducerSupplierConfig $config, array $data): aggiorna con audit",
+        "Metodo getDefaultsForProduct(Party $party, $product): restituisce defaults applicabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Dashboard landing page",
+      "description": "As an Operator, I want a dashboard as a control tower for Module D.",
+      "acceptanceCriteria": [
+        "Pagina Overview come landing page di Procurement navigation group",
+        "Layout: 4 widgets principali in grid",
+        "Non è dove actions happen - è dove priorities are identified",
+        "Link da ogni tile a filtered list corrispondente",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-051",
+      "title": "Widget Demand → Execution Knowability",
+      "description": "As an Operator, I want to see the status of demand vs execution.",
+      "acceptanceCriteria": [
+        "Widget A: Demand → Execution",
+        "Metriche: Vouchers issued awaiting sourcing (count), Allocation-driven procurement pending (count), Bottling-required liquid demand (count), Inbound overdue vs expected (ratio)",
+        "Click su metrica apre filtered list",
+        "Color coding: green (healthy), yellow (attention), red (critical)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 51,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-052",
+      "title": "Widget Bottling Risk",
+      "description": "As an Operator, I want to see bottling risk with deadlines.",
+      "acceptanceCriteria": [
+        "Widget B: Bottling Risk",
+        "Metriche: Upcoming deadlines next 30 days (count), 60 days (count), 90 days (count), % preferences collected (progress), Default fallback count (count)",
+        "Progress bar per preference collection",
+        "Highlight per deadlines < 14 giorni",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 52,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-053",
+      "title": "Widget Inbound Status",
+      "description": "As an Operator, I want to see inbound status.",
+      "acceptanceCriteria": [
+        "Widget C: Inbound Status",
+        "Metriche: Expected next 30 days (count), Delayed (count), Awaiting serialization routing (count), Awaiting hand-off (count)",
+        "Badge color per delayed count",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 53,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-054",
+      "title": "Widget Exceptions",
+      "description": "As an Operator, I want to see exceptions that require attention.",
+      "acceptanceCriteria": [
+        "Widget D: Exceptions",
+        "Metriche: Inbound without ownership clarity (count), Inbound blocked by missing intent (count), Bottling past deadline (count), PO with delivery variance > 10% (count)",
+        "Tutti in rosso se count > 0",
+        "Link diretto a items problematici",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 54,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-055",
+      "title": "Dashboard quick actions",
+      "description": "As an Operator, I want quick actions from the dashboard.",
+      "acceptanceCriteria": [
+        "Section Quick Actions in dashboard",
+        "Links: Create Procurement Intent, Record Inbound, View Pending Approvals",
+        "Links contestuali basati su exceptions (es. Review 5 unlinked inbounds)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 55,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-056",
+      "title": "Dashboard refresh e date range",
+      "description": "As an Operator, I want to control the refresh and date range of the dashboard.",
+      "acceptanceCriteria": [
+        "Button Refresh per aggiornare metriche",
+        "Date range selector per widgets (default: next 30 days)",
+        "Auto-refresh ogni 5 minuti (configurable)",
+        "Last updated timestamp visibile",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 56,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-057",
+      "title": "Enforce Intent-before-PO invariant",
+      "description": "As a Developer, I want the system to enforce that PO requires Intent.",
+      "acceptanceCriteria": [
+        "FK constraint: purchase_orders.procurement_intent_id NOT NULL",
+        "UI: PO creation wizard richiede intent selection come step 1",
+        "API: validation error se tentativo di creare PO senza intent",
+        "Messaggio: A Purchase Order cannot exist without a Procurement Intent",
+        "Test che verifica constraint",
+        "Typecheck e lint passano"
+      ],
+      "priority": 57,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-058",
+      "title": "Enforce Intent-before-Inbound invariant",
+      "description": "As a Developer, I want inbounds without intent to be flagged.",
+      "acceptanceCriteria": [
+        "Inbound.procurement_intent_id è nullable (non hard constraint)",
+        "Se null, Inbound marcato con flag unlinked",
+        "Warning prominente in UI durante creazione",
+        "Dashboard conta unlinked inbounds come exception",
+        "Review richiesta prima di hand-off se unlinked",
+        "Typecheck e lint passano"
+      ],
+      "priority": 58,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-059",
+      "title": "Inbound ownership clarity enforcement",
+      "description": "As a Developer, I want ownership to be clarified before completion.",
+      "acceptanceCriteria": [
+        "Transizione routed→completed bloccata se ownership_flag = pending",
+        "Error message: Ownership must be clarified (owned or in_custody) before completing inbound",
+        "UI: form per update ownership_flag visibile in detail",
+        "Hand-off a Module B impossibile con pending ownership",
+        "Typecheck e lint passano"
+      ],
+      "priority": 59,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-060",
+      "title": "Serialization routing hard blockers",
+      "description": "As a Developer, I want serialization routing to be a hard blocker.",
+      "acceptanceCriteria": [
+        "Transizione recorded→routed richiede serialization_location_authorized",
+        "Se location non in lista autorizzata, blocco con errore",
+        "Error message: Serialization location [X] is not authorized for this product",
+        "ProducerSupplierConfig.serialization_constraints consultato",
+        "UI mostra blockers prima di tentare transizione",
+        "Typecheck e lint passano"
+      ],
+      "priority": 60,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-061",
+      "title": "Bottling deadline auto-default application",
+      "description": "As a Developer, I want defaults to be applied automatically after deadline.",
+      "acceptanceCriteria": [
+        "Job daily scansiona BottlingInstructions",
+        "Condizioni: status = active, deadline <= today, preference_status in [pending, partial]",
+        "Azione: applica default_bottling_rule a vouchers senza preferenza",
+        "Update: preference_status = defaulted, defaults_applied_at = now",
+        "Audit log per ogni default application",
+        "Notification a Ops",
+        "Typecheck e lint passano"
+      ],
+      "priority": 61,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-062",
+      "title": "Concurrent PO-Inbound mismatch handling",
+      "description": "As a Developer, I want to handle variances between PO and Inbound.",
+      "acceptanceCriteria": [
+        "Inbound può essere linked a PO con quantity diversa",
+        "Variance calcolata: inbound.quantity - po.quantity",
+        "Variance > 10% genera warning (non blocco)",
+        "Badge visivo su PO: Exact, Over, Short",
+        "Report per Finance su varianze",
+        "Typecheck e lint passano"
+      ],
+      "priority": 62,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-063",
+      "title": "Intent closure validation",
+      "description": "As a Developer, I want intent closure to require all linked objects completed.",
+      "acceptanceCriteria": [
+        "Transizione executed→closed verifica:",
+        "Tutti PO linked sono closed",
+        "Tutte BottlingInstructions linked sono executed",
+        "Tutti Inbounds linked sono completed",
+        "Se condizioni non met, errore con lista items pending",
+        "UI mostra checklist prima di closure attempt",
+        "Typecheck e lint passano"
+      ],
+      "priority": 63,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-064",
+      "title": "Audit log per Procurement Intent",
+      "description": "As a Compliance Officer, I want an immutable log for all Procurement Intent changes.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a ProcurementIntent",
+        "Eventi loggati: creation, approval, status_change, linked_object_added, closure",
+        "Tab Audit in Intent Detail con timeline",
+        "Filtri per tipo evento e date range",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 64,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-065",
+      "title": "Audit log per Purchase Order",
+      "description": "As a Compliance Officer, I want an immutable log for all Purchase Order changes.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a PurchaseOrder",
+        "Eventi loggati: creation, status_change, term_change, inbound_linked, closure",
+        "Tab Audit in PO Detail con timeline",
+        "Include approval events",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 65,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-066",
+      "title": "Audit log per Bottling Instruction",
+      "description": "As a Compliance Officer, I want an immutable log for all Bottling Instruction changes.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a BottlingInstruction",
+        "Eventi loggati: creation, activation, preference_update, default_application, execution",
+        "Tab Audit in Bottling Detail con timeline",
+        "Defaults application ha audit entry speciale",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 66,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-067",
+      "title": "Audit log per Inbound",
+      "description": "As a Compliance Officer, I want an immutable log for all Inbound changes.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a Inbound",
+        "Eventi loggati: recording, routing, ownership_update, completion, hand_off",
+        "Tab Audit in Inbound Detail con timeline",
+        "WMS event references inclusi se disponibili",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 67,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-068",
+      "title": "Global Module D Audit page",
+      "description": "As a Compliance Officer, I want a global view of all Module D audit events.",
+      "acceptanceCriteria": [
+        "Pagina Audit in Filament sotto Procurement",
+        "Lista unificata tutti gli audit events di Module D",
+        "Filtri: entity_type (Intent, PO, Bottling, Inbound), event_type, date_range, user",
+        "Ricerca per: entity_id, user_name",
+        "Export CSV per compliance",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 68,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

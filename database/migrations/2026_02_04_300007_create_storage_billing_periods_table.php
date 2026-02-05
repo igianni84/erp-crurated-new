@@ -70,9 +70,9 @@ return new class extends Migration
             $table->index('period_end');
             $table->index('status');
             $table->index('calculated_at');
-            $table->index(['customer_id', 'period_start', 'period_end']);
-            $table->index(['customer_id', 'location_id', 'period_start']);
-            $table->index(['customer_id', 'status']);
+            $table->index(['customer_id', 'period_start', 'period_end'], 'sbp_customer_period_index');
+            $table->index(['customer_id', 'location_id', 'period_start'], 'sbp_customer_location_period_index');
+            $table->index(['customer_id', 'status'], 'sbp_customer_status_index');
         });
     }
 

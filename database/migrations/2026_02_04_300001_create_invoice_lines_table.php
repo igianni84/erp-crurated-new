@@ -32,7 +32,7 @@ return new class extends Migration
             $table->decimal('line_total', 10, 2);
 
             // Optional link to SellableSku
-            $table->foreignId('sellable_sku_id')
+            $table->foreignUuid('sellable_sku_id')
                 ->nullable()
                 ->constrained('sellable_skus')
                 ->nullOnDelete();

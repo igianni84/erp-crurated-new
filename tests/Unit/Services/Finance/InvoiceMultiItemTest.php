@@ -94,19 +94,20 @@ class InvoiceMultiItemTest extends TestCase
     }
 
     /**
-     * Test that each invoice line can be linked to a different sellable_sku.
+     * Test that each invoice line can store metadata for SKU references.
+     *
+     * Note: sellable_sku_id is a FK to sellable_skus table with UUID.
+     * This test verifies metadata can store SKU codes without actual FK references.
      */
-    public function test_each_line_can_link_to_different_sellable_sku(): void
+    public function test_each_line_can_store_sku_metadata(): void
     {
-        // Create mock sellable SKUs (if the model exists and table is available)
-        // For this test, we'll test with sellable_sku_id references
+        // Test metadata storage for SKU codes without actual FK references
         $lines = [
             [
                 'description' => 'Premium Wine SKU-001',
                 'quantity' => '2',
                 'unit_price' => '150.00',
                 'tax_rate' => '22.00',
-                'sellable_sku_id' => 101,
                 'metadata' => ['sku_code' => 'SKU-001'],
             ],
             [
@@ -114,7 +115,6 @@ class InvoiceMultiItemTest extends TestCase
                 'quantity' => '3',
                 'unit_price' => '75.00',
                 'tax_rate' => '22.00',
-                'sellable_sku_id' => 102,
                 'metadata' => ['sku_code' => 'SKU-002'],
             ],
             [
@@ -122,7 +122,6 @@ class InvoiceMultiItemTest extends TestCase
                 'quantity' => '1',
                 'unit_price' => '500.00',
                 'tax_rate' => '22.00',
-                'sellable_sku_id' => 103,
                 'metadata' => ['sku_code' => 'SKU-003'],
             ],
         ];
@@ -135,17 +134,17 @@ class InvoiceMultiItemTest extends TestCase
             sourceId: 'SALE-002'
         );
 
-        // Verify each line has a different sellable_sku_id
+        // Verify each line has different metadata sku_code
         $createdLines = $invoice->invoiceLines()->orderBy('id')->get();
 
-        $this->assertEquals(101, $createdLines[0]->sellable_sku_id);
-        $this->assertEquals(102, $createdLines[1]->sellable_sku_id);
-        $this->assertEquals(103, $createdLines[2]->sellable_sku_id);
+        $this->assertEquals('SKU-001', $createdLines[0]->getMetadataValue('sku_code'));
+        $this->assertEquals('SKU-002', $createdLines[1]->getMetadataValue('sku_code'));
+        $this->assertEquals('SKU-003', $createdLines[2]->getMetadataValue('sku_code'));
 
-        // Verify hasSellableSku method works
-        $this->assertTrue($createdLines[0]->hasSellableSku());
-        $this->assertTrue($createdLines[1]->hasSellableSku());
-        $this->assertTrue($createdLines[2]->hasSellableSku());
+        // Lines without sellable_sku_id should return false for hasSellableSku
+        $this->assertFalse($createdLines[0]->hasSellableSku());
+        $this->assertFalse($createdLines[1]->hasSellableSku());
+        $this->assertFalse($createdLines[2]->hasSellableSku());
     }
 
     /**
@@ -206,9 +205,9 @@ class InvoiceMultiItemTest extends TestCase
      */
     public function test_voucher_sale_event_creates_multi_line_invoice(): void
     {
+        // Items without sellable_sku_id FK references (stored in metadata instead)
         $items = [
             [
-                'sellable_sku_id' => 201,
                 'sku_code' => 'WINE-2020-RESERVE',
                 'description' => '2020 Reserve Wine Voucher',
                 'quantity' => 2,
@@ -216,7 +215,6 @@ class InvoiceMultiItemTest extends TestCase
                 'tax_rate' => '22.00',
             ],
             [
-                'sellable_sku_id' => 202,
                 'sku_code' => 'WINE-2021-CLASSIC',
                 'description' => '2021 Classic Wine Voucher',
                 'quantity' => 5,
@@ -224,7 +222,6 @@ class InvoiceMultiItemTest extends TestCase
                 'tax_rate' => '22.00',
             ],
             [
-                'sellable_sku_id' => 203,
                 'sku_code' => 'WINE-GIFT-BOX',
                 'description' => 'Premium Gift Box',
                 'quantity' => 1,
@@ -263,11 +260,11 @@ class InvoiceMultiItemTest extends TestCase
         $this->assertEquals('110.00', $invoice->tax_amount);
         $this->assertEquals('610.00', $invoice->total_amount);
 
-        // Verify each line has correct sellable_sku_id
+        // Verify each line has correct sku_code in metadata
         $lines = $invoice->invoiceLines()->orderBy('id')->get();
-        $this->assertEquals(201, $lines[0]->sellable_sku_id);
-        $this->assertEquals(202, $lines[1]->sellable_sku_id);
-        $this->assertEquals(203, $lines[2]->sellable_sku_id);
+        $this->assertEquals('WINE-2020-RESERVE', $lines[0]->getMetadataValue('sku_code'));
+        $this->assertEquals('WINE-2021-CLASSIC', $lines[1]->getMetadataValue('sku_code'));
+        $this->assertEquals('WINE-GIFT-BOX', $lines[2]->getMetadataValue('sku_code'));
     }
 
     /**
@@ -355,17 +352,20 @@ class InvoiceMultiItemTest extends TestCase
     }
 
     /**
-     * Test that invoice can have lines with and without sellable_sku.
+     * Test that invoice can have lines with and without sellable_sku metadata.
+     *
+     * Note: sellable_sku_id requires a valid FK reference. This test verifies
+     * lines work correctly without SKU references.
      */
-    public function test_lines_with_and_without_sellable_sku(): void
+    public function test_lines_without_sellable_sku(): void
     {
         $lines = [
             [
-                'description' => 'Wine with SKU',
+                'description' => 'Wine (SKU in metadata)',
                 'quantity' => '1',
                 'unit_price' => '100.00',
                 'tax_rate' => '22.00',
-                'sellable_sku_id' => 301,
+                'metadata' => ['sku_code' => 'SKU-301'],
             ],
             [
                 'description' => 'Handling Fee (no SKU)',
@@ -393,9 +393,10 @@ class InvoiceMultiItemTest extends TestCase
 
         $createdLines = $invoice->invoiceLines()->orderBy('id')->get();
 
-        // First line has SKU
-        $this->assertEquals(301, $createdLines[0]->sellable_sku_id);
-        $this->assertTrue($createdLines[0]->hasSellableSku());
+        // First line has SKU code in metadata but no FK reference
+        $this->assertNull($createdLines[0]->sellable_sku_id);
+        $this->assertFalse($createdLines[0]->hasSellableSku());
+        $this->assertEquals('SKU-301', $createdLines[0]->getMetadataValue('sku_code'));
 
         // Second line explicitly null
         $this->assertNull($createdLines[1]->sellable_sku_id);

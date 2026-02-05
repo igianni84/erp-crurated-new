@@ -1,0 +1,441 @@
+# Ralph Progress Log
+Started: Tue Feb  3 16:33:41 CET 2026
+---
+
+## Codebase Patterns
+- PIM models go in `app/Models/Pim/` namespace
+- PIM Filament resources go in `app/Filament/Resources/Pim/` namespace
+- Use `HasUuid` trait with `$table->uuid('id')->primary()` instead of `$table->id()`
+- Use `Auditable` trait with `created_by` and `updated_by` foreign keys
+- Use `AuditLoggable` trait for automatic audit logging to `audit_logs` table (tracks create, update, delete, status_change)
+- For optional model constants in traits, use `defined()` + `constant()` with PHPDoc to satisfy PHPStan
+- Use `SoftDeletes` trait with `$table->softDeletes()` for referential integrity
+- JSON fields use `'field_name' => 'array'` cast and `KeyValue` form component
+- Navigation group for PIM is 'PIM', sort order starts at 1
+- For enum match arms, use PHPDoc `@var 'val1'|'val2'|'val3'` annotation to satisfy PHPStan
+- For nested resources, create RelationManager in `Resource/RelationManagers/` and register in `getRelations()`
+- For enum-cast properties used in traits, add `@property EnumClass $property_name` PHPDoc on the model class
+- Use `HasProductLifecycle` trait and `ProductLifecycleStatus` enum for PIM models with approval workflow
+
+---
+
+## 2026-02-03 16:56 CET - US-001
+- Implemented Wine Master model with all required fields
+- Files changed:
+  - `database/migrations/2026_02_03_155637_create_wine_masters_table.php` (new)
+  - `app/Models/Pim/WineMaster.php` (new)
+  - `app/Filament/Resources/Pim/WineMasterResource.php` (new)
+  - `app/Filament/Resources/Pim/WineMasterResource/Pages/ListWineMasters.php` (new)
+  - `app/Filament/Resources/Pim/WineMasterResource/Pages/CreateWineMaster.php` (new)
+  - `app/Filament/Resources/Pim/WineMasterResource/Pages/EditWineMaster.php` (new)
+- **Learnings for future iterations:**
+  - Patterns discovered: PIM models/resources have their own Pim subdirectory namespace
+  - Use `KeyValue` component for JSON regulatory_attributes field
+  - Use `TrashedFilter` for soft-deleted models in table filters
+  - Table columns: searchable on name/producer/appellation per requirements
+---
+
+## 2026-02-03 17:00 CET - US-002
+- Implemented Wine Variant model with FK to Wine Master and all required fields
+- Files changed:
+  - `database/migrations/2026_02_03_160009_create_wine_variants_table.php` (new)
+  - `app/Models/Pim/WineVariant.php` (new)
+  - `app/Models/Pim/WineMaster.php` (modified - added hasMany relationship)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ListWineVariants.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/CreateWineVariant.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (new)
+- **Learnings for future iterations:**
+  - Use `foreignUuid()` for foreign keys to UUID primary keys (not `foreignId`)
+  - For unique constraint across two columns, use `$table->unique(['col1', 'col2'])`
+  - Select component with relationship: use `getOptionLabelFromRecordUsing()` for custom labels
+  - Navigation sort increments for each resource (WineMaster=1, WineVariant=2)
+  - BelongsTo relationship method name should be camelCase singular (e.g., `wineMaster`)
+---
+
+## 2026-02-03 17:05 CET - US-003
+- Implemented Format model for bottle formats
+- Files changed:
+  - `database/migrations/2026_02_03_160313_create_formats_table.php` (new)
+  - `app/Models/Pim/Format.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource/Pages/ListFormats.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource/Pages/CreateFormat.php` (new)
+  - `app/Filament/Resources/Pim/FormatResource/Pages/EditFormat.php` (new)
+  - `database/seeders/FormatSeeder.php` (new)
+  - `database/seeders/DatabaseSeeder.php` (modified - added FormatSeeder)
+- **Learnings for future iterations:**
+  - Use `TernaryFilter` for boolean fields in table filters (better UX than checkbox)
+  - Use `Toggle` component with `helperText` for boolean form fields
+  - Use `firstOrCreate` in seeders with unique field as first argument to avoid duplicates
+  - Format volume display: use `formatStateUsing(fn (int $state): string => number_format($state) . ' ml')`
+  - Navigation sort for Format = 3 (after WineMaster=1, WineVariant=2)
+---
+
+## 2026-02-03 17:10 CET - US-004
+- Implemented Case Configuration model with FK to Format
+- Files changed:
+  - `database/migrations/2026_02_03_170639_create_case_configurations_table.php` (new)
+  - `app/Models/Pim/CaseConfiguration.php` (new)
+  - `app/Models/Pim/Format.php` (modified - added hasMany relationship to CaseConfiguration)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource.php` (new)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource/Pages/ListCaseConfigurations.php` (new)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource/Pages/CreateCaseConfiguration.php` (new)
+  - `app/Filament/Resources/Pim/CaseConfigurationResource/Pages/EditCaseConfiguration.php` (new)
+  - `database/seeders/CaseConfigurationSeeder.php` (new)
+  - `database/seeders/DatabaseSeeder.php` (modified - added CaseConfigurationSeeder)
+- **Learnings for future iterations:**
+  - Use enum migration with `$table->enum('case_type', ['owc', 'oc', 'none'])` for limited options
+  - For enum badge display, use `formatStateUsing()` and `color()` with match expressions - add default case for PHPStan
+  - Use `SelectFilter` for enum and FK fields in table filters
+  - When accessing related model properties via BelongsTo, use PHPDoc `@var` annotation for PHPStan
+  - Navigation sort for CaseConfiguration = 4 (after Format=3)
+  - Seeders can call other seeders with `$this->call(OtherSeeder::class)` to ensure dependencies exist
+---
+
+## 2026-02-03 17:15 CET - US-005
+- Implemented Sellable SKU model combining Wine Variant + Format + Case Configuration
+- Files changed:
+  - `database/migrations/2026_02_03_171046_create_sellable_skus_table.php` (new)
+  - `app/Models/Pim/SellableSku.php` (new)
+  - `app/Models/Pim/WineVariant.php` (modified - added hasMany relationship to SellableSku)
+  - `app/Filament/Resources/Pim/SellableSkuResource.php` (new)
+  - `app/Filament/Resources/Pim/SellableSkuResource/Pages/ListSellableSkus.php` (new)
+  - `app/Filament/Resources/Pim/SellableSkuResource/Pages/CreateSellableSku.php` (new)
+  - `app/Filament/Resources/Pim/SellableSkuResource/Pages/EditSellableSku.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource/RelationManagers/SellableSkusRelationManager.php` (new)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added RelationManager)
+- **Learnings for future iterations:**
+  - For nested resources, use RelationManager classes in `Resource/RelationManagers/` directory
+  - Register RelationManagers in the parent Resource's `getRelations()` method
+  - Auto-generate SKU codes in model `boot()` method with `static::creating()` callback
+  - For match arms on enum DB columns, use PHPDoc annotation `@var 'val1'|'val2'|'val3'` to avoid PHPStan "match.alwaysTrue" errors
+  - Filter cascaded selects using `->relationship()` with callback: `fn ($query, $get) => $query->when($get('parent_field'), fn ($q, $val) => $q->where('field', $val))`
+  - Navigation sort for SellableSku = 5 (after CaseConfiguration=4)
+  - Unique constraint across multiple columns: `$table->unique(['col1', 'col2', 'col3'], 'constraint_name')`
+---
+
+## 2026-02-03 16:16 CET - US-006
+- Implemented Liquid Product model for pre-bottling wine sales
+- Files changed:
+  - `database/migrations/2026_02_03_161545_create_liquid_products_table.php` (new)
+  - `app/Models/Pim/LiquidProduct.php` (new)
+  - `app/Models/Pim/WineVariant.php` (modified - added hasOne relationship to LiquidProduct)
+  - `app/Filament/Resources/Pim/LiquidProductResource.php` (new)
+  - `app/Filament/Resources/Pim/LiquidProductResource/Pages/ListLiquidProducts.php` (new)
+  - `app/Filament/Resources/Pim/LiquidProductResource/Pages/CreateLiquidProduct.php` (new)
+  - `app/Filament/Resources/Pim/LiquidProductResource/Pages/EditLiquidProduct.php` (new)
+- **Learnings for future iterations:**
+  - Liquid Products use HasOne relationship (one per wine variant), not HasMany
+  - For 1:1 relationships, add unique constraint on the FK: `$table->unique('wine_variant_id')`
+  - Lifecycle status enum can have more states than SKU (draft, in_review, approved, published, archived)
+  - Use 'heroicon-o-beaker' icon for liquid/pre-bottling related resources
+  - Navigation sort for LiquidProduct = 6 (after SellableSku=5)
+---
+
+## 2026-02-03 17:19 CET - US-007
+- Implemented lifecycle states for Wine Variant with approval workflow
+- Files changed:
+  - `app/Enums/ProductLifecycleStatus.php` (new)
+  - `app/Traits/HasProductLifecycle.php` (new)
+  - `database/migrations/2026_02_03_171920_add_lifecycle_status_to_wine_variants_table.php` (new)
+  - `app/Models/Pim/WineVariant.php` (modified - added HasProductLifecycle trait, lifecycle_status field)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added status column, filter, lifecycle actions)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added lifecycle actions in header)
+- **Learnings for future iterations:**
+  - Use `ProductLifecycleStatus` enum for PIM products with review workflow (draft, in_review, approved, published, archived)
+  - Use `HasProductLifecycle` trait for models needing approval workflow
+  - For enum cast properties that need PHPStan to understand, add `@property EnumClass $property_name` PHPDoc annotation on the model
+  - Sensitive fields that auto-trigger review status change are defined in model `SENSITIVE_FIELDS` constant
+  - Lifecycle action buttons in Filament: use `ActionGroup` with `->visible()` based on `canTransitionTo()` method
+  - Filament Notifications: use `Notification::make()->title('Message')->success()->send()` for action feedback
+---
+
+## 2026-02-03 17:35 CET - US-008
+- Implemented completeness percentage for Wine Variant
+- Files changed:
+  - `app/Models/Pim/WineVariant.php` (modified - added getCompletenessPercentage(), getCompletenessColor(), isFieldComplete(), getIncompleteRequiredFields() methods and COMPLETENESS_FIELDS constant)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added completeness column with colored badge)
+- **Learnings for future iterations:**
+  - Define completeness field weights in a model constant `COMPLETENESS_FIELDS` with `weight` and `required` keys
+  - Use `getAttribute()` method instead of direct property access to avoid PHPStan type errors for nullable fields
+  - Use `empty()` check for array-casted JSON fields rather than `is_array()` which PHPStan flags as always true
+  - For computed columns in Filament, use `getStateUsing()` with a closure
+  - Completeness badge colors: 'danger' for <50%, 'warning' for 50-80%, 'success' for >80%
+  - Custom sortable implementation for computed columns uses `sortable(query: fn())` with raw SQL approximation
+---
+
+## 2026-02-03 17:45 CET - US-009
+- Implemented blocking issues and warnings for Wine Variant
+- Files changed:
+  - `app/Models/Pim/WineVariant.php` (modified - added getBlockingIssues(), getWarnings(), hasBlockingIssues(), canPublish() methods and BLOCKING_ISSUES_RULES, WARNING_RULES constants)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added ViewAction, updated publish action to check for blocking issues)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ViewWineVariant.php` (new - Overview page with Infolist showing blocking issues and warnings)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - updated publish action to check for blocking issues)
+- **Learnings for future iterations:**
+  - Use ViewRecord page with Infolist for read-only overview pages in Filament
+  - Define blocking issues and warnings as model constants with tab, message, and priority keys
+  - Use RepeatableEntry in Infolist to display arrays of data
+  - Use Section with icon and iconColor for visual grouping of issues
+  - Disable actions with `->disabled()` based on model state (e.g., hasBlockingIssues)
+  - PHPStan error "nullsafe.neverNull" can be fixed by using explicit null check instead of `?->` with `??`
+  - Register ViewRecord page in Resource's `getPages()` method with route `/{record}`
+---
+
+## 2026-02-03 17:55 CET - US-010
+- Implemented audit log system with AuditLoggable trait for automatic logging
+- Files changed:
+  - `database/migrations/2026_02_03_163105_create_audit_logs_table.php` (new)
+  - `app/Models/AuditLog.php` (new - immutable audit log model with polymorphic relation)
+  - `app/Traits/AuditLoggable.php` (new - trait for automatic audit logging on model events)
+  - `app/Models/Pim/WineVariant.php` (modified - added AuditLoggable trait, AUDIT_TRACK_STATUS_FIELD)
+  - `app/Models/Pim/WineMaster.php` (modified - added AuditLoggable trait)
+  - `app/Models/Pim/Format.php` (modified - added AuditLoggable trait)
+  - `app/Models/Pim/CaseConfiguration.php` (modified - added AuditLoggable trait)
+  - `app/Models/Pim/SellableSku.php` (modified - added AuditLoggable trait, AUDIT_TRACK_STATUS_FIELD)
+  - `app/Models/Pim/LiquidProduct.php` (modified - added AuditLoggable trait, AUDIT_TRACK_STATUS_FIELD)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ViewWineVariant.php` (modified - added Audit History section)
+- **Learnings for future iterations:**
+  - For immutable audit tables, use `const UPDATED_AT = null` to disable updated_at tracking
+  - Use polymorphic `morphMany`/`morphTo` for generic audit logging across multiple models
+  - For optional constants in traits (e.g., AUDIT_EXCLUDE_FIELDS), use `defined($constantName)` check + `constant($constantName)` function to avoid PHPStan errors
+  - AuditLog events: 'created', 'updated', 'deleted', 'status_change'
+  - Define AUDIT_TRACK_STATUS_FIELD constant on models that have lifecycle_status to log status changes separately
+  - RepeatableEntry works well for displaying audit log timeline in Infolist
+  - Use htmlspecialchars() when displaying user-entered values in HTML to prevent XSS
+---
+
+## 2026-02-03 18:10 CET - US-011
+- Implemented unified Product List view with all required columns, filters, search, and bulk actions
+- Files changed:
+  - `app/Enums/DataSource.php` (new - enum for liv_ex/manual data source)
+  - `database/migrations/2026_02_03_163628_add_data_source_to_wine_variants_table.php` (new - adds data_source, lwin_code, internal_code, thumbnail_url fields)
+  - `app/Models/Pim/WineVariant.php` (modified - added new fields and DataSource enum cast)
+  - `app/Filament/Resources/Pim/ProductResource.php` (new - unified product list view)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ListProducts.php` (new)
+- **Learnings for future iterations:**
+  - For PHPStan "nullsafe.neverNull" error, use explicit null check pattern: `$var = $obj->relation; $val = $var !== null ? $var->field : 'default';`
+  - Category filter for "has related model" uses `whereHas()` / `whereDoesntHave()` with relationship name
+  - Completeness filter approximation with raw SQL since it's a computed value - weights the optional fields
+  - Use custom sortable query `fn (Builder $query, string $direction)` for virtual/computed columns
+  - ImageColumn with `defaultImageUrl()` can use UI Avatars API for placeholder images
+  - Bulk actions can skip non-matching records gracefully and show notifications for both success and skipped
+  - View/Edit actions can redirect to another resource using `->url(fn ($record) => OtherResource::getUrl('view', ['record' => $record]))`
+  - Navigation sort 0 places Products at the top of PIM navigation group
+---
+
+## 2026-02-03 18:25 CET - US-012
+- Implemented Create Product wizard step 1: category selection (Bottle/Liquid)
+- Files changed:
+  - `app/Filament/Resources/Pim/ProductResource.php` (modified - added new page routes)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ListProducts.php` (modified - added Create Product action)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ChooseProductCategory.php` (new - category selection page)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/CreateBottleProduct.php` (new - bottle method selection page)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ImportLivex.php` (new - placeholder for Liv-ex import)
+  - `resources/views/filament/resources/pim/product-resource/pages/choose-product-category.blade.php` (new)
+  - `resources/views/filament/resources/pim/product-resource/pages/create-bottle-product.blade.php` (new)
+  - `resources/views/filament/resources/pim/product-resource/pages/import-livex.blade.php` (new)
+- **Learnings for future iterations:**
+  - For custom Filament pages with Blade views, use `protected static string $view` property pointing to view path
+  - Blade views for Filament pages go in `resources/views/filament/resources/{resource-slug}/pages/`
+  - Use `<x-filament-panels::page>` component wrapper for consistent Filament styling
+  - Card-based selection UI uses relative positioning with absolute link overlay for full-card click area
+  - Use Tailwind's dark mode classes (dark:) for theme support
+  - Heroicons are available via `<x-heroicon-o-{name}>` and `<x-heroicon-m-{name}>` Blade components
+  - Route names follow pattern: `filament.admin.resources.{slug}.{page-name}`
+---
+
+## 2026-02-03 19:00 CET - US-013
+- Implemented Liv-ex import flow for creating bottle products
+- Files changed:
+  - `app/Services/LivExService.php` (new - mock Liv-ex API service with search and import)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ImportLivex.php` (modified - full Livewire page with search, preview, and import)
+  - `resources/views/filament/resources/pim/product-resource/pages/import-livex.blade.php` (modified - search UI, results, confirmation modal)
+- **Learnings for future iterations:**
+  - Use Livewire `#[Computed]` attribute for reactive computed properties
+  - Use `#[Url]` attribute to persist state in URL query params
+  - For service classes, define mock data as private class constants for development
+  - LivExService::LOCKED_FIELDS defines which fields are read-only after import
+  - When checking for existing records before import, check both LWIN code and wine_master + vintage combination
+  - Use `firstOrCreate` pattern alternatives: find by unique identifier first, then create if not exists
+  - For Tailwind dark mode, use `dark:` prefix classes alongside light mode classes
+  - Blade templates can access Livewire computed properties via `$this->propertyName`
+---
+
+## 2026-02-03 20:15 CET - US-014
+- Implemented manual bottle product creation flow
+- Files changed:
+  - `app/Filament/Resources/Pim/ProductResource/Pages/CreateManualBottle.php` (new - Filament page with form for manual wine creation)
+  - `resources/views/filament/resources/pim/product-resource/pages/create-manual-bottle.blade.php` (new - Blade view for manual creation page)
+  - `app/Filament/Resources/Pim/ProductResource.php` (modified - added 'create-manual' route)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/CreateBottleProduct.php` (modified - updated links to use ProductResource URLs)
+  - `resources/views/filament/resources/pim/product-resource/pages/create-bottle-product.blade.php` (modified - updated manual creation link)
+- **Learnings for future iterations:**
+  - For custom Filament pages extending Page, add `@property Form $form` PHPDoc annotation to satisfy PHPStan
+  - Use `->options()` with mapped WineMaster query instead of `->relationship()` when the page has no model
+  - Form statePath should be `'data'` to bind to `public array $data = []` property
+  - Section components with `->description()` provide better UX for form grouping
+  - When conditionally showing form fields, use `->visible(fn (Get $get): bool => ...)` and `->required(fn (Get $get): bool => ...)` together
+  - Check for existing Wine Variant by wine_master_id + vintage_year before creating to prevent duplicates
+---
+
+## 2026-02-03 21:00 CET - US-015
+- Implemented Product Detail - Tab Overview with enhanced read-only control panel
+- Files changed:
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/ViewWineVariant.php` (modified - enhanced overview with Liv-ex status, validate action, navigation buttons)
+- **Learnings for future iterations:**
+  - Use `InfolistActions` component with `InfolistAction` for adding action buttons in Infolist schema
+  - When accessing record in getHeaderActions(), use `$this->record` with PHPDoc `@var WineVariant $record`
+  - For RepeatableEntry schema items, closures don't receive parent record - use `$this->record` in component methods instead
+  - Use `->getStateUsing()` for computed/virtual fields like publish_readiness, livex_sync_status
+  - Use `->copyable()` on TextEntry for fields users may want to copy (LWIN, internal_code)
+  - Use `->visible(fn (WineVariant $record): bool => ...)` to conditionally show fields based on record state
+  - Validate action refreshes page with redirect to show updated infolist after validation runs
+  - Action navigation to edit page: generate URL with anchor (`#section-id`) for direct navigation to form section
+---
+
+## 2026-02-03 21:30 CET - US-016
+- Implemented Product Detail - Tab Core Info with editable fields and Liv-ex lock management
+- Files changed:
+  - `database/migrations/2026_02_03_210000_add_core_info_fields_to_wine_variants_table.php` (new - adds description and locked_fields columns)
+  - `app/Models/Pim/WineVariant.php` (modified - added description/locked_fields fields, isFieldLocked(), getLockedFields(), isFromLivEx(), setLockedFields(), unlockField() methods)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - reorganized form into Tabs with Core Info and Attributes tabs, added Liv-ex locked field handling, override capability)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added sensitive field change detection that auto-transitions Published to In Review)
+  - `app/Filament/Resources/Pim/ProductResource/Pages/ImportLivex.php` (modified - stores locked_fields on Liv-ex import)
+- **Learnings for future iterations:**
+  - Use `Forms\Components\Tabs` for organizing complex forms into logical tabs
+  - Use `->persistTabInQueryString()` to maintain tab state across page reloads
+  - For Liv-ex locked fields: store field names in `locked_fields` JSON array, check with model methods
+  - Use `->disabled()` on form fields to prevent editing, combined with `->hint()` and `->hintIcon()` for visual lock indicator
+  - Manager/Admin role check: `Auth::user()->role?->hasAtLeast(UserRole::Manager)`
+  - For sensitive field change detection in EditRecord: override `mutateFormDataBeforeFill()` to store original values, check in `afterSave()`
+  - Use `saveQuietly()` to save without triggering model events when auto-changing status
+  - PHPStan "nullsafe.neverNull" fix: extract nullable to variable, use explicit null check instead of `?->` with `??`
+  - For CheckboxList with dynamic options: use `->afterStateUpdated()` to handle selection changes
+---
+
+## 2026-02-03 22:05 CET - US-017
+- Implemented Product Detail - Tab Attributes with dynamic attribute system
+- Files changed:
+  - `database/migrations/2026_02_03_170313_create_attribute_sets_table.php` (new - creates attribute_sets, attribute_groups, attribute_definitions, attribute_values tables)
+  - `app/Models/Pim/AttributeSet.php` (new - attribute set model with hasMany groups)
+  - `app/Models/Pim/AttributeGroup.php` (new - groups attributes within a set)
+  - `app/Models/Pim/AttributeDefinition.php` (new - defines attribute types, validation, completeness weight)
+  - `app/Models/Pim/AttributeValue.php` (new - stores attribute values per wine variant with source tracking)
+  - `app/Models/Pim/WineVariant.php` (modified - added attributeValues relationship and getDynamicCompletenessPercentage())
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - rewrote getAttributesSchema() to dynamically load from attribute set)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added loadAttributeValues() and saveAttributeValues() methods)
+  - `database/seeders/AttributeSetSeeder.php` (new - seeds default wine attribute set with 4 groups and 23 attributes)
+  - `database/seeders/DatabaseSeeder.php` (modified - added AttributeSetSeeder)
+- **Learnings for future iterations:**
+  - For dynamic EAV-style attributes: use AttributeSet→AttributeGroup→AttributeDefinition→AttributeValue hierarchy
+  - Use PHPDoc `@var` annotation for enum-typed match expressions to avoid PHPStan "match.alwaysTrue" errors
+  - For array-typed validation_rules field, use `@var array{...}|null` annotation and `is_array()` check
+  - Store attribute values as text in DB, use model methods `getTypedValue()` and `setTypedValue()` for type conversion
+  - Form state path for attributes: use `attributes.{code}` pattern, load/save in EditRecord page's `mutateFormDataBeforeFill()` and `afterSave()`
+  - Include helper text with required/optional indicator and source (Liv-ex/Manual) for each attribute field
+  - Completeness calculation: combine static model fields + dynamic attributes from attribute set
+  - For attribute lock status: check AttributeValue.is_locked, respect Manager/Admin override capability
+---
+
+## 2026-02-03 22:30 CET - US-018
+- Implemented Product Detail - Tab Media with full media management
+- Files changed:
+  - `database/migrations/2026_02_03_220000_create_product_media_table.php` (new - creates product_media table for images and documents)
+  - `app/Models/Pim/ProductMedia.php` (new - model with source tracking, URL generation, file management)
+  - `app/Models/Pim/WineVariant.php` (modified - added media(), livExMedia(), manualMedia() relationships, getPrimaryImage(), hasPrimaryImage() methods, updated blocking issues)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added getMediaSchema() with Liv-ex read-only section, manual uploads, media summary)
+  - `app/Filament/Resources/Pim/WineVariantResource/Pages/EditWineVariant.php` (modified - added loadMediaManagement(), saveMedia() methods for media persistence)
+- **Learnings for future iterations:**
+  - Use separate source column (liv_ex/manual) to distinguish read-only vs editable media
+  - For external URLs (Liv-ex), store in external_url; for uploads, store path in file_path
+  - Use `is_locked` boolean to prevent editing of Liv-ex media
+  - Primary image enforcement: add to BLOCKING_ISSUES_RULES with tab 'media'
+  - FileUpload component: use ->disk('public'), ->directory() for organized storage
+  - For repeater-based media management, load data in mutateFormDataBeforeFill(), save in afterSave()
+  - Use ->reorderable() and ->reorderableWithButtons() on Repeater for drag/drop
+  - Delete orphaned files when media records are deleted using model boot() deleting event
+  - PHPStan fix: use `$var = $arr['key'] ?? null; if ($var !== null)` instead of `isset() && !== null`
+---
+
+## 2026-02-03 23:15 CET - US-019
+- Implemented Product Detail - Tab Sellable SKUs with full SKU management
+- Files changed:
+  - `database/migrations/2026_02_03_230000_add_integrity_fields_to_sellable_skus_table.php` (new - adds integrity flags and source tracking)
+  - `app/Models/Pim/SellableSku.php` (modified - added integrity flags, source, lifecycle methods)
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added Sellable SKUs tab with overview and list)
+  - `app/Filament/Resources/Pim/WineVariantResource/RelationManagers/SellableSkusRelationManager.php` (modified - enhanced with full lifecycle management)
+- **Learnings for future iterations:**
+  - For enum-typed fields in match expressions, use PHPDoc `@var 'val1'|'val2'|'val3'` annotation with `?? 'default'` to satisfy PHPStan
+  - Use model constants for lifecycle status and source values for consistency (e.g., `STATUS_DRAFT`, `SOURCE_MANUAL`)
+  - RelationManager can access owner record via `$this->ownerRecord` for generating related items
+  - For intrinsic SKU generation, use standard producer configurations (6x750ml OWC, 12x750ml OWC, etc.)
+  - Use bulk actions for managing multiple records: `BulkAction::make('name')->action(function ($records) {...})`
+  - Empty state actions can duplicate header actions for better UX on empty relation managers
+  - For integrity flags display, use badge with `getStateUsing()` to compute display from multiple boolean fields
+---
+
+## 2026-02-03 23:45 CET - US-020
+- Implemented Product Detail - Tab Lifecycle for managing lifecycle state transitions
+- Files changed:
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added Lifecycle tab with full workflow management)
+- **Learnings for future iterations:**
+  - For displaying status workflow diagram, iterate through enum cases with array_search to find current index
+  - Use `<x-dynamic-component>` for rendering heroicons dynamically from enum properties
+  - Role-based visibility: use helper methods like `canApproveOrReject()`, `canPublish()`, `canArchive()` that check `Auth::user()->role->hasAtLeast()`
+  - For reject action with mandatory comment: use `->form([])` to add a textarea, then access `$data['field']` in the action closure
+  - Store rejection reason in audit log's `new_values` array alongside the status change
+  - Use `saveQuietly()` after manual audit log creation to avoid duplicate logging
+  - For reading AuditLog values with PHPStan, assign to intermediate variable with PHPDoc annotation: `/** @var array<string, mixed>|null $raw */ $raw = $log->old_values;`
+  - Recent status history: query AuditLog with `where('event', 'status_change')` and `orderByDesc('created_at')->limit(5)`
+---
+
+## 2026-02-03 - US-021
+- Implemented Product Detail - Tab Audit with complete audit history timeline
+- Files changed:
+  - `app/Filament/Resources/Pim/WineVariantResource.php` (modified - added Audit tab with timeline, filters, detailed change display)
+- **Learnings for future iterations:**
+  - For timeline UI, use relative positioning with absolute left line and dots for visual connection
+  - Use `->live()` and `->dehydrated(false)` on filter fields to enable reactive filtering without persisting values
+  - Use `Forms\Get $get` parameter in Placeholder content closure to access filter values reactively
+  - For null-safe Carbon operations: explicitly check `$createdAt !== null` before calling `diffForHumans()` or `format()`
+  - For mixed type values: use `is_object()` and `is_scalar()` checks before casting to string to satisfy PHPStan
+  - Format field names using a mapping array for common fields, fallback to `ucwords(str_replace('_', ' ', $field))`
+  - Color-coded event badges: success (created), info (updated), warning (status_change), danger (deleted)
+  - Use `<x-dynamic-component component="$icon">` for rendering heroicons from variables
+---
+
+## 2026-02-03 - US-022
+- Implemented Data Quality dashboard with cross-product metrics and aggregate views
+- Files changed:
+  - `app/Filament/Pages/PimDashboard.php` (modified - full dashboard with data methods and CSV export)
+  - `resources/views/filament/pages/pim-dashboard.blade.php` (modified - dashboard UI with widgets, tables, charts)
+- **Learnings for future iterations:**
+  - Filament Pages can expose Livewire methods (getStatusCounts, etc.) for use directly in Blade views via `$this->methodName()`
+  - Use `response()->streamDownload()` with fputcsv for CSV exports from Livewire methods
+  - For status aggregations, loop through enum cases: `foreach (ProductLifecycleStatus::cases() as $status)`
+  - Use `wire:click="methodName"` in Blade to call Livewire methods (e.g., export button)
+  - For progress bars: use `<div style="width: {{ $percentage }}%">` with Tailwind color classes
+  - Grid layouts with `grid-cols-1 lg:grid-cols-2` provide responsive two-column layouts
+  - For colorful summary cards, use Filament color classes: bg-{color}-50, text-{color}-600 with dark mode variants
+  - Navigation sort -1 places the page before other items in the navigation group
+---
+
+## 2026-02-03 - US-023
+- Implemented Composite Sellable SKUs (bundle) support
+- Files changed:
+  - `database/migrations/2026_02_03_240000_add_composite_sku_support.php` (new - adds is_composite to sellable_skus and creates composite_sku_items table)
+  - `app/Models/Pim/CompositeSkuItem.php` (new - model for bundle component items with quantity)
+  - `app/Models/Pim/SellableSku.php` (modified - added is_composite field, compositeItems/partOfComposites relationships, validation methods)
+  - `app/Filament/Resources/Pim/WineVariantResource/RelationManagers/SellableSkusRelationManager.php` (modified - added composite SKU UI with toggle, component selection, and validation)
+- **Learnings for future iterations:**
+  - For composite/bundle SKUs: separate `is_composite` boolean flag on main SKU, with related `composite_sku_items` table for components
+  - Composite items use two FKs to same table: `composite_sku_id` (the bundle) and `sellable_sku_id` (the component)
+  - When overriding methods that already exist in model, replace the original instead of adding duplicate
+  - For SKU form with conditional sections: use `->visible(fn (Get $get): bool => ...)` to show/hide based on is_composite toggle
+  - For Repeater relationship data in CreateAction: use `->using()` with custom creation logic to handle nested relationships
+  - Composite SKU code format: `{WINE}-{VINTAGE}-BUNDLE-{N}` where N is sequential number
+  - Validation for composite activation: all component SKUs must be active before bundle can be activated
+  - Use `->disabled()` on action buttons with validation check closure to prevent invalid activations
+  - Bulk actions should catch RuntimeException from model validation and report skipped items
+---

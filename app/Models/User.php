@@ -3,10 +3,15 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Customer\AccountUserRole;
 use App\Enums\UserRole;
+use App\Models\Customer\Account;
+use App\Models\Customer\AccountUser;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -122,5 +127,155 @@ class User extends Authenticatable implements FilamentUser
     public function canApprovePriceBooks(): bool
     {
         return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
+
+    /**
+     * Check if the user can approve or reject memberships.
+     * Requires at least Manager role.
+     */
+    public function canApproveMemberships(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
+
+    /**
+     * Check if the user can manage payment permissions.
+     * This includes modifying credit limits and authorizing bank transfers.
+     * Requires at least Manager role (Finance function).
+     */
+    public function canManagePaymentPermissions(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
+
+    /**
+     * Check if the user can manage operational blocks.
+     * This includes adding and removing blocks on Customers and Accounts.
+     * Requires at least Manager role (Compliance/Operations function).
+     */
+    public function canManageOperationalBlocks(): bool
+    {
+        return $this->role?->hasAtLeast(UserRole::Manager) ?? false;
+    }
+
+    /**
+     * Get all accounts this user has access to.
+     *
+     * @return BelongsToMany<Account, $this>
+     */
+    public function accounts(): BelongsToMany
+    {
+        return $this->belongsToMany(Account::class, 'account_users')
+            ->withPivot(['role', 'invited_at', 'accepted_at'])
+            ->withTimestamps();
+    }
+
+    /**
+     * Get all account-user relationships for this user.
+     *
+     * @return HasMany<AccountUser, $this>
+     */
+    public function accountUsers(): HasMany
+    {
+        return $this->hasMany(AccountUser::class);
+    }
+
+    /**
+     * Get only accepted account-user relationships for this user.
+     *
+     * @return HasMany<AccountUser, $this>
+     */
+    public function acceptedAccountUsers(): HasMany
+    {
+        return $this->hasMany(AccountUser::class)
+            ->whereNotNull('accepted_at');
+    }
+
+    /**
+     * Get only pending (invited but not accepted) account-user relationships for this user.
+     *
+     * @return HasMany<AccountUser, $this>
+     */
+    public function pendingAccountUsers(): HasMany
+    {
+        return $this->hasMany(AccountUser::class)
+            ->whereNotNull('invited_at')
+            ->whereNull('accepted_at');
+    }
+
+    /**
+     * Check if this user has access to a specific account.
+     */
+    public function hasAccessToAccount(Account $account): bool
+    {
+        return $this->accountUsers()
+            ->where('account_id', $account->id)
+            ->exists();
+    }
+
+    /**
+     * Check if this user has accepted access to a specific account.
+     */
+    public function hasAcceptedAccessToAccount(Account $account): bool
+    {
+        return $this->acceptedAccountUsers()
+            ->where('account_id', $account->id)
+            ->exists();
+    }
+
+    /**
+     * Get the user's role within a specific account.
+     */
+    public function getRoleForAccount(Account $account): ?AccountUserRole
+    {
+        $accountUser = $this->accountUsers()
+            ->where('account_id', $account->id)
+            ->first();
+
+        return $accountUser?->role;
+    }
+
+    /**
+     * Check if this user is the owner of a specific account.
+     */
+    public function isOwnerOfAccount(Account $account): bool
+    {
+        return $this->getRoleForAccount($account) === AccountUserRole::Owner;
+    }
+
+    /**
+     * Check if this user can manage users on a specific account.
+     */
+    public function canManageUsersOnAccount(Account $account): bool
+    {
+        $role = $this->getRoleForAccount($account);
+
+        return $role !== null && $role->canManageUsers();
+    }
+
+    /**
+     * Check if this user can perform operations on a specific account.
+     */
+    public function canOperateOnAccount(Account $account): bool
+    {
+        $role = $this->getRoleForAccount($account);
+
+        return $role !== null && $role->canOperate();
+    }
+
+    /**
+     * Get the count of accounts this user has accepted access to.
+     */
+    public function getAcceptedAccountsCount(): int
+    {
+        return $this->acceptedAccountUsers()->count();
+    }
+
+    /**
+     * Get the count of pending invitations for this user.
+     */
+    public function getPendingInvitationsCount(): int
+    {
+        return $this->pendingAccountUsers()->count();
     }
 }

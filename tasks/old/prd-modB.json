@@ -1,0 +1,985 @@
+{
+  "project": "ERP4 - Module B Inventory, Serialization & Provenance",
+  "branchName": "ralph/module-b-inventory",
+  "description": "Module B - Inventory, Serialization & Provenance: The physical system of record that manages the reality of wine inventory. Governs Locations, Inbound Batches, Serialized Bottles, Cases, and Inventory Movements.",
+  "userStories": [
+    {
+      "id": "US-B001",
+      "title": "Setup modello Location",
+      "description": "As an Admin, I want to define the base model for physical locations where wine can be stored.",
+      "acceptanceCriteria": [
+        "Tabella locations con campi: id, uuid, name (string), location_type (enum), country (string), address (text nullable), serialization_authorized (boolean default false), linked_wms_id (string nullable), status (enum), notes (text nullable)",
+        "Soft deletes abilitati",
+        "Vincolo: name unique",
+        "serialization_authorized determina se la location può eseguire serialization",
+        "Typecheck e lint passano"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B002",
+      "title": "Setup enums per Inventory",
+      "description": "As a Developer, I want well-defined enums for inventory entity types and statuses.",
+      "acceptanceCriteria": [
+        "Enum LocationType: main_warehouse, satellite_warehouse, consignee, third_party_storage, event_location",
+        "Enum LocationStatus: active, inactive, suspended",
+        "Enum InboundBatchStatus: pending_serialization, partially_serialized, fully_serialized, discrepancy",
+        "Enum BottleState: stored, reserved_for_picking, shipped, consumed, destroyed, missing",
+        "Enum CaseIntegrityStatus: intact, broken",
+        "Enum MovementType: internal_transfer, consignment_placement, consignment_return, event_shipment, event_consumption",
+        "Enum MovementTrigger: wms_event, erp_operator, system_automatic",
+        "Enum OwnershipType: crurated_owned, in_custody, third_party_owned",
+        "Enum ConsumptionReason: event_consumption, sampling, damage_writeoff",
+        "Enum DiscrepancyResolution: shortage, overage, damage, other",
+        "Enums in app/Enums/Inventory/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B003",
+      "title": "Setup modello InboundBatch",
+      "description": "As an Admin, I want to define Inbound Batch as a physical receipt record from Module D.",
+      "acceptanceCriteria": [
+        "Tabella inbound_batches con: id, uuid, source_type (string: producer/supplier/transfer), product_reference_type (string), product_reference_id (morphic FK), allocation_id (FK allocations nullable), procurement_intent_id (FK nullable), quantity_expected (int), quantity_received (int), packaging_type (string), receiving_location_id (FK locations), ownership_type (enum), received_date (date), condition_notes (text nullable), serialization_status (enum), wms_reference_id (string nullable)",
+        "Soft deletes abilitati",
+        "Relazione: InboundBatch belongsTo Location (receiving_location)",
+        "Relazione: InboundBatch belongsTo Allocation (optional)",
+        "allocation_id preserva allocation lineage per serialization",
+        "Vincolo: quantity_received >= 0",
+        "Typecheck e lint passano"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B004",
+      "title": "Setup modello SerializedBottle",
+      "description": "As an Admin, I want to define Serialized Bottle as a first-class object with unique identity.",
+      "acceptanceCriteria": [
+        "Tabella serialized_bottles con: id, uuid, serial_number (string unique), wine_variant_id (FK), format_id (FK), allocation_id (FK allocations), inbound_batch_id (FK), current_location_id (FK locations), case_id (FK cases nullable), ownership_type (enum), custody_holder (string nullable), state (enum), serialized_at (timestamp), serialized_by (FK users nullable), nft_reference (string nullable), nft_minted_at (timestamp nullable)",
+        "Soft deletes abilitati (but bottles are never truly deleted)",
+        "Vincolo: serial_number unique e immutable",
+        "Relazione: SerializedBottle belongsTo WineVariant",
+        "Relazione: SerializedBottle belongsTo Format",
+        "Relazione: SerializedBottle belongsTo Allocation (immutable)",
+        "Relazione: SerializedBottle belongsTo InboundBatch",
+        "Relazione: SerializedBottle belongsTo Location (current)",
+        "Relazione: SerializedBottle belongsTo Case (nullable)",
+        "allocation_id è IMMUTABLE dopo creazione",
+        "Typecheck e lint passano"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B005",
+      "title": "Setup modello Case",
+      "description": "As an Admin, I want to define Case as a physical container for bottles.",
+      "acceptanceCriteria": [
+        "Tabella cases con: id, uuid, case_configuration_id (FK), allocation_id (FK allocations), inbound_batch_id (FK nullable), current_location_id (FK locations), is_original (boolean default true), is_breakable (boolean default true), integrity_status (enum), broken_at (timestamp nullable), broken_by (FK users nullable), broken_reason (text nullable)",
+        "Soft deletes abilitati",
+        "Relazione: Case hasMany SerializedBottle",
+        "Relazione: Case belongsTo CaseConfiguration",
+        "Relazione: Case belongsTo Location (current)",
+        "integrity_status default = intact",
+        "Typecheck e lint passano"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B006",
+      "title": "Setup modello InventoryMovement",
+      "description": "As an Admin, I want to define Inventory Movement as an immutable record of physical events.",
+      "acceptanceCriteria": [
+        "Tabella inventory_movements con: id, uuid, movement_type (enum), trigger (enum), source_location_id (FK locations nullable), destination_location_id (FK locations nullable), custody_changed (boolean default false), reason (text nullable), wms_event_id (string nullable unique), executed_at (timestamp), executed_by (FK users nullable)",
+        "NO soft deletes - movements sono immutabili",
+        "Relazione: InventoryMovement hasMany MovementItem",
+        "wms_event_id unique per deduplication",
+        "Movements sono append-only (insert only, no update, no delete)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B007",
+      "title": "Setup modello MovementItem",
+      "description": "As an Admin, I want to define Movement Item as the detail of items involved in a movement.",
+      "acceptanceCriteria": [
+        "Tabella movement_items con: id, inventory_movement_id (FK), serialized_bottle_id (FK nullable), case_id (FK nullable), quantity (int default 1), notes (text nullable)",
+        "NO soft deletes - items sono immutabili",
+        "Relazione: MovementItem belongsTo InventoryMovement",
+        "Relazione: MovementItem belongsTo SerializedBottle (nullable)",
+        "Relazione: MovementItem belongsTo Case (nullable)",
+        "Vincolo: almeno uno tra serialized_bottle_id e case_id deve essere valorizzato",
+        "Typecheck e lint passano"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B008",
+      "title": "Setup modello InventoryException",
+      "description": "As an Admin, I want to record inventory exceptions for audit trail.",
+      "acceptanceCriteria": [
+        "Tabella inventory_exceptions con: id, uuid, exception_type (string), serialized_bottle_id (FK nullable), case_id (FK nullable), inbound_batch_id (FK nullable), reason (text), resolution (text nullable), resolved_at (timestamp nullable), resolved_by (FK users nullable), created_by (FK users)",
+        "Soft deletes abilitati",
+        "Relazione: InventoryException belongsTo SerializedBottle (nullable)",
+        "Relazione: InventoryException belongsTo Case (nullable)",
+        "Relazione: InventoryException belongsTo InboundBatch (nullable)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B009",
+      "title": "InventoryService per gestione inventory",
+      "description": "As a Developer, I want a service to centralize inventory logic.",
+      "acceptanceCriteria": [
+        "Service class InventoryService in app/Services/Inventory/",
+        "Metodo getCommittedQuantity(Allocation $allocation): ritorna count vouchers non redenti per allocation",
+        "Metodo getFreeQuantity(Allocation $allocation): ritorna physical bottles - committed quantity",
+        "Metodo canConsume(SerializedBottle $bottle): verifica se bottle è free (non committed)",
+        "Metodo getBottlesAtLocation(Location $location): ritorna bottles stored at location",
+        "Metodo getBottlesByAllocationLineage(Allocation $allocation): ritorna tutte le bottles per allocation",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B010",
+      "title": "SerializationService per gestione serialization",
+      "description": "As a Developer, I want a service to centralize serialization logic.",
+      "acceptanceCriteria": [
+        "Service class SerializationService in app/Services/Inventory/",
+        "Metodo canSerializeAtLocation(Location $location): verifica serialization_authorized",
+        "Metodo serializeBatch(InboundBatch $batch, int $quantity, User $operator): crea SerializedBottle records",
+        "Metodo generateSerialNumber(): genera serial number unico",
+        "Metodo queueNftMinting(SerializedBottle $bottle): dispatcha job per NFT minting",
+        "Metodo updateBatchSerializationStatus(InboundBatch $batch): aggiorna status basato su quantities",
+        "Invariante: allocation_id propagato da InboundBatch a ogni SerializedBottle",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B011",
+      "title": "MovementService per gestione movements",
+      "description": "As a Developer, I want a service to centralize movement logic.",
+      "acceptanceCriteria": [
+        "Service class MovementService in app/Services/Inventory/",
+        "Metodo createMovement(array $data): crea InventoryMovement con MovementItems",
+        "Metodo isDuplicateWmsEvent(string $wmsEventId): verifica se event già processato",
+        "Metodo transferBottle(SerializedBottle $bottle, Location $destination): crea movement e aggiorna bottle location",
+        "Metodo transferCase(Case $case, Location $destination): crea movement e aggiorna case + contained bottles location",
+        "Metodo recordConsumption(SerializedBottle $bottle, ConsumptionReason $reason): crea consumption movement",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B012",
+      "title": "Location List in Filament",
+      "description": "As an Operator, I want a Locations list to manage physical storage points.",
+      "acceptanceCriteria": [
+        "LocationResource in Filament con navigation group Inventory",
+        "Lista con colonne: location_name, location_type, country, serialization_authorized (badge), linked_wms, status, stock_summary (count), updated_at",
+        "Filtri: location_type, country, serialization_authorized, status",
+        "Ricerca per: location name, country",
+        "Indicatore visivo per locations con WMS linked",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B013",
+      "title": "Location Detail con 4 tabs",
+      "description": "As an Operator, I want to see all location details organized in tabs.",
+      "acceptanceCriteria": [
+        "Tab Overview: stock summary, serialized vs non-serialized quantities, ownership breakdown",
+        "Tab Inventory: bottles currently stored here (paginated list), cases stored here",
+        "Tab Inbound/Outbound: recent receipts, transfers in/out (read from movements)",
+        "Tab WMS Status: connection status, last sync timestamp, error logs (read-only)",
+        "Indicatore prominente se serialization NOT authorized",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B014",
+      "title": "Create/Edit Location",
+      "description": "As an Admin, I want to create and modify locations.",
+      "acceptanceCriteria": [
+        "Form fields: name, location_type, country, address, serialization_authorized, linked_wms_id, status, notes",
+        "Validazione: name unique",
+        "Warning prominente se si disabilita serialization_authorized su location con pending serialization",
+        "Audit log per ogni modifica",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B015",
+      "title": "Inbound Batch List in Filament",
+      "description": "As an Operator, I want an Inbound Batches list as the entry point for physical reality.",
+      "acceptanceCriteria": [
+        "InboundBatchResource in Filament con navigation group Inventory",
+        "Lista con colonne: inbound_batch_id, source, product_reference, quantity_expected, quantity_received, packaging, receiving_location, received_date, serialization_status (badge), ownership_type",
+        "Filtri: serialization_status, receiving_location, ownership_type, received_date range",
+        "Ricerca per: batch_id, product name, wms_reference",
+        "Indicatore rosso per batches con discrepancy",
+        "Indicatore per batches pending serialization",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B016",
+      "title": "Inbound Batch Detail con 5 tabs",
+      "description": "As an Operator, I want to see all inbound batch details organized in tabs.",
+      "acceptanceCriteria": [
+        "Tab Summary: source, sourcing context (procurement_intent link), allocation lineage reference, ownership",
+        "Tab Quantities: expected vs received, remaining unserialized, delta with explanation",
+        "Tab Serialization: eligible for serialization (yes/no based on location), serialization history, serialized bottles list",
+        "Tab Linked Physical Objects: serialized bottles created from this batch, cases created",
+        "Tab Audit Log: WMS events, operator actions, discrepancy resolutions",
+        "Azioni contestuali: Start Serialization (if eligible), Resolve Discrepancy",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B017",
+      "title": "Discrepancy Resolution flow",
+      "description": "As an Operator, I want to resolve discrepancies between expected and received quantities.",
+      "acceptanceCriteria": [
+        "Discrepancy Resolution tab visible solo se quantity_expected != quantity_received",
+        "Side-by-side view: expected quantity vs WMS reported quantity",
+        "Operator seleziona resolution reason (shortage, overage, damage, other)",
+        "Operator può allegare evidence (note, document reference)",
+        "Resolution crea immutable correction event",
+        "Original values never overwritten (delta record)",
+        "Full audit trail preserved",
+        "Serialization sbloccata dopo resolution",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B018",
+      "title": "Manual Inbound Batch creation",
+      "description": "As an Admin with special permissions, I want to manually create inbound batches.",
+      "acceptanceCriteria": [
+        "Creazione manuale permission-gated (admin only)",
+        "Form fields: source_type, product_reference, allocation_id, quantity_expected, quantity_received, packaging_type, receiving_location, ownership_type, received_date, condition_notes",
+        "Warning prominente: Manual creation requires audit justification",
+        "Mandatory reason field",
+        "Full audit trail",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B019",
+      "title": "Serialization Queue page",
+      "description": "As an Operator, I want to see a queue of batches eligible for serialization.",
+      "acceptanceCriteria": [
+        "Pagina Serialization Queue in navigation Inventory",
+        "Lista batches con: pending_serialization, partially_serialized status",
+        "Colonne: batch_id, product, quantity_remaining_unserialized, receiving_location, allocation_lineage",
+        "Filtri: location, date range",
+        "Mostra solo batches in locations con serialization_authorized = true",
+        "Link diretto a Start Serialization",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B020",
+      "title": "Serialization action from Inbound Batch",
+      "description": "As an Operator, I want to start serialization of a batch.",
+      "acceptanceCriteria": [
+        "Azione Start Serialization in Inbound Batch Detail",
+        "Pre-check: location.serialization_authorized = true (hard blocker)",
+        "Pre-check: batch.serialization_status != discrepancy (hard blocker)",
+        "Form: quantity to serialize (max = remaining unserialized)",
+        "Confirmation dialog con warning",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B021",
+      "title": "Serialization execution",
+      "description": "As a Developer, I want serialization to create SerializedBottle records.",
+      "acceptanceCriteria": [
+        "Per ogni bottiglia serializzata: Genera serial_number unico, Crea SerializedBottle record, Propaga allocation_id da InboundBatch (IMMUTABLE), Setta state = stored, Setta current_location_id = batch receiving location, Registra serialized_at e serialized_by",
+        "Aggiorna InboundBatch.serialization_status",
+        "Dispatcha MintProvenanceNftJob per ogni bottiglia",
+        "Audit log completo",
+        "Typecheck e lint passano"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B022",
+      "title": "Serialization location blocker",
+      "description": "As a Developer, I want serialization to be blocked at unauthorized locations.",
+      "acceptanceCriteria": [
+        "Se location.serialization_authorized = false: UI azione Start Serialization non visibile, API validation error con messaggio Serialization not authorized at this location",
+        "Se triggered via WMS event: Event rejected, Logged as blocked system event",
+        "Location detail mostra Serialization not authorized prominente",
+        "No override exists",
+        "Typecheck e lint passano"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B023",
+      "title": "Partial serialization handling",
+      "description": "As an Operator, I want to partially serialize a batch.",
+      "acceptanceCriteria": [
+        "Serialization quantity può essere < remaining unserialized",
+        "Batch.serialization_status = partially_serialized se quantity_serialized < quantity_received",
+        "Batch resta in Serialization Queue fino a completamento",
+        "Inventory Overview mostra Inbound wine pending serialization count",
+        "Questo è un normal state, non un'eccezione",
+        "Typecheck e lint passano"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B024",
+      "title": "MintProvenanceNftJob",
+      "description": "As a Developer, I want an async job to mint NFT provenance.",
+      "acceptanceCriteria": [
+        "Job class MintProvenanceNftJob in app/Jobs/Inventory/",
+        "Input: SerializedBottle $bottle",
+        "Azione: chiama blockchain service per minting NFT",
+        "On success: aggiorna bottle.nft_reference e bottle.nft_minted_at",
+        "On failure: retry con exponential backoff, max 3 attempts",
+        "NFT minting è separato da serialization (può avvenire in momento diverso)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 24,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B025",
+      "title": "Bottle Registry List",
+      "description": "As an Operator, I want a canonical list of all serialized bottles.",
+      "acceptanceCriteria": [
+        "SerializedBottleResource in Filament con navigation group Inventory",
+        "Lista con colonne: serial_number, wine+format, allocation_lineage, current_location, custody_holder, state (badge), serialized_at",
+        "Filtri: allocation_lineage, location, state, ownership_type",
+        "Ricerca per: serial_number, wine name",
+        "Indicatori visivi per state (stored=green, reserved=yellow, shipped=blue, consumed/destroyed=gray)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B026",
+      "title": "Bottle Detail Page (read-heavy, audit-grade)",
+      "description": "As an Operator/Compliance, I want to see all bottle details.",
+      "acceptanceCriteria": [
+        "Tab Overview: identity (serial, wine, format), physical attributes, allocation lineage (immutable, prominente)",
+        "Tab Location & Custody: current location, custody holder, ownership type",
+        "Tab Provenance: inbound event link, all movements, NFT reference/link",
+        "Tab Movements: full movement history (read-only ledger)",
+        "Tab Fulfillment Status (read-only): reserved/shipped (fed from Module C), NO customer identity shown",
+        "No edit capability on bottle records (immutable after creation)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B027",
+      "title": "Mark Bottle as Damaged/Destroyed",
+      "description": "As an Operator, I want to mark a bottle as damaged/destroyed.",
+      "acceptanceCriteria": [
+        "Azione Mark as Damaged in Bottle Detail",
+        "Form: confirm physical destruction (checkbox), reason (breakage/leakage/contamination), optional evidence",
+        "Bottle.state becomes DESTROYED",
+        "Inventory quantity reduced",
+        "Bottle remains visible for audit (never deleted)",
+        "Provenance remains intact",
+        "Destroyed bottles cannot be selected by Module C",
+        "Audit log completo",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B028",
+      "title": "Mark Bottle as Missing",
+      "description": "As an Operator, I want to mark a bottle as missing (e.g., consignment lost).",
+      "acceptanceCriteria": [
+        "Azione Mark as Missing in Bottle Detail",
+        "Form: reason, last known custody, agreement reference (for consignment)",
+        "Bottle.state becomes MISSING",
+        "Inventory reduced",
+        "Bottle locked from fulfillment",
+        "Missing bottles remain visible forever",
+        "Used in loss & compliance reporting",
+        "Audit log completo",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B029",
+      "title": "Mis-serialization correction flow (admin-only)",
+      "description": "As an Admin, I want to correct a bottle serialized with incorrect data.",
+      "acceptanceCriteria": [
+        "Azione Flag as Mis-serialized in Bottle Detail (admin only)",
+        "Original bottle record flagged as MIS_SERIALIZED",
+        "Original record locked (no further changes)",
+        "Corrective record created with correct data",
+        "Both records linked via correction_reference",
+        "Original error remains visible",
+        "Provenance integrity preserved (additive corrections)",
+        "Audit log completo",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B030",
+      "title": "Case List in Filament",
+      "description": "As an Operator, I want a Cases list as physical containers.",
+      "acceptanceCriteria": [
+        "CaseResource in Filament con navigation group Inventory",
+        "Lista con colonne: case_id, configuration, is_original, is_breakable, integrity_status (badge), location, bottle_count",
+        "Filtri: integrity_status, location, is_original",
+        "Ricerca per: case_id",
+        "Indicatore visivo per cases broken",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B031",
+      "title": "Case Detail con 4 tabs",
+      "description": "As an Operator, I want to see all case details organized in tabs.",
+      "acceptanceCriteria": [
+        "Tab Summary: configuration, is_original, is_breakable, allocation_lineage, integrity status",
+        "Tab Contained Bottles: list of SerializedBottles in this case",
+        "Tab Integrity & Handling: broken_at, broken_by, broken_reason (if applicable)",
+        "Tab Movements: movement history for this case",
+        "Azione Break Case visibile se integrity_status = intact",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 31,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B032",
+      "title": "Break Case action",
+      "description": "As an Operator, I want to open/break a case (e.g., for inspection, sampling, events).",
+      "acceptanceCriteria": [
+        "Azione Break Case in Case Detail",
+        "Pre-check: integrity_status = intact",
+        "Form: reason for breaking",
+        "Effetti: integrity_status becomes BROKEN, broken_at = now, broken_by = current user, Bottles remain individually tracked, Case no longer eligible for case-based handling",
+        "Case disappears from intact case filters",
+        "Bottles immediately appear as loose stock",
+        "Breaking is IRREVERSIBLE",
+        "Audit log completo",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 32,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B033",
+      "title": "Movement List in Filament",
+      "description": "As an Operator, I want to see all movements as the physical ledger.",
+      "acceptanceCriteria": [
+        "InventoryMovementResource in Filament con navigation group Inventory",
+        "Lista con colonne: movement_id, movement_type, source_location, destination_location, items_count, trigger (badge), executed_at, executed_by",
+        "Filtri: movement_type, trigger, date range, location",
+        "Ricerca per: movement_id, wms_event_id",
+        "Movements sono read-only (no edit, no delete)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 33,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B034",
+      "title": "Movement Detail",
+      "description": "As an Operator, I want to see movement details.",
+      "acceptanceCriteria": [
+        "Summary: type, trigger, source/destination, custody_changed, reason, wms_event_id",
+        "Items List: all MovementItems con link a bottle/case detail",
+        "Audit info: executed_at, executed_by",
+        "Read-only view (movements are immutable)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 34,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B035",
+      "title": "Create Internal Transfer",
+      "description": "As an Operator, I want to create an internal transfer movement.",
+      "acceptanceCriteria": [
+        "Azione Create Transfer in Inventory section",
+        "Step 1: Select source location",
+        "Step 2: Select items (bottles and/or cases) at source location",
+        "Step 3: Select destination location",
+        "Step 4: Review and confirm",
+        "Movement created with type = internal_transfer",
+        "All selected items: current_location updated",
+        "Audit log completo",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 35,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B036",
+      "title": "Create Consignment Placement",
+      "description": "As an Operator, I want to place inventory in consignment at a consignee.",
+      "acceptanceCriteria": [
+        "Azione Consignment Placement in Inventory section",
+        "Select items (bottles/cases) owned by Crurated",
+        "Select consignee location",
+        "Movement created with type = consignment_placement",
+        "Items: ownership remains Crurated, custody changes to consignee",
+        "custody_changed = true",
+        "Audit log completo",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 36,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B037",
+      "title": "WMS Event deduplication",
+      "description": "As a Developer, I want duplicate WMS events to be ignored.",
+      "acceptanceCriteria": [
+        "InventoryMovement.wms_event_id è unique (nullable)",
+        "Quando WMS event arriva: Check if wms_event_id exists, If exists event ignored and logged in audit, If not exists process event and create movement",
+        "Operators see clean deduplicated history",
+        "No double movements",
+        "Typecheck e lint passano"
+      ],
+      "priority": 37,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B038",
+      "title": "UpdateProvenanceOnMovementJob",
+      "description": "As a Developer, I want a job to update on-chain provenance after movements.",
+      "acceptanceCriteria": [
+        "Job class UpdateProvenanceOnMovementJob in app/Jobs/Inventory/",
+        "Input: InventoryMovement $movement",
+        "Per ogni SerializedBottle coinvolta nel movement: Call blockchain service per aggiornare provenance",
+        "On failure: retry con exponential backoff",
+        "Typecheck e lint passano"
+      ],
+      "priority": 38,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B039",
+      "title": "Event Consumption page",
+      "description": "As an Operator, I want a dedicated flow to consume inventory for events.",
+      "acceptanceCriteria": [
+        "Pagina Event Consumption in navigation Inventory",
+        "Step 1: Select event location",
+        "Step 2: Select event reference (optional text field)",
+        "Step 3: Select bottles/cases to consume with pre-filter only owned stock (crurated_owned) and only state = stored, Committed bottles BLOCKED",
+        "Step 4: Confirm consumption reason = EVENT_CONSUMPTION",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 39,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B040",
+      "title": "Event Consumption execution",
+      "description": "As a Developer, I want event consumption to reduce inventory correctly.",
+      "acceptanceCriteria": [
+        "Bottles marked as CONSUMED at confirmation",
+        "Cases opened for events marked as BROKEN",
+        "Movement created with type = event_consumption",
+        "Physical inventory reduced",
+        "Immutable consumption record created",
+        "Consumed bottles: Never reappear in available inventory, Never bind to vouchers, Remain visible for audit",
+        "Typecheck e lint passano"
+      ],
+      "priority": 40,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B041",
+      "title": "Committed inventory protection in consumption",
+      "description": "As a Developer, I want committed inventory to be protected from consumption.",
+      "acceptanceCriteria": [
+        "Selection step blocks bottles where state is committed for vouchers",
+        "Inline warning: This bottle is reserved for customer fulfillment",
+        "Blocking è based on: InventoryService.canConsume() = false",
+        "Override per special permission (exceptional, see US-B047)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 41,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B042",
+      "title": "SyncCommittedInventoryJob",
+      "description": "As a Developer, I want a job to sync committed quantities from Module A.",
+      "acceptanceCriteria": [
+        "Job class SyncCommittedInventoryJob in app/Jobs/Inventory/",
+        "Runs periodically (configurable, default every hour)",
+        "Per ogni Allocation: Count unredeemed vouchers, Cache committed_quantity",
+        "InventoryService uses cached value for performance",
+        "Typecheck e lint passano"
+      ],
+      "priority": 42,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B043",
+      "title": "Inventory Overview landing page",
+      "description": "As an Operator, I want a dashboard as control tower for Module B.",
+      "acceptanceCriteria": [
+        "Pagina Inventory Overview come landing page di Inventory navigation group",
+        "Layout: 4 widget principali in grid",
+        "Dashboard è read-only, non transactional",
+        "Links da ogni widget a filtered list corrispondente",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 43,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B044",
+      "title": "Widget Global KPIs",
+      "description": "As an Operator, I want to see global inventory KPIs.",
+      "acceptanceCriteria": [
+        "Widget A: Global Inventory KPIs",
+        "Metriche: Total serialized bottles (count), Unserialized inbound quantities (sum), Bottles by state breakdown (stored/reserved/shipped), Committed vs free quantities",
+        "Color coding per criticità",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 44,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B045",
+      "title": "Widget Inventory by Location",
+      "description": "As an Operator, I want to see inventory breakdown by location.",
+      "acceptanceCriteria": [
+        "Widget B: Inventory by Location",
+        "Top locations by bottle count",
+        "Warehouse vs consignee breakdown",
+        "Click su location apre filtered bottle list",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 45,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B046",
+      "title": "Widget Alerts & Exceptions",
+      "description": "As an Operator, I want to see alerts requiring attention.",
+      "acceptanceCriteria": [
+        "Widget C: Alerts & Exceptions",
+        "Metriche: Serialization pending (count), Inbound batches with discrepancy (count), Committed inventory at risk (free < 10% of committed), WMS sync errors (count)",
+        "Tutti alerts in rosso se count > 0",
+        "Link diretto a items problematici",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 46,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B047",
+      "title": "Committed inventory consumption override (exceptional)",
+      "description": "As an Admin, I want an exceptional flow to consume committed inventory.",
+      "acceptanceCriteria": [
+        "Se user ha special permission AND attempts to consume committed bottle: Explicit justification required (mandatory text), Creates InventoryException record, Flagged for finance & ops review",
+        "Flow è intentionally painful (multiple confirmations)",
+        "Full audit trail",
+        "Questo è un'eccezione, non una normal operation",
+        "Typecheck e lint passano"
+      ],
+      "priority": 47,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B048",
+      "title": "Allocation lineage substitution blocker",
+      "description": "As a Developer, I want substitution between allocation lineages to be hard blocked.",
+      "acceptanceCriteria": [
+        "System blocks any attempt to substitute bottles across allocations",
+        "Error message: Allocation lineage mismatch. Substitution not allowed.",
+        "Allocation lineage always shown prominently in: Bottle list, Bottle picker (in Module C), All inventory views",
+        "No hidden overrides exist in Module B",
+        "Typecheck e lint passano"
+      ],
+      "priority": 48,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B049",
+      "title": "Serial number immutability enforcement",
+      "description": "As a Developer, I want serial numbers to be immutable.",
+      "acceptanceCriteria": [
+        "serial_number field ha DB constraint: unique",
+        "No update allowed on serial_number after creation",
+        "Model accessor blocks any attempt to modify",
+        "Mis-serialization handled via correction flow (US-B029), not edit",
+        "Typecheck e lint passano"
+      ],
+      "priority": 49,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B050",
+      "title": "Allocation lineage immutability enforcement",
+      "description": "As a Developer, I want allocation_id on bottles to be immutable.",
+      "acceptanceCriteria": [
+        "allocation_id field on SerializedBottle is NOT NULL",
+        "No update allowed on allocation_id after creation",
+        "Model accessor blocks any attempt to modify",
+        "Propagated from InboundBatch at serialization time",
+        "Typecheck e lint passano"
+      ],
+      "priority": 50,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B051",
+      "title": "Movement append-only enforcement",
+      "description": "As a Developer, I want movements to be append-only.",
+      "acceptanceCriteria": [
+        "InventoryMovement model has no update/delete methods",
+        "DB table has no soft_deletes",
+        "Any correction requires new compensating movement",
+        "Original movements never modified",
+        "Full audit trail preserved",
+        "Typecheck e lint passano"
+      ],
+      "priority": 51,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B052",
+      "title": "Case breakability irreversibility",
+      "description": "As a Developer, I want case breaking to be irreversible.",
+      "acceptanceCriteria": [
+        "Case.integrity_status = BROKEN cannot revert to INTACT",
+        "No unbreak action exists",
+        "Model blocks any attempt to change BROKEN to INTACT",
+        "Broken cases remain in system for audit",
+        "Typecheck e lint passano"
+      ],
+      "priority": 52,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B053",
+      "title": "NFT reference display in Bottle Detail",
+      "description": "As an Operator, I want to see the NFT reference in bottle detail.",
+      "acceptanceCriteria": [
+        "Tab Provenance in Bottle Detail mostra: NFT reference (if minted), NFT minted_at timestamp, Link to blockchain explorer",
+        "Se NFT not yet minted: mostra Pending badge",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 53,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B054",
+      "title": "Provenance timeline view",
+      "description": "As an Operator/Customer, I want to see the complete provenance timeline.",
+      "acceptanceCriteria": [
+        "Timeline in Bottle Detail Tab Provenance: Custody with producer (inbound event), Transfer to warehouse (serialization), All subsequent movements, Shipment events (if shipped)",
+        "Timeline alimentata da InventoryMovements",
+        "Read-only, append-only presentation",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 54,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B055",
+      "title": "Audit log per SerializedBottle",
+      "description": "As a Compliance Officer, I want an immutable log for all bottle modifications.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a SerializedBottle",
+        "Eventi loggati: creation (serialization), state_change, location_change, custody_change, destruction, missing",
+        "Tab Audit in Bottle Detail con timeline",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 55,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B056",
+      "title": "Audit log per Case",
+      "description": "As a Compliance Officer, I want an immutable log for all case modifications.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a Case",
+        "Eventi loggati: creation, location_change, breaking, bottle_added, bottle_removed",
+        "Tab Audit in Case Detail con timeline",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 56,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B057",
+      "title": "Audit log per InboundBatch",
+      "description": "As a Compliance Officer, I want an immutable log for all inbound batch modifications.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a InboundBatch",
+        "Eventi loggati: creation, quantity_update, discrepancy_flagged, discrepancy_resolved, serialization_started, serialization_completed",
+        "Tab Audit in Inbound Batch Detail con timeline",
+        "WMS event references inclusi",
+        "Audit logs sono immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 57,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-B058",
+      "title": "Global Module B Audit page",
+      "description": "As a Compliance Officer, I want a global view of all Module B audit events.",
+      "acceptanceCriteria": [
+        "Pagina Audit in Filament sotto Inventory",
+        "Lista unificata tutti gli audit events di Module B",
+        "Filtri: entity_type (Bottle, Case, InboundBatch, Movement), event_type, date_range, user, location",
+        "Ricerca per: entity_id, serial_number, user_name",
+        "Export CSV per compliance",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 58,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

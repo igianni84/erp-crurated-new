@@ -1,0 +1,7 @@
+## Codebase Patterns
+<!-- Add reusable patterns discovered during implementation here -->
+
+---
+
+# Progress Log - Module 0 PIM
+

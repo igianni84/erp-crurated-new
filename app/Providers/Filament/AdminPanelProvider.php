@@ -48,6 +48,10 @@ class AdminPanelProvider extends PanelProvider
                     ->icon('heroicon-o-currency-dollar')
                     ->collapsed(false),
                 NavigationGroup::make()
+                    ->label('Customers')
+                    ->icon('heroicon-o-user-group')
+                    ->collapsed(false),
+                NavigationGroup::make()
                     ->label('System')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->collapsed(false),

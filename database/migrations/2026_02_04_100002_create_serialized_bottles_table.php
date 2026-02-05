@@ -72,6 +72,7 @@ return new class extends Migration
                 'consumed',
                 'destroyed',
                 'missing',
+                'mis_serialized',
             ])->default('stored');
 
             // Serialization info

@@ -1,0 +1,16 @@
+## Codebase Patterns
+- Use `sql<number>` template for aggregations
+- Always use `IF NOT EXISTS` for migrations
+- Export types from actions.ts for UI components
+- Enums go in app/Enums/{ModuleName}/ directory
+- Services go in app/Services/{ModuleName}/ directory
+- Filament Resources follow existing patterns in app/Filament/Resources/
+- Use Auditable trait for all entities requiring audit logs
+- Wizard-style forms use Filament's wizard component with steps
+- Soft deletes enabled on all main entities
+- Morphic relations for product references (BottleSku or LiquidProduct)
+
+---
+
+# Module D - Procurement & Inbound Progress Log
+

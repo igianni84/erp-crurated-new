@@ -1,0 +1,568 @@
+{
+  "project": "Module K - Parties, Customers & Eligibility",
+  "branchName": "ralph/module-k-customers",
+  "description": "Sistema autoritativo per l'identita delle parti e la governance dei clienti nell'ERP Crurated. Gestisce Party, Customer, Account, Membership, Eligibility, Payment Permissions, Clubs e Operational Blocks.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Setup modello Party",
+      "description": "Come Admin, voglio definire l'entita base per tutte le controparti del sistema per avere un registro centralizzato.",
+      "acceptanceCriteria": [
+        "Tabella `parties` con campi: id, uuid, legal_name, party_type (enum: individual, legal_entity), tax_id, vat_number, jurisdiction, status (enum: active, inactive)",
+        "Soft deletes abilitati",
+        "Model Party con relazioni verso PartyRole",
+        "Validazione: legal_name required, tax_id unico per jurisdiction",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Setup modello Party Role",
+      "description": "Come Admin, voglio assegnare ruoli multipli alle Party per distinguere clienti, fornitori, produttori e partner.",
+      "acceptanceCriteria": [
+        "Tabella `party_roles` con FK party_id e campo role (enum: customer, supplier, producer, partner)",
+        "Una Party puo avere multipli ruoli contemporaneamente",
+        "Relazione: Party hasMany PartyRole",
+        "Vincolo: combinazione party_id + role unica",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Party List in Filament",
+      "description": "Come Operator, voglio una lista delle Party con filtri per tipo e ruolo per trovare velocemente le controparti.",
+      "acceptanceCriteria": [
+        "PartyResource in Filament",
+        "Lista con colonne: legal_name, party_type, roles (badges), jurisdiction, status, updated_at",
+        "Filtri: party_type, role, status, jurisdiction",
+        "Ricerca per: legal_name, tax_id, vat_number",
+        "Bulk actions: activate, deactivate",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Party Detail view con tabs",
+      "description": "Come Operator, voglio vedere i dettagli completi di una Party organizzati in tabs.",
+      "acceptanceCriteria": [
+        "Tab Overview: identity summary, status, created/updated dates",
+        "Tab Roles: lista ruoli attivi con possibilita di aggiunta/rimozione",
+        "Tab Legal: tax_id, vat_number, jurisdiction, compliance notes",
+        "Tab Audit: timeline read-only di tutte le modifiche",
+        "Azioni contestuali basate su ruolo utente",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Setup modello Customer",
+      "description": "Come Admin, voglio il modello Customer come specializzazione di Party per gestire i clienti.",
+      "acceptanceCriteria": [
+        "Tabella `customers` con: id, uuid, party_id (FK), customer_type (enum: b2c, b2b, partner), status (enum: prospect, active, suspended, closed), default_billing_address_id (FK nullable)",
+        "Soft deletes abilitati",
+        "Relazione: Customer belongsTo Party",
+        "Customer viene creato automaticamente quando Party riceve ruolo customer",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Setup modello Account",
+      "description": "Come Admin, voglio il modello Account per rappresentare contesti operativi multipli di un Customer.",
+      "acceptanceCriteria": [
+        "Tabella `accounts` con: id, uuid, customer_id (FK), name, channel_scope (enum: b2c, b2b, club), status (enum: active, suspended)",
+        "Un Customer puo avere multipli Account",
+        "Relazione: Customer hasMany Account",
+        "Account eredita restrizioni Customer ma puo aggiungerne di proprie",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Customer List in Filament",
+      "description": "Come Operator, voglio una lista clienti completa come schermata operativa principale.",
+      "acceptanceCriteria": [
+        "CustomerResource in Filament con navigation group Customers",
+        "Lista con colonne: customer name (via Party), customer_type, membership_tier, status, accounts_count, updated_at",
+        "Filtri: customer_type, status, membership_tier, has_blocks",
+        "Ricerca per: legal_name, email, tax_id",
+        "Quick actions: view, suspend, activate",
+        "Indicatore visivo se Customer ha blocchi attivi",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Customer Detail view con 9 tabs",
+      "description": "Come Operator, voglio vedere tutti i dettagli di un Customer organizzati in 9 tabs tematici.",
+      "acceptanceCriteria": [
+        "Tab Overview: identity, status, membership summary, active blocks summary",
+        "Tab Membership: tier, lifecycle, decision history (placeholder)",
+        "Tab Accounts: lista account con status (placeholder)",
+        "Tab Addresses: billing e shipping addresses (placeholder)",
+        "Tab Eligibility: channel eligibility computed read-only (placeholder)",
+        "Tab Payment & Credit: payment permissions, credit limits (placeholder)",
+        "Tab Clubs: affiliazioni club attive (placeholder)",
+        "Tab Operational Blocks: blocchi attivi e storici (placeholder)",
+        "Tab Audit: timeline completa (placeholder)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Account management CRUD dentro Customer",
+      "description": "Come Operator, voglio creare e gestire Account all'interno del Customer Detail.",
+      "acceptanceCriteria": [
+        "Tab Accounts mostra lista Account del Customer",
+        "Create Account: form con name, channel_scope",
+        "Edit Account: modifica name e channel_scope",
+        "Suspend/Activate Account: toggle status",
+        "Delete Account: solo se nessuna transazione associata",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Address management billing/shipping",
+      "description": "Come Operator, voglio gestire gli indirizzi di billing e shipping di un Customer.",
+      "acceptanceCriteria": [
+        "Tabella `addresses` con: addressable_type, addressable_id (polymorphic), type (enum: billing, shipping), line_1, line_2, city, state, postal_code, country, is_default",
+        "Tab Addresses in Customer Detail",
+        "CRUD completo per indirizzi",
+        "Set default billing/shipping address",
+        "Validazione: almeno un billing address required per Customer active",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Setup modello Membership con lifecycle states",
+      "description": "Come Admin, voglio il modello Membership per tracciare lo stato di adesione dei Customer.",
+      "acceptanceCriteria": [
+        "Tabella `memberships` con: id, customer_id (FK), tier (enum: legacy, member, invitation_only), status (enum: applied, under_review, approved, rejected, suspended), effective_from, effective_to, decision_notes",
+        "Un Customer ha una sola Membership attiva alla volta",
+        "Relazione: Customer hasOne Membership (active), hasMany Memberships (historical)",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Membership Tiers Legacy Member InvitationOnly",
+      "description": "Come Admin, voglio configurare i tier di membership con le relative caratteristiche.",
+      "acceptanceCriteria": [
+        "Enum MembershipTier con valori: legacy, member, invitation_only",
+        "Tier Legacy: grandfathered members, accesso completo",
+        "Tier Member: standard membership, approval required",
+        "Tier Invitation Only: accesso a prodotti esclusivi",
+        "Tier influenza channel eligibility (computed)",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Membership Tab in Customer Detail",
+      "description": "Come Operator, voglio vedere e gestire la Membership di un Customer.",
+      "acceptanceCriteria": [
+        "Tab Membership mostra: tier corrente, status, effective dates",
+        "Timeline decisioni (applied->under_review->approved/rejected)",
+        "Azioni: Apply for Membership, Submit for Review, Approve, Reject, Suspend",
+        "Azioni visibili solo se permesse da ruolo e stato corrente",
+        "Decision notes obbligatorie per Reject e Suspend",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Membership workflow transitions",
+      "description": "Come Admin, voglio che le transizioni di membership seguano regole precise.",
+      "acceptanceCriteria": [
+        "Transizioni valide: applied->under_review, under_review->approved/rejected, approved->suspended, suspended->approved",
+        "Transizione invalida genera errore user-friendly",
+        "Ogni transizione logga user_id, timestamp, notes",
+        "Approval richiede ruolo Manager o superiore",
+        "Effective_from settato automaticamente su approval",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Setup computed eligibility engine",
+      "description": "Come Developer, voglio un engine che calcoli l'eligibility di un Customer/Account in base a tutti i fattori.",
+      "acceptanceCriteria": [
+        "Service class EligibilityEngine con metodo compute(Customer|Account)",
+        "Fattori considerati: membership_tier, membership_status, operational_blocks, payment_permissions, club_affiliations",
+        "Output: array di channels eleggibili con spiegazione per ogni canale",
+        "Risultato e computed, non stored",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Channel eligibility B2C B2B Clubs",
+      "description": "Come Operator, voglio sapere a quali canali un Customer e eleggibile.",
+      "acceptanceCriteria": [
+        "Enum Channel: b2c, b2b, club",
+        "Regole B2C: Membership approved + no payment blocks",
+        "Regole B2B: Membership approved + customer_type = b2b + credit approved",
+        "Regole Club: Membership approved + club affiliation active",
+        "Ogni canale mostra: eligible (bool), reasons (array)",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Eligibility Tab read-only fully explainable",
+      "description": "Come Operator, voglio vedere l'eligibility di un Customer con spiegazione completa dei fattori.",
+      "acceptanceCriteria": [
+        "Tab Eligibility completamente read-only",
+        "Per ogni canale: status (eligible/not eligible), lista fattori positivi e negativi",
+        "Spiegazione human-readable di ogni fattore",
+        "Link ai tab rilevanti per risolvere problemi (es: click su Payment block -> Tab Operational Blocks)",
+        "Refresh button per ricalcolare",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Setup Payment Permissions model",
+      "description": "Come Admin, voglio definire quali metodi di pagamento un Customer puo usare.",
+      "acceptanceCriteria": [
+        "Tabella `payment_permissions` con: id, customer_id (FK unique), card_allowed (bool default true), bank_transfer_allowed (bool default false), credit_limit (decimal nullable)",
+        "Creato automaticamente con defaults quando Customer diventa active",
+        "Relazione: Customer hasOne PaymentPermission",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Credit limits e bank transfer authorization",
+      "description": "Come Finance Manager, voglio gestire i credit limits e autorizzare bank transfers.",
+      "acceptanceCriteria": [
+        "credit_limit: null = no credit, valore = limite massimo",
+        "bank_transfer_allowed: richiede approvazione Finance",
+        "Audit log per ogni modifica a payment permissions",
+        "Solo ruolo Finance o superiore puo modificare",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Payment & Credit Tab",
+      "description": "Come Finance Operator, voglio gestire payment permissions e credit limits dal Customer Detail.",
+      "acceptanceCriteria": [
+        "Tab Payment & Credit mostra: card_allowed, bank_transfer_allowed, credit_limit",
+        "Form edit con validazione",
+        "Toggle card_allowed e bank_transfer_allowed",
+        "Input credit_limit con validazione numeric >= 0",
+        "History delle modifiche in sub-section",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Setup modello Club",
+      "description": "Come Admin, voglio definire i Club come entita per raggruppare clienti.",
+      "acceptanceCriteria": [
+        "Tabella `clubs` con: id, uuid, partner_name, status (enum: active, suspended, ended), branding_metadata (JSON)",
+        "Club e un'entita indipendente da Customer",
+        "Soft deletes abilitati",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Setup modello Customer-Club affiliation",
+      "description": "Come Admin, voglio tracciare l'affiliazione tra Customer e Club.",
+      "acceptanceCriteria": [
+        "Tabella pivot `customer_clubs` con: customer_id, club_id, affiliation_status (enum: active, suspended), start_date, end_date (nullable)",
+        "Un Customer puo appartenere a multipli Club",
+        "Relazione: Customer belongsToMany Club",
+        "Affiliation status indipendente da Club status",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Club List in Filament",
+      "description": "Come Operator, voglio una lista dei Club per gestirli.",
+      "acceptanceCriteria": [
+        "ClubResource in Filament con navigation group Customers",
+        "Lista con colonne: partner_name, status, members_count, updated_at",
+        "Filtri: status",
+        "Ricerca per: partner_name",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Clubs Tab in Customer Detail",
+      "description": "Come Operator, voglio vedere e gestire le affiliazioni Club di un Customer.",
+      "acceptanceCriteria": [
+        "Tab Clubs mostra lista affiliazioni con: club_name, affiliation_status, start_date, end_date",
+        "Add affiliation: select Club + start_date",
+        "Edit affiliation: change status, set end_date",
+        "Remove affiliation: sets end_date to now",
+        "Indicatore se Club influenza eligibility",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Setup computed Segments engine",
+      "description": "Come Developer, voglio un engine che derivi automaticamente i segmenti di un Customer.",
+      "acceptanceCriteria": [
+        "Service class SegmentEngine con metodo compute(Customer)",
+        "Segmenti derivati da: spending history, membership tier, club affiliations, purchase frequency",
+        "Segmenti sono computed, non stored",
+        "Output: array di segment tags",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Segments view read-only automatic derivation",
+      "description": "Come Marketing Operator, voglio vedere i segmenti assegnati automaticamente a un Customer.",
+      "acceptanceCriteria": [
+        "Section in Tab Overview o Tab dedicato",
+        "Lista segmenti come badges",
+        "Tooltip su ogni segmento spiega criterio derivazione",
+        "Completamente read-only (no manual override)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Setup modello OperationalBlock",
+      "description": "Come Admin, voglio definire blocchi operativi che impediscono transazioni.",
+      "acceptanceCriteria": [
+        "Tabella `operational_blocks` con: id, blockable_type, blockable_id (polymorphic: Customer/Account), block_type (enum), reason, applied_by (FK users), status (enum: active, removed), removed_at, removed_by",
+        "Un Customer/Account puo avere multipli blocchi attivi",
+        "Relazione: Customer/Account morphMany OperationalBlock",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Block types payment shipment redemption trading compliance",
+      "description": "Come Admin, voglio diversi tipi di blocco per controllare operazioni specifiche.",
+      "acceptanceCriteria": [
+        "Enum BlockType: payment, shipment, redemption, trading, compliance",
+        "Block payment: impedisce qualsiasi transazione di pagamento",
+        "Block shipment: impedisce spedizioni",
+        "Block redemption: impedisce redemption voucher",
+        "Block trading: impedisce trading voucher",
+        "Block compliance: blocco generale per problemi compliance",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Operational Blocks Tab enforcement surface",
+      "description": "Come Operator, voglio vedere e gestire i blocchi operativi di un Customer.",
+      "acceptanceCriteria": [
+        "Tab Operational Blocks mostra: blocchi attivi (evidenziati), blocchi rimossi (historical)",
+        "Per ogni blocco: type, reason, applied_by, applied_at",
+        "Add block: select type, enter reason",
+        "Remove block: enter removal reason, sets status=removed",
+        "Solo ruoli autorizzati possono aggiungere/rimuovere blocchi",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Block List globale",
+      "description": "Come Compliance Officer, voglio vedere tutti i blocchi attivi nel sistema.",
+      "acceptanceCriteria": [
+        "OperationalBlockResource separato in Filament",
+        "Lista con: customer/account name, block_type, reason, applied_by, applied_at",
+        "Filtri: block_type, status (active/removed), date range",
+        "Export CSV per reporting",
+        "Link a Customer Detail",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "User-Account relationship model",
+      "description": "Come Admin, voglio tracciare quali Users possono operare su quali Account.",
+      "acceptanceCriteria": [
+        "Tabella pivot `account_users` con: account_id, user_id, role (enum: owner, admin, operator, viewer), invited_at, accepted_at",
+        "Un Account puo avere multipli Users",
+        "Un User puo accedere a multipli Account",
+        "Owner ha tutti i permessi, Viewer solo lettura",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Users & Access Tab",
+      "description": "Come Account Owner, voglio gestire chi puo accedere al mio Account.",
+      "acceptanceCriteria": [
+        "Tab Users & Access in Account Detail o Customer Detail",
+        "Lista users con: email, role, invited_at, status",
+        "Invite user: email + role",
+        "Change role: dropdown con ruoli disponibili",
+        "Remove user: rimuove accesso",
+        "Owner non puo essere rimosso",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Access rules e authorization",
+      "description": "Come Developer, voglio che le regole di accesso siano enforced a livello di policy.",
+      "acceptanceCriteria": [
+        "Policy CustomerPolicy con metodi: view, update, delete, manageBlocks, managePayments",
+        "Policy AccountPolicy con metodi: view, update, delete, manageUsers",
+        "Filament Resources usano policies per visibilita azioni",
+        "Test per ogni regola di autorizzazione",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Audit log per tutte le entita Module K",
+      "description": "Come Compliance Officer, voglio un log immutabile di tutte le modifiche alle entita Module K.",
+      "acceptanceCriteria": [
+        "Trait Auditable applicato a: Party, Customer, Account, Membership, PaymentPermission, OperationalBlock, Club, CustomerClub",
+        "Log automatico su create, update, delete, status change",
+        "Campi logged: timestamp, user_id, event_type, old_values, new_values",
+        "Audit logs sono immutabili (no update/delete)",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Audit Tab embedded in ogni detail view",
+      "description": "Come Operator, voglio vedere la storia delle modifiche in ogni detail view.",
+      "acceptanceCriteria": [
+        "Tab Audit presente in: Party Detail, Customer Detail, Account Detail, Club Detail",
+        "Timeline read-only con tutti gli eventi",
+        "Filtri per tipo evento e date range",
+        "Mostra: timestamp, user, tipo evento, changes summary",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

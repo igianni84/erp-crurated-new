@@ -1,0 +1,872 @@
+# Ralph Progress Log
+Started: Wed Feb  4 08:12:32 CET 2026
+---
+
+## Codebase Patterns
+- Use `HasUuid` trait for UUID primary keys with `$table->uuid('id')->primary()` in migrations
+- Use `Auditable` trait with `created_by`/`updated_by` columns and `auditLogs()` MorphMany relationship
+- Use `SoftDeletes` trait with `$table->softDeletes()` in migrations
+- Customer module enums go in `App\Enums\Customer\` namespace
+- Customer module models go in `App\Models\Customer\` namespace
+- Enums need `label()`, `color()`, and `icon()` methods for Filament compatibility
+- Migration naming: `YYYY_MM_DD_XXXXXX_create_table_name_table.php`
+- Use `foreignId()->constrained()->nullOnDelete()` for FK references to users table
+- Use `foreignUuid()->constrained()->cascadeOnDelete()` for FK references to UUID tables (Module K uses UUIDs)
+- Filament Resources for Customer module go in `App\Filament\Resources\Customer\` namespace
+- For PHPStan on Filament bulk actions, add `/** @var Collection<int, ModelName> $records */` PHPDoc before each() call
+
+---
+
+## 2026-02-04 - US-001
+- What was implemented:
+  - Created `PartyType` enum (individual, legal_entity) with label/color/icon methods
+  - Created `PartyStatus` enum (active, inactive) with label/color/icon methods
+  - Created `Party` model with HasUuid, Auditable, SoftDeletes traits
+  - Created migration for `parties` table with unique constraint on (tax_id, jurisdiction)
+  - Created `PartyRole` stub model for relationship placeholder (full implementation in US-002)
+- Files changed:
+  - app/Enums/Customer/PartyType.php (new)
+  - app/Enums/Customer/PartyStatus.php (new)
+  - app/Models/Customer/Party.php (new)
+  - app/Models/Customer/PartyRole.php (new - stub)
+  - database/migrations/2026_02_04_390000_create_parties_table.php (new)
+- **Learnings for future iterations:**
+  - Customer module uses `App\Enums\Customer\` and `App\Models\Customer\` namespaces
+  - Migration sequence for Module K starts at 390000
+  - PartyRole stub created to satisfy Party relationship, will be completed in US-002
+---
+
+## 2026-02-04 - US-002
+- What was implemented:
+  - Created `PartyRoleType` enum (customer, supplier, producer, partner) with label/color/icon methods
+  - Completed `PartyRole` model with HasUuid, Auditable traits and role type casting
+  - Created migration for `party_roles` table with FK to parties and unique constraint on (party_id, role)
+  - Updated `Party` model with addRole/removeRole methods and role checking helpers (isCustomer, isSupplier, isProducer, isPartner)
+- Files changed:
+  - app/Enums/Customer/PartyRoleType.php (new)
+  - app/Models/Customer/PartyRole.php (updated from stub)
+  - app/Models/Customer/Party.php (updated - added role helpers)
+  - database/migrations/2026_02_04_390001_create_party_roles_table.php (new)
+- **Learnings for future iterations:**
+  - Use `foreignUuid()->constrained()->cascadeOnDelete()` for FK references to UUID tables (vs foreignId for int tables)
+  - Migration sequence continues: 390001 for party_roles
+  - Party model uses union type `PartyRoleType|string` to accept both enum and string values for backward compatibility
+---
+
+## 2026-02-04 - US-003
+- What was implemented:
+  - Created `PartyResource` Filament resource in `App\Filament\Resources\Customer` namespace
+  - List view with columns: legal_name, party_type (badge), roles (badges), jurisdiction, status (badge), tax_id, vat_number, updated_at
+  - Filters: party_type, role (with custom query for relationship), status, jurisdiction (dynamic), TrashedFilter
+  - Search on: legal_name, tax_id, vat_number
+  - Bulk actions: activate, deactivate with confirmation
+  - CRUD pages: ListParties, CreateParty, ViewParty, EditParty
+  - Added "Customers" navigation group to AdminPanelProvider
+- Files changed:
+  - app/Providers/Filament/AdminPanelProvider.php (updated - added Customers navigation group)
+  - app/Filament/Resources/Customer/PartyResource.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/ListParties.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/CreateParty.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/ViewParty.php (new)
+  - app/Filament/Resources/Customer/PartyResource/Pages/EditParty.php (new)
+- **Learnings for future iterations:**
+  - Filament Resources in Customer module go in `App\Filament\Resources\Customer\` namespace
+  - Use `->with('roles')` in `getEloquentQuery()` to eager load relationships for list display
+  - For bulk actions with Collection, use PHPDoc annotation `/** @var Collection<int, Model> $records */` before the each() call to satisfy PHPStan
+  - Role filter needs custom query using `whereHas()` to filter by relationship
+  - Navigation groups must be defined in AdminPanelProvider's `navigationGroups()` array
+---
+
+## 2026-02-04 - US-004
+- What was implemented:
+  - Extended `ViewParty` page with tabs using Filament Infolists Tabs component
+  - Tab Overview: identity summary with Party ID, legal name, party type, status, created/updated dates, and assigned roles
+  - Tab Roles: list of assigned roles with add role (modal form) and remove role (confirmation) actions
+  - Tab Legal: tax_id, vat_number, jurisdiction fields with compliance notes section (placeholder)
+  - Tab Audit: full audit trail timeline with filters (event type, date range), shows user, timestamp, and changes
+  - Header actions: Activate/Deactivate contextual actions that show/hide based on party status
+- Files changed:
+  - app/Filament/Resources/Customer/PartyResource/Pages/ViewParty.php (updated - complete rewrite with tabs)
+- **Learnings for future iterations:**
+  - Use `Tabs::make()->tabs([...])` with `persistTabInQueryString()` for persistent tab state
+  - For repeatable entries with actions, use `RepeatableEntry` with `\Filament\Infolists\Components\Actions\Action` inside
+  - Audit trail pattern: use `getStateUsing()` with HTML output for custom timeline rendering
+  - Header section actions use `\Filament\Infolists\Components\Actions\Action` (different from `Filament\Actions\Action`)
+  - For modal forms in infolist actions, use standard Filament form components in the `form()` method
+  - Tab badges show counts using `badge()` method, e.g., `->badge($count > 0 ? (string) $count : null)`
+---
+
+## 2026-02-04 - US-005
+- What was implemented:
+  - Created `CustomerType` enum (b2c, b2b, partner) with label/color/icon methods
+  - Created `CustomerStatus` enum (prospect, active, suspended, closed) with label/color/icon methods
+  - Enhanced existing `Customer` model with Party relationship, Auditable trait, and Module K fields
+  - Created migration to add Module K fields to existing customers table (party_id FK, customer_type, default_billing_address_id, created_by, updated_by)
+  - Created `PartyRoleObserver` to auto-create Customer when Party receives customer role
+  - Added backward-compatible STATUS_* constants to Customer model for existing code compatibility
+  - Updated ViewCustomer page to use CustomerStatus enum for badge colors/icons
+- Files changed:
+  - app/Enums/Customer/CustomerType.php (new)
+  - app/Enums/Customer/CustomerStatus.php (new)
+  - app/Models/Customer/Customer.php (updated - added Party relationship, enum casts, backward-compat constants)
+  - app/Observers/Customer/PartyRoleObserver.php (new)
+  - app/Providers/AppServiceProvider.php (updated - registered PartyRoleObserver)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - use CustomerStatus enum)
+  - database/migrations/2026_02_04_390002_add_module_k_fields_to_customers_table.php (new)
+- **Learnings for future iterations:**
+  - When enhancing existing models with enum status, keep backward-compatible constants for existing code (deprecated)
+  - Module K migrations alter existing tables: use `Schema::table()` with `after()` to position new columns
+  - Observer pattern is clean way to auto-create related models when roles are assigned
+  - Observers are registered in AppServiceProvider's `boot()` method using `Model::observe(Observer::class)`
+  - Migration sequence continues: 390002 for customers table enhancement
+---
+
+## 2026-02-04 - US-006
+- What was implemented:
+  - Created `ChannelScope` enum (b2c, b2b, club) with label/color/icon methods
+  - Created `AccountStatus` enum (active, suspended) with label/color/icon methods
+  - Created `Account` model with HasUuid, Auditable, SoftDeletes traits
+  - Created migration for `accounts` table with FK to customers
+  - Added `accounts()` hasMany relationship to Customer model
+- Files changed:
+  - app/Enums/Customer/ChannelScope.php (new)
+  - app/Enums/Customer/AccountStatus.php (new)
+  - app/Models/Customer/Account.php (new)
+  - app/Models/Customer/Customer.php (updated - added accounts relationship)
+  - database/migrations/2026_02_04_390003_create_accounts_table.php (new)
+- **Learnings for future iterations:**
+  - Account model represents operational contexts for a Customer
+  - A Customer can have multiple Accounts with different channel scopes
+  - Migration sequence continues: 390003 for accounts table
+  - Account inherits restrictions from Customer but can add its own (to be implemented in later stories)
+---
+
+## 2026-02-04 - US-007
+- What was implemented:
+  - Updated CustomerResource to be the primary operational screen for customer management
+  - Columns: display_name (via Party/legacy), customer_type (badge), membership_tier (placeholder), status (badge), accounts_count, has_active_blocks indicator, email, tax_id (via Party), updated_at
+  - Filters: customer_type, status, membership_tier (placeholder), has_blocks (placeholder), TrashedFilter
+  - Search on: name, party.legal_name, email, party.tax_id
+  - Quick actions: view, suspend (visible when active), activate (visible when suspended/prospect)
+  - Bulk actions: suspend, activate, delete, restore
+  - Eager loads party and accounts relationships for performance
+  - Updated form to use CustomerType and CustomerStatus enums
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource.php (updated - complete rewrite of table() method)
+- **Learnings for future iterations:**
+  - Use `->state()` callback for computed columns like display_name that don't map to database fields
+  - For searchable computed columns, use `->searchable(query: fn())` to define custom search logic
+  - membership_tier and has_active_blocks are placeholders until US-011 and US-027 are implemented
+  - Use `->visible(fn())` on actions for conditional display based on record state
+  - Eager load with `->with(['party', 'accounts'])` and `->withCount('accounts')` in getEloquentQuery()
+---
+
+## 2026-02-04 - US-008
+- What was implemented:
+  - Complete rewrite of ViewCustomer page with 9 thematic tabs
+  - Tab Overview: customer identity (ID, name, email, customer_type, status, party info, tax_id), quick summary (accounts count, vouchers count, membership tier placeholder, active blocks placeholder), assets summary (vouchers and cases by status)
+  - Tab Membership: placeholder sections for tier, status, effective date, lifecycle timeline, and decision history
+  - Tab Accounts: displays customer's accounts with ID, name, channel_scope, status, created_at using RepeatableEntry
+  - Tab Addresses: placeholder sections for billing and shipping addresses
+  - Tab Eligibility: placeholder showing B2C/B2B/Club channel eligibility with factors (to be computed by engine)
+  - Tab Payment & Credit: placeholder showing card_allowed, bank_transfer_allowed, credit_limit permissions
+  - Tab Clubs: placeholder for club affiliations and their eligibility impact
+  - Tab Operational Blocks: placeholder showing active blocks, block types explanation, and history
+  - Tab Audit: full audit trail with filters (event type, date range) using same HTML rendering pattern as ViewParty
+  - Added header actions: Suspend (visible when Active), Activate (visible when Prospect/Suspended)
+  - Added getSubheading() to show customer type and status badges
+  - Title uses Customer.getName() method for Party-aware display
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - complete rewrite with 9 tabs)
+- **Learnings for future iterations:**
+  - ViewCustomer now follows same pattern as ViewParty with Tabs, Sections, and audit trail rendering
+  - Each placeholder tab references the future US story that will implement the full functionality
+  - Use `->collapsed()` and `->collapsible()` on sections for progressive disclosure
+  - Audit trail filtering uses Livewire properties ($auditEventFilter, $auditDateFrom, $auditDateUntil)
+  - Header actions pattern: Suspend visible when Active, Activate visible when Prospect or Suspended
+  - Customer.getName() method handles both Party-linked and legacy customers gracefully
+---
+
+## 2026-02-04 - US-009
+- What was implemented:
+  - Full Account management CRUD within the Customer Detail Accounts tab
+  - Create Account: modal form with name (required, max 255 chars) and channel_scope (select from ChannelScope enum)
+  - Edit Account: modal form pre-populated with current values, updates name and channel_scope
+  - Suspend Account: confirmation modal, changes status to Suspended, only visible when Active
+  - Activate Account: confirmation modal, changes status to Active, only visible when Suspended
+  - Delete Account: confirmation modal with soft delete, available regardless of status (no transactions constraint yet - to be implemented when transactions are added)
+  - Updated grid from 5 to 6 columns to accommodate action buttons
+  - Actions aligned to end of row using `->alignEnd()`
+  - All actions use proper Notification feedback pattern
+  - Uses `$this->refreshFormData(['accounts'])` to refresh the accounts list after any action
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full CRUD in Accounts tab)
+- **Learnings for future iterations:**
+  - For inline actions on RepeatableEntry items, use `\Filament\Infolists\Components\Actions::make([...])` with `->alignEnd()` in the Grid
+  - Modal forms in infolist actions use standard Filament form components (TextInput, Select, etc.)
+  - Use `fn (Model $model): array => [...]` syntax to pre-populate form defaults from the current record
+  - Use `fn (Model $model): string => "..."` for dynamic modal descriptions
+  - The `->visible(fn (Model $model): bool => ...)` pattern controls conditional action visibility based on record state
+  - Account.delete() uses soft deletes via SoftDeletes trait - no hard delete needed
+  - Delete constraint "only if no transactions" is a placeholder until transactions are implemented in future stories
+---
+
+## 2026-02-04 - US-010
+- What was implemented:
+  - Created `AddressType` enum (billing, shipping) with label/color/icon methods for Filament compatibility
+  - Created `Address` model with HasUuid, Auditable, SoftDeletes traits
+  - Created polymorphic migration for `addresses` table with FK to users for created_by/updated_by
+  - Added `addresses()`, `billingAddresses()`, `shippingAddresses()` relationships to Customer model
+  - Added helper methods: `getDefaultBillingAddress()`, `getDefaultShippingAddress()`, `hasBillingAddress()`, `hasShippingAddress()`
+  - Implemented full Addresses tab CRUD in Customer Detail with two sections (Billing and Shipping)
+  - Create Address: modal form with line_1, line_2, city, state, postal_code, country, is_default toggle
+  - Edit Address: modal form pre-populated with current values
+  - Set Default: action that unsets other defaults of same type and sets selected as default
+  - Delete Address: confirmation modal with soft delete
+  - First address of each type automatically becomes default
+  - Created `CustomerObserver` to validate billing address requirement when activating a Customer
+  - Updated Activate Customer action to check billing address and show appropriate message
+- Files changed:
+  - app/Enums/Customer/AddressType.php (new)
+  - app/Models/Customer/Address.php (new)
+  - app/Models/Customer/Customer.php (updated - added address relationships and helpers)
+  - app/Observers/Customer/CustomerObserver.php (new)
+  - app/Providers/AppServiceProvider.php (updated - registered CustomerObserver)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full CRUD in Addresses tab)
+  - database/migrations/2026_02_04_390004_create_addresses_table.php (new)
+- **Learnings for future iterations:**
+  - Polymorphic relationships use `addressable_type` and `addressable_id` columns (using UUID for id)
+  - Use `MorphTo` for the parent relationship and `MorphMany` for child collections
+  - Split addresses into separate sections (Billing/Shipping) for clarity
+  - Use `getFormattedAddress()` and `getOneLine()` helpers for display
+  - `setAsDefault()` method handles unsetting other defaults atomically
+  - Observer pattern works well for enforcing business rules on status changes
+  - Pint requires `concat_space` - use `.` without spaces for string concatenation
+  - Migration sequence continues: 390004 for addresses table
+---
+
+## 2026-02-04 - US-011
+- What was implemented:
+  - Created `MembershipTier` enum (legacy, member, invitation_only) with label/color/icon/description methods
+  - Created `MembershipStatus` enum (applied, under_review, approved, rejected, suspended) with label/color/icon methods
+  - Added `validTransitions()` and `canTransitionTo()` methods on MembershipStatus for workflow state machine
+  - Created `Membership` model with HasUuid, Auditable traits
+  - Created migration for `memberships` table with FK to customers, tier, status, effective dates, and decision_notes
+  - Added `memberships()` hasMany relationship to Customer for historical records
+  - Added `membership()` hasOne relationship using `latestOfMany()` for current membership
+  - Added `activeMembership()` hasOne relationship for active approved membership within effective dates
+  - Added helper methods: `hasActiveMembership()`, `getMembershipTier()`, `getMembershipStatus()`
+  - Added scopes on Membership: `scopeActive()`, `scopeCurrent()`
+- Files changed:
+  - app/Enums/Customer/MembershipTier.php (new)
+  - app/Enums/Customer/MembershipStatus.php (new)
+  - app/Models/Customer/Membership.php (new)
+  - app/Models/Customer/Customer.php (updated - added membership relationships and helpers)
+  - database/migrations/2026_02_04_390005_create_memberships_table.php (new)
+- **Learnings for future iterations:**
+  - Use `latestOfMany()` for hasOne relationship to get the most recent record from a hasMany
+  - Membership status enum includes `validTransitions()` for state machine workflow validation
+  - A Customer can have one active Membership (approved + within effective dates) but multiple historical records
+  - Migration sequence continues: 390005 for memberships table
+  - Use `HasOne` with query constraints for relationships like `activeMembership()` that filter by status and dates
+---
+
+## 2026-02-04 - US-012
+- What was implemented:
+  - Enhanced `MembershipTier` enum with channel eligibility computation methods
+  - Added `eligibleChannels()` to return array of ChannelScope values the tier grants access to
+  - Added `isEligibleForChannel(ChannelScope)` to check tier-based eligibility for a specific channel
+  - Added `hasAutomaticClubAccess()` - Legacy and InvitationOnly tiers get automatic Club access
+  - Added `requiresApproval()` - Member and InvitationOnly require approval process
+  - Added `hasExclusiveProductAccess()` - Legacy and InvitationOnly have exclusive product access
+  - Added `priority()` and `isHigherThan()` for tier comparison/upgrade paths
+  - Added `getChannelEligibilityReasons()` for human-readable eligibility explanations
+  - Extended Membership model with eligibility proxy methods that also check status
+  - Extended Customer model with `isMembershipEligibleForChannel()`, `hasAutomaticClubAccess()`, `hasExclusiveProductAccess()`, `getMembershipChannelEligibilityReasons()`
+- Files changed:
+  - app/Enums/Customer/MembershipTier.php (updated - added channel eligibility methods)
+  - app/Models/Customer/Membership.php (updated - added eligibility proxy methods)
+  - app/Models/Customer/Customer.php (updated - added customer-level eligibility helpers)
+- **Learnings for future iterations:**
+  - Channel eligibility is tiered: MembershipTier defines base eligibility, Membership checks status, Customer provides convenient access
+  - Legacy tier is grandfathered with highest priority (3), full access to everything
+  - Member tier (priority 1) is standard, requires Club affiliation for Club channel access
+  - InvitationOnly tier (priority 2) has full access like Legacy plus exclusive product benefits
+  - Eligibility reasons follow `array<string, array{eligible: bool, reason: string}>` format for human-readable explanations
+  - This eligibility logic will be consumed by EligibilityEngine (US-015) for complete channel eligibility computation
+---
+
+## 2026-02-04 - US-013
+- What was implemented:
+  - Fully functional Membership Tab in Customer Detail with workflow actions
+  - Current Membership section showing: tier (with description), status (with badge), effective_from, effective_to, decision_notes
+  - Membership Lifecycle visual timeline with 3-step progress indicator (Applied → Under Review → Approved)
+  - Timeline handles special states: Rejected (shows red), Suspended (shows gray on approved stage)
+  - Status description explains the current state and next steps
+  - Decision History section showing all membership records with tier, status, dates, and notes
+  - Workflow Actions (appear based on current state):
+    - Apply for Membership: creates new membership in Applied status (when no membership or rejected)
+    - Submit for Review: transitions Applied → Under Review
+    - Approve: transitions Under Review → Approved (sets effective_from to now)
+    - Reject: transitions Under Review → Rejected (requires decision notes)
+    - Suspend: transitions Approved → Suspended (requires decision notes)
+    - Reactivate: transitions Suspended → Approved
+  - Updated Overview tab to show actual membership tier instead of placeholder
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Membership tab implementation)
+- **Learnings for future iterations:**
+  - Use `->headerActions()` on Section to add workflow action buttons
+  - Workflow actions should be conditional based on current state using separate if blocks (not visible callback)
+  - Decision notes should be required for negative actions (Reject, Suspend) using `->required()` in form
+  - Visual timeline can be built using HTML with Tailwind classes in a TextEntry with `->html()`
+  - Tab badge can show the current membership status for quick visibility
+  - Match expressions must be exhaustive for all enum cases - add Rejected/Suspended to catch-all arms when they won't actually be reached
+  - Section does not have a `badge()` method in Filament Infolists - use string concatenation in section title instead
+  - For repeatable entries from relationships, the collection is already available through the relationship
+---
+
+## 2026-02-04 - US-014
+- What was implemented:
+  - Created `InvalidMembershipTransitionException` in `App\Exceptions\` for user-friendly error messages
+  - Added `transitionTo()` method in Membership model with validation - throws exception if transition invalid
+  - Added convenience methods: `submitForReview()`, `approve()`, `reject()`, `suspend()`, `reactivate()`
+  - Added `getTransitionErrorMessage()` helper for building user-friendly messages
+  - Added `canApproveMemberships()` to User model (requires Manager role via `hasAtLeast()`)
+  - Updated ViewCustomer to use `canTransitionTo()` for action visibility
+  - Approve and Reject actions now check `canApproveMemberships` with disabled state and tooltip
+  - All actions wrapped in try-catch for InvalidMembershipTransitionException with danger notification
+  - `effective_from` is automatically set in `transitionTo()` when transitioning to Approved
+  - All transitions logged via existing Auditable trait (user_id, timestamp, changes)
+- Files changed:
+  - app/Exceptions/InvalidMembershipTransitionException.php (new)
+  - app/Models/Customer/Membership.php (updated - added transition methods)
+  - app/Models/User.php (updated - added canApproveMemberships())
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - authorization and validation)
+- **Learnings for future iterations:**
+  - Create custom exceptions in `App\Exceptions\` namespace for domain-specific errors
+  - Use `->disabled()` with `->tooltip()` pattern to show disabled actions with explanation
+  - Transitions should use model methods (e.g., `approve()`) rather than direct `update()` for encapsulation
+  - The `canTransitionTo()` check in UI conditions prevents buttons from showing for invalid transitions
+  - Authorization checks should be done both in UI (disabled) and action callback (early return) for security
+  - Named parameters like `autoSetEffectiveFrom: false` make method calls more readable
+  - User::canApproveMemberships() follows the existing pattern of User::canApprovePriceBooks()
+---
+
+## 2026-02-04 - US-015
+- What was implemented:
+  - Created `EligibilityEngine` service class in `App\Services\Customer` namespace
+  - Main `compute(Customer|Account)` method returns eligibility for all channels
+  - Factors evaluated per channel:
+    - `membership_status`: checks for Approved status and effective dates
+    - `membership_tier`: checks tier grants access to channel
+    - `customer_type`: B2B channel requires B2B customer type
+    - `club_affiliation`: Club channel checks for automatic tier access or active affiliation
+    - `operational_blocks`: placeholder for US-027 (returns positive)
+    - `payment_permissions`: placeholder for US-018 (returns positive)
+    - `account_status`: when computing for Account, checks active status and channel scope match
+  - Output format: `array<string, array{eligible: bool, factors: array<string, array{positive: bool, reason: string}>}>`
+  - Added `getSummary()` helper for human-readable eligibility summary
+  - Eligibility computed at runtime, not stored - ensures real-time accuracy
+- Files changed:
+  - app/Services/Customer/EligibilityEngine.php (new)
+- **Learnings for future iterations:**
+  - Services for Customer module go in `App\Services\Customer\` namespace
+  - Use union types (`Customer|Account`) for methods that accept multiple entity types
+  - Placeholder implementations for future stories should return "positive" to not block functionality
+  - Factor format `array{positive: bool, reason: string}` allows both machine processing and human readability
+  - `areAllFactorsPositive()` pattern makes eligibility decision transparent and traceable
+  - Customer `activeMembership` relationship already filters for approved + effective dates
+  - EligibilityEngine will be extended in US-016 (channel rules), US-017 (UI tab), US-018 (payments), US-022 (clubs), US-027 (blocks)
+---
+
+## 2026-02-04 - US-016
+- What was implemented:
+  - Enhanced `ChannelScope` enum with eligibility rule documentation and helper methods
+  - Added `description()` method for human-readable channel descriptions
+  - Added `requiresB2BCustomerType()`, `requiresCreditApproval()`, `requiresClubAffiliation()`, `checksPaymentBlocks()` methods for rule checking
+  - Added `getEligibilityRequirements()` to return human-readable list of requirements per channel
+  - Updated `EligibilityEngine` with explicit channel eligibility rules in docblock
+  - Added B2B credit approval factor checking (`checkCreditApproval()`, `customerHasCreditApproved()`)
+  - Updated `checkPaymentPermissions()` to accept channel parameter for channel-specific messaging
+  - Added `getDetailedEligibility()` returning positive/negative reasons separated
+  - Added `getChannelRequirements()` for getting channel-specific rules
+  - Added `isEligibleForChannel()` for single-channel eligibility check
+  - Added `getBlockingFactors()` for getting reasons blocking eligibility
+- Files changed:
+  - app/Enums/Customer/ChannelScope.php (updated - added eligibility rule methods)
+  - app/Services/Customer/EligibilityEngine.php (updated - added B2B credit and helper methods)
+- **Learnings for future iterations:**
+  - Channel eligibility rules are documented in ChannelScope enum docblock for clarity
+  - B2B channel requires credit approval (credit_limit != null) in addition to other factors
+  - `getDetailedEligibility()` separates positive/negative reasons for UI display
+  - Placeholder methods (customerHasCreditApproved) return true to not block until US-018 implements PaymentPermission
+  - ChannelScope helper methods allow type-safe rule checking in EligibilityEngine
+---
+
+## 2026-02-04 - US-017
+- What was implemented:
+  - Full implementation of Eligibility Tab in Customer Detail (no longer placeholder)
+  - Tab shows real-time computed eligibility for B2C, B2B, and Club channels
+  - Tab badge shows eligibility count (e.g., "2/3") with color coding (green=all, yellow=some, red=none)
+  - Refresh button to recalculate eligibility in real-time
+  - For each channel: status badge (Eligible/Not Eligible), channel description, and detailed factors list
+  - Factors displayed with color-coded icons: green check for positive, red X for negative
+  - Negative factors shown first (most important for troubleshooting)
+  - "Channel Requirements" collapsible section showing rules for each channel
+  - "How to Resolve Issues" collapsible section with contextual links to relevant tabs
+  - Issue resolution suggestions map keywords to tabs (membership → Membership tab, payment → Payment & Credit tab, etc.)
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Eligibility tab implementation)
+- **Learnings for future iterations:**
+  - EligibilityEngine's `getDetailedEligibility()` returns `channel_label` and `channel_description` alongside eligibility data
+  - Use `htmlspecialchars()` for all user-facing strings in HTML rendering
+  - Infolist Group components work well for channel cards with multiple TextEntry items
+  - `TextEntry\TextEntrySize::Small` requires full namespace path for size enum
+  - For refresh functionality, use `$this->refreshFormData([])` to refresh the entire form
+  - Keywords in reasons can be mapped to relevant tabs for contextual navigation help
+  - SVG icons can be embedded directly in HTML strings for consistent styling
+---
+
+## 2026-02-04 - US-018
+- What was implemented:
+  - Created `PaymentPermission` model with HasUuid, Auditable traits
+  - Created migration for `payment_permissions` table with unique FK to customers
+  - Added `paymentPermission()` hasOne relationship to Customer model
+  - Added helper methods on Customer: `hasPaymentPermission()`, `hasPaymentBlock()`, `hasCreditApproved()`, `getCreditLimit()`, `isCardAllowed()`, `isBankTransferAllowed()`
+  - Updated `CustomerObserver` to auto-create PaymentPermission with defaults when Customer becomes active
+  - Updated `EligibilityEngine` to use real PaymentPermission data instead of placeholder methods
+  - EligibilityEngine now properly checks `card_allowed` for payment blocks and `credit_limit` for B2B credit approval
+- Files changed:
+  - app/Models/Customer/PaymentPermission.php (new)
+  - app/Models/Customer/Customer.php (updated - added paymentPermission relationship and helpers)
+  - app/Observers/Customer/CustomerObserver.php (updated - added updated() method for PaymentPermission creation)
+  - app/Services/Customer/EligibilityEngine.php (updated - real PaymentPermission integration)
+  - database/migrations/2026_02_04_390006_create_payment_permissions_table.php (new)
+- **Learnings for future iterations:**
+  - Use `unique()` constraint on FK when creating one-to-one relationships in migrations
+  - Observer's `updated()` event fires after the model is saved, good for creating related records
+  - Observer's `updating()` event fires before save, good for validation
+  - Use `wasChanged('field')` in `updated()` vs `isDirty('field')` in `updating()` to check for field changes
+  - Default values in migration (`->default(true)`) match model's expected behavior when auto-created
+  - Migration sequence continues: 390006 for payment_permissions table
+  - PaymentPermission defaults: card_allowed=true, bank_transfer_allowed=false, credit_limit=null
+---
+
+## 2026-02-04 - US-019
+- What was implemented:
+  - Added `canManagePaymentPermissions()` method to User model (requires Manager role = Finance function)
+  - Enhanced PaymentPermission model with authorization enforcement:
+    - `canBeModifiedBy(User)` static method to check authorization
+    - `updateWithAuthorization()` method that throws AuthorizationException if unauthorized
+    - `authorizeBankTransfer()` and `revokeBankTransfer()` methods with authorization
+    - `setCreditLimitWithAuthorization()` method with authorization
+  - Added human-readable explanation methods:
+    - `getCreditLimitExplanation()` - explains credit status (null = no credit, value = max)
+    - `getBankTransferExplanation()` - explains bank transfer authorization status
+  - Enhanced model docblock with credit limit rules and bank transfer authorization requirements
+  - Audit logging already functional via Auditable trait from US-018
+- Files changed:
+  - app/Models/User.php (updated - added canManagePaymentPermissions())
+  - app/Models/Customer/PaymentPermission.php (updated - added authorization methods and explanations)
+- **Learnings for future iterations:**
+  - Finance authorization in this codebase means Manager role or higher (UserRole::Manager)
+  - Use static `canBeModifiedBy(User)` pattern for reusable authorization checks
+  - Wrap modifications in `*WithAuthorization()` methods to enforce auth at model level
+  - `AuthorizationException` is the standard Laravel exception for unauthorized access
+  - Human-readable explanation methods help UI display and debugging
+---
+
+## 2026-02-04 - US-020
+- What was implemented:
+  - Full implementation of Payment & Credit Tab in Customer Detail (replaced placeholder)
+  - Payment Permissions section showing: card_allowed (badge), bank_transfer_allowed (badge), credit_limit (badge with EUR formatting)
+  - Edit Permissions modal (only visible for users with canManagePaymentPermissions):
+    - Toggle for card_allowed with enable/disable
+    - Toggle for bank_transfer_allowed with enable/disable
+    - TextInput for credit_limit with numeric validation >= 0, EUR prefix, step 0.01
+  - Permission Details collapsible section showing:
+    - Impact on Eligibility (explains how permissions affect channel access)
+    - Last Modified (date + user from updater relationship)
+    - Created (date + user from creator relationship)
+  - Modification History collapsible section with full audit log:
+    - Uses AuditLog model to query changes to PaymentPermission
+    - Displays event type, date, user, and specific field changes
+    - Shows old → new value transitions for each field
+  - Tab badge shows "!" danger indicator when card payments are blocked
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Payment & Credit tab implementation with helper methods)
+- **Learnings for future iterations:**
+  - Use `creator()` and `updater()` relationships from Auditable trait (not createdBy/updatedBy)
+  - PHPStan prefers ternary `$x !== null ? $x->prop : default` over `$x?->prop ?? default` when both null checks
+  - For audit log history sections, query AuditLog by `auditable_type` and `auditable_id` to get model-specific logs
+  - Format payment permission changes using helper method that builds human-readable diff strings
+  - Tab badges can use functions to conditionally show alerts (e.g., `fn (): ?string => !$cardAllowed ? '!' : null`)
+---
+
+## 2026-02-04 - US-021
+- What was implemented:
+  - Created `ClubStatus` enum (active, suspended, ended) with label/color/icon methods
+  - Created `Club` model with HasUuid, Auditable, SoftDeletes traits
+  - Created migration for `clubs` table with uuid primary key, partner_name, status, branding_metadata (JSON), and audit fields
+  - Club is an independent entity (not linked to Customer - affiliation will be in US-022)
+  - Added helper methods: isActive(), isSuspended(), isEnded(), getStatusColor(), getStatusLabel(), getStatusIcon()
+- Files changed:
+  - app/Enums/Customer/ClubStatus.php (new)
+  - app/Models/Customer/Club.php (new)
+  - database/migrations/2026_02_04_390007_create_clubs_table.php (new)
+- **Learnings for future iterations:**
+  - Club uses same pattern as other Module K entities: HasUuid, Auditable, SoftDeletes traits
+  - ClubStatus has 3 states: Active, Suspended, Ended (differs from AccountStatus which has only Active/Suspended)
+  - branding_metadata is stored as JSON for flexibility
+  - Migration sequence continues: 390007 for clubs table
+  - Customer-Club relationship (US-022) will use a pivot table, not direct FK on Club
+---
+
+## 2026-02-04 - US-022
+- What was implemented:
+  - Created `AffiliationStatus` enum (active, suspended) with label/color/icon methods
+  - Created `CustomerClub` pivot model with HasUuid, Auditable traits
+  - Created migration for `customer_clubs` pivot table with unique constraint on (customer_id, club_id)
+  - Added `clubs()` belongsToMany relationship to Customer model
+  - Added `clubAffiliations()`, `activeClubAffiliations()`, `effectiveClubAffiliations()` HasMany relationships to Customer
+  - Added helper methods on Customer: `hasActiveClubAffiliation()`, `hasEffectiveClubAffiliation()`, `isAffiliatedWith()`, `hasEffectiveAffiliationWith()`
+  - Added `customers()` belongsToMany relationship to Club model
+  - Added `customerAffiliations()`, `activeCustomerAffiliations()` HasMany relationships to Club
+  - Added helper methods on Club: `getActiveMembersCount()`, `hasCustomer()`
+  - Added `isEffective()` method on CustomerClub to check active + started + not ended
+  - Added scopes on CustomerClub: `scopeActive()`, `scopeEffective()`
+- Files changed:
+  - app/Enums/Customer/AffiliationStatus.php (new)
+  - app/Models/Customer/CustomerClub.php (new)
+  - app/Models/Customer/Customer.php (updated - added club relationships and helpers)
+  - app/Models/Customer/Club.php (updated - added customer relationships and helpers)
+  - database/migrations/2026_02_04_390008_create_customer_clubs_table.php (new)
+- **Learnings for future iterations:**
+  - For pivot tables with UUID primary key and extra columns, use standalone Model with HasUuid trait (not Pivot class)
+  - Don't use `using()` method with standard Model - it expects Pivot subclass; use separate HasMany relationships instead
+  - `belongsToMany` with `withPivot()` provides access to pivot data, while `HasMany` to pivot model allows direct queries
+  - Affiliation status is independent of Club status - a customer affiliation can be suspended even if Club is active
+  - `effectiveClubAffiliations()` filters for: affiliation_status = active AND start_date <= now AND (end_date IS NULL OR end_date >= now)
+  - Migration sequence continues: 390008 for customer_clubs table
+---
+
+## 2026-02-04 - US-023
+- What was implemented:
+  - Created `ClubResource` Filament resource in `App\Filament\Resources\Customer` namespace
+  - List view with columns: partner_name (searchable, sortable, bold), status (badge with color/icon), members_count (computed via getActiveMembersCount()), updated_at
+  - Status filter using ClubStatus enum options
+  - Search on: partner_name
+  - Quick actions: view, edit, suspend (when Active), activate (when Suspended), end (when not Ended)
+  - Bulk actions: suspend, activate, delete, restore
+  - CRUD pages: ListClubs, CreateClub, ViewClub, EditClub
+  - Form includes: partner_name (required), status (select), branding_metadata (KeyValue)
+  - Navigation sort: 3 (after Customers and Parties)
+- Files changed:
+  - app/Filament/Resources/Customer/ClubResource.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/ListClubs.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/CreateClub.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/ViewClub.php (new)
+  - app/Filament/Resources/Customer/ClubResource/Pages/EditClub.php (new)
+- **Learnings for future iterations:**
+  - ClubResource follows same pattern as CustomerResource and PartyResource
+  - For sortable computed columns, use `sortable(query: fn())` to add the count via withCount
+  - Club has 3 status states (Active, Suspended, Ended) vs Account which has only 2
+  - Form KeyValue component works well for JSON metadata fields
+  - Navigation order: Customers (1), Parties (2), Clubs (3) within Customers group
+---
+
+## 2026-02-04 - US-024
+- What was implemented:
+  - Full Clubs Tab implementation in Customer Detail (replaced placeholder)
+  - Tab badge shows affiliation count with color coding (green if effective affiliations exist)
+  - Club Affiliations section with header "Add Affiliation" action
+  - Add affiliation: modal form with Club select (filtered to show only active clubs not already affiliated) and start_date
+  - RepeatableEntry displaying affiliations with 7-column grid: club_name (with link to ClubResource), affiliation_status (badge), start_date, end_date, effective_indicator (badge with tooltip), club_status (badge), actions
+  - Edit affiliation: modal form to change affiliation_status and end_date
+  - Suspend affiliation: quick action (visible when Active and not ended)
+  - Reactivate affiliation: quick action (visible when Suspended and not ended)
+  - End affiliation: sets end_date to now (visible when not already ended)
+  - Club Eligibility Impact collapsible section explaining how affiliations affect Club channel access
+  - "Effective" indicator shows whether affiliation contributes to eligibility (active + started + not ended)
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Clubs tab implementation)
+- **Learnings for future iterations:**
+  - Use separate helper method (getClubAffiliationsRepeatableEntry) for complex repeatable entries to keep tab methods clean
+  - Filter available clubs in Add Affiliation form using whereNotIn with existing affiliated club IDs
+  - CustomerClub model has isEffective(), isActive(), isSuspended(), hasEnded() helper methods for UI conditions
+  - For union return types in helper methods (RepeatableEntry|TextEntry), use when list is empty vs populated
+  - Club affiliation status (Active/Suspended) is independent of Club status (Active/Suspended/Ended)
+  - Use $this->refreshFormData(['clubAffiliations']) to refresh the repeatable entry after CRUD operations
+---
+
+## 2026-02-04 - US-025
+- What was implemented:
+  - Created `SegmentEngine` service class in `App\Services\Customer` namespace
+  - Main `compute(Customer)` method returns all applicable segments for a customer
+  - Segments derived from 4 factor categories:
+    - Spending history: high_value (50+ vouchers), mid_value (10-49), collector (5+ cases), new_buyer (recent + purchases)
+    - Membership tier: legacy_member, vip (invitation_only), standard_member
+    - Club affiliations: multi_club (3+ clubs), club_member (1-2 clubs)
+    - Purchase frequency: frequent_buyer (5+ in 12mo), regular_buyer (2-4 in 12mo), at_risk (no purchases in 12mo), dormant (no purchases in 24mo)
+  - Output format: `array<string, array{tag: string, label: string, criteria: string, priority: int}>`
+  - Helper methods: `getTags()`, `getSummary()`, `hasSegment()`, `getSegmentCriteria()`
+  - Static `getSegmentDefinitions()` returns all possible segments with descriptions
+  - All segments are computed at runtime, not stored - ensures real-time accuracy
+- Files changed:
+  - app/Services/Customer/SegmentEngine.php (new)
+- **Learnings for future iterations:**
+  - SegmentEngine follows same pattern as EligibilityEngine (compute method, no storage)
+  - Segments have priority for display ordering (higher = more important)
+  - Use voucher count as proxy for spending history, voucher creation dates for purchase frequency
+  - Customer.created_at used to determine "recent" customers (within 6 months)
+  - effectiveClubAffiliations() is the right relationship for counting active clubs (filters by status and dates)
+  - Segments are mutually exclusive within categories (e.g., high_value vs mid_value) but not across categories (can be both high_value and frequent_buyer)
+---
+
+## 2026-02-04 - US-026
+- What was implemented:
+  - Added Customer Segments section to the Overview tab in Customer Detail
+  - Segments displayed as color-coded badges using SegmentEngine.compute()
+  - Each badge has a tooltip (title attribute) showing the derivation criteria
+  - Badge colors based on segment priority: purple (VIP/high priority), amber (important), green (active), blue (neutral), red (at-risk/dormant)
+  - Refresh button to recalculate segments in real-time
+  - Collapsible "Segment Definitions" subsection showing all possible segments and their meanings
+  - Section auto-collapses if no segments are assigned
+  - Completely read-only - no manual segment override possible
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - added getSegmentsSection() and getSegmentBadgeColor() methods)
+- **Learnings for future iterations:**
+  - Use HTML title attribute for tooltips on badges - simple and works well for short explanations
+  - Segment badges use Tailwind classes for styling with dark mode support
+  - Priority-based coloring helps users quickly identify important segments (VIP, high-value)
+  - SegmentEngine::getSegmentDefinitions() provides static list of all possible segments for help/documentation
+  - Section collapsible state can be controlled by segment count for progressive disclosure
+---
+
+## 2026-02-04 - US-027
+- What was implemented:
+  - Created `BlockType` enum (payment, shipment, redemption, trading, compliance) with label/color/icon/description methods
+  - Created `BlockStatus` enum (active, removed) with label/color/icon methods
+  - Created `OperationalBlock` model with HasUuid, Auditable traits
+  - Created polymorphic migration for `operational_blocks` table with FKs to users for applied_by, removed_by, and audit fields
+  - Added `operationalBlocks()` and `activeOperationalBlocks()` morphMany relationships to Customer model
+  - Added `operationalBlocks()` and `activeOperationalBlocks()` morphMany relationships to Account model
+  - Added helper methods on both models: `hasActiveBlocks()`, `hasActiveBlockOfType()`, `hasCriticalBlocks()`, `getActiveBlocksCount()`
+  - Added helper methods on OperationalBlock: `isActive()`, `isRemoved()`, `remove()`, scopes `active()`, `removed()`, `ofType()`, `critical()`
+  - BlockType enum includes `affectsEligibility()` and `isCritical()` methods for Payment and Compliance blocks
+- Files changed:
+  - app/Enums/Customer/BlockType.php (new)
+  - app/Enums/Customer/BlockStatus.php (new)
+  - app/Models/Customer/OperationalBlock.php (new)
+  - app/Models/Customer/Customer.php (updated - added operationalBlocks relationships and helpers)
+  - app/Models/Customer/Account.php (updated - added operationalBlocks relationships and helpers)
+  - database/migrations/2026_02_04_390009_create_operational_blocks_table.php (new)
+- **Learnings for future iterations:**
+  - OperationalBlock uses polymorphic relationship (blockable_type, blockable_id) to support both Customer and Account
+  - Migration sequence continues: 390009 for operational_blocks table
+  - BlockType has 5 types: payment, shipment, redemption, trading, compliance
+  - Payment and Compliance blocks are "critical" and affect eligibility calculations
+  - OperationalBlock does not use SoftDeletes - instead uses status (active/removed) with removed_at timestamp
+  - Added removal_reason field for tracking why a block was removed
+  - Both Customer and Account have identical helper methods for operational blocks
+---
+
+## 2026-02-04 - US-028
+- What was implemented:
+  - Verified existing BlockType enum has all 5 block types defined with label/color/icon/description methods
+  - Each block type has `blockedOperations()` method returning list of operations it prevents
+  - Updated EligibilityEngine to use actual OperationalBlock checks (no longer placeholder)
+  - EligibilityEngine now checks for Payment and Compliance blocks when computing channel eligibility
+  - Updated `customerHasActiveClubAffiliation()` to use real CustomerClub data from US-022
+  - Added `getBlockingOperationalBlocks()` and `getBlockTypesForChannel()` methods to EligibilityEngine
+  - Added operation-checking helper methods to Customer model:
+    - `isOperationBlocked($operation)` - checks if any active block prevents the operation
+    - `hasPaymentOperationBlocked()`, `hasShipmentOperationBlocked()`, `hasRedemptionOperationBlocked()`, `hasTradingOperationBlocked()`
+  - Added same helper methods to Account model (with inheritance from Customer)
+- Files changed:
+  - app/Services/Customer/EligibilityEngine.php (updated - real OperationalBlock integration)
+  - app/Models/Customer/Customer.php (updated - added operation blocked helper methods)
+  - app/Models/Customer/Account.php (updated - added operation blocked helper methods)
+- **Learnings for future iterations:**
+  - BlockType enum was already created in US-027 with all 5 types and helper methods
+  - EligibilityEngine's operational_blocks factor now shows which specific block types are preventing access
+  - Block types that affect channel eligibility: Payment and Compliance for B2C/B2B, Compliance only for Club
+  - Account operation checks inherit from Customer (account block OR customer block = blocked)
+  - Compliance block is "super block" - prevents ALL operations
+---
+
+## 2026-02-04 - US-029
+- What was implemented:
+  - Full implementation of Operational Blocks Tab in Customer Detail (replaced placeholder)
+  - Active Blocks section showing: block type (badge), reason, applied by, applied at
+  - Tab badge shows active blocks count with color coding (danger for critical, warning for non-critical)
+  - Add Block action (Manager+ only): modal form with block type select and reason textarea
+  - Remove Block action (Manager+ only): modal with removal reason, sets status=removed with removed_at/removed_by
+  - Block Types Reference section: shows all 5 block types with descriptions, critical indicator
+  - Block History section: shows removed blocks with original reason, applied/removed timestamps and users, removal reason
+  - Added `canManageOperationalBlocks()` method to User model (requires Manager role)
+  - Actions visibility controlled by authorization (canManageBlocks)
+- Files changed:
+  - app/Models/User.php (updated - added canManageOperationalBlocks())
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - full Operational Blocks tab with CRUD)
+- **Learnings for future iterations:**
+  - Use `array_merge()` with conditional array to add/remove columns based on permissions
+  - Authorization for block management follows same pattern as payment permissions (Manager+)
+  - RepeatableEntry with `getStateUsing()` can display query results not from the record's relationship directly
+  - For removed blocks, query with `->where('status', BlockStatus::Removed)` since it's not a relationship scope
+  - OperationalBlock.remove() method handles status change, removed_at, removed_by, and removal_reason atomically
+  - Use `->limit(50)->tooltip()` pattern for long text fields to show full content on hover
+---
+
+## 2026-02-04 - US-030
+- What was implemented:
+  - Created `OperationalBlockResource` Filament resource in `App\Filament\Resources\Customer` namespace
+  - List view for Compliance Officers showing all operational blocks system-wide
+  - Columns: customer/account name (with polymorphic handling), entity type badge (Customer/Account), block_type (badge with color/icon), reason (limited with tooltip), status (badge), applied_by, applied_at, removed_at, removed_by
+  - Filters: block_type (5 types), status (defaults to Active), date range (applied from/until), entity type (Customer/Account)
+  - Search: customer name, party legal_name, account name (via polymorphic whereHasMorph)
+  - Export CSV: header action and bulk action using `OperationalBlockExporter` class
+  - Export includes: ID, entity type, customer/account name, block type, reason, status, applied by, applied at, removed at, removed by, removal reason
+  - Link to Customer Detail: view_customer action navigates to CustomerResource (handles both Customer and Account blocks)
+  - No create action (blocks created from Customer/Account detail pages)
+  - Navigation sort: 4 (after Clubs in Customers group)
+- Files changed:
+  - app/Filament/Resources/Customer/OperationalBlockResource.php (new)
+  - app/Filament/Resources/Customer/OperationalBlockResource/Pages/ListOperationalBlocks.php (new)
+  - app/Filament/Exports/Customer/OperationalBlockExporter.php (new)
+- **Learnings for future iterations:**
+  - Filament Exporters go in `App\Filament\Exports\` namespace (with subdirectories for modules)
+  - Use `ExportAction::make()->exporter(ExporterClass::class)` for header CSV export
+  - Use `ExportBulkAction::make()->exporter(ExporterClass::class)` for bulk export of selected rows
+  - For polymorphic search, use `whereHasMorph('relation', [Model1::class, Model2::class], fn () => ...)` 
+  - `ExportColumn::make()->state(fn (Model $record) => ...)` for computed export columns
+  - OperationalBlock does not use SoftDeletes, so no TrashedFilter needed
+  - Default filter value: `->default(BlockStatus::Active->value)` shows Active blocks by default
+  - For date range filters, use `Filter::make()->form([DatePicker, DatePicker])` with `->query()` and `->indicateUsing()`
+---
+
+## 2026-02-04 - US-031
+- What was implemented:
+  - Created `AccountUserRole` enum (owner, admin, operator, viewer) with label/color/icon/description methods
+  - Added permission helper methods: `canManageUsers()`, `canOperate()`, `isReadOnly()`, `isOwner()`, `hasAtLeast()`
+  - Created migration for `account_users` pivot table with unique constraint on (account_id, user_id)
+  - Created `AccountUser` pivot model with HasUuid, Auditable traits
+  - Added `invited_at` and `accepted_at` timestamp tracking for invitation workflow
+  - Added helper methods on AccountUser: `isOwner()`, `isAdmin()`, `isOperator()`, `isViewer()`, `isPending()`, `isAccepted()`, `accept()`
+  - Added scopes: `scopeAccepted()`, `scopePending()`, `scopeWithRole()`, `scopeCanManageUsers()`
+  - Updated Account model with users relationships: `users()`, `accountUsers()`, `acceptedAccountUsers()`, `pendingAccountUsers()`
+  - Added Account helper methods: `hasUser()`, `hasAcceptedUser()`, `getAccountUser()`, `getUserRole()`, `isOwner()`, `canUserManageUsers()`, `canUserOperate()`, `getOwner()`, `getAcceptedUsersCount()`, `getPendingInvitationsCount()`
+  - Updated User model with accounts relationships: `accounts()`, `accountUsers()`, `acceptedAccountUsers()`, `pendingAccountUsers()`
+  - Added User helper methods: `hasAccessToAccount()`, `hasAcceptedAccessToAccount()`, `getRoleForAccount()`, `isOwnerOfAccount()`, `canManageUsersOnAccount()`, `canOperateOnAccount()`, `getAcceptedAccountsCount()`, `getPendingInvitationsCount()`
+- Files changed:
+  - app/Enums/Customer/AccountUserRole.php (new)
+  - app/Models/Customer/AccountUser.php (new)
+  - app/Models/Customer/Account.php (updated - added users relationships and helpers)
+  - app/Models/User.php (updated - added accounts relationships and helpers)
+  - database/migrations/2026_02_04_390010_create_account_users_table.php (new)
+- **Learnings for future iterations:**
+  - AccountUser follows same pattern as CustomerClub: standalone Model with HasUuid (not Pivot class)
+  - Use `belongsToMany` with `withPivot()` for simple access, `HasMany` to pivot model for querying
+  - Migration sequence continues: 390010 for account_users table
+  - Role-based permission methods on enum allow clean authorization checks: `role->canManageUsers()`
+  - Invitation workflow uses `invited_at` and `accepted_at` - accepted_at being non-null indicates acceptance
+  - Owner role cannot be removed (enforced in US-032 UI)
+---
+
+## 2026-02-04 - US-032
+- What was implemented:
+  - Created Users & Access Tab in Customer Detail showing user access across all accounts
+  - Tab displays total users count with badge, pending invitations shown in warning color
+  - Account-by-account view with collapsible sections showing account name, channel scope, and status
+  - Invite User action: modal form with email lookup and role selection (Owner excluded from selection)
+  - User list per account showing: email (copyable), name, role (badge with color/icon), status (Active/Pending), invited_at
+  - Change Role action: dropdown with Admin, Operator, Viewer options (not available for Owner role)
+  - Remove User action: confirmation modal with delete, not available for Owner role (cannot be removed)
+  - Role Reference section (collapsible): shows all 4 roles with descriptions and color-coded badges
+  - User validation: checks if user exists in system before creating invitation
+  - Duplicate access prevention: checks if user already has access before inviting
+- Files changed:
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - added getUsersAccessTab and helper methods)
+- **Learnings for future iterations:**
+  - Tab badges can use conditional coloring (warning for pending invitations, info otherwise)
+  - Use nested RepeatableEntry inside Section for per-account user display
+  - Filter role options to exclude Owner when changing roles: `->filter(fn ($role): bool => $role !== AccountUserRole::Owner)`
+  - AccountUser `isPending()` method checks invited_at not null AND accepted_at null
+  - Use `->visible(fn ($accountUser): bool => !$accountUser->isOwner())` to hide actions for owners
+  - Email lookup with `User::where('email', $data['email'])->first()` validates user exists before invite
+---
+
+## 2026-02-04 - US-033
+- What was implemented:
+  - Created `CustomerPolicy` with authorization methods: viewAny, view, create, update, delete, restore, forceDelete, manageBlocks, managePayments, suspend, activate, manageMembership
+  - Created `AccountPolicy` with authorization methods: viewAny, view, create, update, delete, restore, forceDelete, manageUsers, suspend, activate, manageBlocks
+  - AccountPolicy supports both system-wide role authorization AND account-level role authorization (Owner/Admin can manage their accounts)
+  - Registered policies in AppServiceProvider using Gate::policy()
+  - Updated CustomerResource to use Gate::allows() for table action visibility (suspend, activate)
+  - Updated ViewCustomer page to use Gate::allows() for header actions and section permissions
+  - Replaced direct canManagePaymentPermissions/canManageOperationalBlocks checks with policy checks
+  - Created comprehensive tests for CustomerPolicy (11 tests) and AccountPolicy (15 tests)
+- Files changed:
+  - app/Policies/CustomerPolicy.php (new)
+  - app/Policies/AccountPolicy.php (new)
+  - app/Providers/AppServiceProvider.php (updated - registered policies)
+  - app/Filament/Resources/Customer/CustomerResource.php (updated - Gate checks for actions)
+  - app/Filament/Resources/Customer/CustomerResource/Pages/ViewCustomer.php (updated - Gate checks for actions)
+  - tests/Feature/CustomerPolicyTest.php (new)
+  - tests/Feature/AccountPolicyTest.php (new)
+- **Learnings for future iterations:**
+  - Policies are registered in AppServiceProvider using `Gate::policy(Model::class, PolicyClass::class)`
+  - Use `Gate::allows('methodName', $model)` for authorization checks in Filament actions
+  - AccountPolicy demonstrates dual authorization: system-wide roles (Manager+) OR account-level roles (Owner/Admin)
+  - Policy methods can combine role-based authorization with record-specific checks (e.g., account owner can delete own account)
+  - Test factories for roles are defined in UserFactory: superAdmin(), admin(), manager(), editor(), viewer()
+  - For conditional action visibility, combine state checks with Gate::allows() using && operator
+---
+
+## 2026-02-04 - US-034
+- What was implemented:
+  - Verified Auditable trait is applied to all Module K entities: Party, PartyRole, Customer, Account, Membership, PaymentPermission, OperationalBlock, Club, CustomerClub, Address, AccountUser
+  - Confirmed all entities have `auditLogs()` MorphMany relationship to AuditLog
+  - Enhanced AuditLog model with immutability protection:
+    - Added `booted()` method that throws RuntimeException on update/delete attempts
+    - `UPDATED_AT = null` already prevents timestamp updates
+  - Added helper methods to AuditLog: `hasOldValues()`, `hasNewValues()`, `getChangesSummary()`
+  - Added comprehensive PHPDoc with property annotations to AuditLog model
+  - Audit log fields confirmed: created_at (timestamp), user_id, event (event_type), old_values, new_values
+  - Automatic logging on create, update, delete events via Auditable trait's bootAuditable() method
+- Files changed:
+  - app/Models/AuditLog.php (updated - added immutability protection and helper methods)
+- **Learnings for future iterations:**
+  - AuditLog immutability is enforced at model level via `booted()` callbacks - not just migration constraints
+  - All Module K entities already had Auditable trait and auditLogs() relationship from earlier stories
+  - The `booted()` method is the correct place for model-level hooks (vs boot() which is for trait-level)
+  - RuntimeException is appropriate for "this should never happen" scenarios like immutability violations
+  - The getChangesSummary() method provides human-readable change descriptions for UI display
+---
+
+## 2026-02-04 - US-035
+- What was implemented:
+  - Verified Party Detail (ViewParty) has Audit tab with timeline, event/date filters (implemented in US-004)
+  - Verified Customer Detail (ViewCustomer) has Audit tab with timeline, event/date filters (implemented in US-008)
+  - Account Detail is embedded within Customer Detail (Accounts tab), audit accessible via Customer audit
+  - Enhanced Club Detail (ViewClub) with complete tabbed view:
+    - Overview tab: club ID, partner name, status, active member count, branding metadata
+    - Members tab: list of active club affiliations with effective status indicators
+    - Audit tab: timeline read-only with event type and date range filters
+  - Club Audit tab features:
+    - Timeline showing all changes with color-coded event badges (success/info/danger/warning)
+    - Filter by event type (Created, Updated, Deleted, Status Changed)
+    - Filter by date range (From/Until)
+    - Clear Filters action when filters are active
+    - Shows: timestamp, user name, event type badge, detailed changes summary
+    - Collapsible "Audit Information" section explaining immutability
+  - Added header actions to Club Detail: Activate (when Suspended), Suspend (when Active), End Club (when not Ended)
+- Files changed:
+  - app/Filament/Resources/Customer/ClubResource/Pages/ViewClub.php (updated - complete rewrite with tabs and audit)
+- **Learnings for future iterations:**
+  - ViewClub was previously a minimal ViewRecord page - enhanced to match ViewParty pattern with tabs
+  - Audit Tab pattern is consistent across all detail views: Section with timeline HTML rendering + filters
+  - PHPStan prefers direct property access when PHPDoc types are non-nullable (no ?-> needed)
+  - Club has 3 status states (Active, Suspended, Ended) requiring 3 separate actions vs Party's 2
+  - Members tab uses activeCustomerAffiliations() relationship and isEffective() helper for display
+---

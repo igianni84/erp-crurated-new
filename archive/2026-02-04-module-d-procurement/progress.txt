@@ -1,0 +1,23 @@
+## Codebase Patterns
+- Use `sql<number>` template for aggregations
+- Always use `IF NOT EXISTS` for migrations
+- Export types from actions.ts for UI components
+- Enums go in `app/Enums/{ModuleName}/` directory
+- Models go in `app/Models/{ModuleName}/` directory (e.g., `app/Models/Inventory/`)
+- Services go in `app/Services/{ModuleName}/` directory
+- Jobs go in `app/Jobs/{ModuleName}/` directory
+- Filament Resources go in `app/Filament/Resources/{ModuleName}/` directory
+- Use soft deletes unless the entity is immutable (like movements)
+- For immutable entities, do NOT add soft_deletes - they should be append-only
+- UUID fields should be auto-generated via HasUuids trait or migration default
+- Foreign keys should follow `{related_table_singular}_id` naming convention
+- Morphic relations use `{name}_type` and `{name}_id` columns
+- Audit trait is `OwenIt\Auditing\Contracts\Auditable` with `OwenIt\Auditing\Auditable` trait
+- For Filament navigation groups, use the module name (e.g., "Inventory", "Procurement")
+- Tab-based detail pages use `getTabs()` method on ViewRecord page
+
+---
+
+# Progress Log
+
+(No stories completed yet for Module B)

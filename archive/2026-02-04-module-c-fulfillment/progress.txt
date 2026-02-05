@@ -1,0 +1,17 @@
+# Ralph Progress Log
+Started: Wed Feb  4 2026
+---
+
+## Codebase Patterns
+- Use `HasUuid` trait for all models (UUID primary key)
+- Use `Auditable` trait for created_by/updated_by tracking
+- Use `SoftDeletes` trait for all business models
+- UUID foreign keys: `$table->uuid('field_id')` then `$table->foreign('field_id')->references('id')->on('table')`
+- Integer FK to users: `$table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete()`
+- Enums: backed string enums with `label()`, `color()`, `icon()` helpers
+- Status enum values as Filament colors: success/danger/warning/info/gray
+- Model boot() method for validation guards on updating
+- Index names limited to 64 chars (MySQL) - use custom names for compound indexes
+
+---
+

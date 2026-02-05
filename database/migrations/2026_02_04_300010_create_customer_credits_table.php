@@ -20,18 +20,18 @@ return new class extends Migration
             $table->uuid('uuid')->unique();
 
             // Customer relationship (required)
-            $table->foreignId('customer_id')
+            $table->foreignUuid('customer_id')
                 ->constrained('customers')
                 ->cascadeOnDelete();
 
             // Source reference - where did this credit come from?
             // Usually a payment that overpaid an invoice
-            $table->foreignId('source_payment_id')
+            $table->foreignUuid('source_payment_id')
                 ->nullable()
                 ->constrained('payments')
                 ->nullOnDelete();
 
-            $table->foreignId('source_invoice_id')
+            $table->foreignUuid('source_invoice_id')
                 ->nullable()
                 ->constrained('invoices')
                 ->nullOnDelete();

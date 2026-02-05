@@ -16,9 +16,9 @@ return new class extends Migration
             $table->uuid('uuid')->unique();
 
             // Linked entities
-            $table->foreignId('invoice_id')->constrained('invoices')->cascadeOnDelete();
-            $table->foreignId('payment_id')->constrained('payments')->cascadeOnDelete();
-            $table->foreignId('credit_note_id')->nullable()->constrained('credit_notes')->nullOnDelete();
+            $table->foreignUuid('invoice_id')->constrained('invoices')->cascadeOnDelete();
+            $table->foreignUuid('payment_id')->constrained('payments')->cascadeOnDelete();
+            $table->foreignUuid('credit_note_id')->nullable()->constrained('credit_notes')->nullOnDelete();
 
             // Refund details
             $table->string('refund_type'); // enum: full, partial

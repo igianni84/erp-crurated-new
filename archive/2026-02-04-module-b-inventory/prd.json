@@ -1,0 +1,996 @@
+{
+  "project": "ERP4 - Module C Fulfillment & Shipping",
+  "branchName": "ralph/module-c-fulfillment",
+  "description": "Module C - Fulfillment & Shipping: The authoritative system for converting abstract rights (vouchers) to physical deliveries. Governs Shipping Orders, Late Binding, WMS orchestration, Voucher Redemption, and Ownership Transfer.",
+  "userStories": [
+    {
+      "id": "US-C001",
+      "title": "Setup modello ShippingOrder",
+      "description": "As an Admin, I want to define the base model for Shipping Orders as explicit shipping authorizations.",
+      "acceptanceCriteria": [
+        "Tabella shipping_orders con campi: id, uuid, customer_id (FK parties), destination_address_id (FK addresses nullable), source_warehouse_id (FK locations nullable), status (enum), packaging_preference (enum), shipping_method (string nullable), carrier (string nullable), incoterms (string nullable), requested_ship_date (date nullable), special_instructions (text nullable), created_by (FK users), approved_by (FK users nullable), approved_at (timestamp nullable)",
+        "Soft deletes abilitati",
+        "Relazione: ShippingOrder belongsTo Customer (Party)",
+        "Relazione: ShippingOrder belongsTo Location (source warehouse)",
+        "Relazione: ShippingOrder hasMany ShippingOrderLine",
+        "Vincolo: status transitions must follow defined workflow",
+        "Typecheck e lint passano"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C002",
+      "title": "Setup modello Shipment",
+      "description": "As an Admin, I want to define Shipment as a record of the physical shipping event (point of no return).",
+      "acceptanceCriteria": [
+        "Tabella shipments con campi: id, uuid, shipping_order_id (FK), carrier (string), tracking_number (string nullable), shipped_at (timestamp), delivered_at (timestamp nullable), status (enum), shipped_bottle_serials (JSON), origin_warehouse_id (FK locations), destination_address (text), weight (decimal nullable), notes (text nullable)",
+        "Soft deletes abilitati",
+        "Relazione: Shipment belongsTo ShippingOrder",
+        "Relazione: Shipment belongsTo Location (origin)",
+        "shipped_bottle_serials è immutabile dopo conferma",
+        "Typecheck e lint passano"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C003",
+      "title": "Setup modello ShippingOrderLine",
+      "description": "As an Admin, I want to define ShippingOrderLine as the detail of items in a Shipping Order.",
+      "acceptanceCriteria": [
+        "Tabella shipping_order_lines con campi: id, uuid, shipping_order_id (FK), voucher_id (FK vouchers), allocation_id (FK allocations, immutable), status (enum), bound_bottle_serial (string nullable), bound_case_id (FK cases nullable), early_binding_serial (string nullable), binding_confirmed_at (timestamp nullable), binding_confirmed_by (FK users nullable)",
+        "Soft deletes abilitati",
+        "Relazione: ShippingOrderLine belongsTo ShippingOrder",
+        "Relazione: ShippingOrderLine belongsTo Voucher",
+        "Relazione: ShippingOrderLine belongsTo Allocation (immutable, copied from voucher)",
+        "allocation_id è IMMUTABLE dopo creazione",
+        "Vincolo: 1 voucher = 1 line = 1 bottiglia",
+        "Typecheck e lint passano"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C004",
+      "title": "Setup Enum ShippingOrderStatus",
+      "description": "As a Developer, I want an enum for Shipping Order lifecycle states.",
+      "acceptanceCriteria": [
+        "Enum ShippingOrderStatus: draft, planned, picking, shipped, completed, cancelled, on_hold",
+        "Transizioni valide: draft→planned, planned→picking, picking→shipped, shipped→completed, any→cancelled, any→on_hold, on_hold→previous_state",
+        "Enum in app/Enums/Fulfillment/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C005",
+      "title": "Setup Enum ShipmentStatus",
+      "description": "As a Developer, I want an enum for physical Shipment states.",
+      "acceptanceCriteria": [
+        "Enum ShipmentStatus: preparing, shipped, in_transit, delivered, failed",
+        "delivered e failed sono stati terminali",
+        "Enum in app/Enums/Fulfillment/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C006",
+      "title": "Setup Enum PackagingPreference",
+      "description": "As a Developer, I want an enum for customer packaging preferences.",
+      "acceptanceCriteria": [
+        "Enum PackagingPreference: loose, cases, preserve_cases",
+        "loose: bottiglie singole",
+        "cases: assemblare in case composite",
+        "preserve_cases: preservare case intrinseci (OWC) quando possibile",
+        "Enum in app/Enums/Fulfillment/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C007",
+      "title": "Setup Enum ShippingOrderLineStatus",
+      "description": "As a Developer, I want an enum for Shipping Order Line states.",
+      "acceptanceCriteria": [
+        "Enum ShippingOrderLineStatus: pending, validated, picked, shipped, cancelled",
+        "Transizioni: pending→validated, validated→picked, picked→shipped, any→cancelled",
+        "Enum in app/Enums/Fulfillment/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C008",
+      "title": "Setup modello ShippingOrderException",
+      "description": "As an Admin, I want to record fulfillment exceptions for audit and resolution.",
+      "acceptanceCriteria": [
+        "Tabella shipping_order_exceptions con campi: id, uuid, shipping_order_id (FK), shipping_order_line_id (FK nullable), exception_type (enum), description (text), resolution_path (text nullable), status (enum: active, resolved), resolved_at (timestamp nullable), resolved_by (FK users nullable), created_by (FK users)",
+        "Soft deletes abilitati",
+        "Relazione: ShippingOrderException belongsTo ShippingOrder",
+        "Relazione: ShippingOrderException belongsTo ShippingOrderLine (optional)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C009",
+      "title": "Setup Enum ShippingOrderExceptionType",
+      "description": "As a Developer, I want an enum for fulfillment exception types.",
+      "acceptanceCriteria": [
+        "Enum ShippingOrderExceptionType: supply_insufficient, voucher_ineligible, wms_discrepancy, binding_failed, case_integrity_violated, ownership_constraint, early_binding_failed",
+        "Enum in app/Enums/Fulfillment/",
+        "Typecheck e lint passano"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C010",
+      "title": "Setup modello ShippingOrderAuditLog",
+      "description": "As an Admin, I want an immutable audit log for all Shipping Order actions.",
+      "acceptanceCriteria": [
+        "Tabella shipping_order_audit_logs con campi: id, shipping_order_id (FK), event_type (string), description (text), old_values (JSON nullable), new_values (JSON nullable), user_id (FK users nullable), created_at",
+        "NO soft deletes - audit logs sono immutabili",
+        "Relazione: AuditLog belongsTo ShippingOrder",
+        "Typecheck e lint passano"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C011",
+      "title": "ShippingOrderService per gestione SO",
+      "description": "As a Developer, I want a service to centralize Shipping Order logic.",
+      "acceptanceCriteria": [
+        "Service class ShippingOrderService in app/Services/Fulfillment/",
+        "Metodo create(Customer $customer, array $vouchers, ?Address $destination, ?string $shippingMethod): crea SO in draft",
+        "Metodo validateVouchers(ShippingOrder $so): verifica eligibility di tutti i voucher",
+        "Metodo transitionTo(ShippingOrder $so, ShippingOrderStatus $status): gestisce transizioni con validazioni",
+        "Metodo cancel(ShippingOrder $so, string $reason): cancella SO e sblocca voucher",
+        "Metodo lockVouchersForSO(ShippingOrder $so): lock voucher quando SO passa a planned",
+        "Metodo unlockVouchers(ShippingOrder $so): unlock se SO cancellata",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C012",
+      "title": "LateBindingService per gestione binding",
+      "description": "As a Developer, I want a service to centralize Late Binding logic.",
+      "acceptanceCriteria": [
+        "Service class LateBindingService in app/Services/Fulfillment/",
+        "Metodo requestEligibleInventory(ShippingOrder $so): richiede a Module B inventory per allocation lineage",
+        "Metodo bindVoucherToBottle(ShippingOrderLine $line, string $serialNumber): esegue binding",
+        "Metodo validateBinding(ShippingOrderLine $line): verifica integrità binding",
+        "Metodo validateEarlyBinding(ShippingOrderLine $line): verifica early binding da Module D",
+        "Metodo unbindLine(ShippingOrderLine $line): rimuove binding (solo se non shipped)",
+        "Invariante: allocation lineage must match tra voucher e bottle",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C013",
+      "title": "ShipmentService per gestione spedizioni",
+      "description": "As a Developer, I want a service to centralize Shipment logic.",
+      "acceptanceCriteria": [
+        "Service class ShipmentService in app/Services/Fulfillment/",
+        "Metodo createFromOrder(ShippingOrder $so): crea Shipment da SO con tutti i serials",
+        "Metodo confirmShipment(Shipment $shipment, string $trackingNumber): conferma spedizione",
+        "Metodo triggerRedemption(Shipment $shipment): redime tutti i voucher della shipment",
+        "Metodo triggerOwnershipTransfer(Shipment $shipment): triggera provenance updates",
+        "Metodo updateTracking(Shipment $shipment, string $status): aggiorna stato tracking",
+        "Metodo markDelivered(Shipment $shipment): marca come consegnato",
+        "Validazioni con eccezioni esplicite",
+        "Typecheck e lint passano"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C014",
+      "title": "VoucherLockService per gestione lock voucher",
+      "description": "As a Developer, I want a service to manage voucher lock/unlock during fulfillment.",
+      "acceptanceCriteria": [
+        "Service class VoucherLockService in app/Services/Fulfillment/",
+        "Metodo lockForShippingOrder(Voucher $voucher, ShippingOrder $so): lock voucher per SO",
+        "Metodo unlock(Voucher $voucher): unlock voucher",
+        "Metodo isLockedForSO(Voucher $voucher, ShippingOrder $so): verifica lock",
+        "Metodo getLockedVouchers(ShippingOrder $so): ritorna voucher locked per SO",
+        "Integrazione con Module A VoucherService per lifecycle transitions",
+        "Typecheck e lint passano"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C015",
+      "title": "WmsIntegrationService per orchestrazione WMS",
+      "description": "As a Developer, I want a service to manage WMS integration.",
+      "acceptanceCriteria": [
+        "Service class WmsIntegrationService in app/Services/Fulfillment/",
+        "Metodo sendPickingInstructions(ShippingOrder $so): invia istruzioni picking a WMS",
+        "Metodo receivePickingFeedback(array $pickedSerials, ShippingOrder $so): processa feedback WMS",
+        "Metodo validateSerials(array $serials, ShippingOrder $so): valida seriali ricevuti vs allocation lineage",
+        "Metodo confirmShipment(Shipment $shipment): riceve conferma shipment da WMS",
+        "Metodo handleDiscrepancy(array $discrepancy, ShippingOrder $so): gestisce discrepanze",
+        "Typecheck e lint passano"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C016",
+      "title": "ShippingOrderResource in Filament",
+      "description": "As an Operator, I want a Filament resource to manage Shipping Orders.",
+      "acceptanceCriteria": [
+        "ShippingOrderResource in Filament con navigation group Fulfillment",
+        "Navigation icon appropriato (truck o shipping)",
+        "Permessi: create, view, edit (limited), delete (draft only)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C017",
+      "title": "SO List View con filtri",
+      "description": "As an Operator, I want a Shipping Orders list as the primary operational workspace.",
+      "acceptanceCriteria": [
+        "Lista con colonne: so_id, customer, destination_country, voucher_count, source_warehouse, status (badge colorato), created_at, requested_ship_date",
+        "Status color coding prominente (draft=gray, planned=blue, picking=yellow, shipped=green, on_hold=red)",
+        "Filtri: status, customer, source_warehouse, date_range, carrier",
+        "Ricerca per: so_id, customer name, tracking_number",
+        "Ordinamento default: created_at DESC",
+        "Completed/cancelled nascosti di default",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C018",
+      "title": "SO Creation Wizard - Step 1 (Customer & Destination)",
+      "description": "As an Operator, I want to select customer and destination as the first step.",
+      "acceptanceCriteria": [
+        "Wizard step 1: selezione Customer",
+        "Autocomplete search per customer name/email",
+        "Una volta selezionato customer, mostra indirizzi salvati",
+        "Opzione per inserire nuovo indirizzo di destinazione",
+        "Validazione: customer attivo, non bloccato (check Module K eligibility)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C019",
+      "title": "SO Creation Wizard - Step 2 (Voucher Selection)",
+      "description": "As an Operator, I want to select vouchers to include in the shipment.",
+      "acceptanceCriteria": [
+        "Step 2: multi-select vouchers del customer selezionato",
+        "Mostra solo voucher con lifecycle_state = issued (non locked, non redeemed, non cancelled)",
+        "Per ogni voucher: voucher_id, wine, format, allocation_lineage",
+        "Filtri inline: wine name, allocation_id",
+        "Badge per voucher con early binding (personalizzati)",
+        "Validazione: almeno 1 voucher selezionato",
+        "Warning se voucher suspended (non selezionabili)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C020",
+      "title": "SO Creation Wizard - Step 3 (Shipping Method)",
+      "description": "As an Operator, I want to define the shipping method.",
+      "acceptanceCriteria": [
+        "Step 3 fields: carrier (select), shipping_method (string), incoterms (select), requested_ship_date (date picker)",
+        "Carrier options configurabili (DHL, FedEx, UPS, etc.)",
+        "Incoterms options: EXW, FCA, DDP, DAP, etc.",
+        "Special instructions (textarea)",
+        "Validazione: requested_ship_date >= today",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C021",
+      "title": "SO Creation Wizard - Step 4 (Packaging Preferences)",
+      "description": "As an Operator, I want to define packaging preferences.",
+      "acceptanceCriteria": [
+        "Step 4: packaging_preference (radio: loose, cases, preserve_cases)",
+        "Spiegazione inline per ogni opzione: Loose = Bottles shipped individually, Cases = Bottles assembled in composite cases, Preserve cases = Preserve original wooden cases (OWC) when available",
+        "Se preserve_cases: warning May delay shipment if case not available",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C022",
+      "title": "SO Creation Wizard - Step 5 (Review & Submit)",
+      "description": "As an Operator, I want to see a summary before creating the Shipping Order.",
+      "acceptanceCriteria": [
+        "Step 5: read-only summary di tutti i dati inseriti",
+        "Summary sections: Customer & Destination, Vouchers (count + list), Shipping Method, Packaging",
+        "Warnings informativi se presenti",
+        "SO creata in status draft by default",
+        "Messaggio: Draft Shipping Orders require planning before execution",
+        "CTA: Create Draft (primary)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C023",
+      "title": "SO Bulk Actions",
+      "description": "As an Operator, I want limited bulk actions on Shipping Orders.",
+      "acceptanceCriteria": [
+        "Bulk action: Export CSV (sempre disponibile)",
+        "Bulk action: Cancel (solo su draft/planned, richiede conferma)",
+        "NO bulk actions per shipped/completed",
+        "NO bulk transition to picking (too risky)",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C024",
+      "title": "SO Detail - Tab Overview",
+      "description": "As an Operator, I want an Overview tab that answers What, for whom, from where?",
+      "acceptanceCriteria": [
+        "Tab Overview come prima tab (default)",
+        "Section 1 - Customer & Destination: customer name (link), destination address, contact info",
+        "Section 2 - Shipping Method: carrier, method, incoterms, requested_ship_date",
+        "Section 3 - Packaging: packaging_preference con spiegazione",
+        "Section 4 - Voucher Summary: count, list con voucher_id/wine/allocation, state badges",
+        "Read-only, nessun editing da questa tab",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C025",
+      "title": "SO Detail - Tab Vouchers & Eligibility",
+      "description": "As an Operator, I want to validate eligibility of each voucher before planning.",
+      "acceptanceCriteria": [
+        "Tab Vouchers & Eligibility",
+        "Per ogni voucher: voucher_id, wine/SKU, allocation_lineage, eligibility_status (badge)",
+        "Eligibility checks mostrati esplicitamente: Voucher non cancelled, Voucher non già redeemed, Voucher non locked da altri processi, Voucher non suspended, Customer match (holder = SO customer)",
+        "Voucher ineligibili: riga in rosso con spiegazione",
+        "Banner blocking se almeno un voucher ineligibile: One or more vouchers are not eligible for fulfillment",
+        "NO override possibile - fix must happen upstream",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C026",
+      "title": "SO Detail - Tab Planning",
+      "description": "As an Operator, I want to plan the SO by verifying inventory availability.",
+      "acceptanceCriteria": [
+        "Tab Planning attiva solo se status = draft o planned",
+        "Section 1 - Source Warehouse: select o confirm warehouse",
+        "Section 2 - Inventory Availability: per ogni allocation lineage, mostra available bottles",
+        "Call a Module B per check availability",
+        "Allocation lineage è vincolo DURO - no cross-allocation substitution",
+        "States possibili: Eligible inventory available (green), Bottles available, intact case unavailable (yellow, if preserve_cases), Insufficient eligible inventory (red)",
+        "Se insufficient: SO non può procedere, crea Supply Exception",
+        "Azione Plan Order → transition to planned, lock vouchers",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C027",
+      "title": "SO Detail - Tab Picking & Binding",
+      "description": "As an Operator, I want to see late binding in action during picking.",
+      "acceptanceCriteria": [
+        "Tab Picking & Binding attiva solo se status >= picking",
+        "Read-only fino a picking status",
+        "Per ogni ShippingOrderLine: voucher_id, bound_bottle_serial (populated after WMS feedback), binding_status (pending/confirmed), early_binding_serial (se pre-bound da Module D)",
+        "Se early binding: mostra Pre-bound (personalized) badge, skip selection",
+        "Se late binding: mostra serial dopo WMS pick confirmation",
+        "Discrepancy handling: serial in rosso se non valido, azione Request Re-pick",
+        "NO manual bottle selection - operator può solo accept/reject WMS feedback",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C028",
+      "title": "SO Detail - Tab Audit & Timeline",
+      "description": "As an Operator/Compliance, I want a chronological timeline of all events.",
+      "acceptanceCriteria": [
+        "Tab Audit & Timeline",
+        "Timeline cronologica di: SO creation, Voucher validation events, Planning events, WMS messages sent/received, Picking confirmations, Binding events, Shipment execution",
+        "Per ogni evento: timestamp, description, user (if applicable)",
+        "Read-only, immutabile",
+        "Export CSV per audit",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C029",
+      "title": "SO Actions e State Transitions",
+      "description": "As an Operator, I want contextual actions for state transitions.",
+      "acceptanceCriteria": [
+        "Header actions basate su status corrente: Draft (Plan Order, Edit, Cancel), Planned (Send to Picking, Cancel, Put on Hold), Picking (Confirm Shipment dopo binding complete, Put on Hold), On Hold (Resume, Cancel), Shipped/Completed (nessuna azione - read-only)",
+        "Ogni transizione richiede conferma dialog",
+        "Transizioni invalide non mostrate",
+        "Audit log per ogni transizione",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C030",
+      "title": "Voucher Eligibility Validation",
+      "description": "As a Developer, I want voucher eligibility to be rigorously validated.",
+      "acceptanceCriteria": [
+        "Voucher è eligible se: lifecycle_state = issued, suspended = false, customer_id match SO customer, non in pending transfer, allocation active (not closed)",
+        "Validazione eseguita a: SO creation, planning, pre-picking",
+        "Voucher diventa ineligibile durante SO lifecycle → SO blocked",
+        "Typecheck e lint passano"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C031",
+      "title": "Allocation Lineage Constraint Enforcement",
+      "description": "As a Developer, I want allocation lineage to be enforced as a HARD constraint.",
+      "acceptanceCriteria": [
+        "ShippingOrderLine.allocation_id copiato da voucher.allocation_id",
+        "allocation_id è IMMUTABLE dopo creazione",
+        "Late binding DEVE usare bottle con matching allocation_id",
+        "Tentativo di bind con bottle da altra allocation → hard block",
+        "Error message: Allocation lineage mismatch. Cross-allocation substitution not allowed.",
+        "NO override exists",
+        "Typecheck e lint passano"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C032",
+      "title": "Inventory Availability Request",
+      "description": "As a Developer, I want to request inventory availability from Module B with allocation constraint.",
+      "acceptanceCriteria": [
+        "LateBindingService.requestEligibleInventory chiama Module B",
+        "Request parameters: allocation_id, quantity, warehouse_id (optional)",
+        "Module B ritorna: available_quantity, available_bottles (serials)",
+        "Se packaging_preference = preserve_cases: check anche intact case availability",
+        "Risultato cached per performance (TTL breve, < 5 min)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C033",
+      "title": "Late Binding Execution",
+      "description": "As a Developer, I want to execute late binding voucher → serialized bottle.",
+      "acceptanceCriteria": [
+        "Late binding triggered da WMS pick feedback",
+        "Per ogni serial ricevuto: Validare che serial appartiene a allocation corretta, Validare che bottle.state = stored, Validare ownership/custody, Bind: ShippingOrderLine.bound_bottle_serial = serial, Update bottle state: stored → reserved_for_picking",
+        "Binding è reversibile fino a shipment confirmation",
+        "Typecheck e lint passano"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C034",
+      "title": "Early Binding Validation",
+      "description": "As a Developer, I want to validate early binding from Module D.",
+      "acceptanceCriteria": [
+        "Se voucher ha early_binding_serial (da personalizzazione Module D): Skip bottle selection, Validate: serial exists, bottle.state = stored, allocation match, Validate: ownership/custody valid",
+        "Se validation fails: Shipment blocked, Exception created: early_binding_failed, NO fallback to late binding",
+        "Typecheck e lint passano"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C035",
+      "title": "Case Integrity Handling",
+      "description": "As a Developer, I want to handle case integrity for preserve_cases requests.",
+      "acceptanceCriteria": [
+        "Se packaging_preference = preserve_cases: Check intact case availability per allocation lineage, Se case available: ship as intact case, Se case not available: SO cannot proceed as requested, NO automatic downgrade to loose bottles",
+        "Se partial shipment from case requested: Explicit warning This will permanently break the original case, Operator must confirm, Case.integrity_status → broken, Irreversibile",
+        "Typecheck e lint passano"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C036",
+      "title": "ShipmentResource in Filament",
+      "description": "As an Operator, I want a Filament resource for Shipments.",
+      "acceptanceCriteria": [
+        "ShipmentResource in Filament con navigation group Fulfillment",
+        "Lista con colonne: shipment_id, so_id (link), carrier, tracking_number, shipped_at, status (badge), bottles_count",
+        "Filtri: status, carrier, date_range",
+        "Ricerca per: shipment_id, so_id, tracking_number",
+        "Read-heavy, limited edit capability",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C037",
+      "title": "Shipment Detail View",
+      "description": "As an Operator, I want to see Shipment details.",
+      "acceptanceCriteria": [
+        "Header: shipment_id, status, shipped_at",
+        "Section 1 - Shipping Order: SO link, customer, destination",
+        "Section 2 - Carrier & Tracking: carrier, tracking_number, tracking URL",
+        "Section 3 - Shipped Items: list of bottle serials con wine info",
+        "Section 4 - Audit: events timeline",
+        "Read-only after shipped status",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C038",
+      "title": "Shipment Creation from SO",
+      "description": "As a Developer, I want to create Shipment from a completed Shipping Order.",
+      "acceptanceCriteria": [
+        "Shipment creata quando SO transition to shipped",
+        "Copia tutti bound_bottle_serials dalle ShippingOrderLines",
+        "shipped_bottle_serials immutabile dopo creazione",
+        "Shipment.status = preparing initially",
+        "Typecheck e lint passano"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C039",
+      "title": "Shipment Confirmation & Tracking",
+      "description": "As a Developer, I want to confirm shipment and manage tracking.",
+      "acceptanceCriteria": [
+        "Azione Confirm Shipment richiede tracking_number",
+        "Confirmation triggers: Shipment.status → shipped, Shipment.shipped_at = now, Voucher redemption (all vouchers in SO), Ownership transfer trigger, Provenance update trigger",
+        "Tracking updates possibili: in_transit, delivered",
+        "Typecheck e lint passano"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C040",
+      "title": "Voucher Redemption Trigger",
+      "description": "As a Developer, I want to trigger voucher redemption ONLY at shipment confirmation.",
+      "acceptanceCriteria": [
+        "Redemption triggered da ShipmentService.triggerRedemption",
+        "Per ogni voucher nella SO: Call Module A VoucherService.redeem(voucher), Voucher.lifecycle_state → redeemed",
+        "Redemption è IRREVERSIBILE",
+        "Se redemption fails: shipment confirmation fails",
+        "Audit log per ogni redemption",
+        "Typecheck e lint passano"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C041",
+      "title": "Ownership Transfer Trigger",
+      "description": "As a Developer, I want to trigger ownership transfer post-shipment.",
+      "acceptanceCriteria": [
+        "Ownership transfer triggered dopo redemption",
+        "Per ogni bottle serial nella shipment: Update Module B bottle ownership, bottle.ownership_type → customer_owned",
+        "Trigger provenance blockchain update",
+        "Typecheck e lint passano"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C042",
+      "title": "Provenance Update Trigger",
+      "description": "As a Developer, I want to update provenance records post-shipment.",
+      "acceptanceCriteria": [
+        "Dispatch UpdateProvenanceOnShipmentJob",
+        "Per ogni bottle: Update on-chain provenance con shipment event, Record customer as new owner, Record timestamp",
+        "Job con retry on failure",
+        "Typecheck e lint passano"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C043",
+      "title": "Exceptions & Holds List",
+      "description": "As an Operator, I want a list of all fulfillment exceptions.",
+      "acceptanceCriteria": [
+        "Pagina Exceptions & Holds in navigation Fulfillment",
+        "Lista: exception_id, so_id (link), exception_type (badge), description, status (active/resolved), created_at",
+        "Filtri: exception_type, status, date_range",
+        "Ricerca per: exception_id, so_id",
+        "Active exceptions highlighted",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C044",
+      "title": "Supply Exception Handling",
+      "description": "As an Operator, I want to handle insufficient supply exceptions.",
+      "acceptanceCriteria": [
+        "Exception type: supply_insufficient",
+        "Created quando: planning fails due to no eligible inventory",
+        "Info mostrate: allocation_id, required_quantity, available_quantity (0)",
+        "Resolution paths: Wait for inventory to become available, Request internal transfer (Module B), Cancel Shipping Order",
+        "NO resolution via cross-allocation substitution",
+        "Typecheck e lint passano"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C045",
+      "title": "WMS Discrepancy Resolution",
+      "description": "As an Operator, I want to handle WMS discrepancies.",
+      "acceptanceCriteria": [
+        "Exception type: wms_discrepancy",
+        "Created quando: WMS picks bottle that fails validation",
+        "Info mostrate: expected_constraints, picked_serial, violation_reason",
+        "Resolution paths: Request WMS re-pick, Cancel Shipping Order",
+        "NO manual acceptance of invalid pick",
+        "Typecheck e lint passano"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C046",
+      "title": "Voucher Ineligible Blocking",
+      "description": "As a Developer, I want to block SO if a voucher becomes ineligible.",
+      "acceptanceCriteria": [
+        "Check voucher eligibility at: creation, planning, pre-picking",
+        "Se voucher ineligibile: SO cannot proceed, Exception created: voucher_ineligible, Banner in SO detail: One or more vouchers are no longer eligible",
+        "Resolution paths: Remove ineligible voucher from SO, Cancel Shipping Order",
+        "NO partial fulfillment silently",
+        "Typecheck e lint passano"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C047",
+      "title": "Shipment Failure Recovery",
+      "description": "As an Admin, I want to handle failures post-shipment.",
+      "acceptanceCriteria": [
+        "Se WMS reports shipment ma ERP validation fails: Shipment status = failed, Redemption NOT executed, Critical alert created",
+        "Recovery richiede admin intervention",
+        "Full audit trail preserved",
+        "Possible actions: retry confirmation, manual reconciliation",
+        "Typecheck e lint passano"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C048",
+      "title": "WMS Outbound Message",
+      "description": "As a Developer, I want to send picking instructions to WMS.",
+      "acceptanceCriteria": [
+        "Messaggio inviato quando SO transition to picking",
+        "Payload: so_id, warehouse_id, lines (voucher_id, allocation_id, product_info)",
+        "Se early_binding: include specific serial to pick",
+        "Se late_binding: include allocation constraint, WMS selects serial",
+        "Messaggio logged in audit",
+        "Typecheck e lint passano"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C049",
+      "title": "WMS Picking Feedback Reception",
+      "description": "As a Developer, I want to receive and process picking feedback from WMS.",
+      "acceptanceCriteria": [
+        "Endpoint/handler per ricevere picked serials da WMS",
+        "Per ogni serial: Validate vs allocation lineage, Validate bottle state, Execute binding se valid, Flag discrepancy se invalid",
+        "All bindings complete → SO can proceed to shipment",
+        "Typecheck e lint passano"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C050",
+      "title": "WMS Serial Validation",
+      "description": "As a Developer, I want to validate serials received from WMS.",
+      "acceptanceCriteria": [
+        "Validation checks: Serial exists in Module B, Bottle.allocation_id matches ShippingOrderLine.allocation_id, Bottle.state = stored, Bottle.ownership allows fulfillment, Bottle not destroyed/missing",
+        "Validation failure → discrepancy logged",
+        "Typecheck e lint passano"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C051",
+      "title": "WMS Shipment Confirmation",
+      "description": "As a Developer, I want to receive shipment confirmation from WMS.",
+      "acceptanceCriteria": [
+        "Endpoint/handler per conferma shipment",
+        "Payload: so_id, carrier, tracking_number, shipped_serials",
+        "Validate: all expected serials shipped",
+        "Trigger: Shipment creation, redemption, ownership transfer",
+        "Partial shipment handling: not supported in MVP, flag as exception",
+        "Typecheck e lint passano"
+      ],
+      "priority": 51,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C052",
+      "title": "Audit Trail per ShippingOrder",
+      "description": "As a Compliance Officer, I want an immutable audit log for Shipping Orders.",
+      "acceptanceCriteria": [
+        "Eventi loggati: creation, status_change, voucher_added, voucher_removed, planning_result, wms_sent, wms_received, binding, shipment_confirmed, cancelled",
+        "Per ogni evento: event_type, description, old_values, new_values, user_id, timestamp",
+        "Tab Audit in SO detail con timeline",
+        "Audit logs immutabili (no delete, no update)",
+        "Typecheck e lint passano"
+      ],
+      "priority": 52,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C053",
+      "title": "Audit Trail per Shipment",
+      "description": "As a Compliance Officer, I want an immutable audit log for Shipments.",
+      "acceptanceCriteria": [
+        "Eventi loggati: creation, status_change, tracking_updated, delivered, failed",
+        "Per ogni evento: event_type, description, user_id, timestamp",
+        "Section Audit in Shipment detail",
+        "Audit logs immutabili",
+        "Typecheck e lint passano"
+      ],
+      "priority": 53,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C054",
+      "title": "Late Binding Audit Log",
+      "description": "As a Compliance Officer, I want to track every binding voucher → bottle.",
+      "acceptanceCriteria": [
+        "Per ogni binding: voucher_id, bottle_serial, allocation_id, binding_type (late/early), timestamp, wms_event_reference",
+        "Bindings logged sia su ShippingOrderLine che su audit separato",
+        "Query capability per: tutti i binding per allocation X",
+        "Typecheck e lint passano"
+      ],
+      "priority": 54,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C055",
+      "title": "Fulfillment Dashboard",
+      "description": "As an Operations Manager, I want a dashboard to monitor fulfillment status.",
+      "acceptanceCriteria": [
+        "Pagina Fulfillment Overview come landing page del modulo",
+        "Widget A: SO by Status (counts: draft, planned, picking, shipped, on_hold)",
+        "Widget B: SOs Requiring Attention (exceptions active, near requested_ship_date)",
+        "Widget C: Shipments Today/This Week",
+        "Widget D: Exception Summary (by type, count)",
+        "Link rapidi a items problematici",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 55,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C056",
+      "title": "SO Workflow Visualization",
+      "description": "As an Operator, I want to see a visual workflow indicator for SO status.",
+      "acceptanceCriteria": [
+        "In SO detail header: visual workflow indicator",
+        "Steps: Draft → Planned → Picking → Shipped → Completed",
+        "Current step highlighted",
+        "Completed steps in green, current in blue, future in gray",
+        "On Hold shown as red overlay",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 56,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C057",
+      "title": "Customer Shipping Orders tab",
+      "description": "As an Operator, I want to see Shipping Orders for a customer from Customer Detail.",
+      "acceptanceCriteria": [
+        "Tab Shipping Orders in CustomerResource detail",
+        "Lista SO del customer: so_id, status, voucher_count, created_at, shipped_at",
+        "Filtri: status",
+        "Link a SO detail",
+        "Summary: total SOs, pending, shipped",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 57,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C058",
+      "title": "Customer Shipments history",
+      "description": "As an Operator, I want to see shipment history for a customer.",
+      "acceptanceCriteria": [
+        "Sub-section o tab Shipment History in Customer",
+        "Lista Shipments: shipment_id, carrier, tracking, shipped_at, status",
+        "Link a Shipment detail",
+        "Read-only",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 58,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C059",
+      "title": "Concurrent SO prevention",
+      "description": "As a Developer, I want to prevent the same voucher from being in multiple SOs.",
+      "acceptanceCriteria": [
+        "Voucher può essere in una sola SO active (draft/planned/picking) alla volta",
+        "Tentativo di aggiungere voucher già in altra SO → blocked",
+        "Error: Voucher is already assigned to Shipping Order SO-XXX",
+        "Lock released quando SO completata o cancellata",
+        "Typecheck e lint passano"
+      ],
+      "priority": 59,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C060",
+      "title": "SO cancellation voucher unlock",
+      "description": "As a Developer, I want vouchers to be unlocked when SO is cancelled.",
+      "acceptanceCriteria": [
+        "Quando SO cancelled: Tutti voucher.lifecycle_state rimangono issued, Voucher lock released, Voucher disponibili per nuova SO",
+        "Se SO era in picking: Bindings removed, Bottle.state torna a stored",
+        "Audit log per ogni unlock",
+        "Typecheck e lint passano"
+      ],
+      "priority": 60,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C061",
+      "title": "Shipment without SO prevention",
+      "description": "As a Developer, I want to prevent any shipment without a Shipping Order.",
+      "acceptanceCriteria": [
+        "Shipment MUST have shipping_order_id (NOT NULL)",
+        "No API/UI per creare Shipment standalone",
+        "WMS shipment confirmation richiede SO reference",
+        "Invariante enforced a database level",
+        "Typecheck e lint passano"
+      ],
+      "priority": 61,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-C062",
+      "title": "Redemption timing enforcement",
+      "description": "As a Developer, I want redemption to happen ONLY at shipment confirmation.",
+      "acceptanceCriteria": [
+        "Redemption triggered ONLY da ShipmentService.confirmShipment",
+        "No redemption a: SO creation, planning, picking",
+        "Voucher.lifecycle_state = locked durante picking (non redeemed)",
+        "Invariante: redeemed IMPLIES shipped",
+        "Typecheck e lint passano"
+      ],
+      "priority": 62,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

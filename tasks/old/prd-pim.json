@@ -1,0 +1,384 @@
+{
+  "project": "ERP4 - Module 0 PIM",
+  "branchName": "ralph/pim",
+  "description": "Product Information Management (PIM) - Sistema autoritativo per l'identità e la struttura dei prodotti nell'ERP Crurated",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Setup modello Wine Master",
+      "description": "Come Product Manager, voglio definire l'identità base di un vino (indipendente da vintage) per avere una struttura gerarchica pulita.",
+      "acceptanceCriteria": [
+        "Tabella `wine_masters` con campi: name, producer, appellation, classification, country, region, description",
+        "Campi opzionali: liv_ex_code, regulatory_attributes (JSON)",
+        "Filament Resource con form di creazione/modifica",
+        "Ricerca per nome, producer, appellation",
+        "Typecheck e lint passano"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Setup modello Wine Variant (Vintage)",
+      "description": "Come Product Manager, voglio associare un vintage specifico a un Wine Master per gestire le annate.",
+      "acceptanceCriteria": [
+        "Tabella `wine_variants` con FK a wine_masters",
+        "Campi: vintage_year, alcohol_percentage, drinking_window_start, drinking_window_end",
+        "Campi JSON: critic_scores, production_notes",
+        "Relazione: WineMaster hasMany WineVariant",
+        "Filament Resource con filtro per Wine Master",
+        "Vincolo: vintage_year unico per wine_master_id",
+        "Typecheck e lint passano"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Setup modello Format",
+      "description": "Come Admin, voglio definire i formati bottiglia standard per riutilizzarli su tutti i prodotti.",
+      "acceptanceCriteria": [
+        "Tabella `formats` con campi: name, volume_ml, is_standard, allowed_for_liquid_conversion",
+        "Formati predefiniti: 375ml, 750ml, 1500ml, 3000ml, 6000ml",
+        "Filament Resource con creazione/modifica",
+        "Soft delete per mantenere integrità referenziale",
+        "Typecheck e lint passano"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Setup modello Case Configuration",
+      "description": "Come Product Manager, voglio definire le configurazioni case (OWC, OC, loose) per gestire correttamente il packaging.",
+      "acceptanceCriteria": [
+        "Tabella `case_configurations` con campi: name, format_id (FK), bottles_per_case, case_type (enum: owc, oc, none)",
+        "Campi boolean: is_original_from_producer, is_breakable",
+        "Configurazioni predefinite: 6x750ml OWC, 6x750ml OC, 12x750ml OWC, 1x1500ml OWC, loose",
+        "Filament Resource con filtri per format e case_type",
+        "Typecheck e lint passano"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Setup modello Sellable SKU",
+      "description": "Come Product Manager, voglio creare SKU vendibili combinando Wine Variant + Format + Case Configuration.",
+      "acceptanceCriteria": [
+        "Tabella `sellable_skus` con FK: wine_variant_id, format_id, case_configuration_id",
+        "Campi: sku_code (unique, auto-generated), barcode (optional)",
+        "Enum lifecycle_status: draft, active, retired",
+        "SKU code format: {WINE_CODE}-{VINTAGE}-{FORMAT}-{CASE} (es: SASS-2018-750-6OWC)",
+        "Filament Resource nested dentro Wine Variant detail",
+        "Vincolo: combinazione wine_variant + format + case_configuration unica",
+        "Typecheck e lint passano"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Setup modello Liquid Product",
+      "description": "Come Product Manager, voglio definire Liquid Products per vendite pre-bottling.",
+      "acceptanceCriteria": [
+        "Tabella `liquid_products` con FK a wine_variant_id",
+        "Campi JSON: allowed_equivalent_units, allowed_final_formats, allowed_case_configurations, bottling_constraints",
+        "Campo boolean: serialization_required (default true)",
+        "Enum lifecycle_status: draft, in_review, approved, published, archived",
+        "Liquid Products non hanno Sellable SKUs diretti",
+        "Filament Resource separato da Bottle Products",
+        "Typecheck e lint passano"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Implementare lifecycle states per Wine Variant",
+      "description": "Come Reviewer, voglio che i Wine Variant seguano un workflow di approvazione prima di essere pubblicati.",
+      "acceptanceCriteria": [
+        "Enum ProductLifecycleStatus: draft, in_review, approved, published, archived",
+        "Campo lifecycle_status su wine_variants",
+        "Transizioni valide: draft→in_review, in_review→approved/rejected(draft), approved→published, published→archived",
+        "Bottoni azione in Filament basati su stato corrente e ruolo utente",
+        "Modifica di campi sensibili su Published ritorna automatico a In Review",
+        "Typecheck e lint passano"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Implementare completeness percentage",
+      "description": "Come Product Manager, voglio vedere la percentuale di completamento di un prodotto per sapere cosa manca.",
+      "acceptanceCriteria": [
+        "Metodo getCompletenessPercentage() su WineVariant",
+        "Definizione campi required vs optional con pesi",
+        "Colonna completeness nella lista prodotti",
+        "Badge colorato: <50% rosso, 50-80% giallo, >80% verde",
+        "Typecheck e lint passano"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Implementare blocking issues e warnings",
+      "description": "Come Product Manager, voglio vedere chiaramente quali problemi bloccano la pubblicazione.",
+      "acceptanceCriteria": [
+        "Metodo getBlockingIssues() che ritorna array di problemi",
+        "Metodo getWarnings() per problemi non bloccanti",
+        "Tab Overview mostra issues raggruppati",
+        "Click su issue naviga al tab/campo corrispondente",
+        "Blocco pubblicazione se esistono blocking issues",
+        "Typecheck e lint passano"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Implementare audit log",
+      "description": "Come Compliance Officer, voglio un log immutabile di tutte le modifiche ai prodotti.",
+      "acceptanceCriteria": [
+        "Tabella `audit_logs` con: auditable_type, auditable_id, event, old_values, new_values, user_id, created_at",
+        "Trait Auditable per modelli PIM",
+        "Log automatico su create, update, delete, status change",
+        "Tab Audit in Product Detail con timeline",
+        "Filtri per tipo evento e date range",
+        "Typecheck e lint passano"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Product List view",
+      "description": "Come Operator, voglio una lista prodotti completa con filtri per gestire il catalogo.",
+      "acceptanceCriteria": [
+        "Lista con colonne: thumbnail, name+vintage, category, lifecycle_status, completeness%, data_source, updated_at",
+        "Filtri: status, category (bottle/liquid), completeness range, source (liv-ex/manual)",
+        "Ricerca: nome, internal code, LWIN",
+        "Bulk actions: submit for review (solo su draft)",
+        "No azioni sensibili (publish, archive) dalla lista",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create Product flow - scelta categoria",
+      "description": "Come Product Manager, voglio scegliere se creare un Bottle Product o Liquid Product all'inizio.",
+      "acceptanceCriteria": [
+        "Wizard step 1: selezione categoria (Bottle/Liquid)",
+        "Scelta irreversibile dopo creazione",
+        "UI chiara con descrizione di ogni categoria",
+        "Redirect a flow specifico dopo selezione",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create Bottle Product - import Liv-ex",
+      "description": "Come Product Manager, voglio importare dati da Liv-ex per creare prodotti velocemente con dati accurati.",
+      "acceptanceCriteria": [
+        "Step 2a: selezione metodo (Liv-ex / Manual)",
+        "Ricerca Liv-ex per LWIN o nome vino",
+        "Mostra risultati matching con preview dati",
+        "Conferma import con indicazione campi che saranno locked",
+        "Creazione Wine Master se non esiste",
+        "Creazione Wine Variant in stato Draft",
+        "Import attributi e media da Liv-ex",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create Bottle Product - manual",
+      "description": "Come Product Manager, voglio creare un prodotto manualmente quando non disponibile su Liv-ex.",
+      "acceptanceCriteria": [
+        "Step 2b: form manuale con campi minimi (wine name, vintage, producer)",
+        "Creazione o selezione Wine Master esistente",
+        "Creazione Wine Variant in stato Draft",
+        "Redirect a Product Detail per completamento",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Product Detail - Tab Overview",
+      "description": "Come Product Manager, voglio vedere lo stato complessivo di un prodotto a colpo d'occhio.",
+      "acceptanceCriteria": [
+        "Read-only control panel",
+        "Mostra: identity, lifecycle status, completeness %, blocking issues, warnings, Liv-ex status",
+        "Azioni contestuali: Validate, Submit for Review, Approve/Reject, Publish",
+        "Azioni visibili solo se permesse da ruolo e stato",
+        "Click su issue naviga al tab corretto",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 15,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Product Detail - Tab Core Info",
+      "description": "Come Product Manager, voglio modificare le informazioni base del prodotto.",
+      "acceptanceCriteria": [
+        "Campi: wine name, vintage, producer, appellation, internal references, descriptions",
+        "Campi Liv-ex: marcati visivamente, locked by default",
+        "Override Liv-ex: solo Manager/Admin con conferma",
+        "Modifica campo sensibile su Published → status diventa In Review",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 16,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Product Detail - Tab Attributes",
+      "description": "Come Product Manager, voglio gestire gli attributi strutturati del prodotto.",
+      "acceptanceCriteria": [
+        "Attributi caricati dinamicamente da attribute set",
+        "Raggruppamento in sezioni logiche (Wine Info, Compliance, etc.)",
+        "Indicatore required/optional per attributo",
+        "Mostra: valore corrente, source (Liv-ex/Manual), editability",
+        "Completeness aggiornata in real-time",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 17,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Product Detail - Tab Media",
+      "description": "Come Content Editor, voglio gestire immagini e documenti del prodotto.",
+      "acceptanceCriteria": [
+        "Sezione Liv-ex media (read-only)",
+        "Sezione manual uploads (editable)",
+        "Upload multiple images e documents",
+        "Drag & drop reorder per manual images",
+        "Set primary image (required per publish)",
+        "Refresh Liv-ex assets button",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 18,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Product Detail - Tab Sellable SKUs",
+      "description": "Come Product Manager, voglio definire come questo vino può essere venduto.",
+      "acceptanceCriteria": [
+        "Lista SKU con: code, format, case configuration, integrity flags, lifecycle status",
+        "Create SKU: select format → select case configuration",
+        "Generate intrinsic SKUs from producer data",
+        "Retire obsolete SKUs",
+        "SKU lifecycle indipendente da product lifecycle",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 19,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Product Detail - Tab Lifecycle",
+      "description": "Come Reviewer, voglio gestire le transizioni di stato del prodotto.",
+      "acceptanceCriteria": [
+        "Mostra: stato corrente, publish readiness checklist, blocking vs warnings",
+        "Solo transizioni valide visibili basate su ruolo",
+        "Transizioni: Draft→In Review, In Review→Approved/Rejected, Approved→Published, Published→Archived",
+        "Conferma con commento obbligatorio per Reject",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 20,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Product Detail - Tab Audit",
+      "description": "Come Compliance Officer, voglio vedere la storia completa delle modifiche.",
+      "acceptanceCriteria": [
+        "Timeline read-only con tutti gli eventi",
+        "Eventi: status changes, attribute edits, media updates, SKU changes, Liv-ex imports",
+        "Mostra: timestamp, user, tipo evento, old→new values",
+        "Filtri per tipo evento e date range",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 21,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Data Quality dashboard",
+      "description": "Come Operations Manager, voglio monitorare la salute del catalogo prodotti.",
+      "acceptanceCriteria": [
+        "Vista cross-product con metriche aggregate",
+        "Widgets: prodotti per status, completeness distribution, blocking issues count",
+        "Lista prodotti bloccati con link diretto al problema",
+        "Export lista issues per bulk fixing",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 22,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Supporto Composite Sellable SKUs",
+      "description": "Come Product Manager, voglio creare SKU bundle composti da multiple Bottle SKUs.",
+      "acceptanceCriteria": [
+        "Tabella `composite_sku_items` con: composite_sku_id, sellable_sku_id, quantity",
+        "Campo `is_composite` boolean su sellable_skus",
+        "Composite SKU = indivisibile commercialmente",
+        "Validazione: tutti gli SKU componenti devono essere active",
+        "UI per definire composizione bundle",
+        "Typecheck e lint passano",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 23,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

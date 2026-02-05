@@ -154,7 +154,7 @@ class GenerateVoucherSaleInvoice implements ShouldQueue
                 'quantity' => (string) $item['quantity'],
                 'unit_price' => $item['unit_price'],
                 'tax_rate' => $item['tax_rate'],
-                'sellable_sku_id' => $item['sellable_sku_id'],
+                'sellable_sku_id' => $item['sellable_sku_id'] ?? null,
                 'metadata' => $metadata,
             ];
         }

@@ -151,7 +151,9 @@ class Invoice extends Model
             }
 
             // After issuance, amounts, currency, FX rate, and due_date become immutable
-            if ($invoice->getOriginal('status') !== InvoiceStatus::Draft->value) {
+            // Use getRawOriginal to get the raw database value (string) before cast
+            $originalStatus = $invoice->getRawOriginal('status');
+            if ($originalStatus !== InvoiceStatus::Draft->value) {
                 $immutableAfterIssuance = ['subtotal', 'tax_amount', 'total_amount', 'currency', 'fx_rate_at_issuance', 'due_date'];
 
                 foreach ($immutableAfterIssuance as $field) {

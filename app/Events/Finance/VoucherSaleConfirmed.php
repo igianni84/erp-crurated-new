@@ -41,7 +41,7 @@ class VoucherSaleConfirmed
      * Create a new event instance.
      *
      * @param  Customer  $customer  The customer who made the purchase
-     * @param  array<int, array{sellable_sku_id: int, sku_code: string, description: string, quantity: int, unit_price: string, tax_rate: string, pricing_snapshot_id?: string, pricing_metadata?: array<string, mixed>}>  $items  The items purchased with pricing from Module S
+     * @param  array<int, array{sellable_sku_id: int|null, sku_code: string, description: string, quantity: int, unit_price: string, tax_rate: string, pricing_snapshot_id?: string, pricing_metadata?: array<string, mixed>}>  $items  The items purchased with pricing from Module S
      * @param  string  $saleReference  Unique reference for this sale (voucher_batch_id or sale_order_id)
      * @param  string  $currency  Currency code for the sale (default: EUR)
      * @param  bool  $autoIssue  Whether to automatically issue the invoice after creation (default: true for immediate payment)

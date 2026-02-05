@@ -1,0 +1,13 @@
+# Ralph Progress Log
+Started: Tue Feb  4 2026
+
+## Codebase Patterns
+- Use `$table->uuid('id')->primary()` for model primary keys with HasUuid trait
+- Models use Auditable trait with created_by/updated_by foreign keys to users
+- Enums follow pattern: value cases with label(), color(), icon() methods
+- Inventory module: app/Models/Inventory/, app/Enums/Inventory/, app/Services/Inventory/
+- Services throw InvalidArgumentException for validation errors
+- Fulfillment module will follow same patterns: app/Models/Fulfillment/, app/Enums/Fulfillment/, app/Services/Fulfillment/
+
+---
+
