@@ -13,6 +13,8 @@ use App\Models\Finance\InvoicePayment;
 use App\Services\Finance\InvoiceMailService;
 use App\Services\Finance\InvoicePdfService;
 use App\Services\Finance\InvoiceService;
+use App\Services\Finance\PaymentService;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -1475,19 +1477,71 @@ class ViewInvoice extends ViewRecord
                     ->default(now())
                     ->maxDate(now())
                     ->helperText('The date the payment was received'),
+                Placeholder::make('partial_payment_warning')
+                    ->label('')
+                    ->content(function (\Filament\Forms\Get $get): \Illuminate\Contracts\Support\Htmlable|string {
+                        $amount = $get('amount');
+                        $outstanding = $this->getInvoice()->getOutstandingAmount();
+
+                        if ($amount !== null && bccomp((string) $amount, $outstanding, 2) < 0) {
+                            $remaining = bcsub($outstanding, (string) $amount, 2);
+                            $currency = $this->getInvoice()->currency;
+
+                            return new \Illuminate\Support\HtmlString(
+                                '<div class="p-3 rounded-lg bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-400">'.
+                                '<strong>⚠ Partial Payment:</strong> This will leave '.
+                                "{$currency} {$remaining} outstanding on this invoice.".
+                                '</div>'
+                            );
+                        }
+
+                        return '';
+                    })
+                    ->visible(fn (\Filament\Forms\Get $get): bool => $get('amount') !== null
+                        && bccomp((string) $get('amount'), $this->getInvoice()->getOutstandingAmount(), 2) < 0),
             ])
             ->requiresConfirmation()
             ->modalHeading('Record Bank Payment')
-            ->modalDescription('Record a bank transfer payment for this invoice.')
+            ->modalDescription('Record a bank transfer payment for this invoice. The payment will be automatically applied to this invoice.')
             ->modalSubmitActionLabel('Record Payment')
             ->action(function (array $data): void {
-                // This action will be fully implemented in US-E056 with PaymentService
-                // For now, create a simple placeholder that shows the pattern
-                Notification::make()
-                    ->title('Bank Payment Recorded')
-                    ->body("Payment of {$this->getInvoice()->currency} {$data['amount']} with reference {$data['bank_reference']} will be recorded. Full implementation in US-E056.")
-                    ->warning()
-                    ->send();
+                $paymentService = app(PaymentService::class);
+                $invoice = $this->getInvoice();
+                $invoice->loadMissing('customer');
+
+                try {
+                    // Create bank payment
+                    $payment = $paymentService->createBankPayment(
+                        amount: (string) $data['amount'],
+                        bankReference: $data['bank_reference'],
+                        customer: $invoice->customer,
+                        currency: $invoice->currency,
+                        receivedAt: Carbon::parse($data['received_at'])
+                    );
+
+                    // Auto-apply the payment to this invoice
+                    $paymentService->applyToInvoice($payment, $invoice, (string) $data['amount']);
+
+                    // Mark as reconciled since we're applying directly to a known invoice
+                    $paymentService->markReconciled($payment, \App\Enums\Finance\ReconciliationStatus::Matched);
+
+                    // Refresh the record to show updated amounts
+                    $this->record->refresh();
+
+                    Notification::make()
+                        ->title('Bank Payment Recorded')
+                        ->body("Payment of {$invoice->currency} {$data['amount']} with reference {$data['bank_reference']} has been recorded and applied to invoice {$invoice->invoice_number}.")
+                        ->success()
+                        ->send();
+
+                    $this->refreshFormData(['status', 'amount_paid']);
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Record Payment')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
             });
     }
 
