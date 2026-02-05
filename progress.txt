@@ -755,3 +755,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Tax Breakdown section shows table with taxable amounts and tax by rate
   - Cross-border indicator and customs duties section visible when applicable
 ---
+
+## 2026-02-05 - US-E039
+- What was implemented: INV2 redemption fee support - distinguishing shipping-only vs redemption+shipping
+- Files changed:
+  - app/Events/Finance/ShipmentExecuted.php (added redemptionFee and isRedemption parameters, helper methods)
+  - app/Listeners/Finance/GenerateShippingInvoice.php (added buildRedemptionFeeLine(), updated notes to show shipment type)
+  - app/Services/Finance/InvoiceService.php (added redemption fee support to calculateShippingCosts(), helper methods)
+  - app/Models/Finance/Invoice.php (added redemption-related helper methods)
+- **Acceptance criteria verification:**
+  - ✅ Invoice line for redemption fee: buildRedemptionFeeLine() creates 'redemption' line_type with amount from event
+  - ✅ Fee amount from Module S pricing: redemptionFee parameter includes pricing_snapshot_id for Module S tracking
+  - ✅ Distinguish: shipping-only vs redemption+shipping: isRedemptionShipment(), isShippingOnly(), getShipmentType() helpers
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - ShipmentExecuted event now has two new parameters: redemptionFee (array with amount, tax_rate, description, pricing_snapshot_id) and isRedemption (bool)
+  - Redemption fee line_type = 'redemption' in metadata for reporting and filtering
+  - Invoice.hasRedemptionFee() checks line metadata for line_type = 'redemption'
+  - Shipment type can be determined by: hasRedemptionFee() OR shipment_type metadata = 'redemption'
+  - InvoiceService methods: hasRedemptionFee(), isRedemptionShipment(), isShippingOnly(), getShipmentType() for array-based data
+  - Invoice methods: hasRedemptionFee(), getRedemptionFeeAmount(), getRedemptionFeeLine(), isRedemptionShipment(), isShippingOnly(), getShipmentType(), getShipmentTypeLabel()
+  - Module C should pass pricing_snapshot_id from Module S when creating redemption shipments
+---
