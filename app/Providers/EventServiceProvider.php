@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Events\Finance\EventBookingConfirmed;
 use App\Events\Finance\ShipmentExecuted;
 use App\Events\Finance\SubscriptionBillingDue;
 use App\Events\Finance\VoucherSaleConfirmed;
+use App\Listeners\Finance\GenerateEventServiceInvoice;
 use App\Listeners\Finance\GenerateShippingInvoice;
 use App\Listeners\Finance\GenerateSubscriptionInvoice;
 use App\Listeners\Finance\GenerateVoucherSaleInvoice;
@@ -44,6 +46,12 @@ class EventServiceProvider extends ServiceProvider
         Event::listen(
             ShipmentExecuted::class,
             GenerateShippingInvoice::class
+        );
+
+        // INV4 - Service events
+        Event::listen(
+            EventBookingConfirmed::class,
+            GenerateEventServiceInvoice::class
         );
 
         // InvoicePaid event (emitted by InvoiceService)
