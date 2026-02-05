@@ -2122,3 +2122,18 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Report follows same pattern as other Finance reports: period selector, summary cards, data tables, CSV export
   - navigationSort of 63 places it after OutstandingExposureReport (62) in the Reports sub-navigation
 ---
+
+## 2026-02-05 - US-E110
+- What was implemented: Audit Export page for compliance officers to export audit logs
+- Files changed:
+  - app/Filament/Pages/Finance/AuditExport.php (Filament page with filters, pagination, export)
+  - resources/views/filament/pages/finance/audit-export.blade.php (Blade view template)
+- **Learnings for future iterations:**
+  - AuditLog model has polymorphic relation to auditable entities via auditable_type/auditable_id
+  - AuditLog uses HasUuid but NOT Auditable trait (it is the audit system itself)
+  - AuditLog is immutable - boot() blocks updating() and deleting() operations
+  - old_values and new_values are cast to 'array' in AuditLog casts()
+  - When using chunk() in closures, PHPStan may need explicit type annotations for model properties
+  - Stream downloads use response()->streamDownload() with a closure writing to php://output
+  - For JSON streaming with proper formatting, manually construct the JSON structure
+---

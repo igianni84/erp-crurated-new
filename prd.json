@@ -1744,8 +1744,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 110,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "AuditExport page with entity type/date range/user filters, CSV and JSON export formats, preview table with pagination. Browser verification deferred - no dev-browser skill available."
     },
     {
       "id": "US-E111",
