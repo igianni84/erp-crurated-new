@@ -2323,3 +2323,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Use continue statements in foreach loops for early filtering to satisfy type narrowing
   - Blade templates can compute PHP values inline with @php blocks to avoid multiple method calls
 ---
+
+## 2026-02-05 - US-E119
+- What was implemented: Added alerts and warnings section to Finance Overview dashboard
+- Files changed:
+  - app/Filament/Pages/Finance/FinanceOverview.php (added getAlerts(), dismissAlert(), and supporting methods)
+  - resources/views/filament/pages/finance/finance-overview.blade.php (added alerts section at top of page)
+- **Features implemented:**
+  - Alert for overdue invoices (warning color) with count badge
+  - Alert for pending reconciliations (warning color) with count badge
+  - Alert for Xero sync failures (danger color) with count badge
+  - Alert for Stripe webhook issues (danger/warning based on severity)
+  - Alert for mismatched reconciliations (danger color) with count badge
+  - Dismissible alerts with smooth Alpine.js transitions
+  - 24-hour persistence via Laravel Cache (per user)
+  - "View details" links to relevant pages
+  - Color-coded styling based on alert severity
+  - "Reset dismissed alerts" link when multiple alerts exist
+- **Learnings for future iterations:**
+  - Use Laravel Cache with user-specific keys for per-user persistence
+  - Cache::put() with now()->addHours(24) for time-limited dismissals
+  - Alpine.js x-data and x-show for smooth dismiss transitions
+  - PHPStan detects match arms that are always true due to preceding if conditions - use separate if/elseif instead
+  - Livewire $wire.dismissAlert() allows calling PHP methods from Alpine.js
+  - Use helper methods (getAlertColorClasses, getAlertIconColorClass, getAlertTextColorClass) for consistent styling
+---

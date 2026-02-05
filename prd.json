@@ -1884,8 +1884,8 @@
         "Typecheck passes"
       ],
       "priority": 119,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Alerts section added to FinanceOverview dashboard with overdue invoices, pending reconciliations, Xero sync failures, Stripe webhook issues, and mismatched reconciliations alerts. Dismissible with 24-hour cache persistence per user."
     },
     {
       "id": "US-E120",
