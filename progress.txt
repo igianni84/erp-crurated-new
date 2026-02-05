@@ -1806,3 +1806,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Filament Actions support complex modal forms with live() updates
   - Use ->visible() with Get $get to conditionally show fields based on other toggle values
 ---
+
+## 2026-02-05 - US-E093
+- What was implemented: Stripe webhook handler with idempotency and async processing
+- Files changed:
+  - app/Http/Controllers/Api/Finance/StripeWebhookController.php (new controller for handling Stripe webhooks)
+  - app/Jobs/Finance/ProcessStripeWebhookJob.php (new job for async webhook processing)
+  - routes/api.php (added POST /api/webhooks/stripe route)
+  - composer.json/composer.lock (added stripe/stripe-php v19.3.0 dependency)
+- **Acceptance criteria verification:**
+  - ✅ Endpoint POST /api/webhooks/stripe: Route registered at api/webhooks/stripe
+  - ✅ Verifies Stripe signature: Uses Stripe\Webhook::constructEvent() with webhook_secret from config
+  - ✅ Creates StripeWebhook record: Uses StripeWebhook::createFromStripeEvent() with full payload
+  - ✅ Idempotency: skip if event_id already processed: StripeWebhook::hasEvent() check before creating
+  - ✅ Dispatch job for async processing: ProcessStripeWebhookJob::dispatch() after logging
+  - ✅ Return 200 immediately: Controller returns JSON response before processing completes
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Stripe webhook secret is in config('services.stripe.webhook_secret') via STRIPE_WEBHOOK_SECRET env var
+  - Return 200 even for configuration errors (logged) to prevent unnecessary Stripe retries
+  - Return 400 only for signature verification failures (Stripe should retry with proper signature)
+  - ProcessStripeWebhookJob has tries=3, backoff=60 for retries on processing failures
+  - Job has stub handler methods for payment_intent.succeeded, payment_intent.payment_failed, charge.refunded, charge.dispute.created
+  - Full event processing logic will be implemented in US-E094 via StripeIntegrationService
+  - finance log channel used for all webhook and processing logs
+---
