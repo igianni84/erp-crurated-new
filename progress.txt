@@ -1338,3 +1338,18 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Audit log creation follows same pattern as other Finance models using auditLogs()->create()
   - Notification with action link allows user to navigate directly to view the created credit note
 ---
+
+## 2026-02-05 - US-E066
+- What was implemented: Credit Note issuance with Issue action in ViewCreditNote page
+- Files changed:
+  - app/Services/Finance/CreditNoteService.php (NEW - service with createDraft(), issue(), apply() methods)
+  - app/Filament/Resources/Finance/CreditNoteResource/Pages/ViewCreditNote.php (added Issue action)
+- **Learnings for future iterations:**
+  - CreditNoteService follows same pattern as InvoiceService and PaymentService
+  - Credit note number format: CN-YYYY-NNNNNN (sequential like invoices)
+  - Issue action is visible only for draft credit notes using isDraft() helper
+  - Use bccomp() to compare credit amounts to invoice totals for fully credited check
+  - Invoice status transitions to 'credited' when total credit notes >= invoice total_amount
+  - Xero sync trigger is a TODO placeholder for US-E099 (XeroIntegrationService)
+  - Confirmation modal uses modalDescription() with markdown formatting for bullet points
+---
