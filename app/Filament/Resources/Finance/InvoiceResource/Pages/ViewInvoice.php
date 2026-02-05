@@ -6,20 +6,26 @@ use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\PaymentSource;
+use App\Enums\Finance\RefundMethod;
+use App\Enums\Finance\RefundStatus;
+use App\Enums\Finance\RefundType;
 use App\Filament\Resources\Finance\InvoiceResource;
 use App\Models\AuditLog;
 use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
+use App\Models\Finance\Refund;
 use App\Services\Finance\InvoiceMailService;
 use App\Services\Finance\InvoicePdfService;
 use App\Services\Finance\InvoiceService;
 use App\Services\Finance\PaymentService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\Grid;
@@ -1274,6 +1280,7 @@ class ViewInvoice extends ViewRecord
             $this->getIssueAction(),
             $this->getRecordBankPaymentAction(),
             $this->getCreateCreditNoteAction(),
+            $this->getCreateRefundAction(),
             $this->getCancelAction(),
         ];
     }
@@ -1647,6 +1654,267 @@ class ViewInvoice extends ViewRecord
                             ->url(route('filament.admin.resources.finance.credit-notes.view', ['record' => $creditNote->id])),
                     ])
                     ->send();
+            });
+    }
+
+    /**
+     * Create Refund action - visible only if invoice is paid.
+     */
+    protected function getCreateRefundAction(): Action
+    {
+        return Action::make('createRefund')
+            ->label('Refund')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('danger')
+            ->visible(fn (): bool => $this->getInvoice()->isPaid())
+            ->form([
+                Placeholder::make('warning')
+                    ->label('')
+                    ->content(new \Illuminate\Support\HtmlString(
+                        '<div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-700">'.
+                        '<div class="flex items-start gap-3">'.
+                        '<svg class="w-6 h-6 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">'.
+                        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>'.
+                        '</svg>'.
+                        '<div>'.
+                        '<h4 class="font-semibold text-warning-800 dark:text-warning-200">Important Notice</h4>'.
+                        '<p class="text-sm text-warning-700 dark:text-warning-300 mt-1">'.
+                        'Refunding does not automatically reverse operational effects (e.g., voucher cancellation). '.
+                        'Coordinate with Operations if needed.'.
+                        '</p>'.
+                        '</div>'.
+                        '</div>'.
+                        '</div>'
+                    )),
+                Placeholder::make('invoice_info')
+                    ->label('Invoice Details')
+                    ->content(function (): string {
+                        $invoice = $this->getInvoice();
+
+                        return 'Invoice: '.($invoice->invoice_number ?? 'N/A')."\n".
+                            "Total: {$invoice->currency} {$invoice->total_amount}\n".
+                            "Amount Paid: {$invoice->currency} {$invoice->amount_paid}";
+                    }),
+                Select::make('refund_type')
+                    ->label('Refund Type')
+                    ->required()
+                    ->options([
+                        RefundType::Full->value => RefundType::Full->label(),
+                        RefundType::Partial->value => RefundType::Partial->label(),
+                    ])
+                    ->default(RefundType::Partial->value)
+                    ->live()
+                    ->helperText('Choose Full for complete refund or Partial for a specific amount'),
+                Select::make('payment_id')
+                    ->label('Payment to Refund')
+                    ->required()
+                    ->options(function (): array {
+                        $invoice = $this->getInvoice();
+                        $invoice->loadMissing('invoicePayments.payment');
+
+                        $options = [];
+                        foreach ($invoice->invoicePayments as $invoicePayment) {
+                            $payment = $invoicePayment->payment;
+                            if ($payment !== null) {
+                                $label = "{$payment->payment_reference} - {$invoice->currency} {$invoicePayment->amount_applied}";
+                                if ($payment->stripe_charge_id !== null) {
+                                    $label .= ' (Stripe)';
+                                } else {
+                                    $label .= ' (Bank Transfer)';
+                                }
+                                $options[$payment->id] = $label;
+                            }
+                        }
+
+                        return $options;
+                    })
+                    ->live()
+                    ->afterStateUpdated(function (\Filament\Forms\Set $set, \Filament\Forms\Get $get, ?string $state): void {
+                        if ($state === null) {
+                            return;
+                        }
+
+                        // Auto-set the refund method based on payment type
+                        $invoice = $this->getInvoice();
+                        $invoicePayment = $invoice->invoicePayments()
+                            ->where('payment_id', $state)
+                            ->with('payment')
+                            ->first();
+
+                        if ($invoicePayment !== null && $invoicePayment->payment !== null) {
+                            $payment = $invoicePayment->payment;
+                            if ($payment->stripe_charge_id !== null) {
+                                $set('method', RefundMethod::Stripe->value);
+                            } else {
+                                $set('method', RefundMethod::BankTransfer->value);
+                            }
+
+                            // If full refund, set amount to the applied amount
+                            if ($get('refund_type') === RefundType::Full->value) {
+                                $set('amount', $invoicePayment->amount_applied);
+                            }
+                        }
+                    })
+                    ->helperText('Select the payment you want to refund'),
+                TextInput::make('amount')
+                    ->label('Refund Amount')
+                    ->required()
+                    ->numeric()
+                    ->minValue(0.01)
+                    ->maxValue(function (\Filament\Forms\Get $get): float {
+                        $paymentId = $get('payment_id');
+                        if ($paymentId === null) {
+                            return 0;
+                        }
+
+                        $invoice = $this->getInvoice();
+                        $invoicePayment = $invoice->invoicePayments()
+                            ->where('payment_id', $paymentId)
+                            ->first();
+
+                        return $invoicePayment !== null ? (float) $invoicePayment->amount_applied : 0;
+                    })
+                    ->prefix(fn (): string => $this->getInvoice()->currency)
+                    ->disabled(fn (\Filament\Forms\Get $get): bool => $get('refund_type') === RefundType::Full->value)
+                    ->dehydrated()
+                    ->helperText(function (\Filament\Forms\Get $get): string {
+                        $paymentId = $get('payment_id');
+                        if ($paymentId === null) {
+                            return 'Select a payment first';
+                        }
+
+                        $invoice = $this->getInvoice();
+                        $invoicePayment = $invoice->invoicePayments()
+                            ->where('payment_id', $paymentId)
+                            ->first();
+
+                        $maxAmount = $invoicePayment !== null ? $invoicePayment->amount_applied : '0.00';
+
+                        return "Maximum: {$invoice->currency} {$maxAmount}";
+                    }),
+                Select::make('method')
+                    ->label('Refund Method')
+                    ->required()
+                    ->options([
+                        RefundMethod::Stripe->value => RefundMethod::Stripe->label(),
+                        RefundMethod::BankTransfer->value => RefundMethod::BankTransfer->label(),
+                    ])
+                    ->helperText(function (\Filament\Forms\Get $get): string {
+                        $method = $get('method');
+                        if ($method === RefundMethod::Stripe->value) {
+                            return 'Refund will be processed automatically via Stripe';
+                        }
+
+                        return 'You will need to process the bank transfer manually';
+                    }),
+                Textarea::make('reason')
+                    ->label('Reason for Refund')
+                    ->required()
+                    ->rows(3)
+                    ->maxLength(1000)
+                    ->placeholder('Please provide a detailed reason for this refund...')
+                    ->helperText('A reason is required for audit purposes'),
+                Checkbox::make('confirm_understanding')
+                    ->label('I understand this is a financial transaction only and does not reverse operational effects')
+                    ->required()
+                    ->accepted()
+                    ->validationMessages([
+                        'accepted' => 'You must confirm that you understand this is a financial transaction only.',
+                    ]),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Create Refund')
+            ->modalDescription('Create a refund for this paid invoice. Please review all details carefully.')
+            ->modalSubmitActionLabel('Create Refund')
+            ->action(function (array $data): void {
+                $invoice = $this->getInvoice();
+                $invoice->loadMissing('customer');
+
+                // Get the selected payment
+                $invoicePayment = $invoice->invoicePayments()
+                    ->where('payment_id', $data['payment_id'])
+                    ->with('payment')
+                    ->first();
+
+                if ($invoicePayment === null || $invoicePayment->payment === null) {
+                    Notification::make()
+                        ->title('Invalid Payment')
+                        ->body('The selected payment could not be found.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $payment = $invoicePayment->payment;
+
+                // Determine amount based on refund type
+                $refundType = RefundType::from($data['refund_type']);
+                $amount = $refundType === RefundType::Full
+                    ? $invoicePayment->amount_applied
+                    : (string) $data['amount'];
+
+                // Validate amount doesn't exceed payment applied amount
+                if (bccomp($amount, $invoicePayment->amount_applied, 2) > 0) {
+                    Notification::make()
+                        ->title('Invalid Amount')
+                        ->body("Refund amount cannot exceed the payment applied amount of {$invoice->currency} {$invoicePayment->amount_applied}.")
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                try {
+                    // Create the refund
+                    $refund = Refund::create([
+                        'invoice_id' => $invoice->id,
+                        'payment_id' => $payment->id,
+                        'refund_type' => $data['refund_type'],
+                        'method' => $data['method'],
+                        'amount' => $amount,
+                        'currency' => $invoice->currency,
+                        'status' => RefundStatus::Pending,
+                        'reason' => $data['reason'],
+                    ]);
+
+                    // Log the creation in the audit trail
+                    $refund->auditLogs()->create([
+                        'event' => AuditLog::EVENT_CREATED,
+                        'old_values' => [],
+                        'new_values' => [
+                            'invoice_id' => $invoice->id,
+                            'invoice_number' => $invoice->invoice_number,
+                            'payment_id' => $payment->id,
+                            'payment_reference' => $payment->payment_reference,
+                            'amount' => $amount,
+                            'currency' => $invoice->currency,
+                            'refund_type' => $data['refund_type'],
+                            'method' => $data['method'],
+                            'reason' => $data['reason'],
+                        ],
+                        'user_id' => auth()->id(),
+                    ]);
+
+                    $methodLabel = RefundMethod::from($data['method'])->label();
+
+                    Notification::make()
+                        ->title('Refund Created')
+                        ->body("Refund for {$invoice->currency} {$amount} has been created with status Pending. Method: {$methodLabel}.")
+                        ->success()
+                        ->actions([
+                            \Filament\Notifications\Actions\Action::make('view')
+                                ->label('View Refund')
+                                ->url(route('filament.admin.resources.finance.refunds.view', ['record' => $refund->id])),
+                        ])
+                        ->send();
+                } catch (InvalidArgumentException $e) {
+                    Notification::make()
+                        ->title('Cannot Create Refund')
+                        ->body($e->getMessage())
+                        ->danger()
+                        ->send();
+                }
             });
     }
 
