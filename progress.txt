@@ -825,3 +825,31 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - StorageBillingPeriod status transitions: pending → invoiced (when INV3 created) → paid (when paid)
   - config/finance.php storage section includes: billing_cycle, rate_tiers, minimum_charge, billing_job_time, auto_issue_invoices
 ---
+
+## 2026-02-05 - US-E042
+- What was implemented: StorageBillingService with accurate bottle-day usage calculation
+- Files changed:
+  - app/Services/Finance/StorageBillingService.php (new service with comprehensive usage calculation)
+- **Methods implemented:**
+  - calculateUsage(Customer, periodStart, periodEnd, ?Location): Main entry point returning bottle_count, bottle_days, unit_rate, calculated_amount, currency, metadata
+  - getBottleDays(Customer, periodStart, periodEnd, ?Location): Accurate bottle-day calculation using movement tracking
+  - getInventorySnapshot(Customer, date, ?Location): Reconstructs inventory state at point in time
+  - getMovementsDuringPeriod(Customer, periodStart, periodEnd, ?Location): Gets all movements with type classification
+  - getApplicableRate(Customer, ?Location, bottleCount): Determines rate from volume tier, customer rate, or location rate
+  - generatePeriods(periodStart, periodEnd): Batch generates StorageBillingPeriod for all customers
+  - generateInvoices(autoIssue): Creates INV3 invoices for pending periods
+  - previewUsage(Customer, periodStart, periodEnd): Preview usage for UI display
+- **Acceptance criteria verification:**
+  - ✅ Method calculateUsage(Customer, periodStart, periodEnd) in StorageBillingService: Full implementation with detailed metadata
+  - ✅ Calculate bottle-days: sum(bottles_stored * days): calculateBottleDaysFromMovements() tracks entry/exit per bottle
+  - ✅ Consider: inbound, outbound, transfers during period: INBOUND_MOVEMENT_TYPES, OUTBOUND_MOVEMENT_TYPES classify movements
+  - ✅ Snapshot inventory at period boundaries: getInventorySnapshot() reconstructs state at any point in time
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - StorageBillingService is separate from GenerateStorageBillingJob - service contains business logic, job handles scheduling
+  - Movement-based bottle-day calculation tracks actual days each bottle was stored (more accurate than simple multiplication)
+  - Bottle events map: entry date when inbound or period start, exit date when outbound or period end
+  - Volume tier rates from config/finance.php, customer-specific rates from customer.metadata['storage_rate_override']
+  - Use Collection->push() in foreach loop instead of map()->filter() to avoid PHPStan collection covariance issues
+  - previewUsage() adds breakdown data for UI display including rate_tier_label and formatted amounts
+---
