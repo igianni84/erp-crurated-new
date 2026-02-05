@@ -465,6 +465,84 @@ class CustomerFinance extends Page
     }
 
     // =========================================================================
+    // Eligibility Signals Tab
+    // =========================================================================
+
+    /**
+     * Get eligibility signals (financial blocks) for the selected customer.
+     *
+     * @return array<int, array{
+     *     type: string,
+     *     label: string,
+     *     reason: string,
+     *     invoice_number: string|null,
+     *     invoice_id: string|null,
+     *     how_to_resolve: string,
+     *     severity: string
+     * }>
+     */
+    public function getEligibilitySignals(): array
+    {
+        if ($this->customerId === null) {
+            return [];
+        }
+
+        $signals = [];
+
+        // Check for INV0 (membership_service) overdue - causes payment_blocked
+        $overdueInv0 = Invoice::where('customer_id', $this->customerId)
+            ->where('invoice_type', \App\Enums\Finance\InvoiceType::MembershipService)
+            ->whereIn('status', [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid])
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->startOfDay())
+            ->orderBy('due_date', 'asc')
+            ->first();
+
+        if ($overdueInv0 !== null) {
+            $signals[] = [
+                'type' => 'payment_blocked',
+                'label' => 'Payment Blocked',
+                'reason' => 'Membership invoice (INV0) is overdue. Customer cannot make new purchases until resolved.',
+                'invoice_number' => $overdueInv0->invoice_number,
+                'invoice_id' => $overdueInv0->id,
+                'how_to_resolve' => 'Pay the outstanding membership invoice to unblock payment capability.',
+                'severity' => 'danger',
+            ];
+        }
+
+        // Check for INV3 (storage_fee) overdue - causes custody_blocked
+        $overdueInv3 = Invoice::where('customer_id', $this->customerId)
+            ->where('invoice_type', \App\Enums\Finance\InvoiceType::StorageFee)
+            ->whereIn('status', [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid])
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now()->startOfDay())
+            ->orderBy('due_date', 'asc')
+            ->first();
+
+        if ($overdueInv3 !== null) {
+            $signals[] = [
+                'type' => 'custody_blocked',
+                'label' => 'Custody Blocked',
+                'reason' => 'Storage fee invoice (INV3) is overdue. Customer cannot retrieve items from custody until resolved.',
+                'invoice_number' => $overdueInv3->invoice_number,
+                'invoice_id' => $overdueInv3->id,
+                'how_to_resolve' => 'Pay the outstanding storage fee invoice to unblock custody access.',
+                'severity' => 'warning',
+            ];
+        }
+
+        return $signals;
+    }
+
+    /**
+     * Check if customer has any active financial blocks.
+     */
+    public function hasActiveBlocks(): bool
+    {
+        return count($this->getEligibilitySignals()) > 0;
+    }
+
+    // =========================================================================
     // Helper Methods
     // =========================================================================
 

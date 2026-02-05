@@ -174,6 +174,18 @@
                     >
                         Exposure & Limits
                     </button>
+                    <button
+                        wire:click="setTab('eligibility-signals')"
+                        type="button"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'eligibility-signals' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                    >
+                        Eligibility Signals
+                        @if($this->hasActiveBlocks())
+                            <span class="ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium bg-danger-100 text-danger-600 dark:bg-danger-900 dark:text-danger-400">
+                                !
+                            </span>
+                        @endif
+                    </button>
                 </nav>
             </div>
 
@@ -634,6 +646,85 @@
                             </div>
                         @endif
                     </div>
+                @endif
+
+                {{-- Eligibility Signals Tab --}}
+                @if($this->activeTab === 'eligibility-signals')
+                    @php $signals = $this->getEligibilitySignals(); @endphp
+
+                    {{-- Important Notice --}}
+                    <div class="rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800 p-4 mb-6">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <x-heroicon-o-information-circle class="h-5 w-5 text-info-600 dark:text-info-400" />
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm text-info-700 dark:text-info-300">
+                                    This view shows <strong>FINANCIAL eligibility</strong> only. For full eligibility status including membership, KYC, and other criteria, see Module K (Customer Management).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if(empty($signals))
+                        <div class="text-center py-8">
+                            <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-400" />
+                            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No Active Blocks</h3>
+                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">This customer has no financial eligibility blocks.</p>
+                        </div>
+                    @else
+                        <div class="space-y-4">
+                            @foreach($signals as $signal)
+                                <div class="rounded-lg border {{ $signal['severity'] === 'danger' ? 'border-danger-200 dark:border-danger-800 bg-danger-50 dark:bg-danger-900/20' : 'border-warning-200 dark:border-warning-800 bg-warning-50 dark:bg-warning-900/20' }} p-4">
+                                    <div class="flex items-start">
+                                        <div class="flex-shrink-0">
+                                            @if($signal['severity'] === 'danger')
+                                                <x-heroicon-o-x-circle class="h-6 w-6 text-danger-600 dark:text-danger-400" />
+                                            @else
+                                                <x-heroicon-o-exclamation-triangle class="h-6 w-6 text-warning-600 dark:text-warning-400" />
+                                            @endif
+                                        </div>
+                                        <div class="ml-3 flex-1">
+                                            <h3 class="text-sm font-semibold {{ $signal['severity'] === 'danger' ? 'text-danger-800 dark:text-danger-200' : 'text-warning-800 dark:text-warning-200' }}">
+                                                {{ $signal['label'] }}
+                                            </h3>
+                                            <div class="mt-2 text-sm {{ $signal['severity'] === 'danger' ? 'text-danger-700 dark:text-danger-300' : 'text-warning-700 dark:text-warning-300' }}">
+                                                <p><strong>Reason:</strong> {{ $signal['reason'] }}</p>
+                                                @if($signal['invoice_number'])
+                                                    <p class="mt-1">
+                                                        <strong>Invoice Reference:</strong>
+                                                        <a href="{{ $this->getInvoiceUrl($signal['invoice_id']) }}" class="underline hover:no-underline">
+                                                            {{ $signal['invoice_number'] }}
+                                                        </a>
+                                                    </p>
+                                                @endif
+                                                <p class="mt-1"><strong>How to Resolve:</strong> {{ $signal['how_to_resolve'] }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        {{-- Summary --}}
+                        <div class="mt-6 rounded-lg bg-gray-50 dark:bg-gray-800 p-4">
+                            <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">Block Types Reference</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                <div class="flex items-start gap-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-danger-100 text-danger-800 dark:bg-danger-900/50 dark:text-danger-400">
+                                        payment_blocked
+                                    </span>
+                                    <span class="text-gray-600 dark:text-gray-400">Membership invoice (INV0) is overdue. Blocks new purchases.</span>
+                                </div>
+                                <div class="flex items-start gap-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-900/50 dark:text-warning-400">
+                                        custody_blocked
+                                    </span>
+                                    <span class="text-gray-600 dark:text-gray-400">Storage fee invoice (INV3) is overdue. Blocks item retrieval.</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                 @endif
             </div>
         </div>

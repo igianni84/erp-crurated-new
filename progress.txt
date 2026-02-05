@@ -1611,3 +1611,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Trend data calculation aggregates invoices and payments by month for historical view
   - Use bccomp() for comparing decimal strings in Blade conditionals
 ---
+
+## 2026-02-05 - US-E081
+- What was implemented: Added Eligibility Signals tab to Customer Financial Dashboard
+- Files changed:
+  - app/Filament/Pages/Finance/CustomerFinance.php (added getEligibilitySignals() and hasActiveBlocks() methods)
+  - resources/views/filament/pages/finance/customer-finance.blade.php (added Eligibility Signals tab UI)
+- Features implemented:
+  - Tab button for "Eligibility Signals" with visual indicator when blocks are active
+  - Info banner explaining this shows financial eligibility only (see Module K for full)
+  - Detection of payment_blocked: when INV0 (membership_service) is overdue
+  - Detection of custody_blocked: when INV3 (storage_fee) is overdue
+  - For each block: displays reason, invoice reference (linked), and resolution steps
+  - Reference section explaining block types
+- **Learnings for future iterations:**
+  - Financial blocks are derived from overdue invoices of specific types (INV0, INV3)
+  - Block detection queries for invoices with status Issued/PartiallyPaid and due_date < today
+  - Module K has the full eligibility picture; Finance only shows financial signals
+  - Use severity levels (danger/warning) to visually distinguish block types
+---
