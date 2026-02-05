@@ -1727,8 +1727,8 @@
         "Typecheck passes"
       ],
       "priority": 109,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "FxImpactReport page with period selector (monthly/quarterly/yearly), invoices grouped by currency with base currency equivalents, payments grouped by currency, foreign currency invoice summary with FX rate status, CSV export. Browser verification deferred - no dev-browser skill available."
     },
     {
       "id": "US-E110",

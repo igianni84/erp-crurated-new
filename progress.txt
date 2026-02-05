@@ -2108,3 +2108,17 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - PHPStan prefers `Collection<int, mixed>` over detailed array shapes when covariance issues arise
   - Always use 0.0 instead of 0 when the return type expects float to avoid int|float union issues
 ---
+
+## 2026-02-05 - US-E109
+- What was implemented: Created FX Impact Summary Report page for Finance module
+- Files changed:
+  - app/Filament/Pages/Finance/FxImpactReport.php (new file - Filament page with period selector, currency grouping, FX calculations)
+  - resources/views/filament/pages/finance/fx-impact-report.blade.php (new file - Blade template with summary cards, currency tables, export)
+- **Learnings for future iterations:**
+  - FX Impact report groups invoices and payments by currency
+  - Invoice model stores fx_rate_at_issuance for foreign currency invoices (format: "1 {currency} = X EUR")
+  - Base currency equivalent calculated by multiplying invoice amount by fx_rate_at_issuance
+  - Payment model has currency field but no FX rate at settlement - actual FX gain/loss requires treasury reconciliation
+  - Report follows same pattern as other Finance reports: period selector, summary cards, data tables, CSV export
+  - navigationSort of 63 places it after OutstandingExposureReport (62) in the Reports sub-navigation
+---
