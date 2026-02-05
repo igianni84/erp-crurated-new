@@ -1219,3 +1219,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Audit log events for Finance: EVENT_PAYMENT_FAILED, EVENT_PAYMENT_CONFIRMED, EVENT_PAYMENT_RECONCILED
   - Config key finance.payment_failure_notification_recipients used for notification routing
 ---
+
+## 2026-02-05 - US-E060
+- What was implemented: Added duplicate payment detection with UI warnings and operator actions
+- Files changed:
+  - app/Services/Finance/PaymentService.php (added confirmNotDuplicate(), markAsDuplicate(), isConfirmedNotDuplicate(), isMarkedAsDuplicate() methods, enhanced checkForDuplicates())
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ViewPayment.php (added getDuplicateWarningSection(), formatDuplicateWarning(), getConfirmNotDuplicateAction(), getMarkAsDuplicateAction() with supporting methods)
+- **Acceptance criteria verification:**
+  - ✅ Stripe: stripe_payment_intent_id unique constraint: Already in place from US-E004 migration
+  - ✅ Bank: warning if same amount + same customer + same day: checkForDuplicates() checks these criteria
+  - ✅ UI shows potential duplicates: getDuplicateWarningSection() displays table of similar payments with details
+  - ✅ Operator can confirm or reject: getConfirmNotDuplicateAction() to dismiss warnings, getMarkAsDuplicateAction() to flag for refund
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Duplicate check stores status in metadata['duplicate_check']['status'] - either 'confirmed_unique' or 'marked_duplicate'
+  - checkForDuplicates() respects confirmed status and returns empty collection if already reviewed
+  - Use JSON_EXTRACT SQL for filtering on JSONB fields in Eloquent queries
+  - Duplicate payments marked with MISMATCH_DUPLICATE constant can be automatically flagged for refund
+  - When marking as duplicate, store original_payment_id and original_payment_reference for traceability
+---
