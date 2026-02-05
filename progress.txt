@@ -1036,3 +1036,31 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Bulk CSV export includes all payment details including Stripe IDs and bank references
   - navigationSort controls order within Finance group: Invoices=1, Payments=2
 ---
+
+## 2026-02-05 - US-E052
+- What was implemented: Created Payment Detail view with 5 sections in Filament
+- Files changed:
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ViewPayment.php (full implementation with 5 sections)
+  - app/Models/Finance/Payment.php (added mismatch helper methods)
+- **Sections implemented:**
+  - Header: payment_reference (large, copyable), source (badge), customer (link), status, reconciliation_status, date received, amount, unapplied, application status
+  - Section 1 - Source Details: Dynamic section based on source - Stripe shows payment_intent_id, charge_id, link to Stripe dashboard; Bank shows bank_reference
+  - Section 2 - Applied Invoices: Summary (payment amount, total applied, remaining), list of InvoicePayments with invoice link, status, amount_applied, applied_at, applied_by
+  - Section 3 - Reconciliation: Status badges, requires attention indicator, can trigger business events indicator, conditional mismatch/pending details
+  - Section 4 - Metadata: Collapsible section with formatted JSON display
+  - Section 5 - Audit: Collapsible timeline of all audit events
+- **Acceptance criteria verification:**
+  - ✅ Header: payment_reference, source, amount, status: All displayed in overview section
+  - ✅ Section 1 - Source Details: stripe_payment_intent_id, stripe_charge_id, OR bank_reference: Dynamic section based on payment source
+  - ✅ Section 2 - Applied Invoices: list of InvoicePayments with amount_applied: RepeatableEntry with invoice links and details
+  - ✅ Section 3 - Reconciliation: status, mismatched details: Status badges, conditional mismatch/pending sections with guidance
+  - ✅ Section 4 - Metadata: raw metadata JSON: Collapsible section with formatted JSON
+  - ✅ Section 5 - Audit: event timeline: Collapsible audit trail section
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Filament Section components don't support badge() method like Tabs do - use string interpolation in section title instead
+  - Payment model helper methods getMismatchReason(), getMismatchDetails(), setMismatchInfo(), clearMismatchInfo() provide clean API for mismatch handling
+  - Dynamic source section (getStripeSourceSection vs getBankSourceSection) provides tailored UI based on payment source
+  - Mismatch details and pending reconciliation info use HTML formatted TextEntry with guidance for operators
+  - Resolution actions are placeholder - will be implemented in US-E054 (manual reconciliation) and US-E055 (mismatch resolution)
+---
