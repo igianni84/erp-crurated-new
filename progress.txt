@@ -1273,3 +1273,23 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - UPDATED_AT = null alone doesn't prevent updates, need explicit boot() hooks
   - InvoicePayment is a pivot model but can still use Auditable trait for compliance
 ---
+
+## 2026-02-05 - US-E063
+- What was implemented: Credit Note List in Filament with CreditNoteResource
+- Files changed:
+  - app/Filament/Resources/Finance/CreditNoteResource.php (new resource with table, filters, global search, CSV export)
+  - app/Filament/Resources/Finance/CreditNoteResource/Pages/ListCreditNotes.php (list page with status tabs)
+  - app/Filament/Resources/Finance/CreditNoteResource/Pages/ViewCreditNote.php (placeholder view page for US-E064)
+- **Acceptance criteria verification:**
+  - ✅ CreditNoteResource in Filament with navigation group Finance: navigationGroup = 'Finance', navigationSort = 3
+  - ✅ List columns: credit_note_number, invoice_number, customer, amount, status, issued_at, reason (truncated)
+  - ✅ Filters: status (SelectFilter), date range (issued_at), customer (searchable select)
+  - ✅ Search by: credit_note_number, invoice_number (getGloballySearchableAttributes)
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - CreditNoteResource follows same patterns as InvoiceResource for consistency
+  - Status tabs: All, Draft, Issued, Applied with badge counts
+  - CSV export bulk action included for audit/reporting needs
+  - Global search includes invoice.invoice_number and customer.name via eager loading
+  - ViewCreditNote is placeholder - full detail implementation in US-E064
+---
