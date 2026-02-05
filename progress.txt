@@ -1086,3 +1086,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - createFromStripe() includes idempotency check via stripe_payment_intent_id unique constraint
   - PaymentService depends on InvoiceService for applying payments (handles invoice-side validation)
 ---
+
+## 2026-02-05 - US-E054
+- What was implemented: Bank transfer manual reconciliation - Apply to Invoice action on Payment detail view
+- Files changed:
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ViewPayment.php (added Apply to Invoice action with form, validation, and partial application support)
+- **Acceptance criteria verification:**
+  - ✅ Action Apply to Invoice on pending Payment: getApplyToInvoiceAction() visible when payment is confirmed and has unapplied amount
+  - ✅ Form: select invoice (filtered by customer if present), amount to apply: Select with getAvailableInvoicesForPayment() filtering by customer and currency
+  - ✅ Validation: amount <= outstanding on invoice: validateAmount() checks both invoice outstanding and unapplied payment amount
+  - ✅ Partial application supported: Partial payments allowed with visual warning showing remaining balance
+  - ✅ Audit log of application: PaymentService.applyToInvoice() creates audit log entry
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Apply to Invoice action uses modal form with dynamic invoice info display
+  - onInvoiceSelected() callback auto-fills amount to lesser of invoice outstanding or unapplied payment
+  - getAvailableInvoicesForPayment() filters by: matching currency, status (Issued/PartiallyPaid), optionally by customer
+  - Use Placeholder with html content for rich info display in modal forms
+  - Custom validation closure with Get $get allows cross-field validation
+  - PaymentService handles both applyToInvoice() and markReconciled() for clean business logic
+  - Show partial application warning using Placeholder with conditional visibility
+---
