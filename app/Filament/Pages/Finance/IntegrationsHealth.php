@@ -6,6 +6,8 @@ use App\Enums\Finance\ReconciliationStatus;
 use App\Jobs\Finance\ProcessStripeWebhookJob;
 use App\Models\Finance\Payment;
 use App\Models\Finance\StripeWebhook;
+use App\Models\Finance\XeroSyncLog;
+use App\Services\Finance\XeroIntegrationService;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -18,10 +20,9 @@ use Illuminate\Support\Facades\Log;
  *
  * This page allows Finance Operators to:
  * - Monitor Stripe integration health (last webhook, failed events, pending reconciliations)
+ * - Monitor Xero integration health (last sync, pending syncs, failed syncs)
  * - See alerts for integration issues
- * - Retry failed webhook events
- *
- * Future: Will also include Xero integration health monitoring.
+ * - Retry failed webhook events and Xero syncs
  */
 class IntegrationsHealth extends Page
 {
@@ -354,6 +355,142 @@ class IntegrationsHealth extends Page
             'today_processed' => $this->getTodayProcessedCount(),
             'alerts' => $alerts,
         ];
+    }
+
+    // =========================================================================
+    // Xero Health Metrics
+    // =========================================================================
+
+    /**
+     * Get Xero integration health summary.
+     *
+     * @return array{
+     *     status: string,
+     *     status_color: string,
+     *     sync_enabled: bool,
+     *     pending_count: int,
+     *     failed_count: int,
+     *     synced_today: int,
+     *     last_sync: \Carbon\Carbon|null,
+     *     last_sync_type: string|null,
+     *     alerts: array<string>,
+     *     is_healthy: bool
+     * }
+     */
+    public function getXeroHealthSummary(): array
+    {
+        return app(XeroIntegrationService::class)->getIntegrationHealth();
+    }
+
+    /**
+     * Check if there are any Xero health alerts.
+     */
+    public function hasXeroAlerts(): bool
+    {
+        $summary = $this->getXeroHealthSummary();
+
+        return ! empty($summary['alerts']);
+    }
+
+    // =========================================================================
+    // Xero Failed Syncs List
+    // =========================================================================
+
+    /**
+     * Get recent failed Xero syncs for display.
+     *
+     * @return Collection<int, XeroSyncLog>
+     */
+    public function getFailedXeroSyncs(): Collection
+    {
+        return app(XeroIntegrationService::class)->getFailedSyncs(20);
+    }
+
+    /**
+     * Retry a single failed Xero sync.
+     */
+    public function retryXeroSync(int $syncLogId): void
+    {
+        $syncLog = XeroSyncLog::find($syncLogId);
+
+        if ($syncLog === null) {
+            Notification::make()
+                ->title('Sync log not found')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        if (! $syncLog->canRetry()) {
+            Notification::make()
+                ->title('Sync cannot be retried')
+                ->body('This sync has already been processed or is not in a failed state.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        // Log the retry attempt
+        Log::channel('finance')->info('Xero sync retry initiated from UI', [
+            'sync_log_id' => $syncLog->id,
+            'sync_type' => $syncLog->sync_type->value,
+            'retry_count' => $syncLog->retry_count,
+            'initiated_by' => auth()->id(),
+        ]);
+
+        $xeroService = app(XeroIntegrationService::class);
+        $success = $xeroService->retryFailed($syncLog);
+
+        if ($success) {
+            Notification::make()
+                ->title('Retry successful')
+                ->body("Sync for {$syncLog->sync_type->label()} completed successfully.")
+                ->success()
+                ->send();
+        } else {
+            Notification::make()
+                ->title('Retry failed')
+                ->body('The sync could not be completed. Check the error message.')
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Retry all failed Xero syncs.
+     */
+    public function retryAllFailedXeroSyncs(): void
+    {
+        $xeroService = app(XeroIntegrationService::class);
+        $failedSyncs = $this->getFailedXeroSyncs();
+        $count = $failedSyncs->count();
+
+        if ($count === 0) {
+            Notification::make()
+                ->title('No failed syncs')
+                ->body('There are no failed Xero syncs to retry.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
+        // Log bulk retry initiation
+        Log::channel('finance')->info('Xero bulk retry initiated from UI', [
+            'count' => $count,
+            'initiated_by' => auth()->id(),
+            'sync_log_ids' => $failedSyncs->pluck('id')->toArray(),
+        ]);
+
+        $successCount = $xeroService->retryAllFailed();
+
+        Notification::make()
+            ->title('Bulk retry completed')
+            ->body("{$successCount} of {$count} failed syncs were retried successfully.")
+            ->success()
+            ->send();
     }
 
     // =========================================================================

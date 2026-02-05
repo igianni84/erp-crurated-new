@@ -1949,3 +1949,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Sync errors are logged but don't block the business operation
   - XeroIntegrationService already had syncCreditNote() implemented in US-E098
 ---
+
+## 2026-02-05 - US-E100
+- What was implemented: Xero integration health monitoring in Integrations Health page
+- Files changed:
+  - app/Filament/Pages/Finance/IntegrationsHealth.php (added Xero health methods and retry actions)
+  - resources/views/filament/pages/finance/integrations-health.blade.php (replaced placeholder with full Xero section)
+- **Acceptance criteria verification:**
+  - ✅ Section Xero in Integrations Health page: Full Xero section with header, status badge, metrics cards
+  - ✅ Metrics: last sync, pending syncs count, failed syncs count: Four metric cards showing all required data
+  - ✅ Alert if failed syncs > threshold: Alerts shown for failed syncs (>0 = warning, >10 = critical)
+  - ✅ List failed syncs with retry action: Table showing failed syncs with individual and bulk retry buttons
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - IntegrationsHealth page uses XeroIntegrationService.getIntegrationHealth() for metrics
+  - Xero section mirrors Stripe section structure for consistency
+  - Failed syncs table shows sync type, entity ID, retries, error message
+  - retryXeroSync() and retryAllFailedXeroSyncs() methods handle retry via XeroIntegrationService
+  - Status levels: healthy, warning, critical, disabled (when sync is turned off)
+---
