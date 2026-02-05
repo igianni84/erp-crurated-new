@@ -7,6 +7,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
 use App\Enums\Finance\RefundStatus;
+use App\Models\Customer\Customer;
 use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
@@ -1001,6 +1002,103 @@ class FinanceOverview extends Page
     public function getCurrentMonthLabel(): string
     {
         return now()->format('F Y');
+    }
+
+    // =========================================================================
+    // Top Customers by Outstanding (US-E121)
+    // =========================================================================
+
+    /**
+     * Get top 10 customers by outstanding amount.
+     *
+     * Returns customers ordered by their total outstanding invoice amount
+     * (issued/partially_paid invoices only).
+     *
+     * @return array<array{
+     *     customer_id: int,
+     *     customer_name: string,
+     *     outstanding_amount: string,
+     *     invoice_count: int,
+     *     url: string
+     * }>
+     */
+    public function getTopCustomersOutstanding(): array
+    {
+        /** @var array<array{customer_id: int, outstanding: string, invoice_count: int}> $topCustomers */
+        $topCustomers = Invoice::query()
+            ->select('customer_id')
+            ->selectRaw('SUM(total_amount - amount_paid) as outstanding')
+            ->selectRaw('COUNT(*) as invoice_count')
+            ->whereIn('status', [
+                InvoiceStatus::Issued,
+                InvoiceStatus::PartiallyPaid,
+            ])
+            ->whereNotNull('customer_id')
+            ->groupBy('customer_id')
+            ->having('outstanding', '>', 0)
+            ->orderByDesc('outstanding')
+            ->limit(10)
+            ->get()
+            ->map(fn ($item) => [
+                'customer_id' => (int) $item->getAttribute('customer_id'),
+                'outstanding' => (string) $item->getAttribute('outstanding'),
+                'invoice_count' => (int) $item->getAttribute('invoice_count'),
+            ])
+            ->toArray();
+
+        if (empty($topCustomers)) {
+            return [];
+        }
+
+        // Load customer names
+        $customerIds = array_column($topCustomers, 'customer_id');
+        $customers = Customer::query()
+            ->whereIn('id', $customerIds)
+            ->get()
+            ->keyBy('id');
+
+        $result = [];
+        foreach ($topCustomers as $row) {
+            $customerId = $row['customer_id'];
+            $customer = $customers->get($customerId);
+
+            if ($customer === null) {
+                continue;
+            }
+
+            $result[] = [
+                'customer_id' => $customerId,
+                'customer_name' => $customer->name ?? 'Unknown Customer',
+                'outstanding_amount' => number_format((float) $row['outstanding'], 2, '.', ''),
+                'invoice_count' => $row['invoice_count'],
+                'url' => $this->getCustomerFinanceUrl($customerId),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Check if there are any customers with outstanding amounts.
+     */
+    public function hasTopCustomersOutstanding(): bool
+    {
+        return Invoice::query()
+            ->whereIn('status', [
+                InvoiceStatus::Issued,
+                InvoiceStatus::PartiallyPaid,
+            ])
+            ->whereNotNull('customer_id')
+            ->whereRaw('(total_amount - amount_paid) > 0')
+            ->exists();
+    }
+
+    /**
+     * Get URL for customer finance page.
+     */
+    public function getCustomerFinanceUrl(int $customerId): string
+    {
+        return route('filament.admin.pages.customer-finance').'?customerId='.$customerId;
     }
 
     // =========================================================================

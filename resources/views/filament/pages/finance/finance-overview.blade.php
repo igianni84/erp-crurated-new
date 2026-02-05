@@ -715,6 +715,78 @@
         </div>
     </div>
 
+    {{-- Top 10 Customers by Outstanding (US-E121) --}}
+    @php
+        $topCustomers = $this->getTopCustomersOutstanding();
+    @endphp
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <x-heroicon-o-user-group class="h-5 w-5 text-gray-400" />
+            Top 10 Outstanding
+            <span class="text-xs font-normal text-gray-500 dark:text-gray-400">(by customer)</span>
+        </h3>
+
+        @if(count($topCustomers) > 0)
+            <div class="overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead>
+                        <tr>
+                            <th scope="col" class="py-2 pl-0 pr-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Customer
+                            </th>
+                            <th scope="col" class="py-2 px-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Invoices
+                            </th>
+                            <th scope="col" class="py-2 pl-3 pr-0 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                Outstanding
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                        @foreach($topCustomers as $index => $customerData)
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                <td class="py-2.5 pl-0 pr-3 text-sm">
+                                    <div class="flex items-center gap-3">
+                                        <span class="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-xs font-medium text-gray-600 dark:text-gray-400">
+                                            {{ $index + 1 }}
+                                        </span>
+                                        <a href="{{ $customerData['url'] }}"
+                                           class="font-medium text-gray-900 dark:text-white hover:text-primary-600 dark:hover:text-primary-400 hover:underline truncate max-w-[200px]"
+                                           title="{{ $customerData['customer_name'] }}">
+                                            {{ $customerData['customer_name'] }}
+                                        </a>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 px-3 text-sm text-right text-gray-500 dark:text-gray-400">
+                                    {{ $customerData['invoice_count'] }} {{ Str::plural('invoice', $customerData['invoice_count']) }}
+                                </td>
+                                <td class="py-2.5 pl-3 pr-0 text-sm text-right">
+                                    <span class="font-semibold {{ $index < 3 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">
+                                        {{ $this->formatAmount($customerData['outstanding_amount']) }}
+                                    </span>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <a href="{{ route('filament.admin.pages.customer-finance') }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                    View all customers &rarr;
+                </a>
+            </div>
+        @else
+            <div class="text-center py-6">
+                <x-heroicon-o-check-circle class="mx-auto h-10 w-10 text-success-300 dark:text-success-600" />
+                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">All clear!</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    No customers have outstanding invoices.
+                </p>
+            </div>
+        @endif
+    </div>
+
     {{-- Help Text --}}
     <div class="text-sm text-gray-500 dark:text-gray-400">
         <p class="flex items-center">
