@@ -1171,3 +1171,28 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Validation warnings displayed via getMultiValidationWarning() for over-budget and duplicate invoice detection
   - HtmlString from Illuminate\Support needed for safe HTML content in Placeholder
 ---
+
+## 2026-02-05 - US-E058
+- What was implemented: Overpayment handling - support for payments that exceed invoice outstanding
+- Files changed:
+  - app/Enums/Finance/CustomerCreditStatus.php (new enum with Available, PartiallyUsed, FullyUsed, Expired, Cancelled states)
+  - app/Enums/Finance/OverpaymentHandling.php (new enum with ApplyPartial and CreateCredit options)
+  - app/Models/Finance/CustomerCredit.php (new model for tracking customer credits from overpayments)
+  - database/migrations/2026_02_04_300010_create_customer_credits_table.php (migration for customer_credits table)
+  - app/Services/Finance/InvoiceService.php (added applyPaymentWithOverpaymentHandling(), handleOverpaymentPartial(), handleOverpaymentCreateCredit(), isOverpayment(), calculateOverpaymentAmount() methods)
+  - app/Models/Customer/Customer.php (added customerCredits(), usableCredits() relationships and getTotalAvailableCredit(), hasAvailableCredit() helpers)
+- **Acceptance criteria verification:**
+  - ✅ If payment.amount > invoice.outstanding: InvoiceService.isOverpayment() detects this condition
+  - ✅ Option 1: Apply partial (leave remainder): OverpaymentHandling::ApplyPartial applies only outstanding, leaves remainder on payment
+  - ✅ Option 2: Apply full and create customer credit: OverpaymentHandling::CreateCredit creates CustomerCredit for excess amount
+  - ✅ Customer credit visible in customer finance view: Customer.customerCredits() and usableCredits() relationships expose credits
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - CustomerCredit model uses HasUuid, Auditable, SoftDeletes traits like other Finance models
+  - CustomerCreditStatus has state machine behavior with allowedTransitions() and canTransitionTo()
+  - Credits track source_payment_id and source_invoice_id for audit trail
+  - CustomerCredit.use() method decrements remaining_amount and auto-transitions status
+  - CustomerCredit.createFromOverpayment() factory method simplifies creation from overpayment scenario
+  - applyPaymentWithOverpaymentHandling() returns associative array with invoice_payment, customer_credit, amount_applied, credit_amount
+  - Credits can have optional expires_at date and scopeExpiredButNotMarked() helps find credits needing status update
+---
