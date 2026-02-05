@@ -1566,3 +1566,30 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Status colors are dynamically applied using enum color() methods
   - Customer finance data is calculated inline - for performance, a CustomerFinanceService could be created (US-E082)
 ---
+
+## 2026-02-05 - US-E077, US-E078, US-E079
+- What was implemented: These stories were already implemented as part of US-E076 (Customer Financial Dashboard)
+- Files verified (no changes needed):
+  - app/Filament/Pages/Finance/CustomerFinance.php (tabs already implemented)
+  - resources/views/filament/pages/finance/customer-finance.blade.php (all tab content present)
+- **US-E077 (Customer Open Invoices tab):**
+  - ✅ Tab Open Invoices in Customer Finance View
+  - ✅ List: invoice_number, type, amount, outstanding, due_date, status
+  - ✅ Sorted by due_date (oldest first)
+  - ✅ Total outstanding prominent (in table footer)
+  - ✅ Link to Invoice Detail
+- **US-E078 (Customer Payment History tab):**
+  - ✅ Tab Payment History in Customer Finance View
+  - ✅ List: payment_reference, amount, date, applied_to (invoices)
+  - ✅ Sorted by date (newest first)
+  - ✅ Filter by date range (paymentDateFrom, paymentDateTo)
+- **US-E079 (Customer Credits & Refunds tab):**
+  - ✅ Tab Credits & Refunds in Customer Finance View
+  - ✅ Section 1: Credit Notes list
+  - ✅ Section 2: Refunds list
+  - ✅ Total credits summary (getCreditsSummary)
+- **Learnings for future iterations:**
+  - When implementing a dashboard/page, multiple related stories may be satisfied by a single comprehensive implementation
+  - Group related stories in implementation to avoid duplicate work
+  - The Customer Finance View in US-E076 covered tabs defined in US-E077, US-E078, US-E079
+---
