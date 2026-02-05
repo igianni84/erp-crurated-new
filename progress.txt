@@ -1321,3 +1321,20 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Xero sync status determined by presence of xero_credit_note_id field
   - Follow same pattern as ViewInvoice for consistent Finance module UX
 ---
+
+## 2026-02-05 - US-E065
+- What was implemented: Create Credit Note from Invoice action in Invoice Detail view
+- Files changed:
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (updated getCreateCreditNoteAction to create actual CreditNote model)
+- **Acceptance criteria verification:**
+  - ✅ Action Create Credit Note in Invoice Detail: getCreateCreditNoteAction() visible when canHaveCreditNote() returns true
+  - ✅ Form: amount (max = invoice total), reason (required textarea): Form fields with validation
+  - ✅ Validation: amount > 0 and <= invoice total: Validated with bccomp() before creation
+  - ✅ Credit note created in draft status: Creates CreditNote with status = CreditNoteStatus::Draft
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - The Create Credit Note action was already present as a placeholder from US-E015, needed to implement actual CreditNote creation
+  - Credit note validation uses invoice.total_amount as max (not outstanding) per acceptance criteria
+  - Audit log creation follows same pattern as other Finance models using auditLogs()->create()
+  - Notification with action link allows user to navigate directly to view the created credit note
+---
