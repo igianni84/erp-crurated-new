@@ -853,3 +853,19 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Use Collection->push() in foreach loop instead of map()->filter() to avoid PHPStan collection covariance issues
   - previewUsage() adds breakdown data for UI display including rate_tier_label and formatted amounts
 ---
+
+## 2026-02-05 - US-E043
+- What was implemented: Added rate tier information to invoice descriptions and metadata
+- Files changed:
+  - app/Services/Finance/StorageBillingService.php (updated createInvoiceForPeriod and calculateUsage)
+- **Acceptance criteria verification:**
+  - ✅ Rate can vary by: volume tier, customer tier, location: getApplicableRate() checks customer rate, location rate, then volume tier
+  - ✅ Invoice line description includes applied rate tier: Description now shows "@ EUR 0.0050/bottle-day (101-500 bottles)"
+  - ✅ Method getApplicableRate(Customer, Location, bottleCount): Already implemented in US-E042
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Rate tier label (e.g., "101-500 bottles") is now included in both description and metadata
+  - Description format: "Wine Storage Services (period) - X bottles avg, Y bottle-days @ currency rate/bottle-day (tier)"
+  - Invoice line metadata includes: rate_tier, unit_rate for reporting/filtering
+  - calculateUsage() metadata also includes rate_tier for storage billing period records
+---
