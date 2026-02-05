@@ -585,3 +585,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Use Grid with multiple TextEntry components for structured warning display
   - Show resolution guidance: "Pay outstanding invoice to resume" for operator clarity
 ---
+
+## 2026-02-05 - US-E031
+- What was implemented: INV1 auto-generation from Module A sale confirmation
+- Files changed:
+  - app/Events/Finance/VoucherSaleConfirmed.php (new event class for voucher sale triggers)
+  - app/Listeners/Finance/GenerateVoucherSaleInvoice.php (new listener to create INV1 invoices)
+  - app/Providers/EventServiceProvider.php (registered VoucherSaleConfirmed → GenerateVoucherSaleInvoice mapping)
+- **Acceptance criteria verification:**
+  - ✅ Listener for VoucherSaleConfirmed event: GenerateVoucherSaleInvoice listener
+  - ✅ Creates Invoice with type = INV1: Uses InvoiceType::VoucherSale
+  - ✅ Source reference: source_type='voucher_sale', source_id=saleReference (voucher_batch_id or sale_order_id)
+  - ✅ Invoice lines from sellable_sku + quantity + price: buildInvoiceLines() includes sellable_sku_id, sku_code, description, quantity, unit_price, tax_rate
+  - ✅ Status = issued (immediate): autoIssue=true by default, immediately issues after creation
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - VoucherSaleConfirmed event defined in Finance module as it represents financial consequence of a sale
+  - INV1 invoices expect immediate payment (no due_date), autoIssue=true by default
+  - Event carries: customer, items array (sellable_sku_id, sku_code, description, quantity, unit_price, tax_rate), saleReference, currency, autoIssue flag, optional metadata
+  - GenerateVoucherSaleInvoice implements ShouldQueue for async processing
+  - Idempotency check uses saleReference (voucher_batch_id or sale_order_id) to prevent duplicate invoices
+  - Invoice lines include metadata with sale_reference, sku_code, original_quantity for audit trail
+---
