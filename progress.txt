@@ -1015,3 +1015,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice model helpers hasWineProductLines(), getInvalidInv4Lines(), validateInv4LinesAreServiceOnly() for invoice-level validation
   - Error messages explain what's wrong AND suggest the correct invoice type (INV1 for wine sales)
 ---
+
+## 2026-02-05 - US-E051
+- What was implemented: Created PaymentResource in Filament with list view, filters, search, tabs, and basic view page
+- Files changed:
+  - app/Filament/Resources/Finance/PaymentResource.php (main resource with table configuration, filters, bulk actions, global search)
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ListPayments.php (list page with tabs: All, Pending Reconciliation, Confirmed)
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ViewPayment.php (basic view page placeholder for US-E052)
+- **Acceptance criteria verification:**
+  - ✅ PaymentResource in Filament with navigation group Finance: navigationSort=2 (after Invoices)
+  - ✅ List with columns: payment_reference, source (badge), amount, currency, status, reconciliation_status, customer, received_at
+  - ✅ Filters: source, status, reconciliation_status, date range
+  - ✅ Search by: payment_reference, stripe_payment_intent_id, customer (via global search and table column search)
+  - ✅ Tabs: All, Pending Reconciliation, Confirmed
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - PaymentResource follows same patterns as InvoiceResource (tabs, filters, global search, CSV export)
+  - Payment.received_at is non-nullable (required field), don't use nullsafe operator
+  - Tabs for payments focus on reconciliation workflow: Pending Reconciliation is a key operational view
+  - Bulk CSV export includes all payment details including Stripe IDs and bank references
+  - navigationSort controls order within Finance group: Invoices=1, Payments=2
+---
