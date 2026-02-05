@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Finance\InvoiceResource\Pages;
 
+use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\PaymentSource;
 use App\Filament\Resources\Finance\InvoiceResource;
 use App\Models\AuditLog;
+use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
@@ -1586,12 +1588,64 @@ class ViewInvoice extends ViewRecord
             ->modalDescription('Create a credit note against this invoice. The credit note will be created as a draft and must be issued separately.')
             ->modalSubmitActionLabel('Create Credit Note')
             ->action(function (array $data): void {
-                // This action will be fully implemented in US-E065 with CreditNoteService
-                // For now, create a simple placeholder that shows the pattern
+                $invoice = $this->getInvoice();
+                $invoice->loadMissing('customer');
+
+                // Validate amount is positive and <= invoice total
+                $amount = (string) $data['amount'];
+                if (bccomp($amount, '0', 2) <= 0) {
+                    Notification::make()
+                        ->title('Invalid Amount')
+                        ->body('Credit note amount must be greater than zero.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                if (bccomp($amount, $invoice->total_amount, 2) > 0) {
+                    Notification::make()
+                        ->title('Invalid Amount')
+                        ->body("Credit note amount cannot exceed invoice total of {$invoice->currency} {$invoice->total_amount}.")
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                // Create the credit note in draft status
+                $creditNote = CreditNote::create([
+                    'invoice_id' => $invoice->id,
+                    'customer_id' => $invoice->customer_id,
+                    'amount' => $amount,
+                    'currency' => $invoice->currency,
+                    'reason' => $data['reason'],
+                    'status' => CreditNoteStatus::Draft,
+                ]);
+
+                // Log the creation in the audit trail
+                $creditNote->auditLogs()->create([
+                    'event' => AuditLog::EVENT_CREATED,
+                    'old_values' => [],
+                    'new_values' => [
+                        'invoice_id' => $invoice->id,
+                        'invoice_number' => $invoice->invoice_number,
+                        'amount' => $amount,
+                        'currency' => $invoice->currency,
+                        'reason' => $data['reason'],
+                    ],
+                    'user_id' => auth()->id(),
+                ]);
+
                 Notification::make()
                     ->title('Credit Note Created')
-                    ->body("Credit note for {$this->getInvoice()->currency} {$data['amount']} will be created as draft. Full implementation in US-E065.")
-                    ->warning()
+                    ->body("Credit note for {$invoice->currency} {$amount} has been created as draft. Navigate to Credit Notes to issue it.")
+                    ->success()
+                    ->actions([
+                        \Filament\Notifications\Actions\Action::make('view')
+                            ->label('View Credit Note')
+                            ->url(route('filament.admin.resources.finance.credit-notes.view', ['record' => $creditNote->id])),
+                    ])
                     ->send();
             });
     }
