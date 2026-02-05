@@ -3,6 +3,7 @@
 namespace App\Models\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
+use App\Enums\Finance\ServiceFeeType;
 use App\Models\Pim\SellableSku;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -362,5 +363,124 @@ class InvoiceLine extends Model
         }
 
         return "Module S pricing (Snapshot: {$snapshotId})";
+    }
+
+    // =========================================================================
+    // Service Fee Type Methods (INV4 - Service Events)
+    // =========================================================================
+
+    /**
+     * Get the service fee type for this line (INV4 lines only).
+     *
+     * Returns null if this is not a service fee line or type is not set.
+     */
+    public function getServiceFeeType(): ?ServiceFeeType
+    {
+        $typeValue = $this->getMetadataValue('service_type');
+        if ($typeValue === null) {
+            return null;
+        }
+
+        return ServiceFeeType::tryFromString($typeValue);
+    }
+
+    /**
+     * Get the service type string value from metadata.
+     */
+    public function getServiceTypeValue(): ?string
+    {
+        return $this->getMetadataValue('service_type');
+    }
+
+    /**
+     * Check if this line has a service fee type set.
+     */
+    public function hasServiceFeeType(): bool
+    {
+        return $this->getServiceFeeType() !== null;
+    }
+
+    /**
+     * Check if this line is a specific service fee type.
+     */
+    public function isServiceFeeType(ServiceFeeType $type): bool
+    {
+        return $this->getServiceFeeType() === $type;
+    }
+
+    /**
+     * Get the service fee type label for display.
+     *
+     * Returns a human-readable label or null if no service type.
+     */
+    public function getServiceFeeTypeLabel(): ?string
+    {
+        $feeType = $this->getServiceFeeType();
+
+        return $feeType?->label();
+    }
+
+    /**
+     * Get the service fee type color for display (Filament-compatible).
+     */
+    public function getServiceFeeTypeColor(): ?string
+    {
+        $feeType = $this->getServiceFeeType();
+
+        return $feeType?->color();
+    }
+
+    /**
+     * Get the service fee type icon for display (Filament-compatible).
+     */
+    public function getServiceFeeTypeIcon(): ?string
+    {
+        $feeType = $this->getServiceFeeType();
+
+        return $feeType?->icon();
+    }
+
+    /**
+     * Check if this is an event attendance line.
+     */
+    public function isEventAttendanceFee(): bool
+    {
+        return $this->isServiceFeeType(ServiceFeeType::EventAttendance);
+    }
+
+    /**
+     * Check if this is a tasting fee line.
+     */
+    public function isTastingFee(): bool
+    {
+        return $this->isServiceFeeType(ServiceFeeType::TastingFee);
+    }
+
+    /**
+     * Check if this is a consultation fee line.
+     */
+    public function isConsultationFee(): bool
+    {
+        return $this->isServiceFeeType(ServiceFeeType::Consultation);
+    }
+
+    /**
+     * Check if this is an event-related fee (attendance or tasting).
+     */
+    public function isEventRelatedFee(): bool
+    {
+        $feeType = $this->getServiceFeeType();
+
+        return $feeType !== null && $feeType->isEventRelated();
+    }
+
+    /**
+     * Check if this is an advisory/consultation fee.
+     */
+    public function isAdvisoryFee(): bool
+    {
+        $feeType = $this->getServiceFeeType();
+
+        return $feeType !== null && $feeType->isAdvisory();
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Events\Finance;
 
+use App\Enums\Finance\ServiceFeeType;
 use App\Models\Customer\Customer;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
@@ -26,6 +27,15 @@ use Illuminate\Queue\SerializesModels;
  *
  * INV4 expects immediate payment (no due date required).
  * INV4 can also be created manually for ad-hoc services (US-E049).
+ *
+ * Service fee types supported (see ServiceFeeType enum):
+ * - event_attendance: Event attendance fees
+ * - tasting_fee: Wine tasting service fees
+ * - consultation: Consultation service fees
+ * - other_service: Other service fees
+ *
+ * IMPORTANT: INV4 lines should NOT include inventory costs (bottles).
+ * Only service-related fees are allowed on INV4 invoices.
  */
 class EventBookingConfirmed
 {
@@ -144,7 +154,7 @@ class EventBookingConfirmed
     }
 
     /**
-     * Get the service types present in this booking.
+     * Get the service types present in this booking as string values.
      *
      * @return array<int, string>
      */
@@ -155,6 +165,27 @@ class EventBookingConfirmed
         foreach ($this->items as $item) {
             if (isset($item['service_type']) && ! in_array($item['service_type'], $types, true)) {
                 $types[] = $item['service_type'];
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Get the service fee type enums present in this booking.
+     *
+     * @return array<int, ServiceFeeType>
+     */
+    public function getServiceFeeTypes(): array
+    {
+        $types = [];
+
+        foreach ($this->items as $item) {
+            if (isset($item['service_type'])) {
+                $feeType = ServiceFeeType::tryFromString($item['service_type']);
+                if ($feeType !== null && ! in_array($feeType, $types, true)) {
+                    $types[] = $feeType;
+                }
             }
         }
 
@@ -173,6 +204,68 @@ class EventBookingConfirmed
         }
 
         return false;
+    }
+
+    /**
+     * Check if this booking has a specific service fee type.
+     */
+    public function hasServiceFeeType(ServiceFeeType $type): bool
+    {
+        return $this->hasServiceType($type->value);
+    }
+
+    /**
+     * Check if this booking has any event-related service types.
+     */
+    public function hasEventRelatedFees(): bool
+    {
+        foreach ($this->getServiceFeeTypes() as $type) {
+            if ($type->isEventRelated()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if this booking has any advisory/consultation fees.
+     */
+    public function hasAdvisoryFees(): bool
+    {
+        foreach ($this->getServiceFeeTypes() as $type) {
+            if ($type->isAdvisory()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get a human-readable summary of service types in this booking.
+     */
+    public function getServiceTypesSummary(): string
+    {
+        $feeTypes = $this->getServiceFeeTypes();
+
+        if (empty($feeTypes)) {
+            return 'Service Fees';
+        }
+
+        return implode(', ', array_map(fn (ServiceFeeType $t) => $t->label(), $feeTypes));
+    }
+
+    /**
+     * Get the primary service fee type for this booking.
+     *
+     * Returns the first service type found, or null if none.
+     */
+    public function getPrimaryServiceFeeType(): ?ServiceFeeType
+    {
+        $types = $this->getServiceFeeTypes();
+
+        return $types[0] ?? null;
     }
 
     /**

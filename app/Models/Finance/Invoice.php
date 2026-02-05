@@ -4,6 +4,7 @@ namespace App\Models\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
+use App\Enums\Finance\ServiceFeeType;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Traits\Auditable;
@@ -1453,5 +1454,297 @@ class Invoice extends Model
         }
 
         return null;
+    }
+
+    // =========================================================================
+    // Service Fee Methods (INV4 - Service Events)
+    // =========================================================================
+
+    /**
+     * Check if this is a service events invoice (INV4).
+     */
+    public function isServiceEventsInvoice(): bool
+    {
+        return $this->invoice_type === InvoiceType::ServiceEvents;
+    }
+
+    /**
+     * Get all service fee types present on this INV4 invoice.
+     *
+     * Returns unique ServiceFeeType enums from invoice line metadata.
+     *
+     * @return array<int, ServiceFeeType>
+     */
+    public function getServiceFeeTypes(): array
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return [];
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $types = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            if (isset($metadata['service_type'])) {
+                $feeType = ServiceFeeType::tryFromString($metadata['service_type']);
+                if ($feeType !== null && ! in_array($feeType, $types, true)) {
+                    $types[] = $feeType;
+                }
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Get all service type string values present on this INV4 invoice.
+     *
+     * @return array<int, string>
+     */
+    public function getServiceTypeValues(): array
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return [];
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $types = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            if (isset($metadata['service_type']) && ! in_array($metadata['service_type'], $types, true)) {
+                $types[] = $metadata['service_type'];
+            }
+        }
+
+        return $types;
+    }
+
+    /**
+     * Check if this invoice has a specific service fee type.
+     */
+    public function hasServiceFeeType(ServiceFeeType $type): bool
+    {
+        return in_array($type, $this->getServiceFeeTypes(), true);
+    }
+
+    /**
+     * Check if this invoice has any event-related service fees.
+     *
+     * Event-related includes: event_attendance, tasting_fee
+     */
+    public function hasEventRelatedFees(): bool
+    {
+        foreach ($this->getServiceFeeTypes() as $type) {
+            if ($type->isEventRelated()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if this invoice has any advisory/consultation fees.
+     */
+    public function hasAdvisoryFees(): bool
+    {
+        foreach ($this->getServiceFeeTypes() as $type) {
+            if ($type->isAdvisory()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if this invoice has tasting fees.
+     */
+    public function hasTastingFees(): bool
+    {
+        return $this->hasServiceFeeType(ServiceFeeType::TastingFee);
+    }
+
+    /**
+     * Check if this invoice has consultation fees.
+     */
+    public function hasConsultationFees(): bool
+    {
+        return $this->hasServiceFeeType(ServiceFeeType::Consultation);
+    }
+
+    /**
+     * Get the primary service fee type for this invoice.
+     *
+     * Returns the first service fee type found, or null.
+     */
+    public function getPrimaryServiceFeeType(): ?ServiceFeeType
+    {
+        $types = $this->getServiceFeeTypes();
+
+        return $types[0] ?? null;
+    }
+
+    /**
+     * Get a human-readable summary of service fee types.
+     */
+    public function getServiceFeeTypesSummary(): string
+    {
+        $types = $this->getServiceFeeTypes();
+
+        if (empty($types)) {
+            return 'Service Fees';
+        }
+
+        return implode(', ', array_map(fn (ServiceFeeType $t) => $t->label(), $types));
+    }
+
+    /**
+     * Get invoice lines grouped by service fee type.
+     *
+     * @return array<string, \Illuminate\Support\Collection<int, InvoiceLine>>
+     */
+    public function getLinesByServiceFeeType(): array
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return [];
+        }
+
+        $lines = $this->invoiceLines()->get();
+        $grouped = [];
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            $serviceType = $metadata['service_type'] ?? 'other_service';
+
+            if (! isset($grouped[$serviceType])) {
+                $grouped[$serviceType] = collect();
+            }
+            $grouped[$serviceType]->push($line);
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Get a summary of amounts by service fee type.
+     *
+     * @return array<string, array{
+     *     service_type: string,
+     *     service_type_label: string,
+     *     line_count: int,
+     *     subtotal: string,
+     *     tax: string,
+     *     total: string,
+     *     lines: \Illuminate\Support\Collection<int, InvoiceLine>
+     * }>
+     */
+    public function getServiceFeeTypeSummaries(): array
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return [];
+        }
+
+        $linesByType = $this->getLinesByServiceFeeType();
+        $summaries = [];
+
+        foreach ($linesByType as $typeValue => $lines) {
+            $subtotal = '0.00';
+            $tax = '0.00';
+            $total = '0.00';
+
+            foreach ($lines as $line) {
+                $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
+                $subtotal = bcadd($subtotal, $lineSubtotal, 2);
+                $tax = bcadd($tax, $line->tax_amount, 2);
+                $total = bcadd($total, $line->line_total, 2);
+            }
+
+            $feeType = ServiceFeeType::tryFromString($typeValue);
+            $label = $feeType !== null ? $feeType->label() : ucfirst(str_replace('_', ' ', $typeValue));
+
+            $summaries[$typeValue] = [
+                'service_type' => $typeValue,
+                'service_type_label' => $label,
+                'line_count' => $lines->count(),
+                'subtotal' => $subtotal,
+                'tax' => $tax,
+                'total' => $total,
+                'lines' => $lines,
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * Get the event booking ID for this INV4 invoice.
+     */
+    public function getEventBookingId(): ?string
+    {
+        if ($this->source_type !== 'event_booking' || $this->source_id === null) {
+            return null;
+        }
+
+        return $this->source_id;
+    }
+
+    /**
+     * Get event details from invoice line metadata.
+     *
+     * @return array{
+     *     event_name: string|null,
+     *     event_date: string|null,
+     *     event_type: string|null,
+     *     venue: string|null,
+     *     attendee_count: int|null
+     * }|null
+     */
+    public function getEventDetails(): ?array
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return null;
+        }
+
+        $firstLine = $this->invoiceLines()->first();
+        if ($firstLine === null) {
+            return null;
+        }
+
+        $metadata = $firstLine->metadata ?? [];
+
+        return [
+            'event_name' => $metadata['event_name'] ?? null,
+            'event_date' => $metadata['event_date'] ?? null,
+            'event_type' => $metadata['event_type'] ?? null,
+            'venue' => $metadata['venue'] ?? null,
+            'attendee_count' => isset($metadata['attendee_count']) ? (int) $metadata['attendee_count'] : null,
+        ];
+    }
+
+    /**
+     * Check if this INV4 invoice has an event reference.
+     *
+     * Returns false for ad-hoc service invoices without event booking.
+     */
+    public function hasEventReference(): bool
+    {
+        return $this->source_type === 'event_booking' && $this->source_id !== null;
+    }
+
+    /**
+     * Check if this INV4 invoice is an ad-hoc service invoice.
+     *
+     * Ad-hoc invoices don't have an event booking reference.
+     */
+    public function isAdHocServiceInvoice(): bool
+    {
+        if (! $this->isServiceEventsInvoice()) {
+            return false;
+        }
+
+        return ! $this->hasEventReference();
     }
 }
