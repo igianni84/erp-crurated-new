@@ -120,6 +120,9 @@ class StorageBillingService
             $calculatedAmount = $minimumCharge;
         }
 
+        // Get the rate tier label for metadata
+        $rateTierLabel = $this->getRateTierLabel($usageDetails['average_bottle_count']);
+
         return [
             'bottle_count' => $usageDetails['average_bottle_count'],
             'bottle_days' => $usageDetails['bottle_days'],
@@ -137,6 +140,7 @@ class StorageBillingService
                 'outbound_count' => $usageDetails['outbound_count'],
                 'transfer_count' => $usageDetails['transfer_count'],
                 'average_bottles_per_day' => $usageDetails['average_bottle_count'],
+                'rate_tier' => $rateTierLabel,
                 'location_id' => $location?->id,
                 'calculated_at' => now()->toIso8601String(),
             ],
@@ -501,9 +505,13 @@ class StorageBillingService
         return DB::transaction(function () use ($period, $autoIssue): Invoice {
             $customer = $period->customer;
 
-            // Build invoice line description
+            // Get the rate tier label for the description
+            $rateTierLabel = $this->getRateTierLabel($period->bottle_count);
+
+            // Build invoice line description with rate tier
             $periodLabel = $period->period_start->format('M j').' - '.$period->period_end->format('M j, Y');
-            $description = "Wine Storage Services ({$periodLabel}) - {$period->bottle_count} bottles avg, {$period->bottle_days} bottle-days";
+            $rateFormatted = number_format((float) $period->unit_rate, 4);
+            $description = "Wine Storage Services ({$periodLabel}) - {$period->bottle_count} bottles avg, {$period->bottle_days} bottle-days @ {$period->currency} {$rateFormatted}/bottle-day ({$rateTierLabel})";
 
             // Build invoice lines
             $lines = [
@@ -519,6 +527,8 @@ class StorageBillingService
                         'period_start' => $period->period_start->toDateString(),
                         'period_end' => $period->period_end->toDateString(),
                         'line_type' => 'storage_fee',
+                        'rate_tier' => $rateTierLabel,
+                        'unit_rate' => $period->unit_rate,
                     ],
                 ],
             ];
