@@ -1993,3 +1993,42 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - ✅ Method getIntegrationHealth(): lines 644-691
   - ✅ Typecheck passes
 ---
+
+## 2026-02-05 - US-E103
+- What was implemented: Integration configuration page for Stripe and Xero
+- Files changed:
+  - app/Filament/Pages/Finance/IntegrationConfiguration.php (new - Filament page class)
+  - resources/views/filament/pages/finance/integration-configuration.blade.php (new - Blade view)
+  - config/services.php (added Xero OAuth configuration)
+- **Acceptance criteria verification:**
+  - ✅ Settings page for Stripe API keys, Xero OAuth, sync settings: Full status display
+  - ✅ Test connection buttons: testStripeConnection() and testXeroConnection() methods
+  - ✅ Masked display of sensitive values: maskValue() helper shows first/last 4 chars only
+  - ✅ Stored securely (env or encrypted db): All credentials in .env, not modifiable via UI
+  - ✅ Typecheck passes: PHPStan passes with no errors
+- **Learnings for future iterations:**
+  - Filament custom pages with blade views: Page class + matching blade view in resources/views/filament/pages/
+  - For security, configuration pages should be read-only showing masked values, not allowing modification
+  - Test connection methods: Use HTTP client for Stripe API test, validate config presence for Xero
+  - PHPStan ternary.alwaysTrue: If early return guards ensure a value, don't use ternary later
+  - Return type for nested arrays: Use `list<array{...}>` not just `array{...}` for array of arrays
+  - Xero OAuth config added to config/services.php following Laravel convention
+---
+
+## 2026-02-05 - US-E104
+- What was implemented: Xero sync mandatory for issued invoices
+- Files changed:
+  - database/migrations/2026_02_05_100000_add_xero_sync_pending_to_invoices_table.php (adds xero_sync_pending flag)
+  - app/Models/Finance/Invoice.php (added xero_sync_pending field, helper methods, scopes)
+  - app/Services/Finance/InvoiceService.php (updated triggerXeroSync to manage sync_pending flag)
+  - app/Services/Finance/XeroIntegrationService.php (added invoice pending sync tracking and metrics)
+  - app/Filament/Pages/Finance/IntegrationsHealth.php (added invoice sync pending section and retry actions)
+  - resources/views/filament/pages/finance/integrations-health.blade.php (UI for invoice pending syncs)
+  - app/Filament/Widgets/Finance/XeroSyncPendingWidget.php (dashboard widget for pending syncs)
+- **Learnings for future iterations:**
+  - Use boolean flags on models to track pending sync states (xero_sync_pending)
+  - Invariants like "all issued invoices must have Xero sync" can be enforced via scopes (xeroNotSynced, xeroSyncPending)
+  - Integration health pages should show both XeroSyncLog failures AND Invoice sync pending states
+  - When adding new metrics to getIntegrationHealth(), update the PHPDoc return type annotation
+  - Filament TableWidgets can use static canView() to conditionally show/hide based on data presence
+---

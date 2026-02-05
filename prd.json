@@ -1630,8 +1630,8 @@
         "Typecheck passes"
       ],
       "priority": 103,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "IntegrationConfiguration page displays config status and allows testing connections. Credentials stored securely in .env."
     },
     {
       "id": "US-E104",
@@ -1645,8 +1645,8 @@
         "Typecheck passes"
       ],
       "priority": 104,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented xero_sync_pending flag on Invoice model, updated IntegrationsHealth page with invoice sync alerts and retry actions, added XeroSyncPendingWidget for dashboard"
     },
     {
       "id": "US-E105",
