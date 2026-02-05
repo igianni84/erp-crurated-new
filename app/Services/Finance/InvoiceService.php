@@ -190,8 +190,8 @@ class InvoiceService
                 ]
             );
 
-            // TODO: Trigger Xero sync event (US-E098)
-            // event(new InvoiceIssued($invoice));
+            // Trigger Xero sync (US-E098)
+            $this->triggerXeroSync($invoice);
 
             return $invoice;
         });
@@ -880,6 +880,29 @@ class InvoiceService
             InvoiceType::StorageFee => 'Module B: Custody operations unlock',
             InvoiceType::ServiceEvents => 'Event booking confirmation',
         };
+    }
+
+    /**
+     * Trigger Xero sync for an issued invoice.
+     *
+     * This method is called after invoice issuance to sync the invoice to Xero.
+     * Errors are logged but do not prevent the invoice from being issued.
+     * Failed syncs can be retried via the Xero integration management UI.
+     */
+    protected function triggerXeroSync(Invoice $invoice): void
+    {
+        try {
+            $xeroService = app(XeroIntegrationService::class);
+            $xeroService->syncInvoice($invoice);
+        } catch (\Exception $e) {
+            // Log the error but don't fail the invoice issuance
+            // The sync can be retried later via the Integrations Health page
+            Log::channel('finance')->warning('Xero sync failed after invoice issuance', [
+                'invoice_id' => $invoice->id,
+                'invoice_number' => $invoice->invoice_number,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

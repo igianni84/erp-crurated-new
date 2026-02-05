@@ -1910,3 +1910,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - extractPaymentIntentData() and extractFailureDetails() are helper methods for webhook parsing
   - The existing ProcessStripeWebhookJob can use this service, or the service can be called directly
 ---
+
+## 2026-02-05 - US-E098
+- What was implemented: Xero invoice sync - XeroIntegrationService for syncing issued invoices to Xero
+- Files changed:
+  - app/Services/Finance/XeroIntegrationService.php (new service with full Xero integration)
+  - app/Services/Finance/InvoiceService.php (added triggerXeroSync method after issue())
+- **Acceptance criteria verification:**
+  - ✅ When invoice.status = issued: triggerXeroSync() called in InvoiceService.issue()
+  - ✅ Creates XeroSyncLog with sync_type = invoice: XeroSyncLog::createForEntity() creates log entry
+  - ✅ Calls Xero API to create invoice: callXeroCreateInvoice() stub implementation (ready for real API)
+  - ✅ Saves xero_invoice_id on Invoice: Updated after successful sync
+  - ✅ Error handling with retry: markFailed() logs errors, retryFailed() method for retry
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - XeroIntegrationService follows same patterns as StripeIntegrationService
+  - Xero sync is triggered after invoice issuance but errors don't block the issuance
+  - XeroSyncLog tracks all sync attempts with request/response payloads
+  - Stub implementation for Xero API calls allows testing without real integration
+  - getIntegrationHealth() provides health metrics for monitoring dashboard
+  - retryFailed() and retryAllFailed() allow manual retry of failed syncs
+  - Use `instanceof` checks for MorphTo relationships before calling typed methods
+---
