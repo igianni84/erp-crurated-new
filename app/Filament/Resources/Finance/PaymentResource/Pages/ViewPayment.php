@@ -8,17 +8,26 @@ use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
 use App\Filament\Resources\Finance\PaymentResource;
 use App\Models\AuditLog;
+use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
+use App\Services\Finance\PaymentService;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewPayment extends ViewRecord
 {
@@ -588,8 +597,399 @@ class ViewPayment extends ViewRecord
      */
     protected function getHeaderActions(): array
     {
-        // Payment actions will be implemented in later stories (US-E054, US-E055, US-E056, US-E057)
-        return [];
+        return [
+            $this->getApplyToInvoiceAction(),
+        ];
+    }
+
+    /**
+     * Action to apply this payment to an invoice (manual reconciliation).
+     *
+     * Visible only when:
+     * - Payment status is confirmed (can be applied)
+     * - Payment has unapplied amount > 0
+     * - Payment reconciliation is pending or mismatched (not already fully matched)
+     */
+    protected function getApplyToInvoiceAction(): Action
+    {
+        return Action::make('applyToInvoice')
+            ->label('Apply to Invoice')
+            ->icon('heroicon-o-link')
+            ->color('primary')
+            ->visible(fn (): bool => $this->canApplyToInvoice())
+            ->requiresConfirmation()
+            ->modalHeading('Apply Payment to Invoice')
+            ->modalDescription(fn (): string => $this->getApplyToInvoiceModalDescription())
+            ->modalIcon('heroicon-o-link')
+            ->form([
+                Placeholder::make('payment_info')
+                    ->label('')
+                    ->content(fn (): string => $this->getPaymentInfoHtml())
+                    ->columnSpanFull(),
+
+                Select::make('invoice_id')
+                    ->label('Invoice')
+                    ->required()
+                    ->searchable()
+                    ->preload()
+                    ->options(fn (): array => $this->getAvailableInvoicesForPayment())
+                    ->helperText('Select an open invoice to apply this payment to')
+                    ->live()
+                    ->afterStateUpdated(fn (callable $set, ?string $state) => $this->onInvoiceSelected($set, $state)),
+
+                Placeholder::make('invoice_info')
+                    ->label('')
+                    ->content(fn (Get $get): string => $this->getInvoiceInfoHtml($get('invoice_id')))
+                    ->visible(fn (Get $get): bool => $get('invoice_id') !== null)
+                    ->columnSpanFull(),
+
+                TextInput::make('amount')
+                    ->label('Amount to Apply')
+                    ->required()
+                    ->numeric()
+                    ->step('0.01')
+                    ->minValue(0.01)
+                    ->prefix(fn (): string => $this->getPayment()->currency)
+                    ->helperText(fn (Get $get): string => $this->getAmountHelperText($get('invoice_id')))
+                    ->rules([
+                        fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                            $this->validateAmount($value, $get('invoice_id'), $fail);
+                        },
+                    ]),
+
+                Placeholder::make('partial_warning')
+                    ->label('')
+                    ->content(fn (Get $get): string => $this->getPartialApplicationWarning($get('invoice_id'), $get('amount')))
+                    ->visible(fn (Get $get): bool => $this->showPartialWarning($get('invoice_id'), $get('amount')))
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data): void {
+                $this->applyPaymentToInvoice($data);
+            });
+    }
+
+    /**
+     * Check if the current payment can be applied to an invoice.
+     */
+    protected function canApplyToInvoice(): bool
+    {
+        $payment = $this->getPayment();
+
+        // Must be able to be applied (confirmed status)
+        if (! $payment->canBeAppliedToInvoice()) {
+            return false;
+        }
+
+        // Must have unapplied amount
+        if (bccomp($payment->getUnappliedAmount(), '0', 2) <= 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Get the modal description for the Apply to Invoice action.
+     */
+    protected function getApplyToInvoiceModalDescription(): string
+    {
+        $payment = $this->getPayment();
+
+        return "Apply payment {$payment->payment_reference} to an invoice. This creates a link between the payment and the selected invoice.";
+    }
+
+    /**
+     * Get HTML for payment info in the modal.
+     */
+    protected function getPaymentInfoHtml(): string
+    {
+        $payment = $this->getPayment();
+
+        $lines = [];
+        $lines[] = '<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mb-4">';
+        $lines[] = '<div class="grid grid-cols-2 gap-4 text-sm">';
+
+        // Payment details
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Payment Reference:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->payment_reference).'</span>';
+        $lines[] = '</div>';
+
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Total Amount:</span>';
+        $lines[] = '<span class="font-semibold ml-2">'.e($payment->getFormattedAmount()).'</span>';
+        $lines[] = '</div>';
+
+        $lines[] = '<div>';
+        $lines[] = '<span class="text-gray-500 dark:text-gray-400">Unapplied Amount:</span>';
+        $lines[] = '<span class="font-semibold ml-2 text-amber-600">'.e($payment->getFormattedUnappliedAmount()).'</span>';
+        $lines[] = '</div>';
+
+        if ($payment->customer !== null) {
+            $lines[] = '<div>';
+            $lines[] = '<span class="text-gray-500 dark:text-gray-400">Customer:</span>';
+            $lines[] = '<span class="font-semibold ml-2">'.e($payment->customer->name).'</span>';
+            $lines[] = '</div>';
+        }
+
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Get available invoices that can receive this payment.
+     *
+     * @return array<string, string>
+     */
+    protected function getAvailableInvoicesForPayment(): array
+    {
+        $payment = $this->getPayment();
+
+        // Build query for open invoices in matching currency
+        $query = Invoice::where('currency', $payment->currency)
+            ->whereIn('status', [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid])
+            ->orderBy('due_date', 'asc')
+            ->orderBy('issued_at', 'asc');
+
+        // If payment has customer, prioritize their invoices
+        if ($payment->customer_id !== null) {
+            $query->where('customer_id', $payment->customer_id);
+        }
+
+        $invoices = $query->with('customer')->get();
+
+        $options = [];
+        foreach ($invoices as $invoice) {
+            $outstanding = $invoice->getOutstandingAmount();
+            $customerName = $invoice->customer !== null ? $invoice->customer->name : 'Unknown';
+            $invoiceNumber = $invoice->invoice_number ?? 'Draft';
+            $dueInfo = $invoice->due_date !== null ? ' (Due: '.$invoice->due_date->format('M j, Y').')' : '';
+
+            $label = "{$invoiceNumber} - {$customerName} - {$invoice->currency} {$outstanding} outstanding{$dueInfo}";
+
+            if ($invoice->isOverdue()) {
+                $label .= ' [OVERDUE]';
+            }
+
+            $options[$invoice->id] = $label;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Handle invoice selection - set default amount.
+     */
+    protected function onInvoiceSelected(callable $set, ?string $invoiceId): void
+    {
+        if ($invoiceId === null) {
+            return;
+        }
+
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice === null) {
+            return;
+        }
+
+        $payment = $this->getPayment();
+
+        // Set default amount to the lesser of: invoice outstanding or unapplied payment amount
+        $outstanding = $invoice->getOutstandingAmount();
+        $unapplied = $payment->getUnappliedAmount();
+
+        $defaultAmount = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+        $set('amount', $defaultAmount);
+    }
+
+    /**
+     * Get HTML for invoice info in the modal.
+     */
+    protected function getInvoiceInfoHtml(?string $invoiceId): string
+    {
+        if ($invoiceId === null) {
+            return '';
+        }
+
+        $invoice = Invoice::with('customer')->find($invoiceId);
+        if ($invoice === null) {
+            return '';
+        }
+
+        $lines = [];
+        $lines[] = '<div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 mb-4">';
+        $lines[] = '<h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-2">Selected Invoice Details</h4>';
+        $lines[] = '<div class="grid grid-cols-2 gap-2 text-sm">';
+
+        $lines[] = '<div><span class="text-blue-600 dark:text-blue-400">Invoice Number:</span> <strong>'.e($invoice->invoice_number ?? 'Draft').'</strong></div>';
+        $lines[] = '<div><span class="text-blue-600 dark:text-blue-400">Type:</span> '.e($invoice->getTypeCode().' - '.$invoice->getTypeLabel()).'</div>';
+        $lines[] = '<div><span class="text-blue-600 dark:text-blue-400">Total Amount:</span> '.e($invoice->getFormattedTotal()).'</div>';
+        $lines[] = '<div><span class="text-blue-600 dark:text-blue-400">Amount Paid:</span> '.e($invoice->currency.' '.number_format((float) $invoice->amount_paid, 2)).'</div>';
+        $lines[] = '<div><span class="text-blue-600 dark:text-blue-400">Outstanding:</span> <strong class="text-amber-600">'.e($invoice->getFormattedOutstanding()).'</strong></div>';
+
+        if ($invoice->due_date !== null) {
+            $dueDateClass = $invoice->isOverdue() ? 'text-red-600' : 'text-blue-600 dark:text-blue-400';
+            $lines[] = '<div><span class="'.$dueDateClass.'">Due Date:</span> '.e($invoice->due_date->format('M j, Y')).($invoice->isOverdue() ? ' <span class="text-red-600 font-semibold">(OVERDUE)</span>' : '').'</div>';
+        }
+
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Get helper text for the amount field.
+     */
+    protected function getAmountHelperText(?string $invoiceId): string
+    {
+        $payment = $this->getPayment();
+        $unapplied = $payment->getUnappliedAmount();
+
+        if ($invoiceId === null) {
+            return "Maximum: {$payment->currency} {$unapplied} (unapplied payment balance)";
+        }
+
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice === null) {
+            return "Maximum: {$payment->currency} {$unapplied} (unapplied payment balance)";
+        }
+
+        $outstanding = $invoice->getOutstandingAmount();
+        $max = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+
+        return "Maximum: {$payment->currency} {$max} (limited by ".
+            (bccomp($outstanding, $unapplied, 2) <= 0 ? 'invoice outstanding' : 'unapplied payment balance').')';
+    }
+
+    /**
+     * Validate the amount being applied.
+     */
+    protected function validateAmount(mixed $value, ?string $invoiceId, \Closure $fail): void
+    {
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $amount = (string) $value;
+        $payment = $this->getPayment();
+
+        // Check against unapplied payment amount
+        $unapplied = $payment->getUnappliedAmount();
+        if (bccomp($amount, $unapplied, 2) > 0) {
+            $fail("Amount cannot exceed the unapplied payment balance ({$payment->currency} {$unapplied}).");
+
+            return;
+        }
+
+        // Check against invoice outstanding if selected
+        if ($invoiceId !== null) {
+            $invoice = Invoice::find($invoiceId);
+            if ($invoice !== null) {
+                $outstanding = $invoice->getOutstandingAmount();
+                if (bccomp($amount, $outstanding, 2) > 0) {
+                    $fail("Amount cannot exceed the invoice outstanding amount ({$invoice->currency} {$outstanding}).");
+                }
+            }
+        }
+    }
+
+    /**
+     * Check if partial application warning should be shown.
+     */
+    protected function showPartialWarning(?string $invoiceId, mixed $amount): bool
+    {
+        if ($invoiceId === null || $amount === null || $amount === '') {
+            return false;
+        }
+
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice === null) {
+            return false;
+        }
+
+        $outstanding = $invoice->getOutstandingAmount();
+
+        return bccomp((string) $amount, $outstanding, 2) < 0;
+    }
+
+    /**
+     * Get warning text for partial application.
+     */
+    protected function getPartialApplicationWarning(?string $invoiceId, mixed $amount): string
+    {
+        if ($invoiceId === null || $amount === null || $amount === '') {
+            return '';
+        }
+
+        $invoice = Invoice::find($invoiceId);
+        if ($invoice === null) {
+            return '';
+        }
+
+        $outstanding = $invoice->getOutstandingAmount();
+        $remaining = bcsub($outstanding, (string) $amount, 2);
+
+        $lines = [];
+        $lines[] = '<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">';
+        $lines[] = '<div class="flex items-start gap-3">';
+        $lines[] = '<div class="flex-shrink-0">';
+        $lines[] = '<svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">';
+        $lines[] = '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>';
+        $lines[] = '</svg>';
+        $lines[] = '</div>';
+        $lines[] = '<div>';
+        $lines[] = '<h4 class="font-semibold text-amber-800 dark:text-amber-200">Partial Payment</h4>';
+        $lines[] = '<p class="mt-1 text-sm text-amber-700 dark:text-amber-300">';
+        $lines[] = 'This is a partial payment. The invoice will have '.e($invoice->currency.' '.$remaining).' remaining after this application.';
+        $lines[] = '</p>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+        $lines[] = '</div>';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * Execute the payment application.
+     *
+     * @param  array{invoice_id: string, amount: string}  $data
+     */
+    protected function applyPaymentToInvoice(array $data): void
+    {
+        $payment = $this->getPayment();
+        $invoice = Invoice::findOrFail($data['invoice_id']);
+        $amount = (string) $data['amount'];
+
+        try {
+            /** @var PaymentService $paymentService */
+            $paymentService = app(PaymentService::class);
+
+            // Apply the payment to the invoice
+            $invoicePayment = $paymentService->applyToInvoice($payment, $invoice, $amount);
+
+            // Mark payment as reconciled if this was the full amount
+            if ($payment->fresh()?->isFullyApplied()) {
+                $paymentService->markReconciled($payment->fresh(), ReconciliationStatus::Matched);
+            }
+
+            Notification::make()
+                ->title('Payment Applied Successfully')
+                ->body("{$payment->currency} {$amount} applied to invoice {$invoice->invoice_number}")
+                ->success()
+                ->send();
+
+            // Refresh the page to show updated data
+            $this->redirect(PaymentResource::getUrl('view', ['record' => $payment]));
+
+        } catch (InvalidArgumentException $e) {
+            Notification::make()
+                ->title('Failed to Apply Payment')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 
     /**
