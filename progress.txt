@@ -2051,3 +2051,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Sensitive fields are configurable via config/finance.php 'logs.sensitive_fields'
   - Use `isset($model->attributes['field'])` to check if attribute is set before cast is applied
 ---
+
+## 2026-02-05 - US-E106
+- What was implemented: Created Invoice Aging Report page with aging buckets, customer breakdown, and CSV export
+- Files changed:
+  - app/Filament/Pages/Finance/InvoiceAgingReport.php (new Filament page with aging calculations)
+  - resources/views/filament/pages/finance/invoice-aging-report.blade.php (new Blade view with summary cards, visual breakdown bar, and customer table)
+- **Features implemented:**
+  - Aging buckets: Current, 1-30 days, 31-60 days, 61-90 days, 90+ days
+  - Customer breakdown table with amounts per bucket and totals
+  - Summary cards with totals per bucket and percentage distribution
+  - Visual aging breakdown bar showing proportion of each bucket
+  - Customer filter with autocomplete search
+  - Report date picker (defaults to today)
+  - Export to CSV functionality
+  - Links to Customer Finance page for drill-down
+- **Learnings for future iterations:**
+  - PHPStan struggles with complex array shape types in Collection generics - use `Collection<int, mixed>` for simpler typing
+  - Aging bucket calculation uses due_date comparison with report date
+  - Invoices without due_date or with future due_date are considered "current" (not overdue)
+  - Navigation can have parent items (navigationParentItem) to group related pages under Reports
+  - bccomp() returns -1, 0, or 1 for comparison, not boolean - use explicit comparison with 0 for conditionals
+---
