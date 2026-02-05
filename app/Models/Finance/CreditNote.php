@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $credit_note_number
  * @property string $invoice_id
  * @property string $customer_id
+ * @property InvoiceType|null $original_invoice_type
  * @property string $amount
  * @property string $currency
  * @property string $reason
@@ -54,6 +55,7 @@ class CreditNote extends Model
         'credit_note_number',
         'invoice_id',
         'customer_id',
+        'original_invoice_type',
         'amount',
         'currency',
         'reason',
@@ -82,12 +84,43 @@ class CreditNote extends Model
     {
         return [
             'status' => CreditNoteStatus::class,
+            'original_invoice_type' => InvoiceType::class,
             'amount' => 'decimal:2',
             'issued_at' => 'datetime',
             'applied_at' => 'datetime',
             'xero_synced_at' => 'datetime',
             'issued_by' => 'integer',
         ];
+    }
+
+    /**
+     * Boot the model.
+     *
+     * - Auto-populates original_invoice_type from invoice on creation
+     * - Enforces immutability of original_invoice_type
+     */
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        // Auto-populate original_invoice_type from invoice on creation
+        static::creating(function (CreditNote $creditNote): void {
+            if ($creditNote->original_invoice_type === null && isset($creditNote->attributes['invoice_id'])) {
+                $invoice = Invoice::find($creditNote->invoice_id);
+                if ($invoice !== null) {
+                    $creditNote->original_invoice_type = $invoice->invoice_type;
+                }
+            }
+        });
+
+        // Enforce immutability of original_invoice_type
+        static::updating(function (CreditNote $creditNote): void {
+            if ($creditNote->isDirty('original_invoice_type')) {
+                throw new \InvalidArgumentException(
+                    'original_invoice_type cannot be modified once set. Credit notes preserve the original invoice type.'
+                );
+            }
+        });
     }
 
     // =========================================================================
@@ -192,10 +225,17 @@ class CreditNote extends Model
 
     /**
      * Get the original invoice type.
-     * Credit notes preserve the invoice_type of the original invoice.
+     * Returns the stored original_invoice_type field, falling back to
+     * the invoice relationship for backwards compatibility.
      */
     public function getOriginalInvoiceType(): ?InvoiceType
     {
+        // Use stored field first (for new credit notes)
+        if ($this->original_invoice_type !== null) {
+            return $this->original_invoice_type;
+        }
+
+        // Fallback to invoice relationship (for backwards compatibility)
         $invoice = $this->invoice;
 
         return $invoice !== null ? $invoice->invoice_type : null;
@@ -219,6 +259,69 @@ class CreditNote extends Model
         $type = $this->getOriginalInvoiceType();
 
         return $type !== null ? $type->label() : null;
+    }
+
+    /**
+     * Get the original invoice type color for UI display.
+     */
+    public function getOriginalInvoiceTypeColor(): ?string
+    {
+        $type = $this->getOriginalInvoiceType();
+
+        return $type !== null ? $type->color() : null;
+    }
+
+    /**
+     * Get the original invoice type icon for UI display.
+     */
+    public function getOriginalInvoiceTypeIcon(): ?string
+    {
+        $type = $this->getOriginalInvoiceType();
+
+        return $type !== null ? $type->icon() : null;
+    }
+
+    /**
+     * Check if the original invoice type is stored.
+     * Returns true if original_invoice_type field is populated.
+     */
+    public function hasStoredOriginalInvoiceType(): bool
+    {
+        return $this->original_invoice_type !== null;
+    }
+
+    // =========================================================================
+    // Query Scopes for Reporting
+    // =========================================================================
+
+    /**
+     * Scope to filter by original invoice type.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<CreditNote>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<CreditNote>
+     */
+    public function scopeOfOriginalInvoiceType(\Illuminate\Database\Eloquent\Builder $query, InvoiceType|string $type): \Illuminate\Database\Eloquent\Builder
+    {
+        $value = $type instanceof InvoiceType ? $type->value : $type;
+
+        return $query->where('original_invoice_type', $value);
+    }
+
+    /**
+     * Scope to filter by original invoice type code (INV0-INV4).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<CreditNote>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<CreditNote>
+     */
+    public function scopeOfOriginalInvoiceTypeCode(\Illuminate\Database\Eloquent\Builder $query, string $code): \Illuminate\Database\Eloquent\Builder
+    {
+        $type = collect(InvoiceType::cases())->first(fn (InvoiceType $t) => $t->code() === $code);
+
+        if ($type === null) {
+            return $query->whereRaw('1 = 0'); // No match for invalid code
+        }
+
+        return $query->where('original_invoice_type', $type->value);
     }
 
     // =========================================================================

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\CreditNoteStatus;
+use App\Enums\Finance\InvoiceType;
 use App\Filament\Resources\Finance\CreditNoteResource\Pages;
 use App\Models\Finance\CreditNote;
 use Filament\Forms;
@@ -58,6 +59,15 @@ class CreditNoteResource extends Resource
                     ->openUrlInNewTab()
                     ->placeholder('N/A'),
 
+                Tables\Columns\TextColumn::make('original_invoice_type')
+                    ->label('Invoice Type')
+                    ->badge()
+                    ->formatStateUsing(fn (?InvoiceType $state): string => $state !== null ? $state->code().' - '.$state->label() : 'N/A')
+                    ->color(fn (?InvoiceType $state): string => $state !== null ? $state->color() : 'gray')
+                    ->icon(fn (?InvoiceType $state): ?string => $state !== null ? $state->icon() : null)
+                    ->sortable()
+                    ->toggleable(),
+
                 Tables\Columns\TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -106,6 +116,13 @@ class CreditNoteResource extends Resource
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
+
+                Tables\Filters\SelectFilter::make('original_invoice_type')
+                    ->options(collect(InvoiceType::cases())
+                        ->mapWithKeys(fn (InvoiceType $type) => [$type->value => $type->code().' - '.$type->label()])
+                        ->toArray())
+                    ->multiple()
+                    ->label('Original Invoice Type'),
 
                 Tables\Filters\Filter::make('issued_at')
                     ->form([
@@ -168,6 +185,7 @@ class CreditNoteResource extends Resource
                                 fputcsv($handle, [
                                     'Credit Note Number',
                                     'Invoice Number',
+                                    'Original Invoice Type',
                                     'Customer',
                                     'Amount',
                                     'Currency',
@@ -179,9 +197,11 @@ class CreditNoteResource extends Resource
                                 ]);
                                 foreach ($records as $record) {
                                     /** @var CreditNote $record */
+                                    $originalType = $record->getOriginalInvoiceType();
                                     fputcsv($handle, [
                                         $record->credit_note_number ?? 'Draft',
                                         $record->invoice !== null ? $record->invoice->invoice_number : 'N/A',
+                                        $originalType !== null ? $originalType->code().' - '.$originalType->label() : 'N/A',
                                         $record->customer !== null ? $record->customer->name : 'N/A',
                                         $record->amount,
                                         $record->currency,
