@@ -935,3 +935,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Status column distinguishes "Exists" (gray badge) vs "Pending" (warning badge) to show which periods are new
   - Faded rows (opacity-60) visually indicate existing periods that will be skipped during generation
 ---
+
+## 2026-02-05 - US-E047
+- What was implemented: INV4 auto-generation from event booking - event and listener for service event invoices
+- Files changed:
+  - app/Events/Finance/EventBookingConfirmed.php (new event class for event booking triggers)
+  - app/Listeners/Finance/GenerateEventServiceInvoice.php (new listener to create INV4 invoices)
+  - app/Providers/EventServiceProvider.php (registered EventBookingConfirmed → GenerateEventServiceInvoice mapping)
+- **Acceptance criteria verification:**
+  - ✅ Listener for EventBookingConfirmed event: GenerateEventServiceInvoice listener
+  - ✅ Creates Invoice with type = INV4: Uses InvoiceType::ServiceEvents
+  - ✅ Source reference: source_type='event_booking', source_id=eventBookingId
+  - ✅ Invoice lines: event fee, service fees: buildInvoiceLines() supports service_type metadata (event_attendance, tasting_fee, consultation, other_service)
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - EventBookingConfirmed event follows same pattern as VoucherSaleConfirmed and ShipmentExecuted
+  - INV4 invoices expect immediate payment (no due_date), autoIssue=true by default
+  - Event carries: customer, eventBookingId, items array with service_type metadata, currency, metadata with event details
+  - GenerateEventServiceInvoice implements ShouldQueue for async processing
+  - Idempotency check uses eventBookingId to prevent duplicate invoices
+  - Helper methods on event: getEventName(), getEventDate(), getEventVenue(), isTastingEvent(), isConsultation(), getServiceTypes()
+  - Invoice notes include event name, type, date, venue, attendee count, and service types summary
+  - INV4 lines do NOT have sellable_sku_id (service fees are not linked to sellable SKUs - enforced in US-E050)
+---
