@@ -2200,3 +2200,34 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Widgets use $columnSpan = 'full' for full-width display
   - Widget $sort property controls display order on dashboard
 ---
+
+## 2026-02-05 - US-E114
+- What was implemented: Verified and tested AuditLog immutability enforcement
+- Files changed:
+  - tests/Unit/Models/AuditLogImmutabilityTest.php (new file - 20 test methods)
+- **Acceptance criteria verification:**
+  - ✅ Audit logs table: no update, no delete operations: Already enforced in AuditLog boot() method (throws InvalidArgumentException)
+  - ✅ Model observer prevents modifications: static::updating() and static::deleting() hooks throw exceptions
+  - ✅ Soft deletes disabled on audit tables: AuditLog does not use SoftDeletes trait, no deleted_at column in migration
+  - ✅ Test that verifies immutability: AuditLogImmutabilityTest.php with 20 test cases
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Tests implemented:**
+  - test_audit_log_does_not_use_soft_deletes
+  - test_audit_log_has_no_updated_at_timestamp
+  - test_audit_log_update_*_throws_exception (6 field tests)
+  - test_audit_log_delete_throws_exception
+  - test_audit_log_force_delete_throws_exception
+  - test_audit_log_uses_model_observer_for_immutability
+  - test_audit_log_casts_*
+  - test_audit_log_event_*_helper (3 helper tests)
+  - test_audit_log_has_fillable_attributes
+  - test_audit_log_has_proper_casts
+  - test_audit_log_has_finance_event_types
+  - test_audit_log_uses_has_uuid_trait
+- **Learnings for future iterations:**
+  - AuditLog immutability was already implemented - just needed comprehensive test coverage
+  - Use $model->exists = true to mark in-memory models as "existing" to trigger updating hooks without database
+  - Avoid RefreshDatabase trait when pre-existing SQLite migration issues exist
+  - AuditLog uses UPDATED_AT = null constant to disable updated_at timestamp
+  - Boot method hooks (updating/deleting) are the standard pattern for model immutability enforcement
+---
