@@ -1472,3 +1472,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Stripe refund endpoint: POST https://api.stripe.com/v1/refunds with charge, amount, reason, metadata
   - Stripe config goes in config/services.php with STRIPE_KEY, STRIPE_SECRET, STRIPE_WEBHOOK_SECRET env vars
 ---
+
+## 2026-02-05 - US-E072
+- What was implemented: Bank refund tracking with "Mark Processed" action for bank transfer refunds
+- Files changed:
+  - app/Filament/Resources/Finance/RefundResource/Pages/ViewRefund.php (added getMarkBankRefundProcessedAction())
+- **Acceptance criteria verification:**
+  - ✅ If method = bank_transfer: Action is visible via canMarkBankRefundProcessed() check
+  - ✅ Form requires bank_reference (post-processing): TextInput with required validation, min 3 chars
+  - ✅ Status flow: pending to processed (after reference input): Updates status to RefundStatus::Processed
+  - ✅ Action Mark Processed with bank_reference input: Complete form with info placeholder, refund details, bank_reference, processed_at
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Use Refund::canMarkBankRefundProcessed() helper method (already existed in model) to control action visibility
+  - Bank refund actions follow similar pattern to Invoice actions - use Action::make() with form, requiresConfirmation, and action callback
+  - DateTimePicker::make() allows setting default value with default(now()) and maxDate(now()) for past-only dates
+  - After updating a model in an action, redirect to the same page to refresh the view: $this->redirect(Resource::getUrl('view', ['record' => $model]))
+  - Audit logging pattern: create audit log with EVENT_UPDATED, old_values (previous state), new_values (new state), and user_id
+---
