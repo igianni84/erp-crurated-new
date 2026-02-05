@@ -2348,3 +2348,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Livewire $wire.dismissAlert() allows calling PHP methods from Alpine.js
   - Use helper methods (getAlertColorClasses, getAlertIconColorClass, getAlertTextColorClass) for consistent styling
 ---
+
+## 2026-02-05 - US-E120
+- What was implemented: Added Period Comparison widget to Finance Overview dashboard
+- Files changed:
+  - app/Filament/Pages/Finance/FinanceOverview.php (added getPeriodComparison(), calculatePercentageChange(), and color helper methods)
+  - resources/views/filament/pages/finance/finance-overview.blade.php (added Period Comparison widget section)
+- **Features implemented:**
+  - Widget showing This Month vs Last Month comparison
+  - Metrics for Invoices Issued (count and amount)
+  - Metrics for Amount Collected/Payments (count and amount)
+  - Metrics for Credit Notes (count and amount)
+  - Percentage change indicators with up/down arrow icons
+  - Color coding: green for improvement, red for decline
+  - Inverse color coding for credit notes (fewer is better, so down=green, up=red)
+  - Current vs previous month labels in header
+  - Side-by-side comparison layout with badges
+- **Learnings for future iterations:**
+  - Use small threshold (0.5) in percentage change calculation to avoid floating point issues showing tiny changes as up/down
+  - Inverse color logic for metrics where down is good (credit notes, refunds) - pass $inverse=true to color helper
+  - getPeriodChangeBgColorClass() and getPeriodChangeColorClass() with inverse parameter for semantic color meanings
+  - Carbon's startOfMonth() and endOfMonth() handle date ranges correctly for month boundaries
+---
