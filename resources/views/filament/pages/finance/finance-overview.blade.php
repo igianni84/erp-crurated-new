@@ -226,6 +226,107 @@
         </div>
     </div>
 
+    {{-- Recent Activity Feed (US-E118) --}}
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+        <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <x-heroicon-o-clock class="h-5 w-5 text-gray-400" />
+            Recent Activity
+            <span class="text-xs font-normal text-gray-500 dark:text-gray-400">(Last 24 hours)</span>
+        </h3>
+
+        @php
+            $recentActivities = $this->getRecentActivityFeed();
+        @endphp
+
+        @if(count($recentActivities) > 0)
+            <div class="flow-root">
+                <ul role="list" class="-mb-8">
+                    @foreach($recentActivities as $index => $activity)
+                        <li>
+                            <div class="relative pb-8">
+                                {{-- Connecting line --}}
+                                @if($index < count($recentActivities) - 1)
+                                    <span class="absolute left-4 top-4 -ml-px h-full w-0.5 bg-gray-200 dark:bg-gray-700" aria-hidden="true"></span>
+                                @endif
+
+                                <div class="relative flex space-x-3">
+                                    {{-- Icon --}}
+                                    <div>
+                                        <span class="h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white dark:ring-gray-900
+                                            @if($activity['icon_color'] === 'primary') bg-primary-100 dark:bg-primary-400/20
+                                            @elseif($activity['icon_color'] === 'success') bg-success-100 dark:bg-success-400/20
+                                            @elseif($activity['icon_color'] === 'warning') bg-warning-100 dark:bg-warning-400/20
+                                            @elseif($activity['icon_color'] === 'danger') bg-danger-100 dark:bg-danger-400/20
+                                            @else bg-gray-100 dark:bg-gray-700
+                                            @endif
+                                        ">
+                                            <x-dynamic-component
+                                                :component="$activity['icon']"
+                                                class="h-4 w-4
+                                                    @if($activity['icon_color'] === 'primary') text-primary-600 dark:text-primary-400
+                                                    @elseif($activity['icon_color'] === 'success') text-success-600 dark:text-success-400
+                                                    @elseif($activity['icon_color'] === 'warning') text-warning-600 dark:text-warning-400
+                                                    @elseif($activity['icon_color'] === 'danger') text-danger-600 dark:text-danger-400
+                                                    @else text-gray-600 dark:text-gray-400
+                                                    @endif
+                                                "
+                                            />
+                                        </span>
+                                    </div>
+
+                                    {{-- Content --}}
+                                    <div class="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
+                                        <div>
+                                            <p class="text-sm text-gray-900 dark:text-white">
+                                                <span class="font-medium">{{ $activity['title'] }}</span>
+                                            </p>
+                                            @if($activity['url'])
+                                                <a href="{{ $activity['url'] }}" class="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:underline">
+                                                    {{ $activity['description'] }}
+                                                </a>
+                                            @else
+                                                <p class="text-sm text-gray-500 dark:text-gray-400">
+                                                    {{ $activity['description'] }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                        <div class="whitespace-nowrap text-right text-sm">
+                                            @if($activity['amount'])
+                                                <p class="font-medium
+                                                    @if($activity['type'] === 'payment_received') text-success-600 dark:text-success-400
+                                                    @elseif($activity['type'] === 'refund_processed') text-danger-600 dark:text-danger-400
+                                                    @elseif($activity['type'] === 'credit_note_issued') text-warning-600 dark:text-warning-400
+                                                    @else text-gray-900 dark:text-white
+                                                    @endif
+                                                ">
+                                                    @if($activity['type'] === 'refund_processed' || $activity['type'] === 'credit_note_issued')
+                                                        -
+                                                    @endif
+                                                    {{ $activity['currency'] }} {{ number_format((float) $activity['amount'], 2) }}
+                                                </p>
+                                            @endif
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $activity['timestamp']->diffForHumans() }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @else
+            <div class="text-center py-8">
+                <x-heroicon-o-inbox class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
+                <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No recent activity</h3>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    There haven't been any financial events in the last 24 hours.
+                </p>
+            </div>
+        @endif
+    </div>
+
     {{-- Today's Activity & Quick Stats --}}
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-6">
         {{-- Today's Activity --}}

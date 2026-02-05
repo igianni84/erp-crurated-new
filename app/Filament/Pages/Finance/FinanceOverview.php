@@ -2,11 +2,15 @@
 
 namespace App\Filament\Pages\Finance;
 
+use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
+use App\Enums\Finance\RefundStatus;
+use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
+use App\Models\Finance\Refund;
 use App\Services\Finance\XeroIntegrationService;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
@@ -14,6 +18,7 @@ use Filament\Pages\Page;
 /**
  * US-E116: Finance Overview Dashboard
  * US-E117: Dashboard quick actions
+ * US-E118: Dashboard recent activity feed
  *
  * The default landing page for the Finance module, providing a quick
  * overview of key financial metrics:
@@ -28,6 +33,13 @@ use Filament\Pages\Page;
  * - Pending Reconciliations
  * - Failed Syncs
  * - Generate Storage Billing
+ *
+ * Recent Activity Feed (US-E118):
+ * - Invoices issued in last 24 hours
+ * - Payments received in last 24 hours
+ * - Credit notes issued in last 24 hours
+ * - Refunds processed in last 24 hours
+ * - Click to navigate to detail pages
  */
 class FinanceOverview extends Page
 {
@@ -180,6 +192,7 @@ class FinanceOverview extends Page
      */
     public function getTotalOutstanding(): string
     {
+        /** @var string|null $totalOutstanding */
         $totalOutstanding = Invoice::query()
             ->whereIn('status', [
                 InvoiceStatus::Issued,
@@ -188,7 +201,7 @@ class FinanceOverview extends Page
             ->selectRaw('SUM(total_amount - amount_paid) as outstanding')
             ->value('outstanding');
 
-        return number_format((float) ($totalOutstanding ?? 0), 2, '.', '');
+        return number_format((float) ($totalOutstanding ?? '0'), 2, '.', '');
     }
 
     /**
@@ -213,6 +226,7 @@ class FinanceOverview extends Page
      */
     public function getOverdueAmount(): string
     {
+        /** @var string|null $overdueAmount */
         $overdueAmount = Invoice::query()
             ->whereIn('status', [
                 InvoiceStatus::Issued,
@@ -223,7 +237,7 @@ class FinanceOverview extends Page
             ->selectRaw('SUM(total_amount - amount_paid) as overdue')
             ->value('overdue');
 
-        return number_format((float) ($overdueAmount ?? 0), 2, '.', '');
+        return number_format((float) ($overdueAmount ?? '0'), 2, '.', '');
     }
 
     /**
@@ -520,5 +534,254 @@ class FinanceOverview extends Page
     public function getCurrentMonthLabel(): string
     {
         return now()->format('F Y');
+    }
+
+    // =========================================================================
+    // Recent Activity Feed (US-E118)
+    // =========================================================================
+
+    /**
+     * Get recent activity feed for the last 24 hours.
+     *
+     * Returns a unified list of financial events sorted by timestamp (newest first):
+     * - Invoices issued
+     * - Payments received
+     * - Credit notes issued
+     * - Refunds processed
+     *
+     * @return array<array{
+     *     type: string,
+     *     icon: string,
+     *     icon_color: string,
+     *     title: string,
+     *     description: string,
+     *     amount: string|null,
+     *     currency: string,
+     *     timestamp: \Carbon\Carbon,
+     *     url: string|null,
+     *     model_type: string,
+     *     model_id: int|string
+     * }>
+     */
+    public function getRecentActivityFeed(): array
+    {
+        $since = now()->subDay();
+        $activities = [];
+
+        // Invoices issued in last 24 hours
+        $invoices = Invoice::query()
+            ->whereNotNull('issued_at')
+            ->where('issued_at', '>=', $since)
+            ->with('customer')
+            ->orderBy('issued_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        foreach ($invoices as $invoice) {
+            // Skip if issued_at is null (shouldn't happen due to query filter but satisfies PHPStan)
+            if ($invoice->issued_at === null) {
+                continue;
+            }
+
+            $customerName = $invoice->customer !== null
+                ? $invoice->customer->name
+                : 'Unknown Customer';
+
+            $activities[] = [
+                'type' => 'invoice_issued',
+                'icon' => 'heroicon-o-document-text',
+                'icon_color' => 'primary',
+                'title' => 'Invoice Issued',
+                'description' => $invoice->invoice_number.' for '.$customerName,
+                'amount' => $invoice->total_amount,
+                'currency' => $invoice->currency,
+                'timestamp' => $invoice->issued_at,
+                'url' => $this->getInvoiceUrl($invoice),
+                'model_type' => 'invoice',
+                'model_id' => $invoice->id,
+            ];
+        }
+
+        // Payments received in last 24 hours
+        $payments = Payment::query()
+            ->where('status', PaymentStatus::Confirmed)
+            ->where('received_at', '>=', $since)
+            ->with('customer')
+            ->orderBy('received_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        foreach ($payments as $payment) {
+            $customerName = $payment->customer !== null
+                ? $payment->customer->name
+                : 'Unknown Customer';
+
+            $activities[] = [
+                'type' => 'payment_received',
+                'icon' => 'heroicon-o-credit-card',
+                'icon_color' => 'success',
+                'title' => 'Payment Received',
+                'description' => $payment->payment_reference.' from '.$customerName,
+                'amount' => $payment->amount,
+                'currency' => $payment->currency,
+                'timestamp' => $payment->received_at,
+                'url' => $this->getPaymentUrl($payment),
+                'model_type' => 'payment',
+                'model_id' => $payment->id,
+            ];
+        }
+
+        // Credit notes issued in last 24 hours
+        $creditNotes = CreditNote::query()
+            ->whereIn('status', [CreditNoteStatus::Issued, CreditNoteStatus::Applied])
+            ->whereNotNull('issued_at')
+            ->where('issued_at', '>=', $since)
+            ->with(['customer', 'invoice'])
+            ->orderBy('issued_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        foreach ($creditNotes as $creditNote) {
+            // Skip if issued_at is null (shouldn't happen due to query filter but satisfies PHPStan)
+            if ($creditNote->issued_at === null) {
+                continue;
+            }
+
+            $customerName = $creditNote->customer !== null
+                ? $creditNote->customer->name
+                : 'Unknown Customer';
+            $invoiceRef = $creditNote->invoice !== null
+                ? $creditNote->invoice->invoice_number
+                : 'Unknown Invoice';
+
+            $activities[] = [
+                'type' => 'credit_note_issued',
+                'icon' => 'heroicon-o-document-minus',
+                'icon_color' => 'warning',
+                'title' => 'Credit Note Issued',
+                'description' => ($creditNote->credit_note_number ?? 'Draft').' for '.$customerName.' (ref: '.$invoiceRef.')',
+                'amount' => $creditNote->amount,
+                'currency' => $creditNote->currency,
+                'timestamp' => $creditNote->issued_at,
+                'url' => $this->getCreditNoteUrl($creditNote),
+                'model_type' => 'credit_note',
+                'model_id' => $creditNote->id,
+            ];
+        }
+
+        // Refunds processed in last 24 hours
+        $refunds = Refund::query()
+            ->where('status', RefundStatus::Processed)
+            ->whereNotNull('processed_at')
+            ->where('processed_at', '>=', $since)
+            ->with(['invoice', 'payment'])
+            ->orderBy('processed_at', 'desc')
+            ->limit(20)
+            ->get();
+
+        foreach ($refunds as $refund) {
+            // Skip if processed_at is null (shouldn't happen due to query filter but satisfies PHPStan)
+            if ($refund->processed_at === null) {
+                continue;
+            }
+
+            $invoiceRef = $refund->invoice !== null
+                ? $refund->invoice->invoice_number
+                : 'Unknown Invoice';
+
+            $activities[] = [
+                'type' => 'refund_processed',
+                'icon' => 'heroicon-o-arrow-uturn-left',
+                'icon_color' => 'danger',
+                'title' => 'Refund Processed',
+                'description' => 'Refund for '.$invoiceRef.' via '.$refund->method->label(),
+                'amount' => $refund->amount,
+                'currency' => $refund->currency,
+                'timestamp' => $refund->processed_at,
+                'url' => $this->getRefundUrl($refund),
+                'model_type' => 'refund',
+                'model_id' => $refund->id,
+            ];
+        }
+
+        // Sort by timestamp descending
+        usort($activities, function ($a, $b) {
+            return $b['timestamp']->timestamp <=> $a['timestamp']->timestamp;
+        });
+
+        // Limit to 15 most recent
+        return array_slice($activities, 0, 15);
+    }
+
+    /**
+     * Get URL for invoice detail page.
+     */
+    public function getInvoiceUrl(Invoice $invoice): string
+    {
+        return route('filament.admin.resources.finance.invoices.view', ['record' => $invoice->id]);
+    }
+
+    /**
+     * Get URL for payment detail page.
+     */
+    public function getPaymentUrl(Payment $payment): string
+    {
+        return route('filament.admin.resources.finance.payments.view', ['record' => $payment->id]);
+    }
+
+    /**
+     * Get URL for credit note detail page.
+     */
+    public function getCreditNoteUrl(CreditNote $creditNote): string
+    {
+        return route('filament.admin.resources.finance.credit-notes.view', ['record' => $creditNote->id]);
+    }
+
+    /**
+     * Get URL for refund detail page.
+     */
+    public function getRefundUrl(Refund $refund): string
+    {
+        return route('filament.admin.resources.finance.refunds.view', ['record' => $refund->id]);
+    }
+
+    /**
+     * Get count of activities in last 24 hours.
+     */
+    public function getRecentActivityCount(): int
+    {
+        $since = now()->subDay();
+
+        $invoiceCount = Invoice::query()
+            ->whereNotNull('issued_at')
+            ->where('issued_at', '>=', $since)
+            ->count();
+
+        $paymentCount = Payment::query()
+            ->where('status', PaymentStatus::Confirmed)
+            ->where('received_at', '>=', $since)
+            ->count();
+
+        $creditNoteCount = CreditNote::query()
+            ->whereIn('status', [CreditNoteStatus::Issued, CreditNoteStatus::Applied])
+            ->whereNotNull('issued_at')
+            ->where('issued_at', '>=', $since)
+            ->count();
+
+        $refundCount = Refund::query()
+            ->where('status', RefundStatus::Processed)
+            ->whereNotNull('processed_at')
+            ->where('processed_at', '>=', $since)
+            ->count();
+
+        return $invoiceCount + $paymentCount + $creditNoteCount + $refundCount;
+    }
+
+    /**
+     * Check if there is any recent activity.
+     */
+    public function hasRecentActivity(): bool
+    {
+        return $this->getRecentActivityCount() > 0;
     }
 }
