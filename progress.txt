@@ -1630,3 +1630,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Module K has the full eligibility picture; Finance only shows financial signals
   - Use severity levels (danger/warning) to visually distinguish block types
 ---
+
+## 2026-02-05 - US-E082
+- What was implemented: Created CustomerFinanceService for aggregating customer financial data
+- Files changed:
+  - app/Services/Finance/CustomerFinanceService.php (new file)
+- Methods implemented:
+  - getOpenInvoices(Customer): returns invoices with Issued/PartiallyPaid status, sorted by due_date
+  - getTotalOutstanding(Customer): sum of (total_amount - amount_paid) for open invoices
+  - getOverdueAmount(Customer): sum of outstanding for overdue invoices
+  - getPaymentHistory(Customer, dateRange): payments with optional date filter, eager-loads invoice relationships
+  - getEligibilitySignals(Customer): returns payment_blocked/custody_blocked signals based on overdue INV0/INV3
+  - Bonus methods: isPaymentBlocked(), isCustodyBlocked(), getFinancialSummary()
+- **Learnings for future iterations:**
+  - Service extracts logic from CustomerFinance Filament page for reusability
+  - Date range parameter uses array with from/to keys, supports Carbon or string
+  - Services can be injected into controllers or used from other modules
+  - Financial summary method provides convenient aggregated view
+---
