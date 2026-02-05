@@ -2370,3 +2370,16 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - getPeriodChangeBgColorClass() and getPeriodChangeColorClass() with inverse parameter for semantic color meanings
   - Carbon's startOfMonth() and endOfMonth() handle date ranges correctly for month boundaries
 ---
+
+## 2026-02-05 - US-E121
+- What was implemented: Top 10 Customers by Outstanding widget for Finance Overview dashboard
+- Files changed:
+  - app/Filament/Pages/Finance/FinanceOverview.php (added getTopCustomersOutstanding(), hasTopCustomersOutstanding(), getCustomerFinanceUrl() methods)
+  - resources/views/filament/pages/finance/finance-overview.blade.php (added Top 10 Outstanding widget section)
+- **Learnings for future iterations:**
+  - When querying aggregated data with selectRaw(), use getAttribute() to access the computed columns to avoid PHPStan errors
+  - Cast aggregated values to proper types before using them (e.g., `(int) $item->getAttribute("customer_id")`)
+  - Use array_column() to extract values from an array of arrays instead of collection pluck() when working with plain arrays
+  - For query results that need to be mapped to arrays with explicit types, use ->map()->toArray() pattern with PHPDoc annotation
+  - Customer Finance page can be linked with ?customerId= query parameter
+---
