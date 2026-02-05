@@ -1770,3 +1770,21 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Rate tiers are hard-coded in config but could be moved to database for admin UI editing
   - StorageBillingService reads these via config('finance.storage.*')
 ---
+
+## 2026-02-05 - US-E091
+- What was implemented: Verified GenerateStorageBillingJob already exists with all required functionality
+- Files verified:
+  - app/Jobs/Finance/GenerateStorageBillingJob.php (521 lines)
+  - routes/console.php (scheduled monthlyOn(1, '05:00'))
+- Features found:
+  - ✅ Job GenerateStorageBillingJob implements ShouldQueue
+  - ✅ Triggered: first day of new period via Schedule::job()->monthlyOn(1, '05:00')
+  - ✅ Creates StorageBillingPeriod for all customers with storage (getCustomersWithStorage, createBillingPeriod)
+  - ✅ Optionally auto-generates INV3 (autoGenerateInvoices, createStorageInvoice)
+  - ✅ Log job execution (comprehensive finance channel logging)
+- Additional features: forPreviousMonth(), forPreviousQuarter() factory methods, getPreviewData(), getPreviewSummary() for UI preview
+- **Learnings for future iterations:**
+  - Schedule factory methods allow easy testing and manual triggering with specific periods
+  - Job logs to 'finance' channel for dedicated financial audit trail
+  - Preview methods support the Storage Billing Preview page (US-E046) for confirming before generation
+---

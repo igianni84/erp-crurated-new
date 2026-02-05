@@ -1438,8 +1438,8 @@
         "Typecheck passes"
       ],
       "priority": 91,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented with forPreviousMonth/forPreviousQuarter factory methods, scheduled monthlyOn(1, '05:00')"
     },
     {
       "id": "US-E092",
