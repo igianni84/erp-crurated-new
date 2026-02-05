@@ -1524,3 +1524,22 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Service uses DB::transaction() for atomicity and logs to both audit trail and finance channel
   - Status transitions are validated via CreditNoteStatus::canTransitionTo()
 ---
+
+## 2026-02-05 - US-E075
+- What was implemented: Verified RefundService already exists with all required methods (created in US-E071)
+- Files verified (no changes needed):
+  - app/Services/Finance/RefundService.php (already implements all acceptance criteria)
+- **Acceptance criteria verification:**
+  - ✅ Service class RefundService in app/Services/Finance/: EXISTS
+  - ✅ Method create(Invoice, Payment, type, amount, method, reason): creates refund: EXISTS (lines 53-146)
+  - ✅ Method processStripeRefund(Refund): calls Stripe API: EXISTS (lines 158-187)
+  - ✅ Method markProcessed(Refund, reference): for bank refunds: EXISTS (lines 385-442)
+  - ✅ Typecheck passes: VERIFIED
+- **Learnings for future iterations:**
+  - RefundService was created as part of US-E071 (Stripe refund processing)
+  - Service includes comprehensive retry logic with exponential backoff for Stripe API calls
+  - Uses HTTP client directly (no Stripe PHP SDK required) for API integration
+  - Includes helper methods: retryRefund(), getPendingRefunds(), getFailedRefunds(), getTotalRefundedForInvoice(), etc.
+  - Service handles both Stripe and bank transfer refunds with different processing paths
+  - Idempotency is ensured via stripe_refund_id check before creating new Stripe refunds
+---
