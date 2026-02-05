@@ -1865,3 +1865,25 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - StripeWebhook model has scopes: failed(), pending(), processed(), and helper methods for retry
   - Payment model tracks reconciliation_status using ReconciliationStatus enum
 ---
+
+## 2026-02-05 - US-E096
+- What was implemented: Stripe failed webhook retry functionality with retry tracking and logging
+- Files changed:
+  - database/migrations/2026_02_05_300200_add_retry_count_to_stripe_webhooks_table.php (new migration for retry_count and last_retry_at fields)
+  - app/Models/Finance/StripeWebhook.php (added retry_count, last_retry_at fields; markForRetry(), getRetryCount(), hasBeenRetried() methods)
+  - app/Filament/Pages/Finance/IntegrationsHealth.php (updated retryWebhook() and retryAllFailed() to use markForRetry() and add logging)
+  - resources/views/filament/pages/finance/integrations-health.blade.php (added Retries column to failed webhooks table)
+- **Acceptance criteria verification:**
+  - ✅ List failed webhooks: Already implemented in US-E095 via getFailedWebhooks() method using failed() scope
+  - ✅ Action Retry for single webhook: retryWebhook() now uses markForRetry() and logs to finance channel
+  - ✅ Action Retry All Failed for bulk: retryAllFailed() now uses markForRetry() and logs bulk operation
+  - ✅ Log retry attempts: All retry actions log to finance channel with webhook_id, event_id, retry_count, initiated_by
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - StripeWebhook model already had retry capability (canRetry(), markProcessed(), markFailed()) from US-E010
+  - Added retry_count and last_retry_at fields for tracking retry attempts over time
+  - markForRetry() clears error_message, increments retry_count, sets last_retry_at - all in one method
+  - Retry count is displayed in UI with color coding: orange for 1-2 retries, red for 3+ retries
+  - Bulk retry logs both the initial batch operation and individual webhook retries
+  - StripeWebhook boot() updating hook was extended to allow retry_count and last_retry_at updates
+---
