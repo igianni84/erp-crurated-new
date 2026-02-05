@@ -869,3 +869,23 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice line metadata includes: rate_tier, unit_rate for reporting/filtering
   - calculateUsage() metadata also includes rate_tier for storage billing period records
 ---
+
+## 2026-02-05 - US-E044
+- What was implemented: INV3 location breakdown - display separate invoice lines per location on storage fee invoices
+- Files changed:
+  - app/Services/Finance/StorageBillingService.php (added calculateLocationBreakdown(), buildLocationBreakdownLines(), buildSingleLine(), getCustomerLocationsDuringPeriod(), updated calculateUsage() to include location breakdown)
+  - app/Models/Finance/Invoice.php (added storage fee methods: isStorageFeeInvoice(), hasLocationBreakdown(), getStorageLocationCount(), getLinesByStorageLocation(), getStorageLocationSummaries(), getTotalBottleDays(), getStorageBillingPeriod(), getStoragePeriodDates())
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added getStorageLocationBreakdownSection(), getStorageLocationDescription(), formatStorageLocationSummary(), updated getLinkedErpEventsTab() with badge logic)
+- **Acceptance criteria verification:**
+  - ✅ Separate invoice lines per location (if multiple): buildLocationBreakdownLines() creates one line per location from metadata['location_breakdown']
+  - ✅ Each line: location name, bottle-days, rate, amount: Line format "{LocationName}: Storage Services (period) - X bottles avg, Y bottle-days @ rate"
+  - ✅ Summary totals: formatStorageLocationSummary() shows per-location totals and combined total when multiple locations
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - calculateUsage() now accepts includeLocationBreakdown parameter (default true) to include/exclude per-location breakdown
+  - Location breakdown is stored in period.metadata['location_breakdown'] and checked in createInvoiceForPeriod()
+  - getCustomerLocationsDuringPeriod() finds all locations from current inventory and movements during period
+  - Invoice model has getStorageLocationSummaries() returning structured data per location (bottle_count, bottle_days, unit_rate, subtotal, tax, total, rate_tier)
+  - ViewInvoice page displays location breakdown in Linked ERP Events tab with styled HTML table showing per-location usage
+  - Badge on Linked ERP Events tab shows location count (for multi-location) or shipment count (for multi-shipment)
+---
