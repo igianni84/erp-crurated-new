@@ -849,4 +849,159 @@ class Invoice extends Model
     {
         return $this->invoice_type === InvoiceType::ShippingRedemption;
     }
+
+    // =========================================================================
+    // Redemption Fee Methods (INV2 - Shipping)
+    // =========================================================================
+
+    /**
+     * Check if this invoice includes a redemption fee.
+     *
+     * Redemption fees apply to INV2 (shipping) invoices when a customer
+     * redeems vouchers for wine delivery, as opposed to simply shipping
+     * their own wine from custody.
+     *
+     * The fee amount comes from Module S pricing.
+     */
+    public function hasRedemptionFee(): bool
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return false;
+        }
+
+        $lines = $this->invoiceLines()->get();
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            if (isset($metadata['line_type']) && $metadata['line_type'] === 'redemption') {
+                $lineAmount = bcmul($line->quantity, $line->unit_price, 2);
+                if (bccomp($lineAmount, '0', 2) > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get the redemption fee amount for this invoice.
+     *
+     * Returns null if this invoice does not have a redemption fee.
+     */
+    public function getRedemptionFeeAmount(): ?string
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return null;
+        }
+
+        $lines = $this->invoiceLines()->get();
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            if (isset($metadata['line_type']) && $metadata['line_type'] === 'redemption') {
+                return bcmul($line->quantity, $line->unit_price, 2);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Get the redemption fee invoice line.
+     *
+     * Returns null if this invoice does not have a redemption fee.
+     */
+    public function getRedemptionFeeLine(): ?InvoiceLine
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return null;
+        }
+
+        $lines = $this->invoiceLines()->get();
+
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            if (isset($metadata['line_type']) && $metadata['line_type'] === 'redemption') {
+                return $line;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if this is a redemption shipment (vs shipping-only).
+     *
+     * A redemption shipment involves voucher redemption for wine delivery,
+     * while shipping-only is when a customer ships their own wine from custody.
+     *
+     * This can be determined by:
+     * 1. Presence of a redemption fee line
+     * 2. shipment_type metadata in invoice lines
+     */
+    public function isRedemptionShipment(): bool
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return false;
+        }
+
+        // Check for redemption fee line
+        if ($this->hasRedemptionFee()) {
+            return true;
+        }
+
+        // Check for shipment_type metadata
+        $lines = $this->invoiceLines()->get();
+        foreach ($lines as $line) {
+            $metadata = $line->metadata ?? [];
+            if (isset($metadata['shipment_type']) && $metadata['shipment_type'] === 'redemption') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Check if this is a shipping-only shipment (no redemption).
+     *
+     * Only applies to INV2 (shipping) invoices.
+     */
+    public function isShippingOnly(): bool
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return false;
+        }
+
+        return ! $this->isRedemptionShipment();
+    }
+
+    /**
+     * Get the shipment type for display/reporting.
+     *
+     * Returns 'redemption', 'shipping_only', or null if not a shipping invoice.
+     */
+    public function getShipmentType(): ?string
+    {
+        if ($this->invoice_type !== InvoiceType::ShippingRedemption) {
+            return null;
+        }
+
+        return $this->isRedemptionShipment() ? 'redemption' : 'shipping_only';
+    }
+
+    /**
+     * Get the shipment type label for display.
+     */
+    public function getShipmentTypeLabel(): ?string
+    {
+        $type = $this->getShipmentType();
+
+        return match ($type) {
+            'redemption' => 'Redemption + Shipping',
+            'shipping_only' => 'Shipping Only',
+            default => null,
+        };
+    }
 }

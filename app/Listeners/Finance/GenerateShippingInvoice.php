@@ -30,6 +30,11 @@ use Illuminate\Support\Facades\Log;
  * - handling: Warehouse handling fees
  * - duties: Customs duties for cross-border
  * - taxes: Import taxes for cross-border
+ * - redemption: Redemption fee for voucher redemption shipments
+ *
+ * Shipping-only vs Redemption+Shipping:
+ * - Shipping-only: Customer shipping their own wine (no redemption fee)
+ * - Redemption: Customer redeeming vouchers for wine delivery (redemption fee applies)
  */
 class GenerateShippingInvoice implements ShouldQueue
 {
@@ -71,6 +76,11 @@ class GenerateShippingInvoice implements ShouldQueue
         // Build invoice lines from shipment items
         $lines = $this->buildInvoiceLines($event);
 
+        // Add redemption fee line if applicable
+        if ($event->hasRedemptionFee()) {
+            $lines[] = $this->buildRedemptionFeeLine($event);
+        }
+
         // Create the draft invoice
         // Note: INV2 does not require a due date (immediate payment expected)
         $invoice = $this->invoiceService->createDraft(
@@ -90,6 +100,8 @@ class GenerateShippingInvoice implements ShouldQueue
             'total_amount' => $invoice->total_amount,
             'items_count' => count($event->items),
             'is_cross_border' => $event->isCrossBorder(),
+            'shipment_type' => $event->getShipmentType(),
+            'has_redemption_fee' => $event->hasRedemptionFee(),
         ]);
 
         // Auto-issue immediately (INV2 is typically issued right away)
@@ -216,7 +228,9 @@ class GenerateShippingInvoice implements ShouldQueue
      */
     protected function buildInvoiceNotes(ShipmentExecuted $event): string
     {
-        $notes = "Shipping invoice for order {$event->shippingOrderId}.";
+        // Distinguish shipping-only vs redemption+shipping
+        $shipmentType = $event->isRedemptionShipment() ? 'Redemption' : 'Shipping';
+        $notes = "{$shipmentType} invoice for order {$event->shippingOrderId}.";
 
         if ($event->getCarrierName() !== null) {
             $notes .= " Carrier: {$event->getCarrierName()}.";
@@ -234,10 +248,60 @@ class GenerateShippingInvoice implements ShouldQueue
             }
         }
 
+        if ($event->hasRedemptionFee()) {
+            $notes .= ' Includes redemption fee.';
+        }
+
         if ($event->metadata !== null && isset($event->metadata['shipping_notes'])) {
             $notes .= ' '.$event->metadata['shipping_notes'];
         }
 
         return $notes;
+    }
+
+    /**
+     * Build the redemption fee invoice line.
+     *
+     * The redemption fee is charged when a customer redeems vouchers for wine
+     * delivery, covering the cost of releasing wine from custody.
+     *
+     * Fee amount comes from Module S pricing.
+     *
+     * @return array{description: string, quantity: string, unit_price: string, tax_rate: string, sellable_sku_id: int|null, metadata: array<string, mixed>}
+     */
+    protected function buildRedemptionFeeLine(ShipmentExecuted $event): array
+    {
+        $metadata = [
+            'shipping_order_id' => $event->shippingOrderId,
+            'line_type' => 'redemption',
+            'shipment_type' => 'redemption',
+        ];
+
+        // Add pricing snapshot ID from Module S if available
+        $pricingSnapshotId = $event->getRedemptionFeePricingSnapshotId();
+        if ($pricingSnapshotId !== null) {
+            $metadata['pricing_snapshot_id'] = $pricingSnapshotId;
+        }
+
+        // Add any additional metadata from the redemption fee
+        $feeMetadata = $event->getRedemptionFeeMetadata();
+        if (! empty($feeMetadata)) {
+            $metadata = array_merge($metadata, $feeMetadata);
+        }
+
+        // Add cross-border info if applicable
+        if ($event->isCrossBorder()) {
+            $metadata['origin_country'] = $event->getOriginCountry();
+            $metadata['destination_country'] = $event->getDestinationCountry();
+        }
+
+        return [
+            'description' => $event->getRedemptionFeeDescription(),
+            'quantity' => '1.00',
+            'unit_price' => $event->getRedemptionFeeAmount() ?? '0.00',
+            'tax_rate' => $event->getRedemptionFeeTaxRate() ?? '0.00',
+            'sellable_sku_id' => null, // Redemption fee is a service, not a sellable SKU
+            'metadata' => $metadata,
+        ];
     }
 }

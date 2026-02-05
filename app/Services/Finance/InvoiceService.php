@@ -677,8 +677,13 @@ class InvoiceService
      * - Handling fees (warehouse operations)
      * - Duties (customs duties for cross-border)
      * - Taxes (import taxes for cross-border)
+     * - Redemption fee (if applicable - wine redemption from custody)
      *
      * Line types are stored in metadata for reporting and analysis.
+     *
+     * Shipping-only vs Redemption+Shipping:
+     * - Shipping-only: is_redemption = false, no redemption_fee
+     * - Redemption: is_redemption = true OR redemption_fee present
      *
      * @param  array{
      *     shipping_order_id: string,
@@ -688,6 +693,8 @@ class InvoiceService
      *     handling_cost?: string,
      *     duties_amount?: string,
      *     taxes_amount?: string,
+     *     redemption_fee?: array{amount: string, tax_rate: string, description?: string, pricing_snapshot_id?: string},
+     *     is_redemption?: bool,
      *     origin_country?: string,
      *     destination_country?: string,
      *     carrier_name?: string,
@@ -832,6 +839,29 @@ class InvoiceService
             );
         }
 
+        // 7. Redemption Fee (if applicable - voucher redemption shipments)
+        if (isset($shippingOrder['redemption_fee']) && bccomp($shippingOrder['redemption_fee']['amount'], '0', 2) > 0) {
+            $redemptionFee = $shippingOrder['redemption_fee'];
+            $redemptionMetadata = array_merge($baseMetadata, [
+                'line_type' => 'redemption',
+                'shipment_type' => 'redemption',
+            ]);
+
+            // Add pricing snapshot ID from Module S if available
+            if (isset($redemptionFee['pricing_snapshot_id'])) {
+                $redemptionMetadata['pricing_snapshot_id'] = $redemptionFee['pricing_snapshot_id'];
+            }
+
+            $lines[] = [
+                'description' => $redemptionFee['description'] ?? 'Wine Redemption Fee',
+                'quantity' => '1.00',
+                'unit_price' => $redemptionFee['amount'],
+                'tax_rate' => $redemptionFee['tax_rate'],
+                'sellable_sku_id' => null, // Redemption fee is a service
+                'metadata' => $redemptionMetadata,
+            ];
+        }
+
         return $lines;
     }
 
@@ -895,7 +925,7 @@ class InvoiceService
     /**
      * Get the total shipping cost from shipping order data.
      *
-     * Returns the sum of all shipping cost components.
+     * Returns the sum of all shipping cost components including redemption fee.
      *
      * @param  array{
      *     base_shipping_cost?: string,
@@ -903,7 +933,8 @@ class InvoiceService
      *     packaging_cost?: string,
      *     handling_cost?: string,
      *     duties_amount?: string,
-     *     taxes_amount?: string
+     *     taxes_amount?: string,
+     *     redemption_fee?: array{amount: string}
      * }  $shippingOrder
      */
     public function getTotalShippingCost(array $shippingOrder): string
@@ -925,6 +956,11 @@ class InvoiceService
             }
         }
 
+        // Add redemption fee if present
+        if (isset($shippingOrder['redemption_fee']['amount'])) {
+            $total = bcadd($total, $shippingOrder['redemption_fee']['amount'], 2);
+        }
+
         return $total;
     }
 
@@ -939,5 +975,57 @@ class InvoiceService
         $hasTaxes = isset($shippingOrder['taxes_amount']) && bccomp($shippingOrder['taxes_amount'], '0', 2) > 0;
 
         return $hasDuties || $hasTaxes;
+    }
+
+    /**
+     * Check if shipping order includes a redemption fee.
+     *
+     * Redemption fees apply when a customer redeems vouchers for wine delivery,
+     * as opposed to simply shipping their own wine from custody.
+     *
+     * @param  array{redemption_fee?: array{amount: string}, is_redemption?: bool}  $shippingOrder
+     */
+    public function hasRedemptionFee(array $shippingOrder): bool
+    {
+        return isset($shippingOrder['redemption_fee']['amount'])
+            && bccomp($shippingOrder['redemption_fee']['amount'], '0', 2) > 0;
+    }
+
+    /**
+     * Check if shipping order is a redemption shipment (vs shipping-only).
+     *
+     * A redemption shipment involves voucher redemption for wine delivery,
+     * while shipping-only is when a customer ships their own wine from custody.
+     *
+     * @param  array{redemption_fee?: array{amount: string}, is_redemption?: bool}  $shippingOrder
+     */
+    public function isRedemptionShipment(array $shippingOrder): bool
+    {
+        // Either explicitly marked as redemption or has redemption fee
+        if (isset($shippingOrder['is_redemption']) && $shippingOrder['is_redemption'] === true) {
+            return true;
+        }
+
+        return $this->hasRedemptionFee($shippingOrder);
+    }
+
+    /**
+     * Check if shipping order is shipping-only (no redemption).
+     *
+     * @param  array{redemption_fee?: array{amount: string}, is_redemption?: bool}  $shippingOrder
+     */
+    public function isShippingOnly(array $shippingOrder): bool
+    {
+        return ! $this->isRedemptionShipment($shippingOrder);
+    }
+
+    /**
+     * Get the shipment type as a string.
+     *
+     * @param  array{redemption_fee?: array{amount: string}, is_redemption?: bool}  $shippingOrder
+     */
+    public function getShipmentType(array $shippingOrder): string
+    {
+        return $this->isRedemptionShipment($shippingOrder) ? 'redemption' : 'shipping_only';
     }
 }
