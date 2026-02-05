@@ -1353,3 +1353,23 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Xero sync trigger is a TODO placeholder for US-E099 (XeroIntegrationService)
   - Confirmation modal uses modalDescription() with markdown formatting for bullet points
 ---
+
+## 2026-02-05 - US-E067
+- What was implemented: Credit Note preserves invoice type with stored original_invoice_type field
+- Files changed:
+  - database/migrations/2026_02_05_300012_add_original_invoice_type_to_credit_notes_table.php (new migration adding original_invoice_type field with index)
+  - app/Models/Finance/CreditNote.php (added original_invoice_type field, auto-population on creation, immutability enforcement, query scopes for filtering)
+  - app/Filament/Resources/Finance/CreditNoteResource.php (added original invoice type column with badge, filter by original invoice type, updated CSV export)
+- **Acceptance criteria verification:**
+  - ✅ Credit note metadata includes original_invoice_type: Field stored on credit_notes table, auto-populated from invoice on creation
+  - ✅ Reporting can filter by original invoice type: SelectFilter added to CreditNoteResource with all InvoiceType options
+  - ✅ Invariant: credit note cannot change invoice type: Boot updating hook throws InvalidArgumentException if original_invoice_type is dirty
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Use isset($model->attributes['field']) instead of $model->field !== null to check if attribute was set before cast (PHPStan rule)
+  - Auto-populate original_invoice_type in creating hook from related invoice for data consistency
+  - Stored original_invoice_type provides consistent value even if invoice relationship changes (defensive programming)
+  - Backwards compatibility: getOriginalInvoiceType() checks stored field first, falls back to invoice relationship
+  - Query scopes scopeOfOriginalInvoiceType() and scopeOfOriginalInvoiceTypeCode() enable filtering by invoice type in queries
+  - Include original invoice type in CSV export for complete reporting capability
+---
