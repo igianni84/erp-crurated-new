@@ -1887,3 +1887,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Bulk retry logs both the initial batch operation and individual webhook retries
   - StripeWebhook boot() updating hook was extended to allow retry_count and last_retry_at updates
 ---
+
+## 2026-02-05 - US-E097
+- What was implemented: StripeIntegrationService for centralized Stripe integration management
+- Files changed:
+  - app/Services/Finance/StripeIntegrationService.php (new service)
+- **Acceptance criteria verification:**
+  - ✅ Service class StripeIntegrationService in app/Services/Finance/: Created with 678 lines
+  - ✅ Method processWebhook(StripeWebhook): Dispatches to handlePaymentSucceeded/Failed, processRefund, handleDisputeCreated
+  - ✅ Method handlePaymentSucceeded(PaymentIntent): Creates Payment via PaymentService.createFromStripe()
+  - ✅ Method handlePaymentFailed(PaymentIntent): Logs failure, updates existing payment status if found
+  - ✅ Method processRefund(StripeRefund): Creates Refund records via RefundService.createFromStripeWebhook()
+  - ✅ Method getIntegrationHealth(): Returns comprehensive health metrics (status, alerts, counts, activity)
+  - ✅ Typecheck passes: PHPStan returns no errors
+- **Learnings for future iterations:**
+  - StripeIntegrationService provides a unified facade over PaymentService and RefundService for Stripe operations
+  - The service delegates domain-specific logic to existing services (createFromStripe, createFromStripeWebhook)
+  - getIntegrationHealth() returns status levels: healthy, warning, critical, unknown
+  - Health metrics include: failed webhooks, pending reconciliations, mismatched reconciliations, today's activity
+  - Alerts are generated for: no webhooks ever, no recent webhooks (1hr), failed webhooks, reconciliation mismatches
+  - retryFailedWebhook() and retryAllFailedWebhooks() provide retry capabilities
+  - extractPaymentIntentData() and extractFailureDetails() are helper methods for webhook parsing
+  - The existing ProcessStripeWebhookJob can use this service, or the service can be called directly
+---
