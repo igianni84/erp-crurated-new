@@ -1543,3 +1543,26 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Service handles both Stripe and bank transfer refunds with different processing paths
   - Idempotency is ensured via stripe_refund_id check before creating new Stripe refunds
 ---
+
+## 2026-02-05 - US-E076
+- What was implemented: Created Customer Financial Dashboard page with balance summary, open invoices, payment history, and credits tabs
+- Files created:
+  - app/Filament/Pages/Finance/CustomerFinance.php (main page class with all tab content methods)
+  - resources/views/filament/pages/finance/customer-finance.blade.php (Blade view with tabs and data display)
+- **Acceptance criteria verification:**
+  - ✅ Page Customer Finance in Finance section: Created with navigationGroup = 'Finance'
+  - ✅ Select customer (autocomplete): Implemented with search autocomplete dropdown
+  - ✅ Shows balance summary: Header cards with total outstanding, overdue, credits, paid YTD
+  - ✅ Shows open invoices: Tab with invoice list sorted by due date, overdue highlighting
+  - ✅ Shows payment history: Tab with date filters and payment list
+  - ✅ Shows credits: Tab with credit notes and refunds sections
+  - ✅ Link to Customer Resource (Module K): "View in Module K" button linking to CustomerResource
+  - ✅ Typecheck passes: VERIFIED
+- **Learnings for future iterations:**
+  - Finance pages use Livewire properties for state (customerId, activeTab, dateFilters)
+  - Use wire:model.live.debounce for search autocomplete to reduce server calls
+  - Blade templates can call methods like getOpenInvoices() directly in @php blocks
+  - Tabs are implemented with simple button clicks setting activeTab property
+  - Status colors are dynamically applied using enum color() methods
+  - Customer finance data is calculated inline - for performance, a CustomerFinanceService could be created (US-E082)
+---
