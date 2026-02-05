@@ -711,3 +711,47 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - Invoice notes include carrier name, tracking number, and cross-border details when available
   - Line types (shipping, insurance, packaging, handling, duties, taxes) stored in metadata for reporting
 ---
+
+## 2026-02-05 - US-E037
+- What was implemented: INV2 shipping cost calculation - calculateShippingCosts method in InvoiceService
+- Files changed:
+  - app/Services/Finance/InvoiceService.php (added calculateShippingCosts(), buildShippingLine(), buildShippingDescription(), getTotalShippingCost(), hasShippingDutiesOrTaxes() methods)
+- **Acceptance criteria verification:**
+  - ✅ Separate invoice lines for: base shipping, insurance, packaging: calculateShippingCosts() creates separate lines for each cost component
+  - ✅ Duties and taxes in separate lines: Customs duties and import taxes are separate lines with line_type='duties' and line_type='taxes'
+  - ✅ Method calculateShippingCosts(ShippingOrder) in InvoiceService: Implemented with full support for all shipping cost types
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - calculateShippingCosts() takes a structured array with shipping order data and returns invoice line arrays
+  - Six cost components supported: base_shipping_cost, insurance_cost, packaging_cost, handling_cost, duties_amount, taxes_amount
+  - Duties and taxes have tax_rate='0.00' since they ARE the tax (no VAT on top of VAT)
+  - Base metadata (origin/destination country, carrier, tracking, weight, dimensions, service_level) is shared across all lines
+  - buildShippingDescription() creates human-readable descriptions including carrier and route info
+  - Helper methods: getTotalShippingCost() sums all components, hasShippingDutiesOrTaxes() checks for cross-border indicators
+  - Cross-border detection: compares origin_country vs destination_country
+---
+
+## 2026-02-05 - US-E038
+- What was implemented: INV2 VAT/duty handling - tax rate determined by destination country with tax breakdown display
+- Files changed:
+  - app/Services/Finance/ShippingTaxService.php (new service for destination-based tax rate determination)
+  - app/Listeners/Finance/GenerateShippingInvoice.php (updated to use ShippingTaxService for tax rate)
+  - app/Models/Finance/Invoice.php (added getTaxBreakdown(), hasMixedTaxRates(), isCrossBorderShipment(), hasDuties(), getDestinationCountry())
+  - app/Filament/Resources/Finance/InvoiceResource/Pages/ViewInvoice.php (added getTaxBreakdownSection() to Accounting tab)
+  - config/finance.php (added shipping tax configuration)
+- **Acceptance criteria verification:**
+  - ✅ Tax rate determined by shipping destination country: ShippingTaxService.determineTaxRate() uses destination country, handles EU/non-EU/domestic
+  - ✅ Duties calculated if cross-border: ShippingTaxService.calculateDuties() with de minimis threshold support
+  - ✅ Tax amount breakdown in invoice detail: Tax Breakdown section in Accounting tab with table by rate
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - ShippingTaxService provides comprehensive tax determination for INV2 invoices
+  - VAT rates by country stored in service constants, configurable via config/finance.php
+  - EU intra-community transactions: B2B with VAT number = reverse charge (0%), B2C = destination VAT
+  - Exports outside EU are zero-rated
+  - Duties/import taxes lines always have 0% tax_rate (they ARE the tax, no VAT on top)
+  - Tax jurisdiction and type stored in invoice line metadata for audit trail
+  - Invoice.getTaxBreakdown() groups lines by rate for display
+  - Tax Breakdown section shows table with taxable amounts and tax by rate
+  - Cross-border indicator and customs duties section visible when applicable
+---
