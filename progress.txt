@@ -1150,3 +1150,24 @@ Started: Wed Feb  4 20:45:58 CET 2026
   - After payment applied, mark as Matched since we know exactly which invoice it's for
   - Refresh $this->record and call refreshFormData() to update the UI after successful action
 ---
+
+## 2026-02-05 - US-E057
+- What was implemented: Payment split across invoices - Apply to Multiple Invoices action
+- Files changed:
+  - app/Services/Finance/PaymentService.php (added applyToMultipleInvoices(), getRemainingAfterApplications() methods)
+  - app/Filament/Resources/Finance/PaymentResource/Pages/ViewPayment.php (added getApplyToMultipleInvoicesAction() and supporting methods)
+- **Acceptance criteria verification:**
+  - ✅ Action Apply to Multiple Invoices on Payment: getApplyToMultipleInvoicesAction() visible when payment has unapplied balance
+  - ✅ Form: list of invoices with amount input for each: Repeater component with invoice select and amount input per row
+  - ✅ Validation: sum of amounts <= payment.amount: Validated in both PaymentService.applyToMultipleInvoices() and UI real-time feedback
+  - ✅ Creates multiple InvoicePayment records: applyToMultipleInvoices() iterates and calls applyPayment() for each
+  - ✅ Typecheck passes: PHPStan and Pint both pass
+- **Learnings for future iterations:**
+  - Repeater component with live() updates enables real-time validation and totals display
+  - Use Set and Get from Filament\Forms for manipulating repeater item values
+  - PaymentService.applyToMultipleInvoices() wraps all operations in DB::transaction for atomicity
+  - onMultiInvoiceSelected() calculates remaining amount after other applications to auto-fill amount
+  - Real-time totals display uses Placeholder with getMultiTotalsHtml() showing Available, Applying, Remaining, Invoice Count
+  - Validation warnings displayed via getMultiValidationWarning() for over-budget and duplicate invoice detection
+  - HtmlString from Illuminate\Support needed for safe HTML content in Placeholder
+---
