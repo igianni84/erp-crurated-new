@@ -1,104 +1,127 @@
-# Ralph Agent Instructions
+## Workflow Orchestration
 
-You are an autonomous coding agent working on a software project.
+### 1. Plan Mode Default
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately – don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
 
-## Your Task
+### 2. Subagent Strategy
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
 
-1. Read the PRD at `prd.json` (in the same directory as this file)
-2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from main.
-4. Pick the **highest priority** user story where `passes: false`
-5. Implement that single user story
-6. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
-7. Update CLAUDE.md files if you discover reusable patterns (see below)
-8. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
-9. Update the PRD to set `passes: true` for the completed story
-10. Append your progress to `progress.txt`
+### 3. Self-Improvement Loop
+- After ANY correction from the user: update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
 
-## Progress Report Format
+### 4. Verification Before Done
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
 
-APPEND to progress.txt (never replace, always append):
-```
-## [Date/Time] - [Story ID]
-- What was implemented
-- Files changed
-- **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-  - Useful context (e.g., "the evaluation panel is in component X")
----
-```
+### 5. Demand Elegance (Balanced)
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes – don't over-engineer
+- Challenge your own work before presenting it
 
-The learnings section is critical - it helps future iterations avoid repeating mistakes and understand the codebase better.
+### 6. Autonomous Bug Fixing
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests – then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
 
-## Consolidate Patterns
+## Task Management
 
-If you discover a **reusable pattern** that future iterations should know, add it to the `## Codebase Patterns` section at the TOP of progress.txt (create it if it doesn't exist). This section should consolidate the most important learnings:
+1. **Plan First:** Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan:** Check in before starting implementation
+3. **Track Progress:** Mark items complete as you go
+4. **Explain Changes:** High-level summary at each step
+5. **Document Results:** Add review section to `tasks/todo.md`
+6. **Capture Lessons:** Update `tasks/lessons.md` after corrections
 
-```
-## Codebase Patterns
-- Example: Use `sql<number>` template for aggregations
-- Example: Always use `IF NOT EXISTS` for migrations
-- Example: Export types from actions.ts for UI components
-```
+## Core Principles
 
-Only add patterns that are **general and reusable**, not story-specific details.
+- **Simplicity First:** Make every change as simple as possible. Impact minimal code.
+- **No Laziness:** Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact:** Changes should only touch what's necessary. Avoid introducing bugs.
 
-## Update CLAUDE.md Files
+## Project Context
 
-Before committing, check if any edited files have learnings worth preserving in nearby CLAUDE.md files:
+### What This Is
+**Crurated ERP** — ERP per il trading di vini pregiati e beni di lusso. Multi-modulo, event-driven, sviluppato incrementalmente.
 
-1. **Identify directories with edited files** - Look at which directories you modified
-2. **Check for existing CLAUDE.md** - Look for CLAUDE.md in those directories or parent directories
-3. **Add valuable learnings** - If you discovered something future developers/agents should know:
-   - API patterns or conventions specific to that module
-   - Gotchas or non-obvious requirements
-   - Dependencies between files
-   - Testing approaches for that area
-   - Configuration or environment requirements
+### Tech Stack
+- **Backend:** Laravel 12, PHP 8.2+, MySQL (SQLite dev)
+- **Admin UI:** Filament 3 (42 resources, 30 custom pages, 3 widgets)
+- **Frontend:** Tailwind CSS 4, Vite 7
+- **Integrations:** Stripe (payments), Xero (accounting), WMS (warehouse), Liv-ex (wine data)
+- **Quality:** PHPStan level 5, Laravel Pint, PHPUnit
 
-**Examples of good CLAUDE.md additions:**
-- "When modifying X, also update Y to keep them in sync"
-- "This module uses pattern Z for all API calls"
-- "Tests require the dev server running on PORT 3000"
-- "Field names must match the template exactly"
+### Module Map (dependency order)
+| Code | Module | Purpose | Status |
+|------|--------|---------|--------|
+| — | Infrastructure | Auth, roles (super_admin/admin/manager/editor/viewer), base setup | ✅ Done |
+| 0 | PIM | Wine Master → Variant → SellableSku, Formats, CaseConfig, Liquid Products | ✅ Done |
+| K | Customers | Party/PartyRole (multi-role), Customer, Account, Membership, Clubs, Blocks | ✅ Done |
+| S | Commercial | Channels, PriceBooks, PricingPolicies, Offers, Bundles, DiscountRules, EMP | ✅ ~97% (CSV import + PIM sync TODO) |
+| A | Allocations | Allocations, Vouchers (1 voucher = 1 bottiglia), CaseEntitlements, Transfers | ✅ Done |
+| D | Procurement | ProcurementIntents → PurchaseOrders → Inbounds, BottlingInstructions | ✅ Done (68/68) |
+| B | Inventory | Locations, InboundBatches, SerializedBottles, Cases, Movements (append-only) | ✅ Done |
+| C | Fulfillment | ShippingOrders → Late Binding → Shipments, Voucher Redemption | ✅ Done |
+| E | Finance | Invoices (INV0-INV4), Payments, CreditNotes, Refunds, Subscriptions, Storage | ✅ Done (132/132) |
+| — | Admin Panel | Dashboards, Alert Center, Audit Viewer, System Health | 📋 PRD ready |
 
-**Do NOT add:**
-- Story-specific implementation details
-- Temporary debugging notes
-- Information already in progress.txt
+### Architecture Patterns
+- **Domain folders:** `app/{Models,Services,Enums,Events,Listeners,Jobs,Filament}/Module/`
+- **UUID PKs everywhere** via `HasUuid` trait
+- **Audit trail:** Immutable `AuditLog` + `Auditable`/`AuditLoggable` traits
+- **Soft deletes** on ~95% of models
+- **Enums:** String-backed PHP 8.1+ with `label()`, `color()`, `icon()`, `allowedTransitions()`
+- **Event-driven cross-module:** Events trigger listeners (e.g., VoucherIssued → CreateProcurementIntent)
+- **Service layer:** Business logic in Services, not Controllers or Models
+- **Immutability guards:** Model `boot()` with `static::updating()` for critical fields
 
-Only update CLAUDE.md if you have **genuinely reusable knowledge** that would help future work in that directory.
+### Key Invariants (NEVER violate)
+1. **1 voucher = 1 bottiglia** (quantity always 1)
+2. **Allocation lineage immutable** (allocation_id never changes after creation)
+3. **Late Binding ONLY in Module C** (voucher→bottle binding)
+4. **Voucher redemption ONLY at shipment confirmation**
+5. **Case breaking is IRREVERSIBLE** (Intact → Broken, never back)
+6. **Finance is consequence, not cause** (events from other modules generate invoices)
+7. **Invoice type immutable** after creation (INV0-INV4)
+8. **Every PurchaseOrder requires a ProcurementIntent**
+9. **ERP authorizes, WMS executes** (never the reverse)
 
-## Quality Requirements
+### Codebase Numbers
+- 73 Models, 40 Services, 101 Enums, 18 Jobs, 9 Events, 12 Policies
+- 98 migrations, 42 Filament Resources, 30 custom pages
+- PRDs totali: 542 user stories across 10 modules
 
-- ALL commits must pass your project's quality checks (typecheck, lint, test)
-- Do NOT commit broken code
-- Keep changes focused and minimal
-- Follow existing code patterns
+### Migration Numbering
+- Module 0 (PIM): 200000+
+- Module E (Finance): 300000+
+- Module S (Commercial): 380000+
+- Module K (Customers): 390000+
+- Module D (Procurement): 400000+
 
-## Browser Testing (If Available)
+### Coding Conventions
+- Model: `app/Models/{Module}/ModelName.php`
+- Enum: `app/Enums/{Module}/EnumName.php` — string-backed, with `label()`/`color()`/`icon()`
+- Service: `app/Services/{Module}/ServiceName.php`
+- Filament: `app/Filament/Resources/{Module}/ResourceName.php`
+- Traits: `HasUuid`, `Auditable`, `AuditLoggable`, `HasLifecycleStatus`, `HasProductLifecycle`
+- Decimal math: use `bcadd()`, `bcsub()`, `bcmul()` — never float arithmetic
+- Immutability: enforce in model `boot()` with `static::updating()`
+- PHPStan: explicit null checks, no nullsafe + null coalescing combos
 
-For any story that changes UI, verify it works in the browser if you have browser testing tools configured (e.g., via MCP):
-
-1. Navigate to the relevant page
-2. Verify the UI changes work as expected
-3. Take a screenshot if helpful for the progress log
-
-If no browser tools are available, note in your progress report that manual browser verification is needed.
-
-## Stop Condition
-
-After completing a user story, check if ALL stories have `passes: true`.
-
-If ALL stories are complete and passing, reply with:
-<promise>COMPLETE</promise>
-
-If there are still stories with `passes: false`, end your response normally (another iteration will pick up the next story).
-
-## Important
-
-- Work on ONE story per iteration
-- Commit frequently
-- Keep CI green
-- Read the Codebase Patterns section in progress.txt before starting
+### PRD & Task Files
+- PRDs: `tasks/prd-{module}.md` (detailed specs with user stories)
+- Progress: `tasks/progress-{module}.txt` (implementation logs)
+- Ralph JSONs: `tasks/prd-{module}.json` (task runner format)
+- Project plan: `tasks/project-plan.md`
