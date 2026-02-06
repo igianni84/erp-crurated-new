@@ -43,6 +43,7 @@ class DatabaseSeeder extends Seeder
             // Product Information (Module PIM)
             WineMasterSeeder::class,    // Wine identities (Sassicaia, Barolo, etc.)
             WineVariantSeeder::class,   // Specific vintages of wines
+            ProductMediaSeeder::class,  // Wine bottle images (depends on WineVariant)
             LiquidProductSeeder::class, // Liquid products for en primeur
             SellableSkuSeeder::class,   // Commercial units (Variant × Format × Case)
 

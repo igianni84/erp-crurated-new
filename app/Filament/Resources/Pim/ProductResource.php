@@ -45,14 +45,15 @@ class ProductResource extends Resource
             ->columns([
                 Tables\Columns\ImageColumn::make('thumbnail_url')
                     ->label('Thumbnail')
-                    ->circular()
+                    ->disk('public')
+                    ->checkFileExistence(false)
+                    ->height(60)
                     ->defaultImageUrl(function (WineVariant $record): string {
                         $wineMaster = $record->wineMaster;
                         $name = $wineMaster !== null ? $wineMaster->name : 'Wine';
 
                         return 'https://ui-avatars.com/api/?name='.urlencode($name).'&color=7F9CF5&background=EBF4FF';
-                    })
-                    ->size(40),
+                    }),
                 Tables\Columns\TextColumn::make('name_vintage')
                     ->label('Name + Vintage')
                     ->getStateUsing(function (WineVariant $record): string {
