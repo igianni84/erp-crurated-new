@@ -69,18 +69,10 @@ class PriceSimulation extends Page implements HasForms
      */
     public function mount(): void
     {
-        $this->fillForm();
-    }
-
-    /**
-     * Fill the form with initial data.
-     */
-    protected function fillForm(): void
-    {
-        $this->data = [
+        $this->form->fill([
             'date' => now()->format('Y-m-d'),
             'quantity' => 1,
-        ];
+        ]);
     }
 
     /**
@@ -245,10 +237,12 @@ class PriceSimulation extends Page implements HasForms
      */
     public function simulate(): void
     {
+        $data = $this->form->getState();
+
         $this->hasSimulated = true;
 
         // Use SimulationService for the actual simulation
-        $this->simulationResult = $this->buildSimulationResult($this->data);
+        $this->simulationResult = $this->buildSimulationResult($data);
     }
 
     /**
