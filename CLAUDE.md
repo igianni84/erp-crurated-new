@@ -125,3 +125,56 @@
 - Progress: `tasks/progress-{module}.txt` (implementation logs)
 - Ralph JSONs: `tasks/prd-{module}.json` (task runner format)
 - Project plan: `tasks/project-plan.md`
+
+## Server & Infrastructure
+
+### Production Server (Ploi)
+- **Host:** `46.224.207.175`
+- **SSH:** `ssh ploi@46.224.207.175` (key `~/.ssh/id_ed25519` già registrata)
+- **Site path:** `/home/ploi/crurated.giovannibroegg.it`
+- **URL:** `https://crurated.giovannibroegg.it`
+- **PHP:** 8.5 (FPM: `sudo -S service php8.5-fpm reload`)
+- **DB:** MySQL, host `127.0.0.1:3306`, database `erpcrurated`
+- **Ploi panel:** `ploi.io/panel/servers/106731/sites/342059`
+
+### Git Repos
+- **Locale (dev):** `github.com/igianni84/erp-crurated-new` ← repo attivo
+- **Vecchio (deprecato):** `github.com/igianni84/erpcrurated` ← NON usare
+- Il server Ploi DEVE puntare a `erp-crurated-new`
+
+### Deploy Script (Ploi)
+```bash
+cd /home/ploi/crurated.giovannibroegg.it
+git fetch origin main
+git reset --hard origin/main
+composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+echo "" | sudo -S service php8.5-fpm reload
+php artisan migrate --force
+php artisan filament:upgrade
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+### Quick SSH Commands
+```bash
+# Logs
+ssh ploi@46.224.207.175 "tail -50 /home/ploi/crurated.giovannibroegg.it/storage/logs/laravel.log"
+
+# Tinker
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan tinker"
+
+# Migration status
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan migrate:status"
+
+# Fresh seed (DESTRUCTIVE — solo staging/dev)
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan migrate:fresh --force --seed"
+
+# Clear all caches
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan optimize:clear"
+```
+
+### Known Gotchas
+- Seeders usano `fake()` → `fakerphp/faker` è in `require` (non `require-dev`)
+- Deploy Ploi usa la sua config di repo, non il git remote del server — cambiare repo va fatto dal pannello Ploi
+- Dopo cambio Filament version: sempre `php artisan filament:upgrade` + `php8.5-fpm reload`
