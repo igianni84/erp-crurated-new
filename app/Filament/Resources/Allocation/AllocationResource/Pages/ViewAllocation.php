@@ -204,11 +204,11 @@ class ViewAllocation extends ViewRecord
                                 TextEntry::make('expected_availability_start')
                                     ->label('Start Date')
                                     ->date()
-                                    ->default('Not specified'),
+                                    ->placeholder('Not specified'),
                                 TextEntry::make('expected_availability_end')
                                     ->label('End Date')
                                     ->date()
-                                    ->default('Not specified'),
+                                    ->placeholder('Not specified'),
                                 TextEntry::make('availability_window')
                                     ->label('Window Summary')
                                     ->getStateUsing(fn (Allocation $record): string => $record->getAvailabilityWindowLabel())
@@ -360,7 +360,7 @@ class ViewAllocation extends ViewRecord
                                 TextEntry::make('liquidConstraint.bottling_confirmation_deadline')
                                     ->label('Bottling Confirmation Deadline')
                                     ->date()
-                                    ->default('Not set')
+                                    ->placeholder('Not set')
                                     ->color(function (Allocation $record): string {
                                         $lc = $record->liquidConstraint;
                                         if ($lc === null || $lc->bottling_confirmation_deadline === null) {

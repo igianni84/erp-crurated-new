@@ -1608,7 +1608,7 @@ class ViewShippingOrder extends ViewRecord
                             ->label('Requested Ship Date')
                             ->icon('heroicon-o-calendar')
                             ->date()
-                            ->default('Not specified')
+                            ->placeholder('Not specified')
                             ->color(function (ShippingOrder $record): string {
                                 if ($record->requested_ship_date === null) {
                                     return 'gray';
