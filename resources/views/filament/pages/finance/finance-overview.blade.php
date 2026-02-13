@@ -20,7 +20,7 @@
 
     {{-- Alerts and Warnings Section (US-E119) --}}
     @if(count($alerts) > 0)
-        <div class="space-y-3 mb-6">
+        <div class="space-y-2 mb-4">
             @foreach($alerts as $alert)
                 <div
                     x-data="{ dismissed: false }"
@@ -105,16 +105,16 @@
     @endif
 
     {{-- Main Metrics Grid --}}
-    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
         {{-- Total Outstanding --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-3">
-                    <x-heroicon-o-banknotes class="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-2">
+                    <x-heroicon-o-banknotes class="h-5 w-5 text-primary-600 dark:text-primary-400" />
                 </div>
                 <div class="ml-4 flex-1">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Outstanding</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $this->formatAmount($totalOutstanding) }}</p>
+                    <p class="text-xl font-bold text-gray-900 dark:text-white">{{ $this->formatAmount($totalOutstanding) }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                         {{ $outstandingCount }} {{ Str::plural('invoice', $outstandingCount) }}
                     </p>
@@ -123,14 +123,14 @@
         </div>
 
         {{-- Overdue Amount --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg {{ $overdueCount > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
-                    <x-heroicon-o-exclamation-triangle class="h-6 w-6 {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
+                <div class="flex-shrink-0 rounded-lg {{ $overdueCount > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-2">
+                    <x-heroicon-o-exclamation-triangle class="h-5 w-5 {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
                 </div>
                 <div class="ml-4 flex-1">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Overdue Amount</p>
-                    <p class="text-2xl font-bold {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $this->formatAmount($overdueAmount) }}</p>
+                    <p class="text-xl font-bold {{ $overdueCount > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-900 dark:text-white' }}">{{ $this->formatAmount($overdueAmount) }}</p>
                     <p class="text-xs {{ $overdueCount > 0 ? 'text-danger-500 dark:text-danger-400' : 'text-gray-500 dark:text-gray-400' }} mt-1">
                         {{ $overdueCount }} {{ Str::plural('invoice', $overdueCount) }} overdue
                     </p>
@@ -139,14 +139,14 @@
         </div>
 
         {{-- Payments This Month --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-3">
-                    <x-heroicon-o-arrow-trending-up class="h-6 w-6 text-success-600 dark:text-success-400" />
+                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-2">
+                    <x-heroicon-o-arrow-trending-up class="h-5 w-5 text-success-600 dark:text-success-400" />
                 </div>
                 <div class="ml-4 flex-1">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Payments This Month</p>
-                    <p class="text-2xl font-bold text-success-600 dark:text-success-400">{{ $this->formatAmount($paymentsThisMonth) }}</p>
+                    <p class="text-xl font-bold text-success-600 dark:text-success-400">{{ $this->formatAmount($paymentsThisMonth) }}</p>
                     <div class="flex items-center justify-between mt-1">
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $paymentsCount }} {{ Str::plural('payment', $paymentsCount) }}</span>
                         @if($paymentsComparison['direction'] !== 'neutral')
@@ -161,14 +161,14 @@
         </div>
 
         {{-- Pending Reconciliations --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg {{ $pendingReconciliations > 0 ? 'bg-warning-50 dark:bg-warning-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
-                    <x-heroicon-o-document-magnifying-glass class="h-6 w-6 {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}" />
+                <div class="flex-shrink-0 rounded-lg {{ $pendingReconciliations > 0 ? 'bg-warning-50 dark:bg-warning-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-2">
+                    <x-heroicon-o-document-magnifying-glass class="h-5 w-5 {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}" />
                 </div>
                 <div class="ml-4 flex-1">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Reconciliations</p>
-                    <p class="text-2xl font-bold {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-gray-900 dark:text-white' }}">{{ $pendingReconciliations }}</p>
+                    <p class="text-xl font-bold {{ $pendingReconciliations > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-gray-900 dark:text-white' }}">{{ $pendingReconciliations }}</p>
                     @if($pendingReconciliations > 0)
                         <p class="text-xs text-warning-500 dark:text-warning-400 mt-1">
                             {{ $this->formatAmount($pendingReconciliationAmount) }} pending
@@ -182,13 +182,13 @@
     </div>
 
     {{-- Integration Health Section --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-6">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 mb-4">
         {{-- Stripe Health --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                    <div class="flex-shrink-0 rounded-lg bg-purple-100 dark:bg-purple-900/20 p-2">
-                        <svg class="h-5 w-5 text-purple-600 dark:text-purple-400" viewBox="0 0 24 24" fill="currentColor">
+                    <div class="flex-shrink-0 rounded-lg bg-purple-100 dark:bg-purple-900/20 p-1.5">
+                        <svg class="h-4 w-4 text-purple-600 dark:text-purple-400" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z"/>
                         </svg>
                     </div>
@@ -232,11 +232,11 @@
         </div>
 
         {{-- Xero Health --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center gap-3">
-                    <div class="flex-shrink-0 rounded-lg bg-blue-100 dark:bg-blue-900/20 p-2">
-                        <svg class="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                    <div class="flex-shrink-0 rounded-lg bg-blue-100 dark:bg-blue-900/20 p-1.5">
+                        <svg class="h-4 w-4 text-blue-600 dark:text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M11.526.5H1.934a1.5 1.5 0 0 0-1.5 1.5v9.592a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5V2a1.5 1.5 0 0 0-1.5-1.5zm10.54 0h-9.592a1.5 1.5 0 0 0-1.5 1.5v9.592a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5V2a1.5 1.5 0 0 0-1.5-1.5zM11.526 11.408H1.934a1.5 1.5 0 0 0-1.5 1.5V22.5a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5v-9.592a1.5 1.5 0 0 0-1.5-1.5zm10.54 0h-9.592a1.5 1.5 0 0 0-1.5 1.5V22.5a1.5 1.5 0 0 0 1.5 1.5h9.592a1.5 1.5 0 0 0 1.5-1.5v-9.592a1.5 1.5 0 0 0-1.5-1.5z"/>
                         </svg>
                     </div>
@@ -283,7 +283,7 @@
     </div>
 
     {{-- Quick Actions (US-E117) --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 mb-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <x-heroicon-o-bolt class="h-5 w-5 text-gray-400" />
             Quick Actions
@@ -314,7 +314,7 @@
     </div>
 
     {{-- Recent Activity Feed (US-E118) --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 mb-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <x-heroicon-o-clock class="h-5 w-5 text-gray-400" />
             Recent Activity
@@ -406,8 +406,8 @@
                 </ul>
             </div>
         @else
-            <div class="text-center py-8">
-                <x-heroicon-o-inbox class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
+            <div class="text-center py-6">
+                <x-heroicon-o-inbox class="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" />
                 <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No recent activity</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                     There haven't been any financial events in the last 24 hours.
@@ -417,9 +417,9 @@
     </div>
 
     {{-- Today's Activity & Quick Stats --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 mb-6">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3 mb-4">
         {{-- Today's Activity --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <x-heroicon-o-calendar-days class="h-5 w-5 text-gray-400" />
                 Today's Activity
@@ -450,7 +450,7 @@
         </div>
 
         {{-- Reconciliation Summary --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <x-heroicon-o-scale class="h-5 w-5 text-gray-400" />
                 Reconciliation Status
@@ -481,7 +481,7 @@
         </div>
 
         {{-- Month Summary --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <x-heroicon-o-chart-bar class="h-5 w-5 text-gray-400" />
                 {{ $this->getCurrentMonthLabel() }}
@@ -507,8 +507,8 @@
     @php
         $periodComparison = $this->getPeriodComparison();
     @endphp
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
-        <div class="flex items-center justify-between mb-6">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 mb-4">
+        <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <x-heroicon-o-scale class="h-5 w-5 text-gray-400" />
                 Period Comparison
@@ -520,7 +520,7 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
             {{-- Invoices Issued --}}
             <div class="space-y-4">
                 <div class="flex items-center gap-2">
@@ -721,7 +721,7 @@
     @php
         $topCustomers = $this->getTopCustomersOutstanding();
     @endphp
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 mb-6">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 mb-4">
         <h3 class="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <x-heroicon-o-user-group class="h-5 w-5 text-gray-400" />
             Top 10 Outstanding

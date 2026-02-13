@@ -29,8 +29,8 @@
     @endif
 
     {{-- Dashboard Controls Bar --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="px-4 py-3 flex flex-wrap items-center justify-between gap-4">
             {{-- Left side: Description --}}
             <div class="flex-1 min-w-0">
                 <p class="text-sm text-gray-600 dark:text-gray-400">
@@ -99,17 +99,17 @@
     </div>
 
     {{-- Summary Cards Row (4 main widgets) --}}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
         {{-- Active Intents --}}
         <a href="{{ $this->getIntentsListUrl() }}" class="block">
-            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
+            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-3">
-                        <x-heroicon-o-clipboard-document-list class="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                    <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-2">
+                        <x-heroicon-o-clipboard-document-list class="h-5 w-5 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Intents</p>
-                        <p class="text-2xl font-semibold text-primary-600 dark:text-primary-400">{{ $summaryMetrics['total_intents'] }}</p>
+                        <p class="text-xl font-semibold text-primary-600 dark:text-primary-400">{{ $summaryMetrics['total_intents'] }}</p>
                     </div>
                 </div>
             </div>
@@ -117,14 +117,14 @@
 
         {{-- Pending Approvals --}}
         <a href="{{ $this->getPendingApprovalsUrl() }}" class="block">
-            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
+            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg {{ $summaryMetrics['pending_approvals'] > 0 ? 'bg-warning-50 dark:bg-warning-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
-                        <x-heroicon-o-clock class="h-6 w-6 {{ $summaryMetrics['pending_approvals'] > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}" />
+                    <div class="flex-shrink-0 rounded-lg {{ $summaryMetrics['pending_approvals'] > 0 ? 'bg-warning-50 dark:bg-warning-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-2">
+                        <x-heroicon-o-clock class="h-5 w-5 {{ $summaryMetrics['pending_approvals'] > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}" />
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Approvals</p>
-                        <p class="text-2xl font-semibold {{ $summaryMetrics['pending_approvals'] > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}">{{ $summaryMetrics['pending_approvals'] }}</p>
+                        <p class="text-xl font-semibold {{ $summaryMetrics['pending_approvals'] > 0 ? 'text-warning-600 dark:text-warning-400' : 'text-success-600 dark:text-success-400' }}">{{ $summaryMetrics['pending_approvals'] }}</p>
                     </div>
                 </div>
             </div>
@@ -132,14 +132,14 @@
 
         {{-- Pending Inbounds --}}
         <a href="{{ $this->getInboundsListUrl() }}" class="block">
-            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
+            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg bg-info-50 dark:bg-info-400/10 p-3">
-                        <x-heroicon-o-inbox-arrow-down class="h-6 w-6 text-info-600 dark:text-info-400" />
+                    <div class="flex-shrink-0 rounded-lg bg-info-50 dark:bg-info-400/10 p-2">
+                        <x-heroicon-o-inbox-arrow-down class="h-5 w-5 text-info-600 dark:text-info-400" />
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Inbounds</p>
-                        <p class="text-2xl font-semibold text-info-600 dark:text-info-400">{{ $summaryMetrics['pending_inbounds'] }}</p>
+                        <p class="text-xl font-semibold text-info-600 dark:text-info-400">{{ $summaryMetrics['pending_inbounds'] }}</p>
                     </div>
                 </div>
             </div>
@@ -147,14 +147,14 @@
 
         {{-- Bottling Deadlines (based on date range) --}}
         <a href="{{ $this->getBottlingDeadlinesUrl() }}" class="block">
-            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
+            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-3">
-                        <x-heroicon-o-calendar-days class="h-6 w-6 {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
+                    <div class="flex-shrink-0 rounded-lg {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-success-50 dark:bg-success-400/10' }} p-2">
+                        <x-heroicon-o-calendar-days class="h-5 w-5 {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}" />
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Deadlines ({{ $summaryMetrics['date_range_days'] }}d)</p>
-                        <p class="text-2xl font-semibold {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $summaryMetrics['bottling_deadlines'] }}</p>
+                        <p class="text-xl font-semibold {{ $summaryMetrics['bottling_deadlines'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-success-600 dark:text-success-400' }}">{{ $summaryMetrics['bottling_deadlines'] }}</p>
                     </div>
                 </div>
             </div>
@@ -162,15 +162,15 @@
     </div>
 
     {{-- Widget A: Demand → Execution Knowability --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-arrow-trending-up class="inline-block h-5 w-5 mr-2 -mt-0.5 text-primary-500" />
                 Demand → Execution
             </h3>
             <span class="text-xs text-gray-500 dark:text-gray-400">Sourcing pipeline visibility</span>
         </div>
-        <div class="fi-section-content p-6">
+        <div class="fi-section-content p-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {{-- Vouchers Awaiting Sourcing --}}
                 @php
@@ -325,16 +325,16 @@
     @php
         $bottlingRiskMetrics = $this->getBottlingRiskMetrics();
     @endphp
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-beaker class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
                 Bottling Risk
             </h3>
             <span class="text-xs text-gray-500 dark:text-gray-400">Deadline & preference tracking</span>
         </div>
-        <div class="fi-section-content p-6">
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="fi-section-content p-4">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {{-- Left side: Deadline Horizons --}}
                 <div>
                     <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4 flex items-center">
@@ -533,15 +533,15 @@
     @php
         $inboundStatusMetrics = $this->getInboundStatusMetrics();
     @endphp
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-inbox-arrow-down class="inline-block h-5 w-5 mr-2 -mt-0.5 text-info-500" />
                 Inbound Status
             </h3>
             <span class="text-xs text-gray-500 dark:text-gray-400">Physical arrival tracking</span>
         </div>
-        <div class="fi-section-content p-6">
+        <div class="fi-section-content p-4">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {{-- Expected in Date Range --}}
                 <a href="{{ $this->getExpected30dPOsUrl() }}" class="block group">
@@ -694,15 +694,15 @@
     @php
         $exceptionMetrics = $this->getExceptionMetrics();
     @endphp
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-exclamation-triangle class="inline-block h-5 w-5 mr-2 -mt-0.5 text-danger-500" />
                 Exceptions
             </h3>
             <span class="text-xs text-gray-500 dark:text-gray-400">Items requiring attention</span>
         </div>
-        <div class="fi-section-content p-6">
+        <div class="fi-section-content p-4">
             @if($exceptionMetrics['has_any_exception'])
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {{-- Inbound without ownership clarity --}}
@@ -887,10 +887,10 @@
     </div>
 
     {{-- Main Content Grid (Status Distributions) --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {{-- Intents by Status --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-clipboard-document-list class="inline-block h-5 w-5 mr-2 -mt-0.5 text-primary-500" />
                     Intents by Status
@@ -899,7 +899,7 @@
                     View All &rarr;
                 </a>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="space-y-4">
                     @foreach($intentStatusCounts as $status => $count)
                         @php
@@ -933,7 +933,7 @@
 
         {{-- POs by Status --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-document-text class="inline-block h-5 w-5 mr-2 -mt-0.5 text-info-500" />
                     Purchase Orders by Status
@@ -942,7 +942,7 @@
                     View All &rarr;
                 </a>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="space-y-4">
                     @foreach($poStatusCounts as $status => $count)
                         @php
@@ -976,10 +976,10 @@
     </div>
 
     {{-- Inbounds and Bottling Metrics Row --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {{-- Inbounds by Status --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-inbox-arrow-down class="inline-block h-5 w-5 mr-2 -mt-0.5 text-success-500" />
                     Inbounds by Status
@@ -988,7 +988,7 @@
                     View All &rarr;
                 </a>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="space-y-4">
                     @foreach($inboundStatusCounts as $status => $count)
                         @php
@@ -1022,7 +1022,7 @@
 
         {{-- Bottling Deadlines --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-calendar-days class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
                     Bottling Deadlines
@@ -1031,26 +1031,26 @@
                     View All &rarr;
                 </a>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="grid grid-cols-2 gap-4">
                     {{-- Next 30 days --}}
                     <div class="text-center p-4 rounded-lg {{ $bottlingDeadlineCounts['next_30_days'] > 0 ? 'bg-danger-50 dark:bg-danger-400/10' : 'bg-gray-50 dark:bg-gray-800' }}">
-                        <p class="text-3xl font-bold {{ $bottlingDeadlineCounts['next_30_days'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}">{{ $bottlingDeadlineCounts['next_30_days'] }}</p>
+                        <p class="text-2xl font-bold {{ $bottlingDeadlineCounts['next_30_days'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}">{{ $bottlingDeadlineCounts['next_30_days'] }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Next 30 days</p>
                     </div>
                     {{-- Next 60 days --}}
                     <div class="text-center p-4 rounded-lg {{ $bottlingDeadlineCounts['next_60_days'] > $bottlingDeadlineCounts['next_30_days'] ? 'bg-warning-50 dark:bg-warning-400/10' : 'bg-gray-50 dark:bg-gray-800' }}">
-                        <p class="text-3xl font-bold {{ $bottlingDeadlineCounts['next_60_days'] > $bottlingDeadlineCounts['next_30_days'] ? 'text-warning-600 dark:text-warning-400' : 'text-gray-400' }}">{{ $bottlingDeadlineCounts['next_60_days'] }}</p>
+                        <p class="text-2xl font-bold {{ $bottlingDeadlineCounts['next_60_days'] > $bottlingDeadlineCounts['next_30_days'] ? 'text-warning-600 dark:text-warning-400' : 'text-gray-400' }}">{{ $bottlingDeadlineCounts['next_60_days'] }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Next 60 days</p>
                     </div>
                     {{-- Next 90 days --}}
                     <div class="text-center p-4 rounded-lg bg-gray-50 dark:bg-gray-800">
-                        <p class="text-3xl font-bold text-gray-600 dark:text-gray-300">{{ $bottlingDeadlineCounts['next_90_days'] }}</p>
+                        <p class="text-2xl font-bold text-gray-600 dark:text-gray-300">{{ $bottlingDeadlineCounts['next_90_days'] }}</p>
                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Next 90 days</p>
                     </div>
                     {{-- Past deadline --}}
                     <div class="text-center p-4 rounded-lg {{ $bottlingDeadlineCounts['past_deadline'] > 0 ? 'bg-danger-50 dark:bg-danger-400/10 ring-2 ring-danger-500' : 'bg-gray-50 dark:bg-gray-800' }}">
-                        <p class="text-3xl font-bold {{ $bottlingDeadlineCounts['past_deadline'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}">{{ $bottlingDeadlineCounts['past_deadline'] }}</p>
+                        <p class="text-2xl font-bold {{ $bottlingDeadlineCounts['past_deadline'] > 0 ? 'text-danger-600 dark:text-danger-400' : 'text-gray-400' }}">{{ $bottlingDeadlineCounts['past_deadline'] }}</p>
                         <p class="text-xs {{ $bottlingDeadlineCounts['past_deadline'] > 0 ? 'text-danger-600 dark:text-danger-400 font-medium' : 'text-gray-500 dark:text-gray-400' }} mt-1">Past Deadline!</p>
                     </div>
                 </div>
@@ -1059,14 +1059,14 @@
     </div>
 
     {{-- Quick Actions --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-bolt class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
                 Quick Actions
             </h3>
         </div>
-        <div class="fi-section-content p-6">
+        <div class="fi-section-content p-4">
             <div class="flex flex-wrap gap-3">
                 <a href="{{ $this->getCreateIntentUrl() }}" class="inline-flex items-center px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium rounded-lg transition-colors">
                     <x-heroicon-o-plus class="h-4 w-4 mr-2" />
@@ -1118,10 +1118,10 @@
     </div>
 
     {{-- Problem Areas / Awaiting Action --}}
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {{-- Intents Awaiting Approval --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-clock class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
                     Awaiting Approval
@@ -1136,7 +1136,7 @@
                 @if($intentsAwaitingApproval->count() > 0)
                     <div class="divide-y divide-gray-200 dark:divide-gray-700">
                         @foreach($intentsAwaitingApproval as $intent)
-                            <a href="{{ $this->getIntentViewUrl($intent) }}" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <a href="{{ $this->getIntentViewUrl($intent) }}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
                                         {{ $intent->getProductLabel() }}
@@ -1150,8 +1150,8 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="text-center py-12">
-                        <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-500" />
+                    <div class="text-center py-6">
+                        <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-500" />
                         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">All Clear!</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No intents awaiting approval.</p>
                     </div>
@@ -1161,7 +1161,7 @@
 
         {{-- Inbounds with Pending Ownership --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-exclamation-triangle class="inline-block h-5 w-5 mr-2 -mt-0.5 text-danger-500" />
                     Pending Ownership
@@ -1176,7 +1176,7 @@
                 @if($inboundsWithPendingOwnership->count() > 0)
                     <div class="divide-y divide-gray-200 dark:divide-gray-700">
                         @foreach($inboundsWithPendingOwnership as $inbound)
-                            <a href="{{ $this->getInboundViewUrl($inbound) }}" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <a href="{{ $this->getInboundViewUrl($inbound) }}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
                                         {{ $inbound->getProductLabel() }}
@@ -1195,8 +1195,8 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="text-center py-12">
-                        <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-500" />
+                    <div class="text-center py-6">
+                        <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-500" />
                         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">All Clear!</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No ownership pending.</p>
                     </div>
@@ -1206,7 +1206,7 @@
 
         {{-- Urgent Bottling Deadlines --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-fire class="inline-block h-5 w-5 mr-2 -mt-0.5 text-danger-500" />
                     Urgent Deadlines (&lt;14d)
@@ -1224,7 +1224,7 @@
                             @php
                                 $daysRemaining = now()->diffInDays($instruction->bottling_deadline, false);
                             @endphp
-                            <a href="{{ $this->getBottlingInstructionViewUrl($instruction) }}" class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                            <a href="{{ $this->getBottlingInstructionViewUrl($instruction) }}" class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
                                         {{ $instruction->getProductLabel() }}
@@ -1243,8 +1243,8 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="text-center py-12">
-                        <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-500" />
+                    <div class="text-center py-6">
+                        <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-500" />
                         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">All Clear!</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No urgent deadlines.</p>
                     </div>

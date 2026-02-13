@@ -11,7 +11,7 @@
     @endphp
 
     {{-- Page Header --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 mb-6">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 mb-4">
         <div class="flex items-start">
             <div class="flex-shrink-0">
                 <x-heroicon-o-building-storefront class="h-6 w-6 text-primary-500" />
@@ -28,7 +28,7 @@
 
     {{-- Alerts Summary Bar --}}
     @if($alerts['total'] > 0)
-        <div class="fi-section rounded-xl bg-warning-50 dark:bg-warning-400/10 border border-warning-200 dark:border-warning-400/20 p-4 mb-6">
+        <div class="fi-section rounded-xl bg-warning-50 dark:bg-warning-400/10 border border-warning-200 dark:border-warning-400/20 p-4 mb-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center">
                     <x-heroicon-o-bell-alert class="h-5 w-5 text-warning-600 dark:text-warning-400 mr-2" />
@@ -67,13 +67,13 @@
     @endif
 
     {{-- Main Stats Grid --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-4 mb-6">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4 mb-4">
         {{-- Active Price Books Widget --}}
         <a href="{{ $resourceUrls['price_books'] }}" class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 hover:shadow-md transition-shadow">
-            <div class="p-6">
+            <div class="p-4">
                 <div class="flex items-center justify-between mb-4">
-                    <div class="rounded-full bg-primary-100 dark:bg-primary-400/10 p-3">
-                        <x-heroicon-o-book-open class="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                    <div class="rounded-full bg-primary-100 dark:bg-primary-400/10 p-2">
+                        <x-heroicon-o-book-open class="h-5 w-5 text-primary-600 dark:text-primary-400" />
                     </div>
                     @if($priceBookStats['expiring_soon'] > 0)
                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-warning-100 text-warning-700 dark:bg-warning-400/10 dark:text-warning-400">
@@ -81,7 +81,7 @@
                         </span>
                     @endif
                 </div>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $priceBookStats['total'] }}</h3>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ $priceBookStats['total'] }}</h3>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Price Books</p>
                 <div class="mt-3 flex flex-wrap gap-1">
                     @foreach($priceBookStats['by_status'] as $status => $count)
@@ -110,10 +110,10 @@
 
         {{-- Active Offers Widget --}}
         <a href="{{ $resourceUrls['offers'] }}" class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 hover:shadow-md transition-shadow">
-            <div class="p-6">
+            <div class="p-4">
                 <div class="flex items-center justify-between mb-4">
-                    <div class="rounded-full bg-success-100 dark:bg-success-400/10 p-3">
-                        <x-heroicon-o-tag class="h-6 w-6 text-success-600 dark:text-success-400" />
+                    <div class="rounded-full bg-success-100 dark:bg-success-400/10 p-2">
+                        <x-heroicon-o-tag class="h-5 w-5 text-success-600 dark:text-success-400" />
                     </div>
                     @if($offerStats['expiring_soon'] > 0)
                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-warning-100 text-warning-700 dark:bg-warning-400/10 dark:text-warning-400">
@@ -121,7 +121,7 @@
                         </span>
                     @endif
                 </div>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $offerStats['total'] }}</h3>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ $offerStats['total'] }}</h3>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Offers</p>
                 <div class="mt-3 flex flex-wrap gap-1">
                     @foreach($offerStats['by_status'] as $status => $count)
@@ -152,10 +152,10 @@
 
         {{-- Pricing Policies Widget --}}
         <a href="{{ $resourceUrls['pricing_policies'] }}" class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 hover:shadow-md transition-shadow">
-            <div class="p-6">
+            <div class="p-4">
                 <div class="flex items-center justify-between mb-4">
-                    <div class="rounded-full bg-info-100 dark:bg-info-400/10 p-3">
-                        <x-heroicon-o-cog-6-tooth class="h-6 w-6 text-info-600 dark:text-info-400" />
+                    <div class="rounded-full bg-info-100 dark:bg-info-400/10 p-2">
+                        <x-heroicon-o-cog-6-tooth class="h-5 w-5 text-info-600 dark:text-info-400" />
                     </div>
                     @if($policyStats['failed_executions'] > 0)
                         <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-danger-100 text-danger-700 dark:bg-danger-400/10 dark:text-danger-400">
@@ -163,7 +163,7 @@
                         </span>
                     @endif
                 </div>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $policyStats['total'] }}</h3>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ $policyStats['total'] }}</h3>
                 <p class="text-sm text-gray-500 dark:text-gray-400">Pricing Policies</p>
                 <div class="mt-3 flex flex-wrap gap-1">
                     @foreach($policyStats['by_status'] as $status => $count)
@@ -192,16 +192,16 @@
 
         {{-- EMP Coverage Widget --}}
         <a href="{{ $resourceUrls['pricing_intelligence'] }}" class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 hover:shadow-md transition-shadow">
-            <div class="p-6">
+            <div class="p-4">
                 <div class="flex items-center justify-between mb-4">
-                    <div class="rounded-full bg-purple-100 dark:bg-purple-400/10 p-3">
-                        <x-heroicon-o-chart-bar class="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                    <div class="rounded-full bg-purple-100 dark:bg-purple-400/10 p-2">
+                        <x-heroicon-o-chart-bar class="h-5 w-5 text-purple-600 dark:text-purple-400" />
                     </div>
                     <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $empCoverage['coverage_percentage'] >= 80 ? 'bg-success-100 text-success-700 dark:bg-success-400/10 dark:text-success-400' : ($empCoverage['coverage_percentage'] >= 50 ? 'bg-warning-100 text-warning-700 dark:bg-warning-400/10 dark:text-warning-400' : 'bg-danger-100 text-danger-700 dark:bg-danger-400/10 dark:text-danger-400') }}">
                         {{ $empCoverage['coverage_percentage'] }}%
                     </span>
                 </div>
-                <h3 class="text-2xl font-bold text-gray-900 dark:text-white">{{ $empCoverage['skus_with_emp'] }}/{{ $empCoverage['total_skus'] }}</h3>
+                <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ $empCoverage['skus_with_emp'] }}/{{ $empCoverage['total_skus'] }}</h3>
                 <p class="text-sm text-gray-500 dark:text-gray-400">EMP Coverage</p>
                 <div class="mt-3">
                     <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
@@ -214,10 +214,10 @@
     </div>
 
     {{-- Recent Policy Executions & EMP Alerts Row --}}
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-6">
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2 mb-4">
         {{-- Recent Policy Executions --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <div class="flex items-center justify-between">
                     <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white flex items-center">
                         <x-heroicon-o-clock class="h-5 w-5 mr-2 text-info-500" />
@@ -228,7 +228,7 @@
                     </a>
                 </div>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 @if(count($policyStats['recent_executions']) > 0)
                     <div class="space-y-3">
                         @foreach($policyStats['recent_executions'] as $execution)
@@ -268,8 +268,8 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="text-center py-8">
-                        <x-heroicon-o-clock class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" />
+                    <div class="text-center py-6">
+                        <x-heroicon-o-clock class="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" />
                         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No recent policy executions</p>
                         <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Execute a pricing policy to see results here</p>
                     </div>
@@ -279,7 +279,7 @@
 
         {{-- EMP Alerts --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <div class="flex items-center justify-between">
                     <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white flex items-center">
                         <x-heroicon-o-bell-alert class="h-5 w-5 mr-2 text-warning-500" />
@@ -290,7 +290,7 @@
                     </span>
                 </div>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 {{-- Alert Cards Grid --}}
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     {{-- Stale Data --}}
@@ -308,7 +308,7 @@
                                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Stale Data</p>
                                 <p class="text-xl font-bold {{ $staleColorClass }} mt-1">{{ number_format($empStats['stale_count']) }}</p>
                             </div>
-                            <x-heroicon-o-clock class="h-5 w-5 {{ $staleColorClass }}" />
+                            <x-heroicon-o-clock class="h-4 w-4 {{ $staleColorClass }}" />
                         </div>
                     </a>
 
@@ -327,7 +327,7 @@
                                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Low Confidence</p>
                                 <p class="text-xl font-bold {{ $confidenceColorClass }} mt-1">{{ number_format($empStats['low_confidence_count']) }}</p>
                             </div>
-                            <x-heroicon-o-exclamation-triangle class="h-5 w-5 {{ $confidenceColorClass }}" />
+                            <x-heroicon-o-exclamation-triangle class="h-4 w-4 {{ $confidenceColorClass }}" />
                         </div>
                     </a>
                 </div>
@@ -368,8 +368,8 @@
         $expirations = $this->getUpcomingExpirations();
     @endphp
     @if($expirations['total'] > 0)
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <div class="flex items-center justify-between">
                     <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white flex items-center">
                         <x-heroicon-o-calendar class="h-5 w-5 mr-2 text-warning-500" />
@@ -380,8 +380,8 @@
                     </h3>
                 </div>
             </div>
-            <div class="fi-section-content p-6">
-                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div class="fi-section-content p-4">
+                <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
                     {{-- Expiring Offers --}}
                     <div>
                         <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center">
@@ -488,22 +488,22 @@
 
     {{-- Quick Actions --}}
     <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white flex items-center">
                 <x-heroicon-o-bolt class="h-5 w-5 mr-2 text-warning-500" />
                 Quick Actions
             </h3>
         </div>
-        <div class="fi-section-content p-6">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="fi-section-content p-4">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 @foreach($this->getQuickActions() as $action)
                     @if($action['enabled'])
                         <a
                             href="{{ $action['url'] }}"
                             class="flex items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                         >
-                            <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-2">
-                                <x-dynamic-component :component="$action['icon']" class="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                            <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-1.5">
+                                <x-dynamic-component :component="$action['icon']" class="h-4 w-4 text-primary-600 dark:text-primary-400" />
                             </div>
                             <div class="ml-3">
                                 <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $action['label'] }}</p>
@@ -512,8 +512,8 @@
                         </a>
                     @else
                         <div class="flex items-center p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 opacity-60 cursor-not-allowed">
-                            <div class="flex-shrink-0 rounded-lg bg-gray-100 dark:bg-gray-700 p-2">
-                                <x-dynamic-component :component="$action['icon']" class="h-5 w-5 text-gray-400" />
+                            <div class="flex-shrink-0 rounded-lg bg-gray-100 dark:bg-gray-700 p-1.5">
+                                <x-dynamic-component :component="$action['icon']" class="h-4 w-4 text-gray-400" />
                             </div>
                             <div class="ml-3">
                                 <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ $action['label'] }}</p>

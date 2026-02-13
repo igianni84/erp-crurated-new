@@ -15,17 +15,17 @@
     @endphp
 
     {{-- Top Summary Cards (Key KPIs) --}}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
         {{-- Total Serialized Bottles --}}
         <a href="{{ $this->getBottlesUrl() }}" class="block">
-            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
+            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-3">
-                        <x-heroicon-o-beaker class="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                    <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-2">
+                        <x-heroicon-o-beaker class="h-5 w-5 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Serialized</p>
-                        <p class="text-2xl font-semibold text-primary-600 dark:text-primary-400">{{ number_format($globalKpis['total_serialized_bottles']) }}</p>
+                        <p class="text-xl font-semibold text-primary-600 dark:text-primary-400">{{ number_format($globalKpis['total_serialized_bottles']) }}</p>
                     </div>
                 </div>
             </div>
@@ -33,57 +33,57 @@
 
         {{-- Unserialized Inbound --}}
         <a href="{{ $this->getSerializationQueueUrl() }}" class="block">
-            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6 hover:shadow-md transition-shadow">
+            <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4 hover:shadow-md transition-shadow">
                 <div class="flex items-center">
-                    <div class="flex-shrink-0 rounded-lg bg-warning-50 dark:bg-warning-400/10 p-3">
-                        <x-heroicon-o-inbox-arrow-down class="h-6 w-6 text-warning-600 dark:text-warning-400" />
+                    <div class="flex-shrink-0 rounded-lg bg-warning-50 dark:bg-warning-400/10 p-2">
+                        <x-heroicon-o-inbox-arrow-down class="h-5 w-5 text-warning-600 dark:text-warning-400" />
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending Serialization</p>
-                        <p class="text-2xl font-semibold text-warning-600 dark:text-warning-400">{{ number_format($globalKpis['unserialized_inbound']) }}</p>
+                        <p class="text-xl font-semibold text-warning-600 dark:text-warning-400">{{ number_format($globalKpis['unserialized_inbound']) }}</p>
                     </div>
                 </div>
             </div>
         </a>
 
         {{-- Committed Inventory --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-info-50 dark:bg-info-400/10 p-3">
-                    <x-heroicon-o-lock-closed class="h-6 w-6 text-info-600 dark:text-info-400" />
+                <div class="flex-shrink-0 rounded-lg bg-info-50 dark:bg-info-400/10 p-2">
+                    <x-heroicon-o-lock-closed class="h-5 w-5 text-info-600 dark:text-info-400" />
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Committed</p>
-                    <p class="text-2xl font-semibold text-info-600 dark:text-info-400">{{ number_format($globalKpis['committed_quantity']) }}</p>
+                    <p class="text-xl font-semibold text-info-600 dark:text-info-400">{{ number_format($globalKpis['committed_quantity']) }}</p>
                 </div>
             </div>
         </div>
 
         {{-- Free Inventory --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-3">
-                    <x-heroicon-o-check-circle class="h-6 w-6 text-success-600 dark:text-success-400" />
+                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-2">
+                    <x-heroicon-o-check-circle class="h-5 w-5 text-success-600 dark:text-success-400" />
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Free</p>
-                    <p class="text-2xl font-semibold text-success-600 dark:text-success-400">{{ number_format($globalKpis['free_quantity']) }}</p>
+                    <p class="text-xl font-semibold text-success-600 dark:text-success-400">{{ number_format($globalKpis['free_quantity']) }}</p>
                 </div>
             </div>
         </div>
     </div>
 
     {{-- Main Content Grid: Widget A (Bottles by State) + Widget B (Locations) --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {{-- Widget A: Bottles by State Breakdown --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-beaker class="inline-block h-5 w-5 mr-2 -mt-0.5 text-primary-500" />
                     Bottles by State
                 </h3>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 @php
                     $bottleStates = [
                         ['key' => 'bottles_stored', 'state' => \App\Enums\Inventory\BottleState::Stored],
@@ -130,7 +130,7 @@
 
         {{-- Widget B: Inventory by Location --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-map-pin class="inline-block h-5 w-5 mr-2 -mt-0.5 text-primary-500" />
                     Top Locations by Stock
@@ -145,7 +145,7 @@
                         @foreach($topLocations as $item)
                             <a
                                 href="{{ $this->getBottlesByLocationUrl($item['location']) }}"
-                                class="flex items-center justify-between px-6 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                             >
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -168,8 +168,8 @@
                         @endforeach
                     </div>
                 @else
-                    <div class="text-center py-12">
-                        <x-heroicon-o-map-pin class="mx-auto h-12 w-12 text-gray-400" />
+                    <div class="text-center py-6">
+                        <x-heroicon-o-map-pin class="mx-auto h-8 w-8 text-gray-400" />
                         <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No Locations</h3>
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">No locations with stored bottles.</p>
                     </div>
@@ -179,7 +179,7 @@
     </div>
 
     {{-- Location Type Breakdown Row --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {{-- Warehouse Bottles --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center justify-between">
@@ -188,8 +188,8 @@
                     <p class="text-xl font-bold text-primary-600 dark:text-primary-400 mt-1">{{ number_format($locationTypeBreakdown['warehouse_bottles']) }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $locationTypeBreakdown['warehouse_locations'] }} locations</p>
                 </div>
-                <div class="rounded-full bg-primary-50 dark:bg-primary-400/10 p-2">
-                    <x-heroicon-o-building-office class="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                <div class="rounded-full bg-primary-50 dark:bg-primary-400/10 p-1.5">
+                    <x-heroicon-o-building-office class="h-4 w-4 text-primary-600 dark:text-primary-400" />
                 </div>
             </div>
         </div>
@@ -202,8 +202,8 @@
                     <p class="text-xl font-bold text-info-600 dark:text-info-400 mt-1">{{ number_format($locationTypeBreakdown['consignee_bottles']) }}</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ $locationTypeBreakdown['consignee_locations'] }} consignees</p>
                 </div>
-                <div class="rounded-full bg-info-50 dark:bg-info-400/10 p-2">
-                    <x-heroicon-o-building-storefront class="h-5 w-5 text-info-600 dark:text-info-400" />
+                <div class="rounded-full bg-info-50 dark:bg-info-400/10 p-1.5">
+                    <x-heroicon-o-building-storefront class="h-4 w-4 text-info-600 dark:text-info-400" />
                 </div>
             </div>
         </div>
@@ -216,8 +216,8 @@
                         <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Total Cases</p>
                         <p class="text-xl font-bold text-gray-600 dark:text-gray-400 mt-1">{{ number_format($globalKpis['total_cases']) }}</p>
                     </div>
-                    <div class="rounded-full bg-gray-50 dark:bg-gray-400/10 p-2">
-                        <x-heroicon-o-archive-box class="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                    <div class="rounded-full bg-gray-50 dark:bg-gray-400/10 p-1.5">
+                        <x-heroicon-o-archive-box class="h-4 w-4 text-gray-600 dark:text-gray-400" />
                     </div>
                 </div>
             </div>
@@ -231,8 +231,8 @@
                         <p class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Intact Cases</p>
                         <p class="text-xl font-bold text-success-600 dark:text-success-400 mt-1">{{ number_format($globalKpis['intact_cases']) }}</p>
                     </div>
-                    <div class="rounded-full bg-success-50 dark:bg-success-400/10 p-2">
-                        <x-heroicon-o-check-badge class="h-5 w-5 text-success-600 dark:text-success-400" />
+                    <div class="rounded-full bg-success-50 dark:bg-success-400/10 p-1.5">
+                        <x-heroicon-o-check-badge class="h-4 w-4 text-success-600 dark:text-success-400" />
                     </div>
                 </div>
             </div>
@@ -240,16 +240,16 @@
     </div>
 
     {{-- Widget C: Alerts & Exceptions + Ownership Breakdown --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {{-- Widget C: Alerts & Exceptions --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 {{ $hasAlerts ? 'ring-2 ring-danger-500' : '' }}">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 {{ $hasAlerts ? 'bg-danger-50 dark:bg-danger-900/20' : '' }}">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 {{ $hasAlerts ? 'bg-danger-50 dark:bg-danger-900/20' : '' }}">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 {{ $hasAlerts ? 'text-danger-800 dark:text-danger-200' : 'text-gray-950 dark:text-white' }}">
                     <x-heroicon-o-exclamation-triangle class="inline-block h-5 w-5 mr-2 -mt-0.5 {{ $hasAlerts ? 'text-danger-500' : 'text-warning-500' }}" />
                     Alerts & Exceptions
                 </h3>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="space-y-4">
                     {{-- Serialization Pending --}}
                     <a href="{{ $this->getSerializationQueueUrl() }}" class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
@@ -385,13 +385,13 @@
 
         {{-- Ownership Breakdown --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-user-group class="inline-block h-5 w-5 mr-2 -mt-0.5 text-primary-500" />
                     Ownership Breakdown
                 </h3>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 @php
                     $totalOwnership = array_sum($ownershipBreakdown);
                 @endphp
@@ -427,11 +427,11 @@
                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h4>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="text-center">
-                            <p class="text-2xl font-bold text-primary-600 dark:text-primary-400">{{ number_format($recentMovements['today_count']) }}</p>
+                            <p class="text-xl font-bold text-primary-600 dark:text-primary-400">{{ number_format($recentMovements['today_count']) }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">Movements Today</p>
                         </div>
                         <div class="text-center">
-                            <p class="text-2xl font-bold text-info-600 dark:text-info-400">{{ number_format($recentMovements['this_week_count']) }}</p>
+                            <p class="text-xl font-bold text-info-600 dark:text-info-400">{{ number_format($recentMovements['this_week_count']) }}</p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">This Week</p>
                         </div>
                     </div>
@@ -448,7 +448,7 @@
     {{-- Recent Exceptions (if any) --}}
     @if($recentExceptions->count() > 0)
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-document-magnifying-glass class="inline-block h-5 w-5 mr-2 -mt-0.5 text-warning-500" />
                     Unresolved Exceptions ({{ $alerts['unresolved_exceptions'] }})
@@ -457,7 +457,7 @@
             <div class="fi-section-content">
                 <div class="divide-y divide-gray-200 dark:divide-gray-700">
                     @foreach($recentExceptions as $exception)
-                        <div class="px-6 py-4">
+                        <div class="px-4 py-3">
                             <div class="flex items-start justify-between">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-sm font-medium text-gray-900 dark:text-white">

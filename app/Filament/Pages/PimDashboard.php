@@ -11,6 +11,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PimDashboard extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
     protected static ?string $navigationLabel = 'Data Quality';

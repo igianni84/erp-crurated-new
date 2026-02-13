@@ -23,6 +23,8 @@ use Illuminate\Support\Collection;
 
 class ProcurementDashboard extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-group';
 
     protected static ?string $navigationLabel = 'Overview';

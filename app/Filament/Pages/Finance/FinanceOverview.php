@@ -52,6 +52,8 @@ use Illuminate\Support\Facades\Cache;
  */
 class FinanceOverview extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationLabel = 'Overview';

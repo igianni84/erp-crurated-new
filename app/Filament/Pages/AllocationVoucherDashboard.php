@@ -19,6 +19,8 @@ use Illuminate\Support\Collection;
 
 class AllocationVoucherDashboard extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationLabel = 'A&V Dashboard';

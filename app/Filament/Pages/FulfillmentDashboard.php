@@ -17,6 +17,8 @@ use Illuminate\Support\Collection;
 
 class FulfillmentDashboard extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-truck';
 
     protected static ?string $navigationLabel = 'Fulfillment Overview';

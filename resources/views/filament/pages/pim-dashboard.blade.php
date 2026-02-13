@@ -9,58 +9,58 @@
     @endphp
 
     {{-- Summary Cards --}}
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 mb-4">
         {{-- Total Products --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-3">
-                    <x-heroicon-o-cube class="h-6 w-6 text-primary-600 dark:text-primary-400" />
+                <div class="flex-shrink-0 rounded-lg bg-primary-50 dark:bg-primary-400/10 p-2">
+                    <x-heroicon-o-cube class="h-5 w-5 text-primary-600 dark:text-primary-400" />
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Products</p>
-                    <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $totals['total'] }}</p>
+                    <p class="text-xl font-semibold text-gray-900 dark:text-white">{{ $totals['total'] }}</p>
                 </div>
             </div>
         </div>
 
         {{-- Publishable Products --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-3">
-                    <x-heroicon-o-check-circle class="h-6 w-6 text-success-600 dark:text-success-400" />
+                <div class="flex-shrink-0 rounded-lg bg-success-50 dark:bg-success-400/10 p-2">
+                    <x-heroicon-o-check-circle class="h-5 w-5 text-success-600 dark:text-success-400" />
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Publishable</p>
-                    <p class="text-2xl font-semibold text-success-600 dark:text-success-400">{{ $totals['publishable'] }}</p>
+                    <p class="text-xl font-semibold text-success-600 dark:text-success-400">{{ $totals['publishable'] }}</p>
                 </div>
             </div>
         </div>
 
         {{-- Blocked Products --}}
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-6">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 p-4">
             <div class="flex items-center">
-                <div class="flex-shrink-0 rounded-lg bg-danger-50 dark:bg-danger-400/10 p-3">
-                    <x-heroicon-o-exclamation-triangle class="h-6 w-6 text-danger-600 dark:text-danger-400" />
+                <div class="flex-shrink-0 rounded-lg bg-danger-50 dark:bg-danger-400/10 p-2">
+                    <x-heroicon-o-exclamation-triangle class="h-5 w-5 text-danger-600 dark:text-danger-400" />
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Blocked</p>
-                    <p class="text-2xl font-semibold text-danger-600 dark:text-danger-400">{{ $totals['blocked'] }}</p>
+                    <p class="text-xl font-semibold text-danger-600 dark:text-danger-400">{{ $totals['blocked'] }}</p>
                 </div>
             </div>
         </div>
     </div>
 
     {{-- Main Content Grid --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {{-- Products by Status --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-chart-pie class="inline-block h-5 w-5 mr-2 -mt-0.5" />
                     Products by Status
                 </h3>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="space-y-4">
                     @foreach($statusCounts as $status => $count)
                         @php
@@ -94,17 +94,17 @@
 
         {{-- Completeness Distribution --}}
         <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
                 <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                     <x-heroicon-o-chart-bar class="inline-block h-5 w-5 mr-2 -mt-0.5" />
                     Completeness Distribution
                 </h3>
             </div>
-            <div class="fi-section-content p-6">
+            <div class="fi-section-content p-4">
                 <div class="grid grid-cols-3 gap-4 text-center">
                     {{-- Low (<50%) --}}
                     <div class="rounded-lg bg-danger-50 dark:bg-danger-400/10 p-4">
-                        <div class="text-3xl font-bold text-danger-600 dark:text-danger-400">{{ $completeness['low'] }}</div>
+                        <div class="text-2xl font-bold text-danger-600 dark:text-danger-400">{{ $completeness['low'] }}</div>
                         <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Low (&lt;50%)</div>
                         <div class="flex justify-center mt-2">
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-danger-100 text-danger-800 dark:bg-danger-400/20 dark:text-danger-400">
@@ -116,7 +116,7 @@
 
                     {{-- Medium (50-80%) --}}
                     <div class="rounded-lg bg-warning-50 dark:bg-warning-400/10 p-4">
-                        <div class="text-3xl font-bold text-warning-600 dark:text-warning-400">{{ $completeness['medium'] }}</div>
+                        <div class="text-2xl font-bold text-warning-600 dark:text-warning-400">{{ $completeness['medium'] }}</div>
                         <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">Medium (50-80%)</div>
                         <div class="flex justify-center mt-2">
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-warning-100 text-warning-800 dark:bg-warning-400/20 dark:text-warning-400">
@@ -128,7 +128,7 @@
 
                     {{-- High (>80%) --}}
                     <div class="rounded-lg bg-success-50 dark:bg-success-400/10 p-4">
-                        <div class="text-3xl font-bold text-success-600 dark:text-success-400">{{ $completeness['high'] }}</div>
+                        <div class="text-2xl font-bold text-success-600 dark:text-success-400">{{ $completeness['high'] }}</div>
                         <div class="text-sm text-gray-600 dark:text-gray-400 mt-1">High (&gt;80%)</div>
                         <div class="flex justify-center mt-2">
                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-success-100 text-success-800 dark:bg-success-400/20 dark:text-success-400">
@@ -143,14 +143,14 @@
     </div>
 
     {{-- Blocking Issues Summary --}}
-    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-6">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4">
+    <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 mb-4">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-exclamation-triangle class="inline-block h-5 w-5 mr-2 -mt-0.5 text-danger-500" />
                 Blocking Issues by Type
             </h3>
         </div>
-        <div class="fi-section-content p-6">
+        <div class="fi-section-content p-4">
             @if(count($blockingIssues) > 0)
                 <div class="space-y-3">
                     @foreach($blockingIssues as $issue => $count)
@@ -166,8 +166,8 @@
                     @endforeach
                 </div>
             @else
-                <div class="text-center py-6">
-                    <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-500" />
+                <div class="text-center py-4">
+                    <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-500" />
                     <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No blocking issues found. All products are ready for publication!</p>
                 </div>
             @endif
@@ -176,7 +176,7 @@
 
     {{-- Blocked Products List --}}
     <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
-        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-6 py-4 flex justify-between items-center">
+        <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex justify-between items-center">
             <h3 class="fi-section-header-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
                 <x-heroicon-o-queue-list class="inline-block h-5 w-5 mr-2 -mt-0.5" />
                 Blocked Products ({{ $blockedProducts->count() }})
@@ -198,19 +198,19 @@
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead class="bg-gray-50 dark:bg-gray-800">
                             <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Product
                                 </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Status
                                 </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Completeness
                                 </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Blocking Issues
                                 </th>
-                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                <th scope="col" class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                     Actions
                                 </th>
                             </tr>
@@ -226,7 +226,7 @@
                                     $statusMeta = $statusMeta[$product->lifecycle_status->value] ?? ['label' => 'Unknown', 'color' => 'gray'];
                                 @endphp
                                 <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-4 py-3 whitespace-nowrap">
                                         <div class="flex items-center">
                                             <div class="flex-shrink-0 h-10 w-10">
                                                 @if($product->thumbnail_url)
@@ -247,7 +247,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-4 py-3 whitespace-nowrap">
                                         @php
                                             $badgeColor = match($statusMeta['color']) {
                                                 'gray' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
@@ -262,7 +262,7 @@
                                             {{ $statusMeta['label'] }}
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
+                                    <td class="px-4 py-3 whitespace-nowrap">
                                         @php
                                             $completenessBadgeColor = match($completenessColor) {
                                                 'danger' => 'bg-danger-100 text-danger-800 dark:bg-danger-400/20 dark:text-danger-400',
@@ -275,7 +275,7 @@
                                             {{ $completenessPercentage }}%
                                         </span>
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td class="px-4 py-3">
                                         <div class="space-y-1">
                                             @foreach($issues as $issue)
                                                 <a
@@ -288,7 +288,7 @@
                                             @endforeach
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                         <div class="flex justify-end space-x-2">
                                             <a
                                                 href="{{ $this->getProductViewUrl($product) }}"
@@ -312,8 +312,8 @@
                     </table>
                 </div>
             @else
-                <div class="text-center py-12">
-                    <x-heroicon-o-check-circle class="mx-auto h-12 w-12 text-success-500" />
+                <div class="text-center py-6">
+                    <x-heroicon-o-check-circle class="mx-auto h-8 w-8 text-success-500" />
                     <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-white">No Blocked Products</h3>
                     <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">All products are ready for publication workflow.</p>
                 </div>

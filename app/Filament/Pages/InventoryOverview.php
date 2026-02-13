@@ -38,6 +38,8 @@ use Illuminate\Support\Collection;
  */
 class InventoryOverview extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationLabel = 'Inventory Overview';

@@ -31,21 +31,21 @@
         </x-slot>
 
         {{-- Main Metrics Grid --}}
-        <div class="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6">
+        <div class="grid grid-cols-2 gap-2 lg:grid-cols-4 mb-4">
             {{-- Invoices Issued --}}
-            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-4">
+            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-3">
                 <div class="flex items-center justify-between">
-                    <div class="flex-shrink-0 p-2 bg-primary-100 dark:bg-primary-500/20 rounded-lg">
-                        <x-heroicon-o-document-text class="h-5 w-5 text-primary-600 dark:text-primary-400" />
+                    <div class="flex-shrink-0 p-1.5 bg-primary-100 dark:bg-primary-500/20 rounded-lg">
+                        <x-heroicon-o-document-text class="h-4 w-4 text-primary-600 dark:text-primary-400" />
                     </div>
                     <div class="flex items-center gap-1 {{ $this->getChangeColorClass($invoicesAmountChange['direction']) }}">
                         <x-dynamic-component :component="$this->getChangeIcon($invoicesAmountChange['direction'])" class="h-4 w-4" />
                         <span class="text-xs font-medium">{{ number_format($invoicesAmountChange['value'], 1) }}%</span>
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-2">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Invoices Issued</p>
-                    <p class="text-xl font-bold text-gray-900 dark:text-white">{{ $this->formatAmount($currentMetrics['invoices_amount']) }}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">{{ $this->formatAmount($currentMetrics['invoices_amount']) }}</p>
                     <div class="flex items-center justify-between mt-1">
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $currentMetrics['invoices_issued'] }} invoices</span>
                         <span class="text-xs {{ $this->getChangeColorClass($invoicesCountChange['direction']) }}">
@@ -62,19 +62,19 @@
             </div>
 
             {{-- Payments Received --}}
-            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-4">
+            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-3">
                 <div class="flex items-center justify-between">
-                    <div class="flex-shrink-0 p-2 bg-success-100 dark:bg-success-500/20 rounded-lg">
-                        <x-heroicon-o-banknotes class="h-5 w-5 text-success-600 dark:text-success-400" />
+                    <div class="flex-shrink-0 p-1.5 bg-success-100 dark:bg-success-500/20 rounded-lg">
+                        <x-heroicon-o-banknotes class="h-4 w-4 text-success-600 dark:text-success-400" />
                     </div>
                     <div class="flex items-center gap-1 {{ $this->getChangeColorClass($paymentsAmountChange['direction']) }}">
                         <x-dynamic-component :component="$this->getChangeIcon($paymentsAmountChange['direction'])" class="h-4 w-4" />
                         <span class="text-xs font-medium">{{ number_format($paymentsAmountChange['value'], 1) }}%</span>
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-2">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Payments Received</p>
-                    <p class="text-xl font-bold text-success-600 dark:text-success-400">{{ $this->formatAmount($currentMetrics['payments_amount']) }}</p>
+                    <p class="text-lg font-bold text-success-600 dark:text-success-400">{{ $this->formatAmount($currentMetrics['payments_amount']) }}</p>
                     <div class="flex items-center justify-between mt-1">
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $currentMetrics['payments_received'] }} payments</span>
                         <span class="text-xs {{ $this->getChangeColorClass($paymentsCountChange['direction']) }}">
@@ -91,19 +91,19 @@
             </div>
 
             {{-- Credit Notes --}}
-            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-4">
+            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-3">
                 <div class="flex items-center justify-between">
-                    <div class="flex-shrink-0 p-2 bg-warning-100 dark:bg-warning-500/20 rounded-lg">
-                        <x-heroicon-o-document-minus class="h-5 w-5 text-warning-600 dark:text-warning-400" />
+                    <div class="flex-shrink-0 p-1.5 bg-warning-100 dark:bg-warning-500/20 rounded-lg">
+                        <x-heroicon-o-document-minus class="h-4 w-4 text-warning-600 dark:text-warning-400" />
                     </div>
                     <div class="flex items-center gap-1 {{ $this->getChangeColorClass($creditNotesAmountChange['direction'], true) }}">
                         <x-dynamic-component :component="$this->getChangeIcon($creditNotesAmountChange['direction'])" class="h-4 w-4" />
                         <span class="text-xs font-medium">{{ number_format($creditNotesAmountChange['value'], 1) }}%</span>
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-2">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Credit Notes</p>
-                    <p class="text-xl font-bold text-warning-600 dark:text-warning-400">{{ $this->formatAmount($currentMetrics['credit_notes_amount']) }}</p>
+                    <p class="text-lg font-bold text-warning-600 dark:text-warning-400">{{ $this->formatAmount($currentMetrics['credit_notes_amount']) }}</p>
                     <div class="flex items-center justify-between mt-1">
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $currentMetrics['credit_notes'] }} notes</span>
                         <span class="text-xs {{ $this->getChangeColorClass($creditNotesCountChange['direction'], true) }}">
@@ -120,19 +120,19 @@
             </div>
 
             {{-- Refunds --}}
-            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-4">
+            <div class="rounded-xl bg-gray-50 dark:bg-white/5 ring-1 ring-gray-200 dark:ring-white/10 p-3">
                 <div class="flex items-center justify-between">
-                    <div class="flex-shrink-0 p-2 bg-danger-100 dark:bg-danger-500/20 rounded-lg">
-                        <x-heroicon-o-arrow-uturn-left class="h-5 w-5 text-danger-600 dark:text-danger-400" />
+                    <div class="flex-shrink-0 p-1.5 bg-danger-100 dark:bg-danger-500/20 rounded-lg">
+                        <x-heroicon-o-arrow-uturn-left class="h-4 w-4 text-danger-600 dark:text-danger-400" />
                     </div>
                     <div class="flex items-center gap-1 {{ $this->getChangeColorClass($refundsAmountChange['direction'], true) }}">
                         <x-dynamic-component :component="$this->getChangeIcon($refundsAmountChange['direction'])" class="h-4 w-4" />
                         <span class="text-xs font-medium">{{ number_format($refundsAmountChange['value'], 1) }}%</span>
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-2">
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Refunds</p>
-                    <p class="text-xl font-bold text-danger-600 dark:text-danger-400">{{ $this->formatAmount($currentMetrics['refunds_amount']) }}</p>
+                    <p class="text-lg font-bold text-danger-600 dark:text-danger-400">{{ $this->formatAmount($currentMetrics['refunds_amount']) }}</p>
                     <div class="flex items-center justify-between mt-1">
                         <span class="text-xs text-gray-500 dark:text-gray-400">{{ $currentMetrics['refunds'] }} refunds</span>
                         <span class="text-xs {{ $this->getChangeColorClass($refundsCountChange['direction'], true) }}">

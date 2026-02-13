@@ -19,6 +19,8 @@ use Filament\Pages\Page;
 
 class CommercialOverview extends Page
 {
+    protected ?string $maxContentWidth = 'full';
+
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
 
     protected static ?string $navigationLabel = 'Overview';
