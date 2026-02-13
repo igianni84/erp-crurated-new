@@ -1303,7 +1303,15 @@ class ViewInvoice extends ViewRecord
                 $pdfService = app(InvoicePdfService::class);
 
                 try {
-                    return $pdfService->download($this->getInvoice());
+                    $invoice = $this->getInvoice();
+                    $content = $pdfService->getContent($invoice);
+                    $filename = $pdfService->getFilename($invoice);
+
+                    return response()->streamDownload(
+                        fn () => print ($content),
+                        $filename,
+                        ['Content-Type' => 'application/pdf']
+                    );
                 } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot Generate PDF')
