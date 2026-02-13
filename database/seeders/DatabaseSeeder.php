@@ -30,6 +30,16 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // =====================================================================
+        // PHASE 1.5: Wine lookup data (before WineMaster)
+        // =====================================================================
+        $this->call([
+            CountrySeeder::class,       // Wine-producing countries with ISO codes
+            RegionSeeder::class,        // Wine regions with sub-region hierarchy
+            AppellationSeeder::class,   // Wine appellations with legal systems
+            ProducerSeeder::class,      // Wine producers with country/region links
+        ]);
+
+        // =====================================================================
         // PHASE 2: Core entities (depend on foundation)
         // =====================================================================
         $this->call([

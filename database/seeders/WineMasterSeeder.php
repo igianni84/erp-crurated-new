@@ -2,6 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Pim\Appellation;
+use App\Models\Pim\Country;
+use App\Models\Pim\Producer;
+use App\Models\Pim\Region;
 use App\Models\Pim\WineMaster;
 use Illuminate\Database\Seeder;
 
@@ -24,6 +28,14 @@ class WineMasterSeeder extends Seeder
      */
     public function run(): void
     {
+        // Pre-load lookup tables for FK resolution
+        $countries = Country::all()->keyBy('name');
+        $producers = Producer::all()->keyBy('name');
+        $appellationsByKey = [];
+        foreach (Appellation::all() as $appellation) {
+            $appellationsByKey[$appellation->name.'|'.$appellation->country_id] = $appellation;
+        }
+
         $wines = [
             // =========================================================================
             // PIEDMONT - BAROLO
@@ -885,12 +897,34 @@ class WineMasterSeeder extends Seeder
         ];
 
         foreach ($wines as $wineData) {
+            // Resolve FK references from lookup tables
+            $country = $countries->get($wineData['country']);
+            $producer = $producers->get($wineData['producer']);
+            $appellationKey = $wineData['appellation'].'|'.($country?->id ?? '');
+            $appellation = $appellationsByKey[$appellationKey] ?? null;
+
+            // Resolve region: prefer producer's region, fallback to lookup by name
+            $regionId = $producer?->region_id;
+            if ($regionId === null && $country !== null) {
+                $regionId = Region::where('name', $wineData['region'])
+                    ->where('country_id', $country->id)
+                    ->whereNull('parent_region_id')
+                    ->first()?->id;
+            }
+
+            $fkData = [
+                'producer_id' => $producer?->id,
+                'country_id' => $country?->id,
+                'region_id' => $regionId,
+                'appellation_id' => $appellation?->id,
+            ];
+
             WineMaster::firstOrCreate(
                 [
                     'name' => $wineData['name'],
                     'producer' => $wineData['producer'],
                 ],
-                $wineData
+                array_merge($wineData, $fkData)
             );
         }
 

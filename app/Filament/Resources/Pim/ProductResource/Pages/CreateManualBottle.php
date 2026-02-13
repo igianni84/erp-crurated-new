@@ -6,6 +6,10 @@ use App\Enums\DataSource;
 use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\ProductResource;
 use App\Filament\Resources\Pim\WineVariantResource;
+use App\Models\Pim\Appellation;
+use App\Models\Pim\Country;
+use App\Models\Pim\Producer;
+use App\Models\Pim\Region;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use Filament\Actions\Action;
@@ -15,6 +19,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
 
@@ -75,10 +80,11 @@ class CreateManualBottle extends Page
                             ->label('Select Wine Master')
                             ->options(
                                 WineMaster::query()
+                                    ->with('producerRelation')
                                     ->orderBy('name')
                                     ->get()
                                     ->mapWithKeys(fn (WineMaster $record): array => [
-                                        $record->id => $record->name.' - '.$record->producer,
+                                        $record->id => $record->name.' - '.$record->producer_name,
                                     ])
                             )
                             ->searchable()
@@ -93,30 +99,109 @@ class CreateManualBottle extends Page
                             ->required(fn (Get $get): bool => $get('wine_master_mode') === 'new')
                             ->maxLength(255),
 
-                        TextInput::make('producer')
+                        Select::make('producer_id')
                             ->label('Producer')
-                            ->placeholder('e.g., Tenuta San Guido')
+                            ->searchable()
+                            ->preload()
+                            ->live()
                             ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
                             ->required(fn (Get $get): bool => $get('wine_master_mode') === 'new')
-                            ->maxLength(255),
+                            ->options(
+                                Producer::where('is_active', true)
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn (Producer $p): array => [$p->id => $p->name])
+                                    ->toArray()
+                            )
+                            ->afterStateUpdated(function (Set $set, ?string $state): void {
+                                if ($state !== null) {
+                                    $producer = Producer::find($state);
+                                    if ($producer !== null) {
+                                        $set('country_id', $producer->country_id);
+                                        $set('region_id', $producer->region_id);
+                                    }
+                                }
+                                $set('appellation_id', null);
+                            }),
 
-                        TextInput::make('appellation')
-                            ->label('Appellation')
-                            ->placeholder('e.g., Bolgheri DOC')
-                            ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
-                            ->maxLength(255),
-
-                        TextInput::make('country')
+                        Select::make('country_id')
                             ->label('Country')
-                            ->placeholder('e.g., Italy')
+                            ->searchable()
+                            ->preload()
+                            ->live()
                             ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
-                            ->maxLength(255),
+                            ->required(fn (Get $get): bool => $get('wine_master_mode') === 'new')
+                            ->options(
+                                Country::where('is_active', true)
+                                    ->orderBy('sort_order')
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn (Country $c): array => [$c->id => $c->name])
+                                    ->toArray()
+                            )
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('region_id', null);
+                                $set('appellation_id', null);
+                            }),
 
-                        TextInput::make('region')
+                        Select::make('region_id')
                             ->label('Region')
-                            ->placeholder('e.g., Tuscany')
+                            ->searchable()
+                            ->live()
                             ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
-                            ->maxLength(255),
+                            ->options(function (Get $get): array {
+                                $countryId = $get('country_id');
+                                if ($countryId === null) {
+                                    return [];
+                                }
+
+                                return Region::where('is_active', true)
+                                    ->where('country_id', $countryId)
+                                    ->orderBy('sort_order')
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(function (Region $r): array {
+                                        $parent = $r->parentRegion;
+                                        $label = $parent !== null
+                                            ? $parent->name.' > '.$r->name
+                                            : $r->name;
+
+                                        return [$r->id => $label];
+                                    })
+                                    ->toArray();
+                            })
+                            ->afterStateUpdated(function (Set $set): void {
+                                $set('appellation_id', null);
+                            }),
+
+                        Select::make('appellation_id')
+                            ->label('Appellation')
+                            ->searchable()
+                            ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
+                            ->options(function (Get $get): array {
+                                $countryId = $get('country_id');
+                                if ($countryId === null) {
+                                    return [];
+                                }
+
+                                $query = Appellation::where('is_active', true)
+                                    ->where('country_id', $countryId);
+
+                                $regionId = $get('region_id');
+                                if ($regionId !== null) {
+                                    $query->where(function ($q) use ($regionId): void {
+                                        $q->where('region_id', $regionId)
+                                            ->orWhereNull('region_id');
+                                    });
+                                }
+
+                                return $query
+                                    ->orderBy('sort_order')
+                                    ->orderBy('name')
+                                    ->get()
+                                    ->mapWithKeys(fn (Appellation $a): array => [$a->id => $a->name])
+                                    ->toArray();
+                            }),
 
                         TextInput::make('classification')
                             ->label('Classification')
@@ -195,13 +280,23 @@ class CreateManualBottle extends Page
                 return;
             }
         } else {
-            // Create new Wine Master
+            // Look up related records for legacy string fields
+            $producer = isset($data['producer_id']) ? Producer::find($data['producer_id']) : null;
+            $country = isset($data['country_id']) ? Country::find($data['country_id']) : null;
+            $region = isset($data['region_id']) ? Region::find($data['region_id']) : null;
+            $appellation = isset($data['appellation_id']) ? Appellation::find($data['appellation_id']) : null;
+
+            // Create new Wine Master with FK IDs and legacy string fields
             $wineMaster = WineMaster::create([
                 'name' => $data['wine_name'],
-                'producer' => $data['producer'],
-                'appellation' => $data['appellation'] ?? null,
-                'country' => $data['country'] ?? null,
-                'region' => $data['region'] ?? null,
+                'producer' => $producer !== null ? $producer->name : '',
+                'producer_id' => $data['producer_id'],
+                'appellation' => $appellation !== null ? $appellation->name : null,
+                'appellation_id' => $data['appellation_id'] ?? null,
+                'country' => $country !== null ? $country->name : '',
+                'country_id' => $data['country_id'],
+                'region' => $region !== null ? $region->name : null,
+                'region_id' => $data['region_id'] ?? null,
                 'classification' => $data['classification'] ?? null,
                 'description' => $data['description'] ?? null,
             ]);
