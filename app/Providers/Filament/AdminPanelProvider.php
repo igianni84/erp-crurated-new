@@ -44,43 +44,43 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make()
                     ->label('PIM')
                     ->icon('heroicon-o-cube')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Allocations')
                     ->icon('heroicon-o-rectangle-stack')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Fulfillment')
                     ->icon('heroicon-o-truck')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Inventory')
                     ->icon('heroicon-o-archive-box')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Finance')
                     ->icon('heroicon-o-banknotes')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Vouchers')
                     ->icon('heroicon-o-ticket')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Commercial')
                     ->icon('heroicon-o-currency-dollar')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Procurement')
                     ->icon('heroicon-o-clipboard-document-list')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('Customers')
                     ->icon('heroicon-o-user-group')
-                    ->collapsed(false),
+                    ->collapsed(),
                 NavigationGroup::make()
                     ->label('System')
                     ->icon('heroicon-o-cog-6-tooth')
-                    ->collapsed(false),
+                    ->collapsed(),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
