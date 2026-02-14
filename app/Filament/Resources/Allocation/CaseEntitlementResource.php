@@ -114,7 +114,7 @@ class CaseEntitlementResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['customer_id'] ?? null,
-                            fn (Builder $query, int $customerId): Builder => $query->where('customer_id', $customerId)
+                            fn (Builder $query, string $customerId): Builder => $query->where('customer_id', $customerId)
                         );
                     }),
             ])

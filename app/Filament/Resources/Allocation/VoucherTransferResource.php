@@ -182,7 +182,7 @@ class VoucherTransferResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['from_customer_id'] ?? null,
-                            fn (Builder $query, int $customerId): Builder => $query->where('from_customer_id', $customerId)
+                            fn (Builder $query, string $customerId): Builder => $query->where('from_customer_id', $customerId)
                         );
                     }),
 
@@ -197,7 +197,7 @@ class VoucherTransferResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['to_customer_id'] ?? null,
-                            fn (Builder $query, int $customerId): Builder => $query->where('to_customer_id', $customerId)
+                            fn (Builder $query, string $customerId): Builder => $query->where('to_customer_id', $customerId)
                         );
                     }),
 

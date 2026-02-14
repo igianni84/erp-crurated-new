@@ -162,7 +162,7 @@ class VoucherResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['allocation_id'] ?? null,
-                            fn (Builder $query, int $allocationId): Builder => $query->where('allocation_id', $allocationId)
+                            fn (Builder $query, string $allocationId): Builder => $query->where('allocation_id', $allocationId)
                         );
                     }),
 
@@ -177,7 +177,7 @@ class VoucherResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['customer_id'] ?? null,
-                            fn (Builder $query, int $customerId): Builder => $query->where('customer_id', $customerId)
+                            fn (Builder $query, string $customerId): Builder => $query->where('customer_id', $customerId)
                         );
                     }),
 

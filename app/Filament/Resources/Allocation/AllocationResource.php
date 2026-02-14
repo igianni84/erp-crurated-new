@@ -187,7 +187,7 @@ class AllocationResource extends Resource
                     ->query(function (Builder $query, array $data): Builder {
                         return $query->when(
                             $data['wine_variant_id'] ?? null,
-                            fn (Builder $query, int $wineVariantId): Builder => $query->where('wine_variant_id', $wineVariantId)
+                            fn (Builder $query, string $wineVariantId): Builder => $query->where('wine_variant_id', $wineVariantId)
                         );
                     }),
 
