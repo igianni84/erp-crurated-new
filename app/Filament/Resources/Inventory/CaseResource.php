@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class CaseResource extends Resource
 {
@@ -184,6 +185,39 @@ class CaseResource extends Resource
 
                 return '';
             });
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['caseConfiguration', 'currentLocation']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var InventoryCase $record */
+        return 'Case #'.substr($record->id, 0, 8);
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var InventoryCase $record */
+        $configName = $record->caseConfiguration !== null ? $record->caseConfiguration->name : 'Unknown';
+
+        return [
+            'Configuration' => $configName,
+            'Location' => $record->currentLocation !== null ? $record->currentLocation->name : '-',
+            'Integrity' => $record->integrity_status->label(),
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array

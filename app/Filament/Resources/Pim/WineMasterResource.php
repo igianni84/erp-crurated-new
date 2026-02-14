@@ -15,6 +15,8 @@ use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class WineMasterResource extends Resource
 {
@@ -323,6 +325,37 @@ class WineMasterResource extends Resource
         return [
             //
         ];
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'producerRelation.name', 'appellationRelation.name', 'liv_ex_code'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['producerRelation', 'appellationRelation']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var WineMaster $record */
+        return $record->name;
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var WineMaster $record */
+        return [
+            'Producer' => $record->producerRelation !== null ? $record->producerRelation->name : '-',
+            'Appellation' => $record->appellationRelation !== null ? $record->appellationRelation->name : '-',
+            'Liv-ex' => $record->liv_ex_code ?? '-',
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('edit', ['record' => $record]);
     }
 
     public static function getPages(): array

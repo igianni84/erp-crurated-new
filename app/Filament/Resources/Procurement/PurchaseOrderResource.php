@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrderResource extends Resource
 {
@@ -345,6 +346,37 @@ class PurchaseOrderResource extends Resource
             ->defaultSort('updated_at', 'desc')
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->with(['supplier', 'productReference', 'procurementIntent']));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'supplier.legal_name'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['supplier']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var PurchaseOrder $record */
+        return 'PO #'.substr($record->id, 0, 8);
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var PurchaseOrder $record */
+        return [
+            'Supplier' => $record->supplier !== null ? $record->supplier->legal_name : 'N/A',
+            'Product' => $record->getProductLabel(),
+            'Status' => $record->status->label(),
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array

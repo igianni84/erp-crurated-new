@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class AllocationResource extends Resource
 {
@@ -210,6 +211,37 @@ class AllocationResource extends Resource
             ])
             ->defaultSort('updated_at', 'desc')
             ->modifyQueryUsing(fn (Builder $query) => $query->with(['wineVariant.wineMaster', 'format', 'constraint']));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'bottle_sku'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['wineVariant.wineMaster', 'format']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Allocation $record */
+        return 'Allocation #'.substr($record->id, 0, 8);
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var Allocation $record */
+        return [
+            'Wine' => $record->getBottleSkuLabel(),
+            'Status' => $record->status->label(),
+            'Remaining' => $record->remaining_quantity.'/'.$record->total_quantity,
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array

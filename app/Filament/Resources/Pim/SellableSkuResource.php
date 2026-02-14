@@ -13,6 +13,8 @@ use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class SellableSkuResource extends Resource
 {
@@ -234,6 +236,43 @@ class SellableSkuResource extends Resource
         return [
             //
         ];
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['sku_code', 'barcode', 'wineVariant.wineMaster.name'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['wineVariant.wineMaster', 'format']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var SellableSku $record */
+        return $record->sku_code;
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var SellableSku $record */
+        $wineVariant = $record->wineVariant;
+        $wineName = $wineVariant !== null && $wineVariant->wineMaster !== null
+            ? $wineVariant->wineMaster->name
+            : 'Unknown Wine';
+        $vintage = $wineVariant !== null ? ($wineVariant->vintage_year ?? '') : '';
+        $formatName = $record->format !== null ? $record->format->name : '';
+
+        return [
+            'Wine' => trim("{$wineName} {$vintage}"),
+            'Format' => $formatName,
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('edit', ['record' => $record]);
     }
 
     public static function getPages(): array

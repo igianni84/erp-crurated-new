@@ -13,6 +13,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class SerializedBottleResource extends Resource
 {
@@ -204,6 +205,46 @@ class SerializedBottleResource extends Resource
                     default => '',
                 };
             });
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['serial_number'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['wineVariant.wineMaster', 'currentLocation']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var SerializedBottle $record */
+        return $record->serial_number;
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var SerializedBottle $record */
+        $wineName = 'Unknown Wine';
+        $wineVariant = $record->wineVariant;
+        if ($wineVariant !== null) {
+            $wineMaster = $wineVariant->wineMaster;
+            $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
+            $vintage = $wineVariant->vintage_year ?? 'NV';
+            $wineName = "{$wineName} {$vintage}";
+        }
+
+        return [
+            'Wine' => $wineName,
+            'Location' => $record->currentLocation !== null ? $record->currentLocation->name : '-',
+            'State' => $record->state->label(),
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array

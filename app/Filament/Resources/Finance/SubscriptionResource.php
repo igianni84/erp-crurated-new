@@ -12,6 +12,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class SubscriptionResource extends Resource
 {
@@ -211,6 +212,37 @@ class SubscriptionResource extends Resource
             ->modifyQueryUsing(fn (Builder $query) => $query->with([
                 'customer',
             ]));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['stripe_subscription_id', 'plan_name', 'customer.name', 'customer.email'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['customer']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Subscription $record */
+        return $record->plan_name ?? 'Subscription #'.substr($record->id, 0, 8);
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var Subscription $record */
+        return [
+            'Customer' => $record->customer !== null ? $record->customer->name : 'N/A',
+            'Type' => $record->plan_type->label(),
+            'Status' => $record->status->label(),
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array

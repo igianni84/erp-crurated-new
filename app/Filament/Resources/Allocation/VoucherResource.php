@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class VoucherResource extends Resource
 {
@@ -209,6 +210,37 @@ class VoucherResource extends Resource
                 'sellableSku',
                 'allocation',
             ]));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'customer.name', 'customer.email', 'allocation_id'];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['customer', 'wineVariant.wineMaster']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Voucher $record */
+        return 'Voucher #'.substr($record->id, 0, 8);
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var Voucher $record */
+        return [
+            'Customer' => $record->customer !== null ? $record->customer->name : 'N/A',
+            'Wine' => $record->getBottleSkuLabel(),
+            'State' => $record->lifecycle_state->label(),
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array
