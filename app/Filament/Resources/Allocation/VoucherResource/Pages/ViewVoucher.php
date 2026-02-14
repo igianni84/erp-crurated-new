@@ -1089,7 +1089,7 @@ Attempting to fulfill this voucher with bottles from a different allocation will
                                         TextEntry::make('accepted_at')
                                             ->label('Completed')
                                             ->dateTime()
-                                            ->default('—'),
+                                            ->placeholder('—'),
                                     ]),
                             ])
                             ->columns(1),
