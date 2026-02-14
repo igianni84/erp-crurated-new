@@ -215,7 +215,7 @@ class AllocationResource extends Resource
 
     public static function getGloballySearchableAttributes(): array
     {
-        return ['id', 'bottle_sku'];
+        return ['id', 'wineVariant.wineMaster.name'];
     }
 
     public static function getGlobalSearchEloquentQuery(): Builder
