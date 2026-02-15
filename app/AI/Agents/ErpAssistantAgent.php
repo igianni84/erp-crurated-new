@@ -6,6 +6,11 @@ use App\AI\Tools\Customer\CustomerSearchTool;
 use App\AI\Tools\Customer\CustomerStatusSummaryTool;
 use App\AI\Tools\Customer\CustomerVoucherCountTool;
 use App\AI\Tools\Customer\TopCustomersByRevenueTool;
+use App\AI\Tools\Finance\CreditNoteSummaryTool;
+use App\AI\Tools\Finance\OutstandingInvoicesTool;
+use App\AI\Tools\Finance\OverdueInvoicesTool;
+use App\AI\Tools\Finance\PaymentReconciliationStatusTool;
+use App\AI\Tools\Finance\RevenueSummaryTool;
 use App\Models\User;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\Model;
@@ -58,10 +63,17 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
     protected function allTools(): array
     {
         return [
+            // Customer tools
             new CustomerSearchTool,
             new CustomerStatusSummaryTool,
             new CustomerVoucherCountTool,
             new TopCustomersByRevenueTool,
+            // Finance tools
+            new CreditNoteSummaryTool,
+            new OutstandingInvoicesTool,
+            new OverdueInvoicesTool,
+            new PaymentReconciliationStatusTool,
+            new RevenueSummaryTool,
         ];
     }
 
