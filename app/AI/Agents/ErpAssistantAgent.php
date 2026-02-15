@@ -2,6 +2,9 @@
 
 namespace App\AI\Agents;
 
+use App\AI\Tools\Allocation\AllocationStatusOverviewTool;
+use App\AI\Tools\Allocation\BottlesSoldByProducerTool;
+use App\AI\Tools\Allocation\VoucherCountsByStateTool;
 use App\AI\Tools\Customer\CustomerSearchTool;
 use App\AI\Tools\Customer\CustomerStatusSummaryTool;
 use App\AI\Tools\Customer\CustomerVoucherCountTool;
@@ -63,6 +66,10 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
     protected function allTools(): array
     {
         return [
+            // Allocation tools
+            new AllocationStatusOverviewTool,
+            new BottlesSoldByProducerTool,
+            new VoucherCountsByStateTool,
             // Customer tools
             new CustomerSearchTool,
             new CustomerStatusSummaryTool,
