@@ -1,7 +1,35 @@
 <x-filament-panels::page>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .ai-prose h1 { font-size: 1.25rem; font-weight: 700; margin: 0.75rem 0 0.5rem; }
+        .ai-prose h2 { font-size: 1.125rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }
+        .ai-prose h3 { font-size: 1rem; font-weight: 600; margin: 0.5rem 0 0.25rem; }
+        .ai-prose p { margin: 0.25rem 0; }
+        .ai-prose strong { font-weight: 600; }
+        .ai-prose em { font-style: italic; }
+        .ai-prose code { font-family: ui-monospace, monospace; font-size: 0.8125rem; background: rgb(243 244 246); padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
+        .dark .ai-prose code { background: rgb(55 65 81); }
+        .ai-prose pre { margin: 0.5rem 0; border-radius: 0.5rem; overflow-x: auto; }
+        .ai-prose pre code { display: block; padding: 0.75rem 1rem; background: rgb(31 41 55); color: rgb(229 231 235); font-size: 0.8125rem; line-height: 1.5; }
+        .dark .ai-prose pre code { background: rgb(17 24 39); }
+        .ai-prose ul { list-style-type: disc; padding-left: 1.25rem; margin: 0.25rem 0; }
+        .ai-prose ol { list-style-type: decimal; padding-left: 1.25rem; margin: 0.25rem 0; }
+        .ai-prose li { margin: 0.125rem 0; }
+        .ai-prose table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.8125rem; }
+        .ai-prose th { text-align: left; font-weight: 600; padding: 0.5rem 0.75rem; border-bottom: 2px solid rgb(209 213 219); background: rgb(249 250 251); }
+        .dark .ai-prose th { border-bottom-color: rgb(75 85 99); background: rgb(31 41 55); }
+        .ai-prose td { padding: 0.375rem 0.75rem; border-bottom: 1px solid rgb(229 231 235); }
+        .dark .ai-prose td { border-bottom-color: rgb(55 65 81); }
+        .ai-prose tr:hover td { background: rgb(249 250 251); }
+        .dark .ai-prose tr:hover td { background: rgb(31 41 55); }
+        .ai-prose a { color: rgb(79 70 229); text-decoration: underline; }
+        .ai-prose a:hover { color: rgb(67 56 202); }
+        .dark .ai-prose a { color: rgb(165 180 252); }
+        .ai-prose blockquote { border-left: 3px solid rgb(209 213 219); padding-left: 0.75rem; margin: 0.5rem 0; color: rgb(107 114 128); }
+        .dark .ai-prose blockquote { border-left-color: rgb(75 85 99); color: rgb(156 163 175); }
+    </style>
     <div
         x-data="aiChat()"
-        x-init="scrollToBottom()"
         class="flex h-[calc(100vh-12rem)] gap-4"
     >
         {{-- Sidebar: Conversations --}}
@@ -77,7 +105,7 @@
                             }"
                             class="rounded-xl px-4 py-3 max-w-[80%] text-sm leading-relaxed"
                         >
-                            <div x-html="msg.html || msg.content"></div>
+                            <div :class="msg.role === 'assistant' && !msg.isError ? 'ai-prose' : ''" x-html="msg.html || msg.content"></div>
                             <template x-if="msg.showReload">
                                 <button
                                     @click="window.location.reload()"
@@ -139,6 +167,25 @@
                 input: '',
                 sending: false,
                 receivedFirstChunk: false,
+                markedInstance: null,
+
+                init() {
+                    if (typeof marked !== 'undefined') {
+                        this.markedInstance = new marked.Marked({
+                            breaks: true,
+                            gfm: true,
+                        });
+                    }
+                },
+
+                renderMarkdown(text) {
+                    if (!text || !this.markedInstance) return text || '';
+                    try {
+                        return this.markedInstance.parse(text);
+                    } catch (e) {
+                        return text;
+                    }
+                },
 
                 async sendMessage() {
                     const text = this.input.trim();
@@ -218,7 +265,7 @@
                                                 this.receivedFirstChunk = true;
                                             }
                                             this.messages[aiIndex].content += parsed.content;
-                                            this.messages[aiIndex].html = this.messages[aiIndex].content;
+                                            this.messages[aiIndex].html = this.renderMarkdown(this.messages[aiIndex].content);
                                         }
                                         if (parsed.conversation_id) {
                                             this.activeConversationId = parsed.conversation_id;
