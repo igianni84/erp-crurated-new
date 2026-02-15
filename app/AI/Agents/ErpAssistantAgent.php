@@ -14,6 +14,9 @@ use App\AI\Tools\Finance\OutstandingInvoicesTool;
 use App\AI\Tools\Finance\OverdueInvoicesTool;
 use App\AI\Tools\Finance\PaymentReconciliationStatusTool;
 use App\AI\Tools\Finance\RevenueSummaryTool;
+use App\AI\Tools\Inventory\CaseIntegrityStatusTool;
+use App\AI\Tools\Inventory\StockLevelsByLocationTool;
+use App\AI\Tools\Inventory\TotalBottlesCountTool;
 use App\Models\User;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\Model;
@@ -75,6 +78,10 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
             new CustomerStatusSummaryTool,
             new CustomerVoucherCountTool,
             new TopCustomersByRevenueTool,
+            // Inventory tools
+            new CaseIntegrityStatusTool,
+            new StockLevelsByLocationTool,
+            new TotalBottlesCountTool,
             // Finance tools
             new CreditNoteSummaryTool,
             new OutstandingInvoicesTool,
