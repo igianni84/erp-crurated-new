@@ -19,4 +19,14 @@ class AiAssistant extends Page
     protected static ?string $title = 'AI Assistant';
 
     protected static string $view = 'filament.pages.ai-assistant';
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function getViewData(): array
+    {
+        return [
+            'maxContextMessages' => (int) config('ai-assistant.max_context_messages', 30),
+        ];
+    }
 }

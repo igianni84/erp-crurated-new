@@ -29,7 +29,7 @@
         .dark .ai-prose blockquote { border-left-color: rgb(75 85 99); color: rgb(156 163 175); }
     </style>
     <div
-        x-data="aiChat()"
+        x-data="aiChat({{ $maxContextMessages }})"
         class="flex h-[calc(100vh-12rem)] gap-4"
     >
         {{-- Sidebar: Conversations --}}
@@ -122,24 +122,34 @@
                 </template>
 
                 <template x-for="(msg, index) in messages" :key="index">
-                    <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
-                        <div
-                            :class="{
-                                'bg-primary-50 dark:bg-primary-900/20 text-gray-900 dark:text-gray-100': msg.role === 'user',
-                                'bg-white dark:bg-gray-800 ring-1 ring-gray-950/5 dark:ring-white/10 text-gray-900 dark:text-gray-100': msg.role === 'assistant' && !msg.isError,
-                                'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800 text-red-800 dark:text-red-200': msg.isError
-                            }"
-                            class="rounded-xl px-4 py-3 max-w-[80%] text-sm leading-relaxed"
-                        >
-                            <div :class="msg.role === 'assistant' && !msg.isError ? 'ai-prose' : ''" x-html="msg.html || msg.content"></div>
-                            <template x-if="msg.showReload">
-                                <button
-                                    @click="window.location.reload()"
-                                    class="mt-2 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 transition-colors"
-                                >
-                                    Reload Page
-                                </button>
-                            </template>
+                    <div>
+                        {{-- Context divider --}}
+                        <template x-if="index === contextDividerIndex">
+                            <div class="flex items-center gap-3 py-2">
+                                <div class="flex-1 border-t border-dashed border-amber-300 dark:border-amber-700"></div>
+                                <span class="text-xs text-amber-500 dark:text-amber-400 whitespace-nowrap">Older messages not included in AI context</span>
+                                <div class="flex-1 border-t border-dashed border-amber-300 dark:border-amber-700"></div>
+                            </div>
+                        </template>
+                        <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
+                            <div
+                                :class="{
+                                    'bg-primary-50 dark:bg-primary-900/20 text-gray-900 dark:text-gray-100': msg.role === 'user',
+                                    'bg-white dark:bg-gray-800 ring-1 ring-gray-950/5 dark:ring-white/10 text-gray-900 dark:text-gray-100': msg.role === 'assistant' && !msg.isError,
+                                    'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800 text-red-800 dark:text-red-200': msg.isError
+                                }"
+                                class="rounded-xl px-4 py-3 max-w-[80%] text-sm leading-relaxed"
+                            >
+                                <div :class="msg.role === 'assistant' && !msg.isError ? 'ai-prose' : ''" x-html="msg.html || msg.content"></div>
+                                <template x-if="msg.showReload">
+                                    <button
+                                        @click="window.location.reload()"
+                                        class="mt-2 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 transition-colors"
+                                    >
+                                        Reload Page
+                                    </button>
+                                </template>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -185,7 +195,7 @@
     </div>
 
     <script>
-        function aiChat() {
+        function aiChat(maxContextMessages = 30) {
             return {
                 messages: [],
                 conversations: [],
@@ -195,6 +205,8 @@
                 receivedFirstChunk: false,
                 markedInstance: null,
                 loadingConversations: false,
+                maxContextMessages: maxContextMessages,
+                contextDividerIndex: -1,
 
                 init() {
                     if (typeof marked !== 'undefined') {
@@ -259,6 +271,7 @@
                     if (this.sending) return;
                     this.activeConversationId = id;
                     this.messages = [];
+                    this.contextDividerIndex = -1;
 
                     try {
                         const res = await fetch(`/admin/ai/conversations/${id}/messages`, {
@@ -266,13 +279,20 @@
                         });
                         if (res.ok) {
                             const json = await res.json();
-                            this.messages = (json.messages || []).map(m => ({
+                            const allMessages = json.messages || [];
+                            this.messages = allMessages.map(m => ({
                                 role: m.role,
                                 content: m.content,
                                 html: m.role === 'assistant' ? this.renderMarkdown(m.content) : m.content,
                                 isError: false,
                                 showReload: false,
                             }));
+
+                            // Show context divider if there are more messages than the context window
+                            if (allMessages.length > this.maxContextMessages) {
+                                this.contextDividerIndex = allMessages.length - this.maxContextMessages;
+                            }
+
                             this.scrollToBottom();
                         }
                     } catch (e) {
