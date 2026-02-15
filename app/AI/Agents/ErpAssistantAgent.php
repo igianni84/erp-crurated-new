@@ -2,6 +2,7 @@
 
 namespace App\AI\Agents;
 
+use App\AI\Tools\Customer\TopCustomersByRevenueTool;
 use App\Models\User;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\Model;
@@ -53,8 +54,9 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
      */
     protected function allTools(): array
     {
-        // Tools will be registered incrementally as they are built
-        return [];
+        return [
+            new TopCustomersByRevenueTool,
+        ];
     }
 
     protected function maxConversationMessages(): int
