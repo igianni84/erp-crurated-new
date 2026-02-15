@@ -34,24 +34,50 @@
     >
         {{-- Sidebar: Conversations --}}
         <div class="w-[280px] flex-shrink-0 fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 flex flex-col">
-            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3">
+            <div class="fi-section-header-ctn border-b border-gray-200 dark:border-white/10 px-4 py-3 flex items-center justify-between">
                 <h3 class="fi-section-header-heading text-sm font-semibold">
                     Conversations
                 </h3>
+                <button
+                    @click="newConversation()"
+                    class="rounded-lg p-1 text-gray-400 hover:text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                    title="New Conversation"
+                >
+                    <x-heroicon-o-plus class="h-4 w-4" />
+                </button>
             </div>
             <div class="flex-1 overflow-y-auto p-2">
-                <template x-if="conversations.length === 0">
+                <template x-if="loadingConversations">
+                    <p class="text-xs text-gray-400 px-2 py-4 text-center">Loading...</p>
+                </template>
+                <template x-if="!loadingConversations && conversations.length === 0">
                     <p class="text-xs text-gray-400 px-2 py-4 text-center">No conversations yet</p>
                 </template>
                 <template x-for="conv in conversations" :key="conv.id">
-                    <button
+                    <div
                         @click="loadConversation(conv.id)"
                         :class="activeConversationId === conv.id ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800'"
-                        class="w-full text-left rounded-lg px-3 py-2 text-sm transition-colors mb-1"
+                        class="group w-full text-left rounded-lg px-3 py-2 text-sm transition-colors mb-1 cursor-pointer flex items-start gap-2"
                     >
-                        <span x-text="conv.title" class="block truncate text-gray-700 dark:text-gray-300"></span>
-                        <span x-text="conv.updated_at" class="block text-xs text-gray-400 mt-0.5"></span>
-                    </button>
+                        <div class="flex-1 min-w-0">
+                            <span x-text="truncateTitle(conv.title)" class="block truncate text-gray-700 dark:text-gray-300"></span>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span x-text="formatTimestamp(conv.updated_at)" class="text-xs text-gray-400"></span>
+                                <template x-if="conv.message_count">
+                                    <span class="text-xs text-gray-400" x-text="conv.message_count + ' msgs'"></span>
+                                </template>
+                            </div>
+                        </div>
+                        <button
+                            @click.stop="deleteConversation(conv.id)"
+                            class="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                            title="Delete conversation"
+                        >
+                            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                            </svg>
+                        </button>
+                    </div>
                 </template>
             </div>
             <div class="border-t border-gray-200 dark:border-white/10 p-2">
@@ -168,6 +194,7 @@
                 sending: false,
                 receivedFirstChunk: false,
                 markedInstance: null,
+                loadingConversations: false,
 
                 init() {
                     if (typeof marked !== 'undefined') {
@@ -176,6 +203,11 @@
                             gfm: true,
                         });
                     }
+                    this.fetchConversations();
+                },
+
+                csrfToken() {
+                    return document.querySelector('meta[name="csrf-token"]')?.content || '';
                 },
 
                 renderMarkdown(text) {
@@ -184,6 +216,84 @@
                         return this.markedInstance.parse(text);
                     } catch (e) {
                         return text;
+                    }
+                },
+
+                formatTimestamp(dateStr) {
+                    if (!dateStr) return '';
+                    const date = new Date(dateStr);
+                    const now = new Date();
+                    const diffMs = now - date;
+                    const diffMins = Math.floor(diffMs / 60000);
+                    if (diffMins < 1) return 'Just now';
+                    if (diffMins < 60) return diffMins + 'm ago';
+                    const diffHours = Math.floor(diffMins / 60);
+                    if (diffHours < 24) return diffHours + 'h ago';
+                    const diffDays = Math.floor(diffHours / 24);
+                    if (diffDays < 7) return diffDays + 'd ago';
+                    return date.toLocaleDateString();
+                },
+
+                truncateTitle(title, maxLen = 50) {
+                    if (!title || title.length <= maxLen) return title || 'Untitled';
+                    return title.substring(0, maxLen).replace(/\s+\S*$/, '') + '...';
+                },
+
+                async fetchConversations() {
+                    this.loadingConversations = true;
+                    try {
+                        const res = await fetch('/admin/ai/conversations', {
+                            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken() },
+                        });
+                        if (res.ok) {
+                            const json = await res.json();
+                            this.conversations = json.data || [];
+                        }
+                    } catch (e) {
+                        // Silently fail — sidebar will show empty
+                    }
+                    this.loadingConversations = false;
+                },
+
+                async loadConversation(id) {
+                    if (this.sending) return;
+                    this.activeConversationId = id;
+                    this.messages = [];
+
+                    try {
+                        const res = await fetch(`/admin/ai/conversations/${id}/messages`, {
+                            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken() },
+                        });
+                        if (res.ok) {
+                            const json = await res.json();
+                            this.messages = (json.messages || []).map(m => ({
+                                role: m.role,
+                                content: m.content,
+                                html: m.role === 'assistant' ? this.renderMarkdown(m.content) : m.content,
+                                isError: false,
+                                showReload: false,
+                            }));
+                            this.scrollToBottom();
+                        }
+                    } catch (e) {
+                        // Silently fail
+                    }
+                },
+
+                async deleteConversation(id) {
+                    if (!confirm('Delete this conversation?')) return;
+
+                    try {
+                        await fetch(`/admin/ai/conversations/${id}`, {
+                            method: 'DELETE',
+                            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': this.csrfToken() },
+                        });
+                        this.conversations = this.conversations.filter(c => c.id !== id);
+                        if (this.activeConversationId === id) {
+                            this.newConversation();
+                        }
+                    } catch (e) {
+                        // Silently fail
                     }
                 },
 
@@ -208,7 +318,7 @@
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                                'X-CSRF-TOKEN': this.csrfToken(),
                                 'Accept': 'text/event-stream',
                             },
                             body: JSON.stringify({
@@ -286,6 +396,9 @@
 
                     this.sending = false;
                     this.scrollToBottom();
+
+                    // Refresh conversation list to show new/updated conversations
+                    this.fetchConversations();
                 },
 
                 scrollToBottom() {
@@ -307,11 +420,6 @@
                     this.activeConversationId = null;
                     this.input = '';
                     this.$refs.chatInput?.focus();
-                },
-
-                loadConversation(id) {
-                    this.activeConversationId = id;
-                    // Conversation loading will be implemented in US-039
                 },
             };
         }
