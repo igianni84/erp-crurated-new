@@ -1,0 +1,161 @@
+# Ralph Progress Log
+Started: Sun Feb 15 16:08:02 CET 2026
+
+## Codebase Patterns
+- For DB::raw aggregate columns (e.g., `SUM(x) as total`), use `$model->getAttribute('total')` not `$model->total` — PHPStan level 5 reports property.notFound otherwise
+- Laravel AI SDK v0.1.5 uses `prism-php/prism` under the hood
+- SDK contracts are in `Laravel\Ai\Contracts\{Agent, Conversational, HasTools, Tool}`
+- Usage object: camelCase properties (`promptTokens`, `completionTokens`), NOT `input_tokens`/`output_tokens`
+- `JsonSchema` interface is NOT directly resolvable from container — use `new JsonSchemaTypeFactory` to instantiate
+- SDK creates tables: `agent_conversations` and `agent_conversation_messages` (no SoftDeletes on either)
+- `agent_conversations` has columns: id (string 36), user_id, title, created_at, updated_at
+- Pre-existing PHPStan errors in `PriceSimulation.php` (2 errors, `$form` property) — not caused by AI module
+- Tool interface methods: `description(): Stringable|string`, `handle(Request $request): Stringable|string`, `schema(JsonSchema $schema): array`
+- Provider attribute accepts `array|string` (not just Lab enum)
+- RemembersConversations trait has `forUser($user)`, `continue($id, as: $user)`, `maxConversationMessages(): int` (default 100)
+
+---
+
+## 2026-02-15 - US-001
+- What was implemented: Installed Laravel AI SDK v0.1.5, published config, ran migrations, added ANTHROPIC_API_KEY to .env.example, configured Anthropic as default provider, created comprehensive SdkSmokeTest with 10 tests and 38 assertions
+- Files changed: composer.json, composer.lock, .env.example, config/ai.php, database/migrations/2026_02_15_151246_create_agent_conversations_table.php, stubs/ (3 files), tests/Feature/AI/SdkSmokeTest.php
+- **Learnings for future iterations:**
+  - Usage properties are camelCase (`promptTokens`, `completionTokens`) not snake_case — the PRD said `input_tokens`/`output_tokens` which is wrong
+  - JsonSchema interface cannot be resolved via `app()` container — must use `new JsonSchemaTypeFactory` concrete class
+  - SDK depends on prism-php/prism v0.99.19
+  - `agent_conversations.title` is a regular string column (not nullable in the SDK migration), will need to be altered in US-039
+---
+
+## 2026-02-15 - US-002
+- What was implemented: Created `config/ai-assistant.php` with model, max_steps, temperature, max_input_length, max_context_messages, rate_limit (per hour/day), and cost_tracking (input/output token prices) sections
+- Files changed: config/ai-assistant.php
+- **Learnings for future iterations:**
+  - Anthropic Sonnet 4.5 pricing confirmed at $3/$15 per 1M tokens (= $0.003/$0.015 per 1K) as of Feb 2026
+  - PHPStan needs `--memory-limit=512M` flag for this project (128M default is insufficient)
+  - Config files are simple — PHPStan and Pint pass without issues
+---
+
+## 2026-02-15 - US-003
+- What was implemented: Created migration `2026_02_15_500001_create_ai_audit_logs_table.php` and model `App\Models\AI\AiAuditLog` with HasUuid, immutability boot guards, and no timestamps
+- Files changed: database/migrations/2026_02_15_500001_create_ai_audit_logs_table.php, app/Models/AI/AiAuditLog.php
+- **Learnings for future iterations:**
+  - AuditLog boot guard pattern: `static::updating()` and `static::deleting()` throwing `InvalidArgumentException`
+  - Use `$timestamps = false` for fully immutable models; use `UPDATED_AT = null` for partial immutability
+  - conversation_id is `string(36)` to match SDK's agent_conversations.id type
+  - PHPStan BelongsTo generics syntax: `@return BelongsTo<\App\Models\User, $this>`
+---
+
+## 2026-02-15 - US-004
+- What was implemented: Created `App\Enums\AI\ToolAccessLevel` enum (Overview=10, Basic=20, Standard=40, Full=60) with forRole() mapping, and abstract `App\AI\Tools\BaseTool` with authorizeForUser(), formatCurrency(), formatDate(), parsePeriod(), safeHandle(), disambiguateResults(), scopeQuery()
+- Files changed: app/Enums/AI/ToolAccessLevel.php, app/AI/Tools/BaseTool.php
+- **Learnings for future iterations:**
+  - ToolAccessLevel values (10/20/40/60) vs UserRole level() values (20/40/60/80/100) are intentionally different — forRole() is the bridge
+  - BaseTool declares abstract handle() since concrete tools must implement it from the Tool interface
+  - disambiguateResults() returns null on single match (proceed), string message on 0 or >1 matches
+  - parsePeriod() supports: today, this_week, last_week, this_month, last_month, this_quarter, this_year, last_7_days, last_30_days
+---
+
+## 2026-02-15 - US-005
+- What was implemented: Created `app/AI/Prompts/erp-system-prompt.md` with role definition, module overview, domain concepts (voucher, allocation, invoice types INV0-INV4), response guidelines, tool usage hints, and language instruction
+- Files changed: app/AI/Prompts/erp-system-prompt.md
+- **Learnings for future iterations:**
+  - System prompt is a markdown file, not PHP — no PHPStan/Pint checks needed
+  - Keep under 4000 tokens — current prompt is ~500 tokens, leaving ample room for context
+---
+
+## 2026-02-15 - US-006
+- What was implemented: Created `App\AI\Agents\ErpAssistantAgent` implementing Agent, Conversational, HasTools with Promptable and RemembersConversations traits, role-based tool filtering, configurable max_context_messages
+- Files changed: app/AI/Agents/ErpAssistantAgent.php
+- **Learnings for future iterations:**
+  - Provider attribute accepts `array|string`, NOT Lab enum — use `#[Provider('anthropic')]` not `#[Provider(Lab::Anthropic)]`
+  - `array_filter` closures need explicit `: bool` return type for PHPStan
+  - Don't import unused classes — PHPStan catches unused variables, Pint catches `lambda_not_used_import`
+  - `tools()` returns `array` not `iterable` — use `array_filter` on `allTools()`
+---
+
+## 2026-02-15 - US-007
+- What was implemented: Created `App\Services\AI\RateLimitService` with cache-first rate limiting (hourly/daily) and audit log fallback. super_admin exempt.
+- Files changed: app/Services/AI/RateLimitService.php
+- **Learnings for future iterations:**
+  - Cache increment pattern: `Cache::increment()` returns 1 on first call, then set TTL with `Cache::put()` only if count is 1
+  - Wrap cache operations in try/catch for graceful degradation to DB fallback
+  - Rate limit keys: `ai_rate:{userId}:hour:{Y-m-d-H}` and `ai_rate:{userId}:day:{Y-m-d}`
+---
+
+## 2026-02-15 - US-008
+- What was implemented: Created `App\AI\Tools\Customer\TopCustomersByRevenueTool` — queries invoices by period, groups by customer, returns top N by revenue. Registered in ErpAssistantAgent.
+- Files changed: app/AI/Tools/Customer/TopCustomersByRevenueTool.php, app/AI/Agents/ErpAssistantAgent.php
+- **Learnings for future iterations:**
+  - Use `$row->getAttribute('total_revenue')` not `$row->total_revenue` for DB::raw aggregate columns — PHPStan level 5 enforces this
+  - Membership tier accessed via `$customer->activeMembership?->tier?->label()`
+  - Schema builder `.enum()` is on base Type class, `.default()` on specific type classes — both confirmed working
+---
+
+## 2026-02-15 - US-020, US-021, US-022
+- What was implemented: Created 3 Inventory tools — StockLevelsByLocationTool (stock per warehouse with state filter), TotalBottlesCountTool (total bottles by state/ownership), CaseIntegrityStatusTool (intact vs broken cases). All registered in ErpAssistantAgent.
+- Files changed: app/AI/Tools/Inventory/StockLevelsByLocationTool.php, app/AI/Tools/Inventory/TotalBottlesCountTool.php, app/AI/Tools/Inventory/CaseIntegrityStatusTool.php, app/AI/Agents/ErpAssistantAgent.php
+- **Learnings for future iterations:**
+  - OwnershipType::CururatedOwned has a typo in the enum case name but string value is 'crurated_owned' — always use the enum case
+  - InventoryCase table is 'cases' (not 'inventory_cases')
+  - Location has currentLocation relationship on SerializedBottle via foreign key 'current_location_id'
+  - grouped SELECT with DB::raw and with() eager loading works — use getAttribute() for the count column
+---
+
+## 2026-02-15 - US-023, US-024, US-025
+- What was implemented: Created 3 Fulfillment tools — PendingShippingOrdersTool, ShipmentStatusTool (by tracking number or overview), ShipmentsInTransitTool (non-terminal states)
+- Files changed: app/AI/Tools/Fulfillment/*.php, app/AI/Agents/ErpAssistantAgent.php
+- **Learnings:** ShippingOrderStatus terminal = Completed|Cancelled. ShipmentStatus terminal = Delivered|Failed. Customer name via customer->getName().
+---
+
+## 2026-02-15 - US-026, US-027, US-028
+- What was implemented: Created 3 Procurement tools — PendingPurchaseOrdersTool, InboundScheduleTool (expected deliveries with days_ahead), ProcurementIntentsStatusTool (status distribution + orphaned intents)
+- Files changed: app/AI/Tools/Procurement/*.php, app/AI/Agents/ErpAssistantAgent.php
+- **Learnings:** PO supplier via Party model (supplier_party_id → Party.legal_name). Inbound table is 'inbounds' not 'inbound_batches'. PurchaseOrderStatus terminal = Closed only.
+---
+
+## 2026-02-15 - US-029, US-030, US-031
+- What was implemented: Created 3 Commercial tools — ActiveOffersTool, PriceBookCoverageTool (entries vs active SKUs), EmpAlertsTool (price deviation from estimated market price)
+- Files changed: app/AI/Tools/Commercial/*.php, app/AI/Agents/ErpAssistantAgent.php
+- **Learnings:** Offer.valid_from is non-nullable (PHPStan notIdentical.alwaysTrue). EMP join via shared sellable_sku_id. SellableSku lifecycle_status is string const (STATUS_ACTIVE), not enum. PriceBook.status IS enum.
+---
+
+## 2026-02-15 - US-032, US-033
+- What was implemented: Created 2 PIM tools — ProductCatalogSearchTool (search WineMaster/SellableSku by name/producer/appellation/sku_code), DataQualityIssuesTool (orphaned records, missing FKs)
+- Files changed: app/AI/Tools/Pim/*.php, app/AI/Agents/ErpAssistantAgent.php
+- **Learnings:** WineMaster has dual producer fields (legacy string + FK). producer_name accessor resolves FK first. SellableSku lifecycle_status uses string constants (STATUS_ACTIVE='active').
+---
+
+## 2026-02-15 - US-044
+- What was implemented: Unit tests for all 25 AI tools across 8 module-specific test files. Each tool has 3+ tests covering happy path, filtering/parameters, and authorization (denied + granted). Added 4 missing auth-granted tests for PriceBookCoverageTool, EmpAlertsTool, InboundScheduleTool, ProcurementIntentsStatusTool. Fixed PHPDoc return type in CustomerToolsTest. Applied Pint formatting fixes.
+- Files changed: tests/Unit/AI/Tools/{Customer,Finance,Allocation,Inventory,Fulfillment,Commercial,Pim,Procurement}/*ToolsTest.php (8 files, 3851 lines)
+- **Learnings for future iterations:**
+  - PHPDoc array return types must match actual compact() keys (camelCase `wineMaster`, not snake_case `wine_master`)
+  - Pre-existing PHPStan `trait.unused` ignore in phpstan.neon only matches when analyzing `app/` scope — running against `tests/` alone triggers "unmatched ignore" error (not a real issue)
+  - Pint rules enforced: `new_with_parentheses` (remove `()` on no-arg constructors), `concat_space`, `ordered_imports`, `no_unused_imports`, `phpdoc_align`
+  - All 25 tools can be unit-tested by direct instantiation (`new ToolName`) + `handle(new Request([...]))` + `json_decode` — no DI needed
+  - Authorization tests pattern: create user via factory with specific role, call `$tool->authorizeForUser($user)`, assert true/false
+  - For null role testing: create user then set `$user->role = null` in memory (DB column has NOT NULL constraint)
+---
+
+## 2026-02-15 - US-045
+- What was implemented: Fixed 4 failing integration tests and added 4 new tests. Fixed: tool count assertion (26 not 27), null role user creation (DB NOT NULL constraint workaround), Content-Type header assertion (includes charset), StreamedResponse getStatusCode() usage, rate limit test via cache pre-fill instead of brute-force loop. Added: viewer finance tool exclusion test, viewer vs admin tool count comparison, audit log creation verification, oversized message rejection test. Also added super_admin rate limit exemption test.
+- Files changed: tests/Feature/AI/ErpAssistantAgentTest.php (15 tests), tests/Feature/Filament/AiAssistantPageTest.php (11 tests)
+- **Learnings for future iterations:**
+  - ErpAssistantAgent has 26 tools registered (not 25 as PRD states — PRD miscounts), distributed: 4 Customer + 5 Finance + 3 Allocation + 3 Inventory + 3 Fulfillment + 3 Procurement + 3 Commercial + 2 PIM
+  - `StreamedResponse` (Symfony) uses `getStatusCode()` not `status()` — TestResponse wraps it but when rate limited, ChatController returns JsonResponse directly
+  - Content-Type header from `response()->stream()` appends `; charset=utf-8` — use `assertStringStartsWith()` instead of exact match
+  - Rate limit testing: pre-fill cache counter (`Cache::put($hourKey, 60, 3600)`) instead of making 65 actual HTTP requests — faster and deterministic
+  - `users.role` column has `->default('viewer')` and is NOT NULL — cannot factory create with `role => null`, must set in-memory after creation
+  - `response->streamedContent()` triggers the stream closure in test context, which creates the audit log — must call before asserting DB records
+---
+
+## 2026-02-15 - US-046
+- What was implemented: Final quality gate verification — confirmed all AI code passes PHPStan level 5 and Laravel Pint with zero errors
+- Files changed: None (verification-only story)
+- PHPStan results: 0 errors in AI code (app/AI/, app/Models/AI/, app/Enums/AI/, app/Http/Controllers/AI/, app/Filament/Pages/AiAssistant.php, app/Services/AI/). Only pre-existing PriceSimulation.php errors (2, unrelated to AI module)
+- Pint results: All AI files pass with `{"result":"pass"}`
+- **Learnings for future iterations:**
+  - When running PHPStan on a subset of files, the `ignoreErrors` patterns in phpstan.neon may cause "unmatched ignore" errors if those error types only appear in other files — this is a config artifact, not a code error
+  - All 34 AI files (tools, agent, services, models, enums, controllers, pages) are PHPStan level 5 clean
+  - No `@var` annotations needed — all types are explicit
+---
