@@ -3,6 +3,8 @@
 namespace App\AI\Agents;
 
 use App\AI\Tools\Customer\CustomerSearchTool;
+use App\AI\Tools\Customer\CustomerStatusSummaryTool;
+use App\AI\Tools\Customer\CustomerVoucherCountTool;
 use App\AI\Tools\Customer\TopCustomersByRevenueTool;
 use App\Models\User;
 use Laravel\Ai\Attributes\MaxSteps;
@@ -57,6 +59,8 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
     {
         return [
             new CustomerSearchTool,
+            new CustomerStatusSummaryTool,
+            new CustomerVoucherCountTool,
             new TopCustomersByRevenueTool,
         ];
     }
