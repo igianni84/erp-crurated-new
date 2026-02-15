@@ -65,13 +65,26 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
             return [];
         }
 
-        return array_filter($this->allTools(), function ($tool): bool {
-            if (method_exists($tool, 'authorizeForUser')) {
-                return $tool->authorizeForUser($this->user);
-            }
+        $allowed = [];
+        $denied = [];
 
-            return true;
-        });
+        foreach ($this->allTools() as $tool) {
+            if (method_exists($tool, 'authorizeForUser') && ! $tool->authorizeForUser($this->user)) {
+                $denied[] = class_basename($tool);
+            } else {
+                $allowed[] = $tool;
+            }
+        }
+
+        if ($denied !== []) {
+            \Illuminate\Support\Facades\Log::info('AI tools denied for user', [
+                'user_id' => $this->user->id,
+                'role' => $this->user->role->value,
+                'denied_tools' => $denied,
+            ]);
+        }
+
+        return $allowed;
     }
 
     /**
