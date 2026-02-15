@@ -20,6 +20,9 @@ use App\AI\Tools\Fulfillment\ShipmentStatusTool;
 use App\AI\Tools\Inventory\CaseIntegrityStatusTool;
 use App\AI\Tools\Inventory\StockLevelsByLocationTool;
 use App\AI\Tools\Inventory\TotalBottlesCountTool;
+use App\AI\Tools\Procurement\InboundScheduleTool;
+use App\AI\Tools\Procurement\PendingPurchaseOrdersTool;
+use App\AI\Tools\Procurement\ProcurementIntentsStatusTool;
 use App\Models\User;
 use Laravel\Ai\Attributes\MaxSteps;
 use Laravel\Ai\Attributes\Model;
@@ -89,6 +92,10 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
             new PendingShippingOrdersTool,
             new ShipmentStatusTool,
             new ShipmentsInTransitTool,
+            // Procurement tools
+            new InboundScheduleTool,
+            new PendingPurchaseOrdersTool,
+            new ProcurementIntentsStatusTool,
             // Finance tools
             new CreditNoteSummaryTool,
             new OutstandingInvoicesTool,
