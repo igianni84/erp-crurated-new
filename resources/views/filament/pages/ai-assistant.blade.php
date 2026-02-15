@@ -70,12 +70,35 @@
                 <template x-for="(msg, index) in messages" :key="index">
                     <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
                         <div
-                            :class="msg.role === 'user'
-                                ? 'bg-primary-50 dark:bg-primary-900/20 text-gray-900 dark:text-gray-100'
-                                : 'bg-white dark:bg-gray-800 ring-1 ring-gray-950/5 dark:ring-white/10 text-gray-900 dark:text-gray-100'"
+                            :class="{
+                                'bg-primary-50 dark:bg-primary-900/20 text-gray-900 dark:text-gray-100': msg.role === 'user',
+                                'bg-white dark:bg-gray-800 ring-1 ring-gray-950/5 dark:ring-white/10 text-gray-900 dark:text-gray-100': msg.role === 'assistant' && !msg.isError,
+                                'bg-red-50 dark:bg-red-900/20 ring-1 ring-red-200 dark:ring-red-800 text-red-800 dark:text-red-200': msg.isError
+                            }"
                             class="rounded-xl px-4 py-3 max-w-[80%] text-sm leading-relaxed"
                         >
                             <div x-html="msg.html || msg.content"></div>
+                            <template x-if="msg.showReload">
+                                <button
+                                    @click="window.location.reload()"
+                                    class="mt-2 rounded-lg bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700 transition-colors"
+                                >
+                                    Reload Page
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                {{-- Typing indicator --}}
+                <template x-if="sending && !receivedFirstChunk">
+                    <div class="flex justify-start">
+                        <div class="bg-white dark:bg-gray-800 ring-1 ring-gray-950/5 dark:ring-white/10 rounded-xl px-4 py-3">
+                            <div class="flex items-center gap-1">
+                                <span class="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0ms"></span>
+                                <span class="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 150ms"></span>
+                                <span class="h-2 w-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 300ms"></span>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -115,6 +138,7 @@
                 activeConversationId: null,
                 input: '',
                 sending: false,
+                receivedFirstChunk: false,
 
                 async sendMessage() {
                     const text = this.input.trim();
@@ -122,6 +146,7 @@
 
                     this.input = '';
                     this.sending = true;
+                    this.receivedFirstChunk = false;
 
                     // Add user message
                     this.messages.push({ role: 'user', content: text });
@@ -129,7 +154,7 @@
 
                     // Add placeholder for AI response
                     const aiIndex = this.messages.length;
-                    this.messages.push({ role: 'assistant', content: '', html: '' });
+                    this.messages.push({ role: 'assistant', content: '', html: '', isError: false, showReload: false });
 
                     try {
                         const response = await fetch('/admin/ai/chat', {
@@ -146,10 +171,26 @@
                         });
 
                         if (!response.ok) {
-                            const err = await response.json().catch(() => ({ message: 'An error occurred.' }));
-                            this.messages[aiIndex].content = err.message || 'An error occurred.';
-                            this.messages[aiIndex].html = err.message || 'An error occurred.';
+                            this.receivedFirstChunk = true;
+                            const msg = this.messages[aiIndex];
+                            msg.isError = true;
+
+                            if (response.status === 419) {
+                                msg.content = 'Session expired. Please reload the page.';
+                                msg.html = 'Session expired. Please reload the page.';
+                                msg.showReload = true;
+                            } else if (response.status === 429) {
+                                const err = await response.json().catch(() => ({}));
+                                msg.content = err.message || 'Rate limit exceeded. Please try again later.';
+                                msg.html = msg.content;
+                            } else {
+                                const err = await response.json().catch(() => ({}));
+                                msg.content = err.message || 'Something went wrong. Please try again.';
+                                msg.html = msg.content;
+                            }
+
                             this.sending = false;
+                            this.scrollToBottom();
                             return;
                         }
 
@@ -173,6 +214,9 @@
                                     try {
                                         const parsed = JSON.parse(data);
                                         if (parsed.content) {
+                                            if (!this.receivedFirstChunk) {
+                                                this.receivedFirstChunk = true;
+                                            }
                                             this.messages[aiIndex].content += parsed.content;
                                             this.messages[aiIndex].html = this.messages[aiIndex].content;
                                         }
@@ -187,8 +231,10 @@
                             this.scrollToBottom();
                         }
                     } catch (e) {
+                        this.receivedFirstChunk = true;
                         this.messages[aiIndex].content = 'Connection error. Please try again.';
                         this.messages[aiIndex].html = 'Connection error. Please try again.';
+                        this.messages[aiIndex].isError = true;
                     }
 
                     this.sending = false;
