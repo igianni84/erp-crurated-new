@@ -14,6 +14,9 @@ use App\AI\Tools\Finance\OutstandingInvoicesTool;
 use App\AI\Tools\Finance\OverdueInvoicesTool;
 use App\AI\Tools\Finance\PaymentReconciliationStatusTool;
 use App\AI\Tools\Finance\RevenueSummaryTool;
+use App\AI\Tools\Fulfillment\PendingShippingOrdersTool;
+use App\AI\Tools\Fulfillment\ShipmentsInTransitTool;
+use App\AI\Tools\Fulfillment\ShipmentStatusTool;
 use App\AI\Tools\Inventory\CaseIntegrityStatusTool;
 use App\AI\Tools\Inventory\StockLevelsByLocationTool;
 use App\AI\Tools\Inventory\TotalBottlesCountTool;
@@ -82,6 +85,10 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
             new CaseIntegrityStatusTool,
             new StockLevelsByLocationTool,
             new TotalBottlesCountTool,
+            // Fulfillment tools
+            new PendingShippingOrdersTool,
+            new ShipmentStatusTool,
+            new ShipmentsInTransitTool,
             // Finance tools
             new CreditNoteSummaryTool,
             new OutstandingInvoicesTool,
