@@ -23,6 +23,8 @@ use App\AI\Tools\Fulfillment\ShipmentStatusTool;
 use App\AI\Tools\Inventory\CaseIntegrityStatusTool;
 use App\AI\Tools\Inventory\StockLevelsByLocationTool;
 use App\AI\Tools\Inventory\TotalBottlesCountTool;
+use App\AI\Tools\Pim\DataQualityIssuesTool;
+use App\AI\Tools\Pim\ProductCatalogSearchTool;
 use App\AI\Tools\Procurement\InboundScheduleTool;
 use App\AI\Tools\Procurement\PendingPurchaseOrdersTool;
 use App\AI\Tools\Procurement\ProcurementIntentsStatusTool;
@@ -99,6 +101,9 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
             new PendingShippingOrdersTool,
             new ShipmentStatusTool,
             new ShipmentsInTransitTool,
+            // PIM tools
+            new DataQualityIssuesTool,
+            new ProductCatalogSearchTool,
             // Procurement tools
             new InboundScheduleTool,
             new PendingPurchaseOrdersTool,
