@@ -309,43 +309,19 @@ class AllocationSeeder extends Seeder
                     $formats = array_filter($config['formats']);
 
                     foreach ($formats as $format) {
-                        if (! $format) {
-                            continue;
-                        }
-
                         $totalQty = fake()->numberBetween($config['quantity_range'][0], $config['quantity_range'][1]);
 
-                        // Determine sold quantity and status based on realistic distribution
-                        // 5% Draft (new allocations)
-                        // 60% Active (with varying sold percentages)
-                        // 25% Exhausted (fully sold)
-                        // 10% Closed (manually closed)
+                        // All allocations start Active with sold_quantity=0.
+                        // VoucherSeeder will consume them via VoucherService (increments sold_quantity).
+                        // 5% Draft (not available for sale yet)
+                        // 95% Active (ready for VoucherSeeder to consume)
                         $statusRandom = fake()->numberBetween(1, 100);
-
-                        if ($statusRandom <= 5) {
-                            // Draft - no sales yet
-                            $status = AllocationStatus::Draft;
-                            $soldQty = 0;
-                        } elseif ($statusRandom <= 65) {
-                            // Active - varying sold percentages
-                            $status = AllocationStatus::Active;
-                            $soldPercentage = fake()->randomElement([0, 10, 25, 40, 50, 60, 70, 80, 90]);
-                            $soldQty = (int) round($totalQty * $soldPercentage / 100);
-                        } elseif ($statusRandom <= 90) {
-                            // Exhausted - fully sold
-                            $status = AllocationStatus::Exhausted;
-                            $soldQty = $totalQty;
-                        } else {
-                            // Closed - partially sold then closed
-                            $status = AllocationStatus::Closed;
-                            $soldQty = fake()->numberBetween((int) ($totalQty * 0.3), (int) ($totalQty * 0.9));
-                        }
+                        $status = $statusRandom <= 5 ? AllocationStatus::Draft : AllocationStatus::Active;
+                        $soldQty = 0;
 
                         // Determine availability dates
                         $availabilityStart = now()->subMonths(fake()->numberBetween(1, 18));
-                        $availabilityEnd = $status === AllocationStatus::Exhausted || $status === AllocationStatus::Closed
-                            ? now()->subDays(fake()->numberBetween(1, 60))
-                            : now()->addMonths(fake()->numberBetween(6, 36));
+                        $availabilityEnd = now()->addMonths(fake()->numberBetween(6, 36));
 
                         // Create the allocation
                         Allocation::firstOrCreate(
@@ -387,19 +363,8 @@ class AllocationSeeder extends Seeder
             $totalQty = fake()->numberBetween(12, 72);
             $statusRandom = fake()->numberBetween(1, 100);
 
-            if ($statusRandom <= 10) {
-                $status = AllocationStatus::Draft;
-                $soldQty = 0;
-            } elseif ($statusRandom <= 70) {
-                $status = AllocationStatus::Active;
-                $soldQty = fake()->numberBetween(0, (int) ($totalQty * 0.8));
-            } elseif ($statusRandom <= 90) {
-                $status = AllocationStatus::Exhausted;
-                $soldQty = $totalQty;
-            } else {
-                $status = AllocationStatus::Closed;
-                $soldQty = fake()->numberBetween((int) ($totalQty * 0.3), (int) ($totalQty * 0.8));
-            }
+            $status = $statusRandom <= 10 ? AllocationStatus::Draft : AllocationStatus::Active;
+            $soldQty = 0;
 
             Allocation::firstOrCreate(
                 [

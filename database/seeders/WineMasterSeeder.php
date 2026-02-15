@@ -900,7 +900,7 @@ class WineMasterSeeder extends Seeder
             // Resolve FK references from lookup tables
             $country = $countries->get($wineData['country']);
             $producer = $producers->get($wineData['producer']);
-            $appellationKey = $wineData['appellation'].'|'.($country?->id ?? '');
+            $appellationKey = $wineData['appellation'].'|'.($country->id ?? '');
             $appellation = $appellationsByKey[$appellationKey] ?? null;
 
             // Resolve region: prefer producer's region, fallback to lookup by name

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\MembershipStatus;
 use App\Enums\Customer\MembershipTier;
 use App\Models\Customer\Customer;
@@ -9,12 +10,11 @@ use App\Models\Customer\Membership;
 use Illuminate\Database\Seeder;
 
 /**
- * MembershipSeeder - Creates membership records for customers
+ * MembershipSeeder - Creates membership records respecting the state machine.
  *
- * Memberships represent a customer's membership status and tier in the system.
- * - Legacy: Grandfathered members with full access
- * - Member: Standard membership requiring approval
- * - InvitationOnly: Exclusive tier for select customers
+ * All memberships start as Applied and transition through the proper chain:
+ * Applied → UnderReview → Approved|Rejected
+ * Approved → Suspended
  */
 class MembershipSeeder extends Seeder
 {
@@ -31,136 +31,98 @@ class MembershipSeeder extends Seeder
             return;
         }
 
-        foreach ($customers as $index => $customer) {
-            // Skip closed customers
-            if ($customer->status === Customer::STATUS_CLOSED) {
-                // Closed customers may have a rejected/suspended membership
-                Membership::firstOrCreate(
-                    ['customer_id' => $customer->id],
-                    [
-                        'tier' => MembershipTier::Member,
-                        'status' => MembershipStatus::Suspended,
-                        'effective_from' => now()->subYears(2),
-                        'effective_to' => now()->subMonths(3),
-                        'decision_notes' => 'Account closed - membership suspended.',
-                    ]
-                );
+        foreach ($customers as $customer) {
+            // Skip if membership already exists for this customer
+            if (Membership::where('customer_id', $customer->id)->exists()) {
+                continue;
+            }
+
+            // Closed customers: Applied → UnderReview → Approved → Suspended
+            if ($customer->status === CustomerStatus::Closed) {
+                $membership = Membership::create([
+                    'customer_id' => $customer->id,
+                    'tier' => MembershipTier::Member,
+                    'status' => MembershipStatus::Applied,
+                    'effective_from' => now()->subYears(2),
+                ]);
+                $membership->submitForReview();
+                $membership->approve('Standard membership approved.');
+                $membership->suspend('Account closed - membership suspended.');
 
                 continue;
             }
 
-            // Suspended customers have suspended memberships
-            if ($customer->status === Customer::STATUS_SUSPENDED) {
-                Membership::firstOrCreate(
-                    ['customer_id' => $customer->id],
-                    [
-                        'tier' => MembershipTier::Member,
-                        'status' => MembershipStatus::Suspended,
-                        'effective_from' => now()->subYears(1),
-                        'effective_to' => null,
-                        'decision_notes' => 'Membership suspended due to payment issues.',
-                    ]
-                );
+            // Suspended customers: Applied → UnderReview → Approved → Suspended
+            if ($customer->status === CustomerStatus::Suspended) {
+                $membership = Membership::create([
+                    'customer_id' => $customer->id,
+                    'tier' => MembershipTier::Member,
+                    'status' => MembershipStatus::Applied,
+                    'effective_from' => now()->subYears(1),
+                ]);
+                $membership->submitForReview();
+                $membership->approve('Standard membership approved.');
+                $membership->suspend('Membership suspended due to payment issues.');
 
                 continue;
             }
 
-            // Active customers - distribute across tiers and statuses
-            // 15% Legacy, 70% Member (approved), 10% InvitationOnly, 5% Under Review
+            // Active customers - distribute across tiers and target statuses
             $tierRandom = fake()->numberBetween(1, 100);
 
             if ($tierRandom <= 15) {
-                // Legacy members - grandfathered with full access
-                Membership::firstOrCreate(
-                    ['customer_id' => $customer->id],
-                    [
-                        'tier' => MembershipTier::Legacy,
-                        'status' => MembershipStatus::Approved,
-                        'effective_from' => now()->subYears(fake()->numberBetween(3, 7)),
-                        'effective_to' => null,
-                        'decision_notes' => 'Legacy member - founding customer.',
-                    ]
-                );
+                // Legacy members - grandfathered: Applied → UnderReview → Approved
+                $membership = Membership::create([
+                    'customer_id' => $customer->id,
+                    'tier' => MembershipTier::Legacy,
+                    'status' => MembershipStatus::Applied,
+                    'effective_from' => now()->subYears(fake()->numberBetween(3, 7)),
+                ]);
+                $membership->submitForReview();
+                $membership->approve('Legacy member - founding customer.');
             } elseif ($tierRandom <= 85) {
-                // Standard members - majority of customers
-                Membership::firstOrCreate(
-                    ['customer_id' => $customer->id],
-                    [
-                        'tier' => MembershipTier::Member,
-                        'status' => MembershipStatus::Approved,
-                        'effective_from' => now()->subMonths(fake()->numberBetween(1, 24)),
-                        'effective_to' => null,
-                        'decision_notes' => 'Standard membership approved.',
-                    ]
-                );
-            } elseif ($tierRandom <= 95) {
-                // Invitation-only members - exclusive tier
-                Membership::firstOrCreate(
-                    ['customer_id' => $customer->id],
-                    [
-                        'tier' => MembershipTier::InvitationOnly,
-                        'status' => MembershipStatus::Approved,
-                        'effective_from' => now()->subMonths(fake()->numberBetween(1, 12)),
-                        'effective_to' => null,
-                        'decision_notes' => 'Invitation extended and accepted - premium collector.',
-                    ]
-                );
-            } else {
-                // Under review - pending approval
-                Membership::firstOrCreate(
-                    ['customer_id' => $customer->id],
-                    [
-                        'tier' => MembershipTier::Member,
-                        'status' => MembershipStatus::UnderReview,
-                        'effective_from' => null,
-                        'effective_to' => null,
-                        'decision_notes' => null,
-                    ]
-                );
-            }
-        }
-
-        // Create some historical membership records (tier upgrades)
-        $upgradedCustomers = Customer::where('status', Customer::STATUS_ACTIVE)
-            ->inRandomOrder()
-            ->take(3)
-            ->get();
-
-        foreach ($upgradedCustomers as $customer) {
-            // Check if this customer already has an InvitationOnly membership
-            $currentMembership = Membership::where('customer_id', $customer->id)->first();
-
-            if ($currentMembership && $currentMembership->tier === MembershipTier::InvitationOnly) {
-                // Create historical Member record showing the upgrade path
-                Membership::create([
+                // Standard members: Applied → UnderReview → Approved
+                $membership = Membership::create([
                     'customer_id' => $customer->id,
                     'tier' => MembershipTier::Member,
-                    'status' => MembershipStatus::Approved,
-                    'effective_from' => now()->subYears(2),
-                    'effective_to' => now()->subMonths(6),
-                    'decision_notes' => 'Upgraded to Invitation Only tier.',
+                    'status' => MembershipStatus::Applied,
+                    'effective_from' => now()->subMonths(fake()->numberBetween(1, 24)),
                 ]);
+                $membership->submitForReview();
+                $membership->approve('Standard membership approved.');
+            } elseif ($tierRandom <= 95) {
+                // Invitation-only: Applied → UnderReview → Approved
+                $membership = Membership::create([
+                    'customer_id' => $customer->id,
+                    'tier' => MembershipTier::InvitationOnly,
+                    'status' => MembershipStatus::Applied,
+                    'effective_from' => now()->subMonths(fake()->numberBetween(1, 12)),
+                ]);
+                $membership->submitForReview();
+                $membership->approve('Invitation extended and accepted - premium collector.');
+            } else {
+                // Under review: Applied → UnderReview
+                $membership = Membership::create([
+                    'customer_id' => $customer->id,
+                    'tier' => MembershipTier::Member,
+                    'status' => MembershipStatus::Applied,
+                ]);
+                $membership->submitForReview();
             }
         }
 
-        // Create some rejected membership applications
-        $rejectedCount = 2;
-        for ($i = 0; $i < $rejectedCount; $i++) {
-            $randomCustomer = Customer::where('status', Customer::STATUS_ACTIVE)
-                ->inRandomOrder()
-                ->first();
+        // Create historical rejected membership applications
+        $activeCustomers = Customer::where('status', CustomerStatus::Active)->get();
+        $rejectedCustomers = $activeCustomers->random(min(2, $activeCustomers->count()));
 
-            if ($randomCustomer) {
-                // Create a rejected application in the past (not the current membership)
-                Membership::create([
-                    'customer_id' => $randomCustomer->id,
-                    'tier' => MembershipTier::InvitationOnly,
-                    'status' => MembershipStatus::Rejected,
-                    'effective_from' => null,
-                    'effective_to' => null,
-                    'decision_notes' => 'Invitation request not approved - insufficient purchase history.',
-                ]);
-            }
+        foreach ($rejectedCustomers as $customer) {
+            $membership = Membership::create([
+                'customer_id' => $customer->id,
+                'tier' => MembershipTier::InvitationOnly,
+                'status' => MembershipStatus::Applied,
+            ]);
+            $membership->submitForReview();
+            $membership->reject('Invitation request not approved - insufficient purchase history.');
         }
     }
 }

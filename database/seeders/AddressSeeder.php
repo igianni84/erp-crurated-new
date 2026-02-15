@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Enums\Customer\AddressType;
+use App\Enums\Customer\CustomerStatus;
 use App\Models\Customer\Address;
 use App\Models\Customer\Customer;
 use Illuminate\Database\Seeder;
@@ -88,7 +89,7 @@ class AddressSeeder extends Seeder
 
         foreach ($customers as $customer) {
             // Skip closed customers - they don't need addresses
-            if ($customer->status === Customer::STATUS_CLOSED) {
+            if ($customer->status === CustomerStatus::Closed) {
                 continue;
             }
 

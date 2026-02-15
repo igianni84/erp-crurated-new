@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Enums\ProductLifecycleStatus;
 use App\Models\Pim\CaseConfiguration;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
@@ -120,7 +121,7 @@ class SellableSkuSeeder extends Seeder
     /**
      * Create a SellableSku record.
      */
-    private function createSku(WineVariant $variant, Format $format, CaseConfiguration $caseConfig): ?SellableSku
+    private function createSku(WineVariant $variant, Format $format, CaseConfiguration $caseConfig): SellableSku
     {
         // First check if this exact combination already exists
         $existingSku = SellableSku::where('wine_variant_id', $variant->id)
@@ -132,12 +133,11 @@ class SellableSkuSeeder extends Seeder
             return $existingSku;
         }
 
-        // Determine status distribution: 80% active, 15% draft, 5% retired
-        $statusRandom = fake()->numberBetween(1, 100);
-        $status = match (true) {
-            $statusRandom <= 80 => SellableSku::STATUS_ACTIVE,
-            $statusRandom <= 95 => SellableSku::STATUS_DRAFT,
-            default => SellableSku::STATUS_RETIRED,
+        // Derive SKU status from variant lifecycle_status
+        $status = match ($variant->lifecycle_status) {
+            ProductLifecycleStatus::Published, ProductLifecycleStatus::Approved => SellableSku::STATUS_ACTIVE,
+            ProductLifecycleStatus::Draft, ProductLifecycleStatus::InReview => SellableSku::STATUS_DRAFT,
+            ProductLifecycleStatus::Archived => SellableSku::STATUS_RETIRED,
         };
 
         // Determine source: 70% generated, 20% liv_ex, 10% manual
@@ -188,8 +188,7 @@ class SellableSkuSeeder extends Seeder
         $caseType = match ($caseConfig->case_type) {
             'owc' => 'OWC',
             'oc' => 'OC',
-            'none' => 'L',
-            default => $caseConfig->case_type,
+            default => 'L',
         };
         $caseCode = $caseConfig->bottles_per_case.$caseType;
 

@@ -26,6 +26,8 @@ return new class extends Migration
             $table->boolean('is_primary')->default(false);
             $table->unsignedInteger('sort_order')->default(0);
             $table->boolean('is_locked')->default(false); // true for Liv-ex media
+            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
             $table->softDeletes();
 

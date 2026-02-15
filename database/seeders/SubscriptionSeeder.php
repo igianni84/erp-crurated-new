@@ -102,6 +102,7 @@ class SubscriptionSeeder extends Seeder
                     BillingCycle::Monthly => $startedAtCarbon->copy()->addMonth()->startOfDay(),
                     BillingCycle::Quarterly => $startedAtCarbon->copy()->addMonths(3)->startOfDay(),
                     BillingCycle::Annual => $startedAtCarbon->copy()->addYear()->startOfDay(),
+                    default => $startedAtCarbon->copy()->addMonth()->startOfDay(),
                 };
 
                 // Ensure next billing is in the future or recent past
@@ -110,6 +111,7 @@ class SubscriptionSeeder extends Seeder
                         BillingCycle::Monthly => $nextBillingDate->addMonth(),
                         BillingCycle::Quarterly => $nextBillingDate->addMonths(3),
                         BillingCycle::Annual => $nextBillingDate->addYear(),
+                        default => $nextBillingDate->addMonth(),
                     };
                 }
 

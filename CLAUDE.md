@@ -19,6 +19,7 @@
 - Review lessons at session start for relevant project
 
 ### 4. Verification Before Done
+- Non inventare nomi di variabili, funzioni, classi o altro, verifica sempre la loro esistenza prima di usarle
 - Never mark a task complete without proving it works
 - Diff behavior between main and your changes when relevant
 - Ask yourself: "Would a staff engineer approve this?"
@@ -57,7 +58,7 @@
 **Crurated ERP** — ERP per il trading di vini pregiati e beni di lusso. Multi-modulo, event-driven, sviluppato incrementalmente.
 
 ### Tech Stack
-- **Backend:** Laravel 12, PHP 8.2+, MySQL (SQLite dev)
+- **Backend:** Laravel 12, PHP 8.4+, MySQL (SQLite dev)
 - **Admin UI:** Filament 3 (42 resources, 30 custom pages, 3 widgets)
 - **Frontend:** Tailwind CSS 4, Vite 7
 - **Integrations:** Stripe (payments), Xero (accounting), WMS (warehouse), Liv-ex (wine data)
@@ -82,7 +83,7 @@
 - **UUID PKs everywhere** via `HasUuid` trait
 - **Audit trail:** Immutable `AuditLog` + `Auditable`/`AuditLoggable` traits
 - **Soft deletes** on ~95% of models
-- **Enums:** String-backed PHP 8.1+ with `label()`, `color()`, `icon()`, `allowedTransitions()`
+- **Enums:** String-backed PHP 8.4+ with `label()`, `color()`, `icon()`, `allowedTransitions()`
 - **Event-driven cross-module:** Events trigger listeners (e.g., VoucherIssued → CreateProcurementIntent)
 - **Service layer:** Business logic in Services, not Controllers or Models
 - **Immutability guards:** Model `boot()` with `static::updating()` for critical fields

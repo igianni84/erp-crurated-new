@@ -146,10 +146,10 @@ class LiquidProductSeeder extends Seeder
             // 5% Draft
             $statusRandom = fake()->numberBetween(1, 100);
             $lifecycleStatus = match (true) {
-                $statusRandom <= 60 => 'published',
-                $statusRandom <= 80 => 'approved',
-                $statusRandom <= 95 => 'in_review',
-                default => 'draft',
+                $statusRandom <= 60 => ProductLifecycleStatus::Published,
+                $statusRandom <= 80 => ProductLifecycleStatus::Approved,
+                $statusRandom <= 95 => ProductLifecycleStatus::InReview,
+                default => ProductLifecycleStatus::Draft,
             };
 
             // Allowed equivalent units (how many bottle equivalents in liquid)
@@ -163,8 +163,8 @@ class LiquidProductSeeder extends Seeder
             LiquidProduct::create([
                 'wine_variant_id' => $variant->id,
                 'allowed_equivalent_units' => $allowedEquivalentUnits,
-                'allowed_final_formats' => array_values($allowedFormats),
-                'allowed_case_configurations' => array_values($allowedCases),
+                'allowed_final_formats' => $allowedFormats,
+                'allowed_case_configurations' => $allowedCases,
                 'bottling_constraints' => $bottlingConstraints,
                 'serialization_required' => true,
                 'lifecycle_status' => $lifecycleStatus,
@@ -212,11 +212,16 @@ class LiquidProductSeeder extends Seeder
             LiquidProduct::create([
                 'wine_variant_id' => $variant->id,
                 'allowed_equivalent_units' => $allowedEquivalentUnits,
-                'allowed_final_formats' => array_values($allowedFormats),
-                'allowed_case_configurations' => array_values($allowedCases),
+                'allowed_final_formats' => $allowedFormats,
+                'allowed_case_configurations' => $allowedCases,
                 'bottling_constraints' => $bottlingConstraints,
                 'serialization_required' => fake()->boolean(80),
-                'lifecycle_status' => fake()->randomElement(['draft', 'in_review', 'approved', 'published']),
+                'lifecycle_status' => fake()->randomElement([
+                    ProductLifecycleStatus::Draft,
+                    ProductLifecycleStatus::InReview,
+                    ProductLifecycleStatus::Approved,
+                    ProductLifecycleStatus::Published,
+                ]),
             ]);
 
             $totalCreated++;
@@ -230,8 +235,8 @@ class LiquidProductSeeder extends Seeder
      */
     private function generateBottlingConstraints(WineVariant $variant): array
     {
-        $wineName = $variant->wineMaster?->name ?? '';
-        $region = $variant->wineMaster?->region ?? '';
+        $wineName = $variant->wineMaster->name ?? '';
+        $region = $variant->wineMaster->region ?? '';
 
         // Base constraints
         $constraints = [

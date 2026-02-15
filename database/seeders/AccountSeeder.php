@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Enums\Customer\AccountStatus;
 use App\Enums\Customer\AccountUserRole;
 use App\Enums\Customer\ChannelScope;
+use App\Enums\Customer\CustomerStatus;
+use App\Enums\Customer\CustomerType;
 use App\Models\Customer\Account;
 use App\Models\Customer\AccountUser;
 use App\Models\Customer\Customer;
@@ -16,6 +18,7 @@ use Illuminate\Database\Seeder;
  *
  * Accounts represent operational contexts for customers.
  * A Customer can have multiple Accounts (e.g., different channel scopes).
+ * B2B accounts are only created for customers with customer_type = B2B.
  */
 class AccountSeeder extends Seeder
 {
@@ -36,15 +39,14 @@ class AccountSeeder extends Seeder
         $adminUser = User::first();
 
         foreach ($customers as $customer) {
-            // Determine account status based on customer status
             // Note: AccountStatus only has Active and Suspended values
             $accountStatus = match ($customer->status) {
-                Customer::STATUS_ACTIVE => AccountStatus::Active,
+                CustomerStatus::Active => AccountStatus::Active,
                 default => AccountStatus::Suspended,
             };
 
-            // All active customers get a B2C account
-            if ($customer->status !== Customer::STATUS_CLOSED) {
+            // All non-closed customers get a B2C account
+            if ($customer->status !== CustomerStatus::Closed) {
                 $b2cAccount = Account::firstOrCreate(
                     [
                         'customer_id' => $customer->id,
@@ -59,6 +61,9 @@ class AccountSeeder extends Seeder
                 // Link account to user if a user exists with the same email
                 $user = User::where('email', $customer->email)->first();
                 if ($user) {
+                    $invitedAt = now()->subMonths(fake()->numberBetween(3, 12));
+                    $acceptedAt = $invitedAt->copy()->addDays(fake()->numberBetween(1, 60));
+
                     AccountUser::firstOrCreate(
                         [
                             'account_id' => $b2cAccount->id,
@@ -66,16 +71,16 @@ class AccountSeeder extends Seeder
                         ],
                         [
                             'role' => AccountUserRole::Owner,
-                            'invited_at' => now()->subMonths(fake()->numberBetween(1, 12)),
-                            'accepted_at' => now()->subMonths(fake()->numberBetween(0, 6)),
+                            'invited_at' => $invitedAt,
+                            'accepted_at' => $acceptedAt,
                         ]
                     );
                 }
             }
 
-            // Some customers (business oriented) get B2B accounts (20% of active customers)
-            if ($customer->status === Customer::STATUS_ACTIVE && fake()->boolean(20)) {
-                $b2bAccount = Account::firstOrCreate(
+            // B2B accounts ONLY for customers with customer_type = B2B
+            if ($customer->status === CustomerStatus::Active && $customer->customer_type === CustomerType::B2B) {
+                Account::firstOrCreate(
                     [
                         'customer_id' => $customer->id,
                         'channel_scope' => ChannelScope::B2B,
@@ -88,8 +93,8 @@ class AccountSeeder extends Seeder
             }
 
             // Some premium customers get Club accounts (15% of active customers)
-            if ($customer->status === Customer::STATUS_ACTIVE && fake()->boolean(15)) {
-                $clubAccount = Account::firstOrCreate(
+            if ($customer->status === CustomerStatus::Active && fake()->boolean(15)) {
+                Account::firstOrCreate(
                     [
                         'customer_id' => $customer->id,
                         'channel_scope' => ChannelScope::Club,
@@ -110,8 +115,10 @@ class AccountSeeder extends Seeder
             ->get();
 
         foreach ($multiUserAccounts as $account) {
-            // Add a secondary user (operator role)
             if ($adminUser) {
+                $invitedAt = now()->subMonths(fake()->numberBetween(1, 6));
+                $acceptedAt = $invitedAt->copy()->addDays(fake()->numberBetween(1, 30));
+
                 AccountUser::firstOrCreate(
                     [
                         'account_id' => $account->id,
@@ -119,8 +126,8 @@ class AccountSeeder extends Seeder
                     ],
                     [
                         'role' => AccountUserRole::Operator,
-                        'invited_at' => now()->subMonths(fake()->numberBetween(1, 6)),
-                        'accepted_at' => now()->subWeeks(fake()->numberBetween(1, 12)),
+                        'invited_at' => $invitedAt,
+                        'accepted_at' => $acceptedAt,
                     ]
                 );
             }

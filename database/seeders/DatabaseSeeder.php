@@ -2,7 +2,14 @@
 
 namespace Database\Seeders;
 
+use App\Events\Finance\EventBookingConfirmed;
+use App\Events\Finance\ShipmentExecuted;
+use App\Events\Finance\SubscriptionBillingDue;
+use App\Events\Finance\VoucherSaleConfirmed;
+use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Event;
 
 class DatabaseSeeder extends Seeder
 {
@@ -27,6 +34,21 @@ class DatabaseSeeder extends Seeder
             FormatSeeder::class,        // Wine bottle formats (375ml, 750ml, 1500ml, etc.)
             CaseConfigurationSeeder::class, // Case packaging types (OWC, OC, loose)
             AttributeSetSeeder::class,  // Product attribute definitions
+        ]);
+
+        // Auth context for audit trail population
+        $adminUser = User::first();
+        if ($adminUser) {
+            Auth::login($adminUser);
+        }
+
+        // Fake Finance events to prevent auto-invoice generation during seeding.
+        // VoucherIssued is NOT faked — it triggers ProcurementIntent creation (desired).
+        Event::fake([
+            ShipmentExecuted::class,
+            SubscriptionBillingDue::class,
+            VoucherSaleConfirmed::class,
+            EventBookingConfirmed::class,
         ]);
 
         // =====================================================================
@@ -70,8 +92,17 @@ class DatabaseSeeder extends Seeder
         $this->call([
             // Allocations & Vouchers (Module A)
             AllocationSeeder::class,    // Wine allocations (sellable supply)
-            VoucherSeeder::class,       // Customer vouchers (entitlements)
+            VoucherSeeder::class,       // Customer vouchers (VoucherService dispatches VoucherIssued)
+        ]);
 
+        // Process queued jobs so VoucherIssued → ProcurementIntent listener executes
+        $this->command->info('Processing queued jobs (VoucherIssued → ProcurementIntents)...');
+        \Illuminate\Support\Facades\Artisan::call('queue:work', [
+            '--stop-when-empty' => true,
+            '--queue' => 'default',
+        ]);
+
+        $this->call([
             // Commercial pricing & offers (Module S)
             PriceBookSeeder::class,     // Price books with market-specific pricing
             OfferSeeder::class,         // Commercial offers linking SKUs to channels
@@ -80,6 +111,7 @@ class DatabaseSeeder extends Seeder
             SubscriptionSeeder::class,  // Customer memberships/recurring billing
             InvoiceSeeder::class,       // Invoices (5 types: membership, sales, shipping, storage, events)
             PaymentSeeder::class,       // Payments (Stripe, bank transfer)
+            CreditNoteSeeder::class,    // Credit notes and refunds
 
             // Inventory (Module B)
             InventoryCaseSeeder::class, // Physical wine cases
@@ -89,19 +121,15 @@ class DatabaseSeeder extends Seeder
         // PHASE 4: Transactional/derived data (depend on previous phases)
         // =====================================================================
         $this->call([
-            // Procurement (Module D)
-            ProcurementSeeder::class,   // Procurement intents, POs, inbounds
+            // Procurement (Module D) — picks up auto-created ProcurementIntents
+            ProcurementSeeder::class,   // PurchaseOrders, Inbounds (intents auto-created by listener)
 
             // Inventory serialization (Module B)
             SerializedBottleSeeder::class, // Serialized bottles with provenance
 
             // Fulfillment (Module C)
-            ShippingOrderSeeder::class,     // Shipping orders
-            ShippingOrderLineSeeder::class, // Shipping order lines (voucher → bottle binding)
+            ShippingOrderSeeder::class,     // Shipping orders + lines (unified)
             ShipmentSeeder::class,          // Physical shipments with tracking
-
-            // Finance corrections (Module E)
-            CreditNoteSeeder::class,    // Credit notes and refunds
         ]);
 
         // =====================================================================
