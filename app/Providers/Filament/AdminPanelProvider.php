@@ -105,6 +105,10 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            ->renderHook(
+                'panels::user-menu.before',
+                fn (): \Illuminate\Contracts\View\View => view('filament.hooks.ai-chat-icon'),
+            );
     }
 }
