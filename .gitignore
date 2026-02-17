@@ -33,3 +33,16 @@ Thumbs.db
 # Temp files
 *.tmp
 *.bak
+
+# AI/IDE tool configs (local only)
+.agents/
+.cursor/
+.gemini/
+.junie/
+.mcp.json
+boost.json
+cookie_jar
+AGENT.md
+AGENTS.md
+GEMINI.md
+ralph.sh
