@@ -5,7 +5,7 @@ use App\Http\Controllers\AI\ConversationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect('/admin');
 });
 
 Route::middleware(['web', 'auth'])->prefix('admin/ai')->group(function () {
