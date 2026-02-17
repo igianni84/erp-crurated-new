@@ -151,10 +151,8 @@ git reset --hard origin/main
 composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 echo "" | sudo -S service php8.5-fpm reload
 php artisan migrate --force
-php artisan filament:upgrade
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+php artisan filament:optimize
+php artisan optimize
 ```
 
 ### Quick SSH Commands
@@ -171,8 +169,8 @@ ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan
 # Fresh seed (DESTRUCTIVE — solo staging/dev)
 ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan migrate:fresh --force --seed"
 
-# Clear all caches
-ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan optimize:clear"
+# Clear all caches (including Filament)
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan filament:optimize-clear && php artisan optimize:clear"
 ```
 
 ### Known Gotchas
