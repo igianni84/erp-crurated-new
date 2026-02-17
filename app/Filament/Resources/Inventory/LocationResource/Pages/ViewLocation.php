@@ -10,13 +10,9 @@ use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
 use App\Enums\Inventory\OwnershipType;
 use App\Filament\Resources\Inventory\LocationResource;
-use App\Models\Inventory\InboundBatch;
-use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Location;
-use App\Models\Inventory\SerializedBottle;
 use Filament\Actions\EditAction;
-use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Schemas\Components\Grid;
@@ -28,10 +24,18 @@ use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\DB;
 
 class ViewLocation extends ViewRecord
 {
     protected static string $resource = LocationResource::class;
+
+    /**
+     * Cached bottle statistics — single aggregate query for the entire page.
+     *
+     * @var array<string, int>|null
+     */
+    protected ?array $bottleStats = null;
 
     public function getTitle(): string|Htmlable
     {
@@ -50,13 +54,68 @@ class ViewLocation extends ViewRecord
                 Tabs::make('Location Details')
                     ->tabs([
                         $this->getOverviewTab(),
-                        $this->getInventoryTab(),
                         $this->getInboundOutboundTab(),
                         $this->getWmsStatusTab(),
                     ])
                     ->persistTabInQueryString()
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * Load all bottle statistics in a single aggregate query.
+     * Replaces ~15 individual COUNT queries with 1 query.
+     *
+     * @return array<string, int>
+     */
+    protected function loadBottleStats(Location $record): array
+    {
+        if ($this->bottleStats !== null) {
+            return $this->bottleStats;
+        }
+
+        $result = DB::selectOne(
+            'SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as cnt_stored,
+                SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as cnt_reserved,
+                SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as cnt_shipped,
+                SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as cnt_consumed,
+                SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as cnt_destroyed,
+                SUM(CASE WHEN state = ? THEN 1 ELSE 0 END) as cnt_missing,
+                SUM(CASE WHEN ownership_type = ? THEN 1 ELSE 0 END) as cnt_crurated,
+                SUM(CASE WHEN ownership_type = ? THEN 1 ELSE 0 END) as cnt_custody,
+                SUM(CASE WHEN ownership_type = ? THEN 1 ELSE 0 END) as cnt_third_party
+            FROM serialized_bottles
+            WHERE current_location_id = ? AND deleted_at IS NULL',
+            [
+                BottleState::Stored->value,
+                BottleState::ReservedForPicking->value,
+                BottleState::Shipped->value,
+                BottleState::Consumed->value,
+                BottleState::Destroyed->value,
+                BottleState::Missing->value,
+                OwnershipType::CururatedOwned->value,
+                OwnershipType::InCustody->value,
+                OwnershipType::ThirdPartyOwned->value,
+                $record->id,
+            ]
+        );
+
+        $this->bottleStats = [
+            'total' => (int) ($result->total ?? 0),
+            'stored' => (int) ($result->cnt_stored ?? 0),
+            'reserved' => (int) ($result->cnt_reserved ?? 0),
+            'shipped' => (int) ($result->cnt_shipped ?? 0),
+            'consumed' => (int) ($result->cnt_consumed ?? 0),
+            'destroyed' => (int) ($result->cnt_destroyed ?? 0),
+            'missing' => (int) ($result->cnt_missing ?? 0),
+            'owned_crurated' => (int) ($result->cnt_crurated ?? 0),
+            'in_custody' => (int) ($result->cnt_custody ?? 0),
+            'third_party' => (int) ($result->cnt_third_party ?? 0),
+        ];
+
+        return $this->bottleStats;
     }
 
     /**
@@ -144,7 +203,7 @@ class ViewLocation extends ViewRecord
                             ->schema([
                                 TextEntry::make('total_serialized_bottles')
                                     ->label('Serialized Bottles')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['total'])
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
@@ -166,7 +225,7 @@ class ViewLocation extends ViewRecord
                                                 InboundBatchStatus::PartiallySerialized,
                                             ])
                                             ->get()
-                                            ->sum(fn (InboundBatch $batch) => $batch->remaining_unserialized);
+                                            ->sum(fn ($batch) => $batch->remaining_unserialized);
                                     })
                                     ->numeric()
                                     ->suffix(' bottles')
@@ -192,49 +251,37 @@ class ViewLocation extends ViewRecord
                             ->schema([
                                 TextEntry::make('bottles_stored')
                                     ->label('Stored')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('state', BottleState::Stored)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['stored'])
                                     ->numeric()
                                     ->badge()
                                     ->color('success'),
                                 TextEntry::make('bottles_reserved')
                                     ->label('Reserved')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('state', BottleState::ReservedForPicking)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['reserved'])
                                     ->numeric()
                                     ->badge()
                                     ->color('warning'),
                                 TextEntry::make('bottles_shipped')
                                     ->label('Shipped')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('state', BottleState::Shipped)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['shipped'])
                                     ->numeric()
                                     ->badge()
                                     ->color('info'),
                                 TextEntry::make('bottles_consumed')
                                     ->label('Consumed')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('state', BottleState::Consumed)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['consumed'])
                                     ->numeric()
                                     ->badge()
                                     ->color('gray'),
                                 TextEntry::make('bottles_destroyed')
                                     ->label('Destroyed')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('state', BottleState::Destroyed)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['destroyed'])
                                     ->numeric()
                                     ->badge()
                                     ->color('gray'),
                                 TextEntry::make('bottles_missing')
                                     ->label('Missing')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('state', BottleState::Missing)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['missing'])
                                     ->numeric()
                                     ->badge()
                                     ->color('danger'),
@@ -247,9 +294,7 @@ class ViewLocation extends ViewRecord
                             ->schema([
                                 TextEntry::make('ownership_crurated')
                                     ->label('Crurated Owned')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('ownership_type', OwnershipType::CururatedOwned)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['owned_crurated'])
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->badge()
@@ -257,9 +302,7 @@ class ViewLocation extends ViewRecord
                                     ->icon('heroicon-o-building-office'),
                                 TextEntry::make('ownership_custody')
                                     ->label('In Custody')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('ownership_type', OwnershipType::InCustody)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['in_custody'])
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->badge()
@@ -267,9 +310,7 @@ class ViewLocation extends ViewRecord
                                     ->icon('heroicon-o-hand-raised'),
                                 TextEntry::make('ownership_third_party')
                                     ->label('Third Party Owned')
-                                    ->getStateUsing(fn (Location $record): int => $record->serializedBottles()
-                                        ->where('ownership_type', OwnershipType::ThirdPartyOwned)
-                                        ->count())
+                                    ->getStateUsing(fn (Location $record): int => (int) $this->loadBottleStats($record)['third_party'])
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->badge()
@@ -290,175 +331,13 @@ class ViewLocation extends ViewRecord
     }
 
     /**
-     * Tab 2: Inventory - Bottles and cases stored here.
-     */
-    protected function getInventoryTab(): Tab
-    {
-        return Tab::make('Inventory')
-            ->icon('heroicon-o-archive-box')
-            ->badge(fn (Location $record): ?string => $record->serializedBottles()->count() > 0
-                ? (string) $record->serializedBottles()->count()
-                : null)
-            ->badgeColor('success')
-            ->schema([
-                Section::make('Serialized Bottles')
-                    ->description('Bottles currently stored at this location')
-                    ->schema([
-                        TextEntry::make('bottles_count_info')
-                            ->label('')
-                            ->getStateUsing(function (Location $record): string {
-                                $total = $record->serializedBottles()->count();
-                                $stored = $record->serializedBottles()->where('state', BottleState::Stored)->count();
-
-                                return "Showing {$stored} stored bottles out of {$total} total bottles at this location.";
-                            })
-                            ->color('gray'),
-                        RepeatableEntry::make('serializedBottles')
-                            ->label('')
-                            ->schema([
-                                Grid::make(6)
-                                    ->schema([
-                                        TextEntry::make('serial_number')
-                                            ->label('Serial Number')
-                                            ->copyable()
-                                            ->copyMessage('Serial number copied')
-                                            ->weight(FontWeight::Bold),
-                                        TextEntry::make('wineVariant.display_label')
-                                            ->label('Wine')
-                                            ->getStateUsing(function (SerializedBottle $record): string {
-                                                $variant = $record->wineVariant;
-                                                if (! $variant) {
-                                                    return 'Unknown';
-                                                }
-                                                $master = $variant->wineMaster;
-                                                $name = $master ? $master->name : 'Unknown Wine';
-                                                $vintage = $variant->vintage_year ?? 'NV';
-
-                                                return "{$name} {$vintage}";
-                                            }),
-                                        TextEntry::make('format.name')
-                                            ->label('Format')
-                                            ->default('Standard'),
-                                        TextEntry::make('state')
-                                            ->label('State')
-                                            ->badge()
-                                            ->formatStateUsing(fn (BottleState $state): string => $state->label())
-                                            ->color(fn (BottleState $state): string => $state->color())
-                                            ->icon(fn (BottleState $state): string => $state->icon()),
-                                        TextEntry::make('ownership_type')
-                                            ->label('Ownership')
-                                            ->badge()
-                                            ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
-                                            ->color(fn (OwnershipType $state): string => $state->color()),
-                                        TextEntry::make('serialized_at')
-                                            ->label('Serialized')
-                                            ->dateTime(),
-                                    ]),
-                            ])
-                            ->columns(1)
-                            ->visible(fn (Location $record): bool => $record->serializedBottles()->count() > 0),
-                        TextEntry::make('no_bottles')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No serialized bottles at this location.')
-                            ->color('gray')
-                            ->visible(fn (Location $record): bool => $record->serializedBottles()->count() === 0),
-                    ]),
-                Section::make('Cases')
-                    ->description('Cases currently stored at this location')
-                    ->schema([
-                        RepeatableEntry::make('cases')
-                            ->label('')
-                            ->schema([
-                                Grid::make(5)
-                                    ->schema([
-                                        TextEntry::make('id')
-                                            ->label('Case ID')
-                                            ->copyable()
-                                            ->weight(FontWeight::Bold),
-                                        TextEntry::make('caseConfiguration.name')
-                                            ->label('Configuration')
-                                            ->default('Standard'),
-                                        TextEntry::make('integrity_status')
-                                            ->label('Integrity')
-                                            ->badge()
-                                            ->formatStateUsing(fn (InventoryCase $record): string => $record->integrity_status->label())
-                                            ->color(fn (InventoryCase $record): string => $record->integrity_status->color())
-                                            ->icon(fn (InventoryCase $record): string => $record->integrity_status->icon()),
-                                        TextEntry::make('bottles_in_case')
-                                            ->label('Bottles')
-                                            ->getStateUsing(fn (InventoryCase $record): int => $record->serializedBottles()->count())
-                                            ->numeric()
-                                            ->suffix(' bottles'),
-                                        TextEntry::make('is_original')
-                                            ->label('Original')
-                                            ->badge()
-                                            ->getStateUsing(fn (InventoryCase $record): string => $record->is_original ? 'Yes' : 'No')
-                                            ->color(fn (InventoryCase $record): string => $record->is_original ? 'success' : 'gray'),
-                                    ]),
-                            ])
-                            ->columns(1)
-                            ->visible(fn (Location $record): bool => $record->cases()->count() > 0),
-                        TextEntry::make('no_cases')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No cases at this location.')
-                            ->color('gray')
-                            ->visible(fn (Location $record): bool => $record->cases()->count() === 0),
-                    ]),
-            ]);
-    }
-
-    /**
-     * Tab 3: Inbound/Outbound - Recent receipts and transfers.
+     * Tab 2: Inbound/Outbound - Recent transfers (inbound batches now in RelationManager).
      */
     protected function getInboundOutboundTab(): Tab
     {
-        return Tab::make('Inbound/Outbound')
+        return Tab::make('Transfers')
             ->icon('heroicon-o-arrows-right-left')
             ->schema([
-                Section::make('Recent Inbound Batches')
-                    ->description('Recent receipts at this location')
-                    ->schema([
-                        RepeatableEntry::make('inboundBatches')
-                            ->label('')
-                            ->schema([
-                                Grid::make(6)
-                                    ->schema([
-                                        TextEntry::make('id')
-                                            ->label('Batch ID')
-                                            ->copyable()
-                                            ->weight(FontWeight::Bold),
-                                        TextEntry::make('source_type')
-                                            ->label('Source')
-                                            ->badge()
-                                            ->color('info'),
-                                        TextEntry::make('quantity_received')
-                                            ->label('Qty Received')
-                                            ->numeric()
-                                            ->suffix(' bottles'),
-                                        TextEntry::make('serialization_status')
-                                            ->label('Serialization')
-                                            ->badge()
-                                            ->formatStateUsing(fn (InboundBatchStatus $state): string => $state->label())
-                                            ->color(fn (InboundBatchStatus $state): string => $state->color())
-                                            ->icon(fn (InboundBatchStatus $state): string => $state->icon()),
-                                        TextEntry::make('ownership_type')
-                                            ->label('Ownership')
-                                            ->badge()
-                                            ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
-                                            ->color(fn (OwnershipType $state): string => $state->color()),
-                                        TextEntry::make('received_date')
-                                            ->label('Received')
-                                            ->date(),
-                                    ]),
-                            ])
-                            ->columns(1)
-                            ->visible(fn (Location $record): bool => $record->inboundBatches()->count() > 0),
-                        TextEntry::make('no_inbound')
-                            ->label('')
-                            ->getStateUsing(fn (): string => 'No inbound batches at this location.')
-                            ->color('gray')
-                            ->visible(fn (Location $record): bool => $record->inboundBatches()->count() === 0),
-                    ]),
                 Section::make('Recent Transfers In')
                     ->description('Recent movements into this location')
                     ->schema([
@@ -564,7 +443,7 @@ class ViewLocation extends ViewRecord
     }
 
     /**
-     * Tab 4: WMS Status - Connection status and sync info.
+     * Tab 3: WMS Status - Connection status and sync info.
      */
     protected function getWmsStatusTab(): Tab
     {
@@ -607,7 +486,6 @@ class ViewLocation extends ViewRecord
                                 TextEntry::make('last_sync_timestamp')
                                     ->label('Last Sync')
                                     ->getStateUsing(function (Location $record): string {
-                                        // Check for most recent WMS-triggered movement involving this location
                                         $lastWmsMovement = InventoryMovement::query()
                                             ->where(function ($query) use ($record): void {
                                                 $query->where('source_location_id', $record->id)

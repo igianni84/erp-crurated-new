@@ -9,6 +9,7 @@ use App\Filament\Resources\Inventory\LocationResource\Pages\CreateLocation;
 use App\Filament\Resources\Inventory\LocationResource\Pages\EditLocation;
 use App\Filament\Resources\Inventory\LocationResource\Pages\ListLocations;
 use App\Filament\Resources\Inventory\LocationResource\Pages\ViewLocation;
+use App\Filament\Resources\Inventory\LocationResource\RelationManagers;
 use App\Models\Inventory\Location;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -272,7 +273,9 @@ class LocationResource extends Resource
     public static function getRelations(): array
     {
         return [
-            // Relations will be implemented in US-B013
+            RelationManagers\SerializedBottlesRelationManager::class,
+            RelationManagers\CasesRelationManager::class,
+            RelationManagers\InboundBatchesRelationManager::class,
         ];
     }
 
