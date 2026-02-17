@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * Payment Model
@@ -78,6 +79,37 @@ class Payment extends Model
         'updated_at',
         'updated_by',
     ];
+
+    protected static function boot(): void
+    {
+        parent::boot();
+
+        // Enforce immutability on core payment fields
+        static::updating(function (Payment $payment): void {
+            // payment_reference and source are always immutable
+            $alwaysImmutable = ['payment_reference', 'source'];
+            foreach ($alwaysImmutable as $field) {
+                if ($payment->isDirty($field)) {
+                    throw new InvalidArgumentException(
+                        "{$field} cannot be modified after creation. Payment {$field} is immutable."
+                    );
+                }
+            }
+
+            // After confirmation, amount, currency and received_at become immutable
+            $originalStatus = $payment->getRawOriginal('status');
+            if ($originalStatus !== PaymentStatus::Pending->value) {
+                $immutableAfterConfirmation = ['amount', 'currency', 'received_at'];
+                foreach ($immutableAfterConfirmation as $field) {
+                    if ($payment->isDirty($field)) {
+                        throw new InvalidArgumentException(
+                            "{$field} cannot be modified after payment is confirmed."
+                        );
+                    }
+                }
+            }
+        });
+    }
 
     protected function casts(): array
     {
