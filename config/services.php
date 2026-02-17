@@ -48,4 +48,8 @@ return [
         'redirect_uri' => env('XERO_REDIRECT_URI'),
     ],
 
+    'trading_platform' => [
+        'hmac_secret' => env('TRADING_PLATFORM_HMAC_SECRET'),
+    ],
+
 ];

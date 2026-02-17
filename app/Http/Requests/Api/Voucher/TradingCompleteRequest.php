@@ -14,10 +14,11 @@ class TradingCompleteRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
+     *
+     * Authentication is handled by VerifyHmacSignature middleware on the route.
      */
     public function authorize(): bool
     {
-        // Authorization is handled at the route/middleware level
         return true;
     }
 

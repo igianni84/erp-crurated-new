@@ -34,9 +34,12 @@ use App\Policies\VoucherTransferPolicy;
 use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Table;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -83,6 +86,14 @@ class AppServiceProvider extends ServiceProvider
         // Register event listeners for Module D (Procurement)
         // VoucherIssued event triggers auto-creation of ProcurementIntent
         Event::listen(VoucherIssued::class, CreateProcurementIntentOnVoucherIssued::class);
+
+        // Register API rate limiters
+        RateLimiter::for('api', function (Request $request) {
+            return Limit::perMinute(60)->by($request->ip());
+        });
+        RateLimiter::for('trading-api', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip());
+        });
 
         // Filament v4 global configuration
         FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('public'));

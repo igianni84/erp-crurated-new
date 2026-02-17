@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Finance\StripeWebhookController;
 use App\Http\Controllers\Api\VoucherController;
+use App\Http\Middleware\VerifyHmacSignature;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,11 +22,13 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::prefix('vouchers')->group(function (): void {
-    // Trading completion callback from external trading platforms
-    Route::post('/{voucher}/trading-complete', [VoucherController::class, 'tradingComplete'])
-        ->name('api.vouchers.trading-complete');
-});
+Route::prefix('vouchers')
+    ->middleware(['throttle:trading-api', VerifyHmacSignature::class])
+    ->group(function (): void {
+        // Trading completion callback from external trading platforms
+        Route::post('/{voucher}/trading-complete', [VoucherController::class, 'tradingComplete'])
+            ->name('api.vouchers.trading-complete');
+    });
 
 /*
 |--------------------------------------------------------------------------
@@ -38,9 +41,11 @@ Route::prefix('vouchers')->group(function (): void {
 |
 */
 
-Route::prefix('webhooks')->group(function (): void {
-    // Stripe webhook endpoint
-    // Signature verification is handled in the controller
-    Route::post('/stripe', [StripeWebhookController::class, 'handle'])
-        ->name('api.webhooks.stripe');
-});
+Route::prefix('webhooks')
+    ->middleware(['throttle:api'])
+    ->group(function (): void {
+        // Stripe webhook endpoint
+        // Signature verification is handled in the controller
+        Route::post('/stripe', [StripeWebhookController::class, 'handle'])
+            ->name('api.webhooks.stripe');
+    });
