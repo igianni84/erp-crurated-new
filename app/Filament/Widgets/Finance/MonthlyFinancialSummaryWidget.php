@@ -28,7 +28,7 @@ class MonthlyFinancialSummaryWidget extends Widget
 
     protected static ?string $heading = 'Monthly Financial Summary';
 
-    protected static ?int $sort = 5;
+    protected static ?int $sort = 9;
 
     protected int|string|array $columnSpan = 'full';
 
