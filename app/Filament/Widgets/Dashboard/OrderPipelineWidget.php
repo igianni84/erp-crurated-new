@@ -19,8 +19,6 @@ class OrderPipelineWidget extends ChartWidget
 
     protected ?string $pollingInterval = '30s';
 
-    protected ?string $maxHeight = '300px';
-
     protected function getData(): array
     {
         return Cache::remember('order_pipeline_chart', 30, function () {

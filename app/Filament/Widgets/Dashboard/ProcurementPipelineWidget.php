@@ -21,8 +21,6 @@ class ProcurementPipelineWidget extends ChartWidget
 
     protected ?string $pollingInterval = '60s';
 
-    protected ?string $maxHeight = '300px';
-
     protected function getData(): array
     {
         return Cache::remember('procurement_pipeline_chart', 60, function () {

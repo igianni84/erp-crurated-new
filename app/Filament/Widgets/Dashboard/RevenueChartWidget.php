@@ -16,13 +16,13 @@ class RevenueChartWidget extends ChartWidget
 
     protected ?string $heading = 'Revenue Over Time';
 
+    protected ?string $description = 'Invoiced vs payments received';
+
     protected static ?int $sort = 2;
 
     protected int|string|array $columnSpan = 2;
 
     protected ?string $pollingInterval = null;
-
-    protected ?string $maxHeight = '300px';
 
     protected function getData(): array
     {

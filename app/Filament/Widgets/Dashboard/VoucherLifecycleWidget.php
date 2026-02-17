@@ -17,8 +17,6 @@ class VoucherLifecycleWidget extends ChartWidget
 
     protected ?string $pollingInterval = '60s';
 
-    protected ?string $maxHeight = '300px';
-
     protected function getData(): array
     {
         return Cache::remember('voucher_lifecycle_chart', 60, function () {
@@ -66,7 +64,7 @@ class VoucherLifecycleWidget extends ChartWidget
             return "{$attentionCount} require attention";
         }
 
-        return null;
+        return 'Vouchers by lifecycle state';
     }
 
     protected function getOptions(): array
