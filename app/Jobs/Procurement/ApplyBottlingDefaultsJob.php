@@ -13,6 +13,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 /**
  * Job to apply default bottling rules when deadline expires.
@@ -26,6 +27,12 @@ use Illuminate\Support\Facades\Notification;
 class ApplyBottlingDefaultsJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
 
     /**
      * Create a new job instance.
@@ -151,5 +158,15 @@ class ApplyBottlingDefaultsJob implements ShouldQueue
             ])
             ->whereNull('defaults_applied_at')
             ->count();
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('ApplyBottlingDefaultsJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

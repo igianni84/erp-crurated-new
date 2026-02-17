@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to clean up old integration logs.
@@ -25,6 +26,12 @@ use Illuminate\Support\Facades\Log;
 class CleanupIntegrationLogsJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
 
     /**
      * Whether to run in dry-run mode (log what would be deleted, don't delete).
@@ -177,5 +184,15 @@ class CleanupIntegrationLogsJob implements ShouldQueue
                 'cutoff' => $xeroCutoff->toDateString(),
             ],
         ];
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::channel('finance')->error('CleanupIntegrationLogsJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

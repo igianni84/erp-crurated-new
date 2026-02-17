@@ -15,6 +15,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to execute scheduled pricing policies.
@@ -30,6 +31,10 @@ use Illuminate\Support\Facades\Log;
 class ExecuteScheduledPricingPoliciesJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
 
     /**
      * The number of seconds the job can run before timing out.
@@ -207,5 +212,15 @@ class ExecuteScheduledPricingPoliciesJob implements ShouldQueue
         }
 
         return $summary;
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('ExecuteScheduledPricingPoliciesJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

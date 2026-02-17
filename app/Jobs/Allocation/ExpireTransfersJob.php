@@ -6,6 +6,7 @@ use App\Services\Allocation\VoucherTransferService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to expire pending voucher transfers past their expiration time.
@@ -16,6 +17,12 @@ use Illuminate\Support\Facades\Log;
 class ExpireTransfersJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 30;
+
+    public int $timeout = 120;
 
     /**
      * Create a new job instance.
@@ -35,5 +42,15 @@ class ExpireTransfersJob implements ShouldQueue
         if ($expiredCount > 0) {
             Log::info("Expired {$expiredCount} pending voucher transfers");
         }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('ExpireTransfersJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

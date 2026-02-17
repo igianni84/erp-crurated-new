@@ -38,6 +38,12 @@ class GenerateStorageBillingJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
+
     /**
      * The start date of the billing period.
      */
@@ -487,6 +493,16 @@ class GenerateStorageBillingJob implements ShouldQueue
         }
 
         return $previewData->sortBy('customer_name');
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::channel('finance')->error('GenerateStorageBillingJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 
     /**

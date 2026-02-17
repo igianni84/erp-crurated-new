@@ -27,6 +27,12 @@ class ProcessSubscriptionBillingJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
+
     /**
      * Whether to auto-issue invoices after creation.
      */
@@ -158,5 +164,15 @@ class ProcessSubscriptionBillingJob implements ShouldQueue
     public static function getDueSubscriptionsCount(): int
     {
         return self::getDueSubscriptionsQuery()->count();
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::channel('finance')->error('ProcessSubscriptionBillingJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

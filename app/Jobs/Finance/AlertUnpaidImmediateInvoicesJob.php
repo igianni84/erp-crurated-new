@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to alert on INV1 (and other immediate payment) invoices that remain unpaid.
@@ -23,6 +24,12 @@ use Illuminate\Support\Facades\Log;
 class AlertUnpaidImmediateInvoicesJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
 
     /**
      * Create a new job instance.
@@ -172,5 +179,15 @@ class AlertUnpaidImmediateInvoicesJob implements ShouldQueue
     public static function getUnpaidInv1Count(?int $thresholdHours = null): int
     {
         return self::getUnpaidInv1Query($thresholdHours)->count();
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::channel('finance')->error('AlertUnpaidImmediateInvoicesJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

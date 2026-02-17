@@ -6,6 +6,7 @@ use App\Models\Allocation\TemporaryReservation;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to expire temporary reservations past their expiration time.
@@ -16,6 +17,12 @@ use Illuminate\Support\Facades\Log;
 class ExpireReservationsJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 30;
+
+    public int $timeout = 120;
 
     /**
      * Create a new job instance.
@@ -44,5 +51,15 @@ class ExpireReservationsJob implements ShouldQueue
         if ($expiredCount > 0) {
             Log::info("Expired {$expiredCount} temporary reservations");
         }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('ExpireReservationsJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

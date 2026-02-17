@@ -8,6 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to identify and log overdue invoices.
@@ -19,6 +20,12 @@ use Illuminate\Support\Facades\Log;
 class IdentifyOverdueInvoicesJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
 
     /**
      * Create a new job instance.
@@ -100,5 +107,15 @@ class IdentifyOverdueInvoicesJob implements ShouldQueue
             ->where('status', InvoiceStatus::Issued)
             ->whereNotNull('due_date')
             ->where('due_date', '<', now()->startOfDay());
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::channel('finance')->error('IdentifyOverdueInvoicesJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

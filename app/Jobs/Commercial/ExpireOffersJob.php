@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to automatically expire offers when their validity period ends.
@@ -24,6 +25,10 @@ use Illuminate\Support\Facades\Log;
 class ExpireOffersJob implements ShouldQueue
 {
     use Queueable;
+
+    public int $tries = 3;
+
+    public int $backoff = 60;
 
     /**
      * The number of seconds the job can run before timing out.
@@ -86,5 +91,15 @@ class ExpireOffersJob implements ShouldQueue
         if ($expiredCount > 0 || $errorCount > 0) {
             Log::info("Auto-expire offers complete: {$expiredCount} expired, {$errorCount} errors");
         }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::error('ExpireOffersJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }

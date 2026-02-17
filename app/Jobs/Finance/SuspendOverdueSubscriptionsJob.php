@@ -31,6 +31,12 @@ class SuspendOverdueSubscriptionsJob implements ShouldQueue
 {
     use Queueable;
 
+    public int $tries = 3;
+
+    public int $backoff = 60;
+
+    public int $timeout = 300;
+
     /**
      * Number of days overdue before suspension.
      * If null, uses config value.
@@ -251,5 +257,15 @@ class SuspendOverdueSubscriptionsJob implements ShouldQueue
         $threshold = $thresholdDays ?? (int) config('finance.subscription_overdue_suspension_days', 14);
 
         return self::getOverdueInvoicesQuery($threshold)->count();
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        Log::channel('finance')->error('SuspendOverdueSubscriptionsJob failed permanently', [
+            'error' => $exception?->getMessage(),
+        ]);
     }
 }
