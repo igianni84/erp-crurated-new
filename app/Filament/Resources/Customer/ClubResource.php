@@ -3,23 +3,39 @@
 namespace App\Filament\Resources\Customer;
 
 use App\Enums\Customer\ClubStatus;
-use App\Filament\Resources\Customer\ClubResource\Pages;
+use App\Filament\Resources\Customer\ClubResource\Pages\CreateClub;
+use App\Filament\Resources\Customer\ClubResource\Pages\EditClub;
+use App\Filament\Resources\Customer\ClubResource\Pages\ListClubs;
+use App\Filament\Resources\Customer\ClubResource\Pages\ViewClub;
 use App\Models\Customer\Club;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ClubResource extends Resource
 {
     protected static ?string $model = Club::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-user-plus';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-plus';
 
-    protected static ?string $navigationGroup = 'Customers';
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers';
 
     protected static ?int $navigationSort = 3;
 
@@ -29,17 +45,17 @@ class ClubResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Clubs';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Club Information')
+        return $schema
+            ->components([
+                Section::make('Club Information')
                     ->schema([
-                        Forms\Components\TextInput::make('partner_name')
+                        TextInput::make('partner_name')
                             ->label('Partner Name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->label('Status')
                             ->options(collect(ClubStatus::cases())->mapWithKeys(fn (ClubStatus $status) => [
                                 $status->value => $status->label(),
@@ -47,7 +63,7 @@ class ClubResource extends Resource
                             ->default(ClubStatus::Active->value)
                             ->required()
                             ->native(false),
-                        Forms\Components\KeyValue::make('branding_metadata')
+                        KeyValue::make('branding_metadata')
                             ->label('Branding Metadata')
                             ->keyLabel('Property')
                             ->valueLabel('Value')
@@ -61,13 +77,13 @@ class ClubResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('partner_name')
+                TextColumn::make('partner_name')
                     ->label('Partner Name')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (?ClubStatus $state): string => $state?->label() ?? '-')
@@ -75,7 +91,7 @@ class ClubResource extends Resource
                     ->icon(fn (?ClubStatus $state): ?string => $state?->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('members_count')
+                TextColumn::make('members_count')
                     ->label('Members')
                     ->state(fn (Club $record): int => $record->getActiveMembersCount())
                     ->badge()
@@ -85,25 +101,25 @@ class ClubResource extends Resource
                             ->orderBy('active_members_count', $direction);
                     }),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->label('Status')
                     ->options(collect(ClubStatus::cases())->mapWithKeys(fn (ClubStatus $status) => [
                         $status->value => $status->label(),
                     ])),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('suspend')
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
+                Action::make('suspend')
                     ->label('Suspend')
                     ->icon('heroicon-o-pause-circle')
                     ->color('warning')
@@ -111,7 +127,7 @@ class ClubResource extends Resource
                     ->modalDescription('Are you sure you want to suspend this club?')
                     ->action(fn (Club $record) => $record->update(['status' => ClubStatus::Suspended]))
                     ->visible(fn (Club $record): bool => $record->status === ClubStatus::Active),
-                Tables\Actions\Action::make('activate')
+                Action::make('activate')
                     ->label('Activate')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -119,7 +135,7 @@ class ClubResource extends Resource
                     ->modalDescription('Are you sure you want to activate this club?')
                     ->action(fn (Club $record) => $record->update(['status' => ClubStatus::Active]))
                     ->visible(fn (Club $record): bool => $record->status === ClubStatus::Suspended),
-                Tables\Actions\Action::make('end')
+                Action::make('end')
                     ->label('End')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
@@ -128,9 +144,9 @@ class ClubResource extends Resource
                     ->action(fn (Club $record) => $record->update(['status' => ClubStatus::Ended]))
                     ->visible(fn (Club $record): bool => $record->status !== ClubStatus::Ended),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('suspend')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('suspend')
                         ->label('Suspend')
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
@@ -140,7 +156,7 @@ class ClubResource extends Resource
                             $records->each(fn (Club $record) => $record->update(['status' => ClubStatus::Suspended]));
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('activate')
+                    BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
@@ -150,8 +166,8 @@ class ClubResource extends Resource
                             $records->each(fn (Club $record) => $record->update(['status' => ClubStatus::Active]));
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -167,10 +183,10 @@ class ClubResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListClubs::route('/'),
-            'create' => Pages\CreateClub::route('/create'),
-            'view' => Pages\ViewClub::route('/{record}'),
-            'edit' => Pages\EditClub::route('/{record}/edit'),
+            'index' => ListClubs::route('/'),
+            'create' => CreateClub::route('/create'),
+            'view' => ViewClub::route('/{record}'),
+            'edit' => EditClub::route('/{record}/edit'),
         ];
     }
 
@@ -178,7 +194,7 @@ class ClubResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

@@ -2,12 +2,14 @@
 
 namespace App\Models\Allocation;
 
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use InvalidArgumentException;
 
 /**
  * AllocationConstraint Model
@@ -76,7 +78,7 @@ class AllocationConstraint extends Model
         static::updating(function (AllocationConstraint $constraint): void {
             $allocation = $constraint->allocation;
             if ($allocation !== null && ! $allocation->isDraft()) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Constraints can only be edited when the allocation is in Draft status.'
                 );
             }
@@ -96,11 +98,11 @@ class AllocationConstraint extends Model
     /**
      * Get the audit logs for this constraint.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

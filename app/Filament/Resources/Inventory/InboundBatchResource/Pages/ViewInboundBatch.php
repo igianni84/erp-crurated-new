@@ -13,20 +13,28 @@ use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Inventory\SerializationService;
-use Filament\Actions;
-use Filament\Forms;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
+use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
 
 class ViewInboundBatch extends ViewRecord
 {
@@ -40,9 +48,9 @@ class ViewInboundBatch extends ViewRecord
         return "Inbound Batch: {$record->display_label}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getDiscrepancyWarningSection(),
                 $this->getSerializationNotAuthorizedSection(),
@@ -74,7 +82,7 @@ class ViewInboundBatch extends ViewRecord
                     ->iconColor('danger')
                     ->weight(FontWeight::Bold)
                     ->color('danger')
-                    ->size(TextEntry\TextEntrySize::Large),
+                    ->size(TextSize::Large),
             ])
             ->visible(fn (InboundBatch $record): bool => $record->serialization_status === InboundBatchStatus::Discrepancy)
             ->extraAttributes(['class' => 'bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800'])
@@ -95,7 +103,7 @@ class ViewInboundBatch extends ViewRecord
                     ->iconColor('warning')
                     ->weight(FontWeight::Bold)
                     ->color('warning')
-                    ->size(TextEntry\TextEntrySize::Large),
+                    ->size(TextSize::Large),
             ])
             ->visible(function (InboundBatch $record): bool {
                 $location = $record->receivingLocation;
@@ -230,7 +238,7 @@ class ViewInboundBatch extends ViewRecord
                                     ->icon(fn (InboundBatch $record): string => $record->hasAllocationLineage()
                                         ? 'heroicon-o-check-badge'
                                         : 'heroicon-o-exclamation-triangle')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('allocation_note')
                                     ->label('')
                                     ->getStateUsing(fn (): string => 'All serialized bottles from this batch inherit this allocation lineage. This reference is IMMUTABLE after serialization.')
@@ -253,7 +261,7 @@ class ViewInboundBatch extends ViewRecord
                                     ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
                                     ->color(fn (OwnershipType $state): string => $state->color())
                                     ->icon(fn (OwnershipType $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('ownership_info')
                                     ->label('')
                                     ->getStateUsing(function (InboundBatch $record): string {
@@ -330,28 +338,28 @@ class ViewInboundBatch extends ViewRecord
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('info'),
                                 TextEntry::make('quantity_received')
                                     ->label('Received')
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color(fn (InboundBatch $record): string => $record->hasDiscrepancy() ? 'danger' : 'success'),
                                 TextEntry::make('serialized_count')
                                     ->label('Serialized')
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('success'),
                                 TextEntry::make('remaining_unserialized')
                                     ->label('Remaining')
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color(fn (InboundBatch $record): string => $record->remaining_unserialized > 0 ? 'warning' : 'success'),
                             ]),
                     ]),
@@ -393,7 +401,7 @@ class ViewInboundBatch extends ViewRecord
 
                                         return 'heroicon-o-arrow-trending-down';
                                     })
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('delta_explanation')
                                     ->label('Explanation')
                                     ->getStateUsing(function (InboundBatch $record): string {
@@ -474,7 +482,7 @@ class ViewInboundBatch extends ViewRecord
                                             ->numeric()
                                             ->suffix(' bottles')
                                             ->weight(FontWeight::Bold)
-                                            ->size(TextEntry\TextEntrySize::Large)
+                                            ->size(TextSize::Large)
                                             ->color('info'),
                                         TextEntry::make('expected_source')
                                             ->label('Source')
@@ -493,7 +501,7 @@ class ViewInboundBatch extends ViewRecord
                                             ->numeric()
                                             ->suffix(' bottles')
                                             ->weight(FontWeight::Bold)
-                                            ->size(TextEntry\TextEntrySize::Large)
+                                            ->size(TextSize::Large)
                                             ->color(fn (InboundBatch $record): string => $record->hasDiscrepancy() ? 'danger' : 'success'),
                                         TextEntry::make('received_info')
                                             ->label('Reported by')
@@ -547,12 +555,12 @@ class ViewInboundBatch extends ViewRecord
 
                                         return 'heroicon-o-check-circle';
                                     })
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('discrepancy_amount')
                                     ->label('Difference')
                                     ->getStateUsing(fn (InboundBatch $record): string => abs($record->quantity_delta).' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('danger'),
                                 TextEntry::make('serialization_blocked')
                                     ->label('Serialization Status')
@@ -739,7 +747,7 @@ class ViewInboundBatch extends ViewRecord
                                     ->icon(fn (InboundBatch $record): string => $record->canStartSerialization()
                                         ? 'heroicon-o-check-circle'
                                         : 'heroicon-o-x-circle')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('eligibility_reason')
                                     ->label('Eligibility Details')
                                     ->getStateUsing(function (InboundBatch $record): string {
@@ -799,7 +807,7 @@ class ViewInboundBatch extends ViewRecord
                                 $html = '<div class="space-y-4">';
                                 foreach ($grouped as $date => $dateBottles) {
                                     $count = $dateBottles->count();
-                                    $formattedDate = \Carbon\Carbon::parse($date)->format('M d, Y');
+                                    $formattedDate = Carbon::parse($date)->format('M d, Y');
 
                                     // Get the first bottle's serialized_by for the user info
                                     /** @var SerializedBottle $firstBottle */
@@ -920,7 +928,7 @@ class ViewInboundBatch extends ViewRecord
                                     ->getStateUsing(fn (InboundBatch $record): int => $record->serialized_count)
                                     ->numeric()
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('success'),
                                 TextEntry::make('bottles_stored')
                                     ->label('Stored')
@@ -993,7 +1001,7 @@ class ViewInboundBatch extends ViewRecord
                             ->getStateUsing(fn (InboundBatch $record): int => $record->cases()->count())
                             ->numeric()
                             ->weight(FontWeight::Bold)
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->color('info'),
                         RepeatableEntry::make('cases')
                             ->label('')
@@ -1235,9 +1243,9 @@ class ViewInboundBatch extends ViewRecord
      *
      * @see US-B020
      */
-    protected function getStartSerializationAction(): Actions\Action
+    protected function getStartSerializationAction(): Action
     {
-        return Actions\Action::make('startSerialization')
+        return Action::make('startSerialization')
             ->label('Start Serialization')
             ->icon('heroicon-o-qr-code')
             ->color('success')
@@ -1254,12 +1262,12 @@ class ViewInboundBatch extends ViewRecord
             })
             ->modalIcon('heroicon-o-exclamation-triangle')
             ->modalIconColor('warning')
-            ->form([
-                Forms\Components\Section::make()
+            ->schema([
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('serialization_warning')
+                        Placeholder::make('serialization_warning')
                             ->label('')
-                            ->content(fn (): \Illuminate\Contracts\Support\Htmlable => new \Illuminate\Support\HtmlString(
+                            ->content(fn (): Htmlable => new HtmlString(
                                 '<div class="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800">
                                     <div class="flex items-start gap-3">
                                         <svg class="w-6 h-6 text-warning-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1279,7 +1287,7 @@ class ViewInboundBatch extends ViewRecord
                             )),
                     ])
                     ->columnSpanFull(),
-                Forms\Components\TextInput::make('quantity')
+                TextInput::make('quantity')
                     ->label('Quantity to Serialize')
                     ->helperText(fn (InboundBatch $record): string => "Maximum: {$record->remaining_unserialized} bottles")
                     ->required()
@@ -1288,7 +1296,7 @@ class ViewInboundBatch extends ViewRecord
                     ->maxValue(fn (InboundBatch $record): int => $record->remaining_unserialized)
                     ->default(fn (InboundBatch $record): int => $record->remaining_unserialized)
                     ->suffix('bottles'),
-                Forms\Components\Checkbox::make('confirm_serialization')
+                Checkbox::make('confirm_serialization')
                     ->label('I understand that serialization creates permanent, immutable records and cannot be undone')
                     ->required()
                     ->accepted(),
@@ -1318,7 +1326,7 @@ class ViewInboundBatch extends ViewRecord
 
                     // Refresh the record to show updated data
                     $this->refreshFormData(['serialization_status', 'remaining_unserialized']);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Serialization Failed')
                         ->body($e->getMessage())
@@ -1333,9 +1341,9 @@ class ViewInboundBatch extends ViewRecord
      * Creates an immutable InventoryException record (correction event).
      * Original values are never overwritten - delta record approach.
      */
-    protected function getResolveDiscrepancyAction(): Actions\Action
+    protected function getResolveDiscrepancyAction(): Action
     {
-        return Actions\Action::make('resolveDiscrepancy')
+        return Action::make('resolveDiscrepancy')
             ->label('Resolve Discrepancy')
             ->icon('heroicon-o-check-badge')
             ->color('warning')
@@ -1351,21 +1359,21 @@ class ViewInboundBatch extends ViewRecord
 
                 return "Expected: {$expected} bottles, Received: {$received} bottles. This is a {$type} of ".abs($delta).' bottles. An immutable correction event will be created to preserve the full audit trail.';
             })
-            ->form([
-                Forms\Components\Section::make('Quantity Comparison')
+            ->schema([
+                Section::make('Quantity Comparison')
                     ->description('Original values will be preserved')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Placeholder::make('expected_display')
+                                Placeholder::make('expected_display')
                                     ->label('Expected Quantity')
                                     ->content(fn (InboundBatch $record): string => "{$record->quantity_expected} bottles"),
-                                Forms\Components\Placeholder::make('received_display')
+                                Placeholder::make('received_display')
                                     ->label('Received Quantity')
                                     ->content(fn (InboundBatch $record): string => "{$record->quantity_received} bottles"),
                             ]),
                     ]),
-                Forms\Components\Select::make('resolution_type')
+                Select::make('resolution_type')
                     ->label('Resolution Reason')
                     ->options([
                         DiscrepancyResolution::Shortage->value => DiscrepancyResolution::Shortage->label().' - Accept lower quantity as final',
@@ -1376,17 +1384,17 @@ class ViewInboundBatch extends ViewRecord
                     ->required()
                     ->native(false)
                     ->helperText('Select the reason that best describes this discrepancy'),
-                Forms\Components\Textarea::make('reason')
+                Textarea::make('reason')
                     ->label('Detailed Explanation')
                     ->helperText('Provide a detailed explanation of the discrepancy and how it was investigated')
                     ->required()
                     ->rows(4)
                     ->placeholder('Describe the discrepancy investigation, findings, and justification for the resolution...'),
-                Forms\Components\TextInput::make('document_reference')
+                TextInput::make('document_reference')
                     ->label('Evidence / Document Reference')
                     ->helperText('Reference to supporting documents (e.g., delivery note, photos, incident report)')
                     ->placeholder('e.g., DN-2024-001, Photo evidence in SharePoint'),
-                Forms\Components\Checkbox::make('confirm_audit')
+                Checkbox::make('confirm_audit')
                     ->label('I confirm this resolution will be recorded as an immutable audit record')
                     ->required()
                     ->accepted(),

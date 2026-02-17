@@ -16,6 +16,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to generate storage billing periods and INV3 invoices.
@@ -157,7 +158,7 @@ class GenerateStorageBillingJob implements ShouldQueue
                         ]);
                     }
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to process storage billing for customer', [
                     'customer_id' => $customerId,
                     'error' => $e->getMessage(),

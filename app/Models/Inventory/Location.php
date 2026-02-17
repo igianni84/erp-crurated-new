@@ -4,6 +4,7 @@ namespace App\Models\Inventory;
 
 use App\Enums\Inventory\LocationStatus;
 use App\Enums\Inventory\LocationType;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -76,11 +77,11 @@ class Location extends Model
     /**
      * Get the audit logs for this location.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

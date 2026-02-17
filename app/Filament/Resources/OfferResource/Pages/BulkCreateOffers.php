@@ -18,18 +18,26 @@ use App\Models\Commercial\OfferEligibility;
 use App\Models\Commercial\PriceBook;
 use App\Models\Commercial\PriceBookEntry;
 use App\Models\Pim\SellableSku;
+use Exception;
 use Filament\Forms;
-use Filament\Forms\Components\Wizard;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
+use RuntimeException;
 
 /**
  * Bulk Create Offers Page
@@ -43,7 +51,7 @@ use Illuminate\Support\HtmlString;
  * - Allocation detail action
  * - Price Book detail action
  *
- * @property Form $form
+ * @property \Filament\Schemas\Schema $form
  */
 class BulkCreateOffers extends Page implements HasForms
 {
@@ -51,7 +59,7 @@ class BulkCreateOffers extends Page implements HasForms
 
     protected static string $resource = OfferResource::class;
 
-    protected static string $view = 'filament.resources.offer-resource.pages.bulk-create-offers';
+    protected string $view = 'filament.resources.offer-resource.pages.bulk-create-offers';
 
     protected static ?string $title = 'Bulk Create Offers';
 
@@ -101,13 +109,13 @@ class BulkCreateOffers extends Page implements HasForms
     /**
      * Get the forms used by this page.
      *
-     * @return array<string, Form>
+     * @return array<string, \Filament\Schemas\Schema>
      */
     protected function getForms(): array
     {
         return [
-            'form' => $this->makeForm()
-                ->schema([
+            'form' => $this->makeSchema()
+                ->components([
                     Wizard::make([
                         $this->getSkuSelectionStep(),
                         $this->getChannelAndEligibilityStep(),
@@ -131,15 +139,15 @@ class BulkCreateOffers extends Page implements HasForms
      * Step 1: SKU Selection
      * Select multiple Sellable SKUs for bulk offer creation.
      */
-    protected function getSkuSelectionStep(): Wizard\Step
+    protected function getSkuSelectionStep(): Step
     {
-        return Wizard\Step::make('Select SKUs')
+        return Step::make('Select SKUs')
             ->description('Choose the Sellable SKUs to create offers for')
             ->icon('heroicon-o-cube')
             ->schema([
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('bulk_info')
+                        Placeholder::make('bulk_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-primary-50 dark:bg-primary-950 p-4 border border-primary-200 dark:border-primary-800">'
@@ -160,10 +168,10 @@ class BulkCreateOffers extends Page implements HasForms
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Select Sellable SKUs')
+                Section::make('Select Sellable SKUs')
                     ->description('Choose the products you want to create offers for')
                     ->schema([
-                        Forms\Components\Select::make('sellable_sku_ids')
+                        Select::make('sellable_sku_ids')
                             ->label('Sellable SKUs')
                             ->required()
                             ->multiple()
@@ -205,7 +213,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->columnSpanFull(),
 
                         // Selected SKUs Preview
-                        Forms\Components\Placeholder::make('selected_skus_preview')
+                        Placeholder::make('selected_skus_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => ! empty($get('sellable_sku_ids')))
                             ->content(function (Get $get): HtmlString {
@@ -224,9 +232,9 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Allocation Validation Warning
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('allocation_validation_note')
+                        Placeholder::make('allocation_validation_note')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-3 border border-info-200 dark:border-info-800">'
@@ -246,16 +254,16 @@ class BulkCreateOffers extends Page implements HasForms
      * Step 2: Channel & Eligibility
      * Define shared channel and eligibility settings for all offers.
      */
-    protected function getChannelAndEligibilityStep(): Wizard\Step
+    protected function getChannelAndEligibilityStep(): Step
     {
-        return Wizard\Step::make('Channel & Eligibility')
+        return Step::make('Channel & Eligibility')
             ->description('Define shared channel and eligibility settings')
             ->icon('heroicon-o-globe-alt')
             ->schema([
                 // Validation Warning
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('allocation_warning')
+                        Placeholder::make('allocation_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-4 border border-warning-300 dark:border-warning-700">'
@@ -277,10 +285,10 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Channel Selection
-                Forms\Components\Section::make('Target Channel')
+                Section::make('Target Channel')
                     ->description('Select the channel for all offers')
                     ->schema([
-                        Forms\Components\Select::make('channel_id')
+                        Select::make('channel_id')
                             ->label('Channel')
                             ->required()
                             ->searchable()
@@ -296,7 +304,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->helperText('This channel will be used for all created offers'),
 
                         // Channel Preview
-                        Forms\Components\Placeholder::make('channel_preview')
+                        Placeholder::make('channel_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('channel_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -315,7 +323,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->columnSpanFull(),
 
                         // SKU Allocation Validation Preview
-                        Forms\Components\Placeholder::make('sku_allocation_validation')
+                        Placeholder::make('sku_allocation_validation')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('channel_id') !== null && ! empty($get('sellable_sku_ids')))
                             ->content(function (Get $get): HtmlString {
@@ -337,10 +345,10 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Eligibility Settings
-                Forms\Components\Section::make('Shared Eligibility')
+                Section::make('Shared Eligibility')
                     ->description('Define eligibility restrictions for all offers')
                     ->schema([
-                        Forms\Components\Select::make('allowed_markets')
+                        Select::make('allowed_markets')
                             ->label('Allowed Markets')
                             ->multiple()
                             ->searchable()
@@ -361,7 +369,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ])
                             ->helperText('Leave empty to allow all markets within allocation constraints'),
 
-                        Forms\Components\Select::make('allowed_customer_types')
+                        Select::make('allowed_customer_types')
                             ->label('Allowed Customer Types')
                             ->multiple()
                             ->searchable()
@@ -383,17 +391,17 @@ class BulkCreateOffers extends Page implements HasForms
      * Step 3: Pricing
      * Define shared pricing configuration.
      */
-    protected function getPricingStep(): Wizard\Step
+    protected function getPricingStep(): Step
     {
-        return Wizard\Step::make('Pricing')
+        return Step::make('Pricing')
             ->description('Define shared pricing settings')
             ->icon('heroicon-o-currency-euro')
             ->schema([
                 // Price Book Selection
-                Forms\Components\Section::make('Price Book')
+                Section::make('Price Book')
                     ->description('Select the Price Book that provides base prices')
                     ->schema([
-                        Forms\Components\Select::make('price_book_id')
+                        Select::make('price_book_id')
                             ->label('Price Book')
                             ->required()
                             ->searchable()
@@ -414,7 +422,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->helperText('Only active Price Books within their validity period are shown'),
 
                         // Price Book Preview
-                        Forms\Components\Placeholder::make('price_book_preview')
+                        Placeholder::make('price_book_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('price_book_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -433,7 +441,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->columnSpanFull(),
 
                         // Price Coverage Preview
-                        Forms\Components\Placeholder::make('price_coverage_preview')
+                        Placeholder::make('price_coverage_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('price_book_id') !== null && ! empty($get('sellable_sku_ids')))
                             ->content(function (Get $get): HtmlString {
@@ -450,10 +458,10 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Benefit Configuration
-                Forms\Components\Section::make('Shared Benefit')
+                Section::make('Shared Benefit')
                     ->description('Apply the same benefit to all offers')
                     ->schema([
-                        Forms\Components\Radio::make('benefit_type')
+                        Radio::make('benefit_type')
                             ->label('Benefit Type')
                             ->required()
                             ->live()
@@ -466,7 +474,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->default(BenefitType::None->value)
                             ->columns(2),
 
-                        Forms\Components\TextInput::make('benefit_value')
+                        TextInput::make('benefit_value')
                             ->label(fn (Get $get): string => match ($get('benefit_type')) {
                                 BenefitType::PercentageDiscount->value => 'Discount Percentage (%)',
                                 BenefitType::FixedDiscount->value => 'Discount Amount',
@@ -503,17 +511,17 @@ class BulkCreateOffers extends Page implements HasForms
      * Step 4: Validity & Visibility
      * Define shared validity and visibility settings.
      */
-    protected function getValidityAndVisibilityStep(): Wizard\Step
+    protected function getValidityAndVisibilityStep(): Step
     {
-        return Wizard\Step::make('Validity & Visibility')
+        return Step::make('Validity & Visibility')
             ->description('Define shared validity period and visibility')
             ->icon('heroicon-o-eye')
             ->schema([
                 // Offer Settings
-                Forms\Components\Section::make('Offer Settings')
+                Section::make('Offer Settings')
                     ->description('Shared settings for all offers')
                     ->schema([
-                        Forms\Components\TextInput::make('name_prefix')
+                        TextInput::make('name_prefix')
                             ->label('Offer Name Prefix')
                             ->required()
                             ->maxLength(200)
@@ -521,7 +529,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->helperText('Each offer name will be: "[Prefix] [Wine Name] [Vintage]"')
                             ->columnSpanFull(),
 
-                        Forms\Components\Radio::make('offer_type')
+                        Radio::make('offer_type')
                             ->label('Offer Type')
                             ->required()
                             ->options([
@@ -537,7 +545,7 @@ class BulkCreateOffers extends Page implements HasForms
                             ->default(OfferType::Standard->value)
                             ->columns(3),
 
-                        Forms\Components\Radio::make('visibility')
+                        Radio::make('visibility')
                             ->label('Visibility')
                             ->required()
                             ->options([
@@ -553,17 +561,17 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Validity Period
-                Forms\Components\Section::make('Validity Period')
+                Section::make('Validity Period')
                     ->description('When will these offers be active?')
                     ->schema([
-                        Forms\Components\DateTimePicker::make('valid_from')
+                        DateTimePicker::make('valid_from')
                             ->label('Valid From')
                             ->required()
                             ->native(false)
                             ->seconds(false)
                             ->default(now()),
 
-                        Forms\Components\DateTimePicker::make('valid_to')
+                        DateTimePicker::make('valid_to')
                             ->label('Valid To')
                             ->native(false)
                             ->seconds(false)
@@ -573,10 +581,10 @@ class BulkCreateOffers extends Page implements HasForms
                     ->columns(2),
 
                 // Campaign Tag
-                Forms\Components\Section::make('Campaign & Grouping')
+                Section::make('Campaign & Grouping')
                     ->description('Optional campaign tag for grouping offers')
                     ->schema([
-                        Forms\Components\TextInput::make('campaign_tag')
+                        TextInput::make('campaign_tag')
                             ->label('Campaign Tag')
                             ->maxLength(255)
                             ->placeholder('e.g., summer-2026, black-friday')
@@ -591,16 +599,16 @@ class BulkCreateOffers extends Page implements HasForms
      * Step 5: Review
      * Review all settings before creating offers.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review & Create')
+        return Step::make('Review & Create')
             ->description('Review and create offers')
             ->icon('heroicon-o-check-circle')
             ->schema([
                 // Summary Header
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('summary_header')
+                        Placeholder::make('summary_header')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-gradient-to-r from-success-50 to-success-100 dark:from-success-950 dark:to-success-900 p-6 border border-success-200 dark:border-success-800">'
@@ -619,10 +627,10 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Offers to Create Summary
-                Forms\Components\Section::make('Offers to Create')
+                Section::make('Offers to Create')
                     ->description('Summary of offers that will be created')
                     ->schema([
-                        Forms\Components\Placeholder::make('offers_summary')
+                        Placeholder::make('offers_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 return new HtmlString($this->buildOffersSummaryHtml($get));
@@ -631,10 +639,10 @@ class BulkCreateOffers extends Page implements HasForms
                     ]),
 
                 // Configuration Summary
-                Forms\Components\Section::make('Configuration Summary')
+                Section::make('Configuration Summary')
                     ->description('Shared settings for all offers')
                     ->schema([
-                        Forms\Components\Placeholder::make('config_summary')
+                        Placeholder::make('config_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 return new HtmlString($this->buildConfigSummaryHtml($get));
@@ -644,9 +652,9 @@ class BulkCreateOffers extends Page implements HasForms
                     ->collapsible(),
 
                 // Status Info
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('status_info')
+                        Placeholder::make('status_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-4 border border-info-200 dark:border-info-800">'
@@ -722,7 +730,7 @@ class BulkCreateOffers extends Page implements HasForms
                 try {
                     $this->createOfferForSku($skuId, $data);
                     $this->createdCount++;
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $this->failedCount++;
                     $this->creationErrors[$skuId] = $e->getMessage();
                 }
@@ -747,7 +755,7 @@ class BulkCreateOffers extends Page implements HasForms
 
             // Redirect to offers list
             $this->redirect(OfferResource::getUrl('index'));
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             DB::rollBack();
 
             Notification::make()
@@ -769,7 +777,7 @@ class BulkCreateOffers extends Page implements HasForms
     {
         $sku = SellableSku::with(['wineVariant.wineMaster'])->find($skuId);
         if ($sku === null) {
-            throw new \RuntimeException('SKU not found');
+            throw new RuntimeException('SKU not found');
         }
 
         // Build offer name

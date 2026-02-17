@@ -10,12 +10,12 @@ use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Toggle;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
-use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 
@@ -42,7 +42,7 @@ class ListStorageBilling extends ListRecords
             ->label('Generate Billing')
             ->icon('heroicon-o-calculator')
             ->color('primary')
-            ->form([
+            ->schema([
                 Section::make('Billing Period')
                     ->description('Select the billing period to generate storage billing for.')
                     ->schema([
@@ -198,7 +198,7 @@ class ListStorageBilling extends ListRecords
     }
 
     /**
-     * @return array<string, Tab>
+     * @return array<string, \Filament\Schemas\Components\Tabs\Tab>
      */
     public function getTabs(): array
     {

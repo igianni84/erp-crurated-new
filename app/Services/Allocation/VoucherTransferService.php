@@ -10,6 +10,7 @@ use App\Models\Customer\Customer;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing VoucherTransfer operations.
@@ -38,7 +39,7 @@ class VoucherTransferService
      * @param  Carbon  $expiresAt  When the transfer offer expires
      * @return VoucherTransfer The created transfer
      *
-     * @throws \InvalidArgumentException If transfer cannot be initiated
+     * @throws InvalidArgumentException If transfer cannot be initiated
      */
     public function initiateTransfer(
         Voucher $voucher,
@@ -50,14 +51,14 @@ class VoucherTransferService
 
         // Validate recipient is different from current holder
         if ($voucher->customer_id === $toCustomer->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot transfer voucher to the same customer.'
             );
         }
 
         // Validate expiration is in the future
         if ($expiresAt->isPast()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Transfer expiration date must be in the future.'
             );
         }
@@ -111,12 +112,12 @@ class VoucherTransferService
      * @param  VoucherTransfer  $transfer  The transfer to accept
      * @return VoucherTransfer The updated transfer
      *
-     * @throws \InvalidArgumentException If transfer cannot be accepted
+     * @throws InvalidArgumentException If transfer cannot be accepted
      */
     public function acceptTransfer(VoucherTransfer $transfer): VoucherTransfer
     {
         if (! $transfer->canBeAccepted()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot accept transfer: transfer is in status '{$transfer->status->label()}'. "
                 .'Only pending transfers can be accepted.'
             );
@@ -124,7 +125,7 @@ class VoucherTransferService
 
         // Check if the transfer has expired
         if ($transfer->hasExpired()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot accept transfer: transfer has expired.'
             );
         }
@@ -136,7 +137,7 @@ class VoucherTransferService
             $lockedAt = $voucher->getLockedAtTimestamp();
             $lockedAtStr = $lockedAt ? " (locked at {$lockedAt->toIso8601String()})" : '';
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Locked during transfer - acceptance blocked{$lockedAtStr}. "
                 .'The voucher has been locked for fulfillment while this transfer was pending. '
                 .'The transfer cannot be accepted until the voucher is unlocked. '
@@ -146,7 +147,7 @@ class VoucherTransferService
 
         // Validate voucher is not suspended
         if ($voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot accept transfer: voucher is suspended. '
                 .'The transfer cannot be completed while the voucher is suspended.'
             );
@@ -154,7 +155,7 @@ class VoucherTransferService
 
         // Validate voucher is not in terminal state
         if ($voucher->isTerminal()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot accept transfer: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
             );
         }
@@ -215,12 +216,12 @@ class VoucherTransferService
      * @param  VoucherTransfer  $transfer  The transfer to cancel
      * @return VoucherTransfer The updated transfer
      *
-     * @throws \InvalidArgumentException If transfer cannot be cancelled
+     * @throws InvalidArgumentException If transfer cannot be cancelled
      */
     public function cancelTransfer(VoucherTransfer $transfer): VoucherTransfer
     {
         if (! $transfer->canBeCancelled()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot cancel transfer: transfer is in status '{$transfer->status->label()}'. "
                 .'Only pending transfers can be cancelled.'
             );
@@ -286,12 +287,12 @@ class VoucherTransferService
      * @param  VoucherTransfer  $transfer  The transfer to expire
      * @return VoucherTransfer The updated transfer
      *
-     * @throws \InvalidArgumentException If transfer cannot be expired
+     * @throws InvalidArgumentException If transfer cannot be expired
      */
     public function expireTransfer(VoucherTransfer $transfer): VoucherTransfer
     {
         if (! $transfer->isPending()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot expire transfer: transfer is in status '{$transfer->status->label()}'. "
                 .'Only pending transfers can be expired.'
             );
@@ -353,13 +354,13 @@ class VoucherTransferService
     /**
      * Validate that a transfer can be initiated for a voucher.
      *
-     * @throws \InvalidArgumentException If transfer cannot be initiated
+     * @throws InvalidArgumentException If transfer cannot be initiated
      */
     protected function validateCanInitiateTransfer(Voucher $voucher): void
     {
         // Check if voucher is in issued state (only issued vouchers can be transferred)
         if (! $voucher->isIssued()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot initiate transfer: voucher is in state '{$voucher->lifecycle_state->label()}'. "
                 .'Only issued vouchers can be transferred.'
             );
@@ -367,14 +368,14 @@ class VoucherTransferService
 
         // Check if voucher is suspended
         if ($voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot initiate transfer: voucher is suspended.'
             );
         }
 
         // Check if voucher already has a pending transfer
         if ($voucher->hasPendingTransfer()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot initiate transfer: voucher already has a pending transfer. '
                 .'Cancel the existing transfer first.'
             );
@@ -382,7 +383,7 @@ class VoucherTransferService
 
         // Check if voucher is giftable (transfers use the giftable flag)
         if (! $voucher->giftable) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot initiate transfer: voucher is not giftable.'
             );
         }

@@ -7,6 +7,7 @@ use App\Events\Finance\SubscriptionBillingDue;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Subscription;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use InvalidArgumentException;
 
 /**
@@ -330,13 +331,12 @@ class SubscriptionBillingService
     // =========================================================================
     // Methods from US-E086 (placeholder for future implementation)
     // =========================================================================
-
     /**
      * Get subscriptions due for billing today.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Subscription>
+     * @return Builder<Subscription>
      */
-    public function getSubscriptionsDue(): \Illuminate\Database\Eloquent\Builder
+    public function getSubscriptionsDue(): Builder
     {
         return Subscription::where('status', 'active')
             ->where('next_billing_date', '<=', Carbon::today());

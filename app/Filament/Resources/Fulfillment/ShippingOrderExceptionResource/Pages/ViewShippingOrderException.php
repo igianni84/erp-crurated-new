@@ -5,13 +5,14 @@ namespace App\Filament\Resources\Fulfillment\ShippingOrderExceptionResource\Page
 use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
 use App\Filament\Resources\Fulfillment\ShippingOrderExceptionResource;
 use App\Models\Fulfillment\ShippingOrderException;
-use Filament\Actions;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
+use Filament\Actions\Action;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 
@@ -27,9 +28,9 @@ class ViewShippingOrderException extends ViewRecord
         return "Exception: #{$record->id}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 // Status Banner
                 Section::make()
@@ -37,7 +38,7 @@ class ViewShippingOrderException extends ViewRecord
                         TextEntry::make('status')
                             ->label('')
                             ->badge()
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->formatStateUsing(fn (ShippingOrderExceptionStatus $state): string => $state->label())
                             ->color(fn (ShippingOrderExceptionStatus $state): string => $state->color())
                             ->icon(fn (ShippingOrderExceptionStatus $state): string => $state->icon()),
@@ -140,7 +141,7 @@ class ViewShippingOrderException extends ViewRecord
     {
         return [
             // Resolve Exception Action
-            Actions\Action::make('resolve')
+            Action::make('resolve')
                 ->label('Mark as Resolved')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -165,7 +166,7 @@ class ViewShippingOrderException extends ViewRecord
                 }),
 
             // View Shipping Order Action
-            Actions\Action::make('view_so')
+            Action::make('view_so')
                 ->label('View Shipping Order')
                 ->icon('heroicon-o-truck')
                 ->color('gray')

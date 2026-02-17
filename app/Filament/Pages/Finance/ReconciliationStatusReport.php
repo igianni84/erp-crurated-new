@@ -7,6 +7,7 @@ use App\Enums\Finance\ReconciliationStatus;
 use App\Models\Finance\Payment;
 use Carbon\Carbon;
 use Filament\Pages\Page;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -19,11 +20,11 @@ use Illuminate\Support\Collection;
  */
 class ReconciliationStatusReport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-scale';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-scale';
 
     protected static ?string $navigationLabel = 'Reconciliation Status';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -31,7 +32,7 @@ class ReconciliationStatusReport extends Page
 
     protected static ?string $title = 'Reconciliation Status Report';
 
-    protected static string $view = 'filament.pages.finance.reconciliation-status-report';
+    protected string $view = 'filament.pages.finance.reconciliation-status-report';
 
     /**
      * Filter by payment source.
@@ -51,7 +52,7 @@ class ReconciliationStatusReport extends Page
     /**
      * Current active tab.
      */
-    public string $activeTab = 'summary';
+    public string $currentTab = 'summary';
 
     /**
      * Cache for summary data.
@@ -97,9 +98,9 @@ class ReconciliationStatusReport extends Page
     /**
      * Get base query with filters applied.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Payment>
+     * @return Builder<Payment>
      */
-    protected function getBaseQuery(): \Illuminate\Database\Eloquent\Builder
+    protected function getBaseQuery(): Builder
     {
         $query = Payment::query();
 
@@ -306,7 +307,7 @@ class ReconciliationStatusReport extends Page
      */
     public function setTab(string $tab): void
     {
-        $this->activeTab = $tab;
+        $this->currentTab = $tab;
     }
 
     /**

@@ -2,26 +2,47 @@
 
 namespace App\Filament\Resources\Fulfillment;
 
+use App\Enums\Fulfillment\PackagingPreference;
 use App\Enums\Fulfillment\ShippingOrderStatus;
-use App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
+use App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages\CreateShippingOrder;
+use App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages\EditShippingOrder;
+use App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages\ListShippingOrders;
+use App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages\ViewShippingOrder;
 use App\Models\Fulfillment\ShippingOrder;
-use Filament\Forms;
-use Filament\Forms\Form;
+use App\Services\Fulfillment\ShippingOrderService;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\TextSize;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\App;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class ShippingOrderResource extends Resource
 {
     protected static ?string $model = ShippingOrder::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-truck';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-truck';
 
-    protected static ?string $navigationGroup = 'Fulfillment';
+    protected static string|\UnitEnum|null $navigationGroup = 'Fulfillment';
 
     protected static ?int $navigationSort = 1;
 
@@ -31,15 +52,15 @@ class ShippingOrderResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Shipping Orders';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form will be implemented in US-C018-C022 (creation wizard)
                 // For now, provide basic fields for view/edit
-                Forms\Components\Section::make('Customer & Destination')
+                Section::make('Customer & Destination')
                     ->schema([
-                        Forms\Components\Select::make('customer_id')
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->relationship('customer', 'name')
                             ->searchable()
@@ -47,14 +68,14 @@ class ShippingOrderResource extends Resource
                             ->required()
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
 
-                        Forms\Components\Select::make('source_warehouse_id')
+                        Select::make('source_warehouse_id')
                             ->label('Source Warehouse')
                             ->relationship('sourceWarehouse', 'name')
                             ->searchable()
                             ->preload()
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
 
-                        Forms\Components\Textarea::make('destination_address')
+                        Textarea::make('destination_address')
                             ->label('Destination Address')
                             ->rows(4)
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft())
@@ -62,19 +83,19 @@ class ShippingOrderResource extends Resource
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Shipping Method')
+                Section::make('Shipping Method')
                     ->schema([
-                        Forms\Components\TextInput::make('carrier')
+                        TextInput::make('carrier')
                             ->label('Carrier')
                             ->maxLength(255)
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
 
-                        Forms\Components\TextInput::make('shipping_method')
+                        TextInput::make('shipping_method')
                             ->label('Shipping Method')
                             ->maxLength(255)
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
 
-                        Forms\Components\Select::make('incoterms')
+                        Select::make('incoterms')
                             ->label('Incoterms')
                             ->options([
                                 'EXW' => 'EXW - Ex Works',
@@ -85,24 +106,24 @@ class ShippingOrderResource extends Resource
                             ->native(false)
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
 
-                        Forms\Components\DatePicker::make('requested_ship_date')
+                        DatePicker::make('requested_ship_date')
                             ->label('Requested Ship Date')
                             ->minDate(now())
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Packaging & Instructions')
+                Section::make('Packaging & Instructions')
                     ->schema([
-                        Forms\Components\Select::make('packaging_preference')
+                        Select::make('packaging_preference')
                             ->label('Packaging Preference')
-                            ->options(fn (): array => collect(\App\Enums\Fulfillment\PackagingPreference::cases())
-                                ->mapWithKeys(fn (\App\Enums\Fulfillment\PackagingPreference $pref): array => [$pref->value => $pref->label()])
+                            ->options(fn (): array => collect(PackagingPreference::cases())
+                                ->mapWithKeys(fn (PackagingPreference $pref): array => [$pref->value => $pref->label()])
                                 ->toArray())
                             ->native(false)
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
 
-                        Forms\Components\Textarea::make('special_instructions')
+                        Textarea::make('special_instructions')
                             ->label('Special Instructions')
                             ->rows(3)
                             ->disabled(fn (?ShippingOrder $record): bool => $record !== null && ! $record->isDraft()),
@@ -115,7 +136,7 @@ class ShippingOrderResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('SO ID')
                     ->searchable()
                     ->sortable()
@@ -124,7 +145,7 @@ class ShippingOrderResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (ShippingOrder $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable()
                     ->sortable()
@@ -134,51 +155,51 @@ class ShippingOrderResource extends Resource
                     ->openUrlInNewTab(),
 
                 // Destination country placeholder - will be populated when Module K addresses implemented
-                Tables\Columns\TextColumn::make('destination_country')
+                TextColumn::make('destination_country')
                     ->label('Destination')
                     ->getStateUsing(fn (ShippingOrder $record): string => $record->shipments->first()?->destination_address ? 'See shipment' : '-')
                     ->toggleable()
                     ->placeholder('-'),
 
-                Tables\Columns\TextColumn::make('lines_count')
+                TextColumn::make('lines_count')
                     ->label('Vouchers')
                     ->counts('lines')
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\TextColumn::make('sourceWarehouse.name')
+                TextColumn::make('sourceWarehouse.name')
                     ->label('Source Warehouse')
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
-                    ->size(Tables\Columns\TextColumn\TextColumnSize::Large)
+                    ->size(TextSize::Large)
                     ->formatStateUsing(fn (ShippingOrderStatus $state): string => $state->label())
                     ->color(fn (ShippingOrderStatus $state): string => $state->color())
                     ->icon(fn (ShippingOrderStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('requested_ship_date')
+                TextColumn::make('requested_ship_date')
                     ->label('Requested Ship Date')
                     ->date()
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('carrier')
+                TextColumn::make('carrier')
                     ->label('Carrier')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(ShippingOrderStatus::cases())
                         ->mapWithKeys(fn (ShippingOrderStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -192,23 +213,23 @@ class ShippingOrderResource extends Resource
                     ])
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('customer_id')
+                SelectFilter::make('customer_id')
                     ->relationship('customer', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Customer'),
 
-                Tables\Filters\SelectFilter::make('source_warehouse_id')
+                SelectFilter::make('source_warehouse_id')
                     ->relationship('sourceWarehouse', 'name')
                     ->searchable()
                     ->preload()
                     ->label('Source Warehouse'),
 
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        Forms\Components\DatePicker::make('created_from')
+                Filter::make('date_range')
+                    ->schema([
+                        DatePicker::make('created_from')
                             ->label('Created From'),
-                        Forms\Components\DatePicker::make('created_until')
+                        DatePicker::make('created_until')
                             ->label('Created Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -234,7 +255,7 @@ class ShippingOrderResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('carrier')
+                SelectFilter::make('carrier')
                     ->options(fn (): array => ShippingOrder::query()
                         ->whereNotNull('carrier')
                         ->distinct()
@@ -243,20 +264,20 @@ class ShippingOrderResource extends Resource
                     ->searchable()
                     ->label('Carrier'),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make()
                     ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
+            ->toolbarActions([
+                BulkActionGroup::make([
                     // Export CSV - always available
-                    Tables\Actions\BulkAction::make('export_csv')
+                    BulkAction::make('export_csv')
                         ->label('Export CSV')
                         ->icon('heroicon-o-arrow-down-tray')
-                        ->action(function (Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                        ->action(function (Collection $records): StreamedResponse {
                             return response()->streamDownload(function () use ($records): void {
                                 $handle = fopen('php://output', 'w');
                                 if ($handle === false) {
@@ -309,7 +330,7 @@ class ShippingOrderResource extends Resource
                         ->deselectRecordsAfterCompletion(),
 
                     // Cancel - only on draft/planned, requires confirmation
-                    Tables\Actions\BulkAction::make('cancel')
+                    BulkAction::make('cancel')
                         ->label('Cancel Orders')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
@@ -318,14 +339,14 @@ class ShippingOrderResource extends Resource
                         ->modalDescription('Are you sure you want to cancel these shipping orders? This action cannot be undone. Only draft and planned orders will be cancelled.')
                         ->modalIcon('heroicon-o-exclamation-triangle')
                         ->form([
-                            Forms\Components\Textarea::make('cancellation_reason')
+                            Textarea::make('cancellation_reason')
                                 ->label('Cancellation Reason')
                                 ->required()
                                 ->placeholder('Enter the reason for cancelling these orders...')
                                 ->rows(3),
                         ])
                         ->action(function (Collection $records, array $data): void {
-                            $shippingOrderService = App::make(\App\Services\Fulfillment\ShippingOrderService::class);
+                            $shippingOrderService = App::make(ShippingOrderService::class);
                             $cancelled = 0;
                             $skipped = 0;
 
@@ -336,7 +357,7 @@ class ShippingOrderResource extends Resource
                                     try {
                                         $shippingOrderService->cancel($record, $data['cancellation_reason']);
                                         $cancelled++;
-                                    } catch (\Throwable) {
+                                    } catch (Throwable) {
                                         $skipped++;
                                     }
                                 } else {
@@ -375,7 +396,7 @@ class ShippingOrderResource extends Resource
      *
      * @return array<string, string>
      */
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var ShippingOrder $record */
         return [
@@ -404,10 +425,10 @@ class ShippingOrderResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListShippingOrders::route('/'),
-            'create' => Pages\CreateShippingOrder::route('/create'),
-            'view' => Pages\ViewShippingOrder::route('/{record}'),
-            'edit' => Pages\EditShippingOrder::route('/{record}/edit'),
+            'index' => ListShippingOrders::route('/'),
+            'create' => CreateShippingOrder::route('/create'),
+            'view' => ViewShippingOrder::route('/{record}'),
+            'edit' => EditShippingOrder::route('/{record}/edit'),
         ];
     }
 
@@ -415,7 +436,7 @@ class ShippingOrderResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -431,7 +452,7 @@ class ShippingOrderResource extends Resource
      * Check if a record can be deleted.
      * Only draft orders can be deleted.
      */
-    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    public static function canDelete(Model $record): bool
     {
         /** @var ShippingOrder $record */
         return $record->isDraft();
@@ -441,7 +462,7 @@ class ShippingOrderResource extends Resource
      * Check if a record can be edited.
      * Only draft orders can be edited.
      */
-    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    public static function canEdit(Model $record): bool
     {
         /** @var ShippingOrder $record */
         return $record->isDraft();

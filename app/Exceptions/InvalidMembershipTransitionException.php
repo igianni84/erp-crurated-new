@@ -3,6 +3,8 @@
 namespace App\Exceptions;
 
 use App\Enums\Customer\MembershipStatus;
+use Exception;
+use Throwable;
 
 /**
  * Exception thrown when an invalid membership status transition is attempted.
@@ -10,7 +12,7 @@ use App\Enums\Customer\MembershipStatus;
  * This exception provides user-friendly error messages that can be displayed
  * directly in the UI to help users understand why a transition failed.
  */
-class InvalidMembershipTransitionException extends \Exception
+class InvalidMembershipTransitionException extends Exception
 {
     /**
      * The current membership status.
@@ -28,7 +30,7 @@ class InvalidMembershipTransitionException extends \Exception
     public function __construct(
         MembershipStatus $fromStatus,
         MembershipStatus $toStatus,
-        ?\Throwable $previous = null
+        ?Throwable $previous = null
     ) {
         $this->fromStatus = $fromStatus;
         $this->toStatus = $toStatus;

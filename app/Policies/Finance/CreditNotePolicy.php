@@ -2,6 +2,7 @@
 
 namespace App\Policies\Finance;
 
+use App\Enums\Finance\CreditNoteStatus;
 use App\Models\Finance\CreditNote;
 use App\Models\User;
 
@@ -42,7 +43,7 @@ class CreditNotePolicy
     public function update(User $user, CreditNote $creditNote): bool
     {
         // Only draft credit notes can be updated
-        return $creditNote->status === \App\Enums\Finance\CreditNoteStatus::Draft;
+        return $creditNote->status === CreditNoteStatus::Draft;
     }
 
     /**
@@ -51,7 +52,7 @@ class CreditNotePolicy
     public function delete(User $user, CreditNote $creditNote): bool
     {
         // Only draft credit notes can be deleted
-        return $creditNote->status === \App\Enums\Finance\CreditNoteStatus::Draft;
+        return $creditNote->status === CreditNoteStatus::Draft;
     }
 
     /**

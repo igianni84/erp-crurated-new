@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Finance;
 
 use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceStatus;
+use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\RefundStatus;
 use App\Models\Customer\Customer;
 use App\Models\Finance\CreditNote;
@@ -26,17 +27,17 @@ use Illuminate\Support\Collection;
  */
 class CustomerFinance extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-user-circle';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-circle';
 
     protected static ?string $navigationLabel = 'Customer Finance';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 50;
 
     protected static ?string $title = 'Customer Financial Dashboard';
 
-    protected static string $view = 'filament.pages.finance.customer-finance';
+    protected string $view = 'filament.pages.finance.customer-finance';
 
     /**
      * Selected customer ID.
@@ -51,7 +52,7 @@ class CustomerFinance extends Page
     /**
      * Active tab.
      */
-    public string $activeTab = 'open-invoices';
+    public string $currentTab = 'open-invoices';
 
     /**
      * Date range for payment history.
@@ -98,7 +99,7 @@ class CustomerFinance extends Page
     {
         $this->customerId = $customerId;
         $this->customerSearch = '';
-        $this->activeTab = 'open-invoices';
+        $this->currentTab = 'open-invoices';
     }
 
     /**
@@ -127,7 +128,7 @@ class CustomerFinance extends Page
      */
     public function setTab(string $tab): void
     {
-        $this->activeTab = $tab;
+        $this->currentTab = $tab;
     }
 
     // =========================================================================
@@ -491,7 +492,7 @@ class CustomerFinance extends Page
 
         // Check for INV0 (membership_service) overdue - causes payment_blocked
         $overdueInv0 = Invoice::where('customer_id', $this->customerId)
-            ->where('invoice_type', \App\Enums\Finance\InvoiceType::MembershipService)
+            ->where('invoice_type', InvoiceType::MembershipService)
             ->whereIn('status', [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid])
             ->whereNotNull('due_date')
             ->where('due_date', '<', now()->startOfDay())
@@ -512,7 +513,7 @@ class CustomerFinance extends Page
 
         // Check for INV3 (storage_fee) overdue - causes custody_blocked
         $overdueInv3 = Invoice::where('customer_id', $this->customerId)
-            ->where('invoice_type', \App\Enums\Finance\InvoiceType::StorageFee)
+            ->where('invoice_type', InvoiceType::StorageFee)
             ->whereIn('status', [InvoiceStatus::Issued, InvoiceStatus::PartiallyPaid])
             ->whereNotNull('due_date')
             ->where('due_date', '<', now()->startOfDay())

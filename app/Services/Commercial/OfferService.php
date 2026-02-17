@@ -9,6 +9,7 @@ use App\Models\Commercial\Offer;
 use App\Models\Pim\SellableSku;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
 
 /**
  * Service for managing Offer lifecycle and operations.
@@ -28,7 +29,7 @@ class OfferService
      * - Base price exists in the Price Book
      * - Eligibility does not violate allocation constraints
      *
-     * @throws \InvalidArgumentException If activation is not allowed
+     * @throws InvalidArgumentException If activation is not allowed
      */
     public function activate(Offer $offer): Offer
     {
@@ -38,7 +39,7 @@ class OfferService
             $errors = $validationResult['errors'];
             $errorMessages = implode('; ', $errors);
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot activate Offer: {$errorMessages}"
             );
         }
@@ -57,12 +58,12 @@ class OfferService
      *
      * Paused offers are temporarily unavailable for purchase but can be resumed.
      *
-     * @throws \InvalidArgumentException If pausing is not allowed
+     * @throws InvalidArgumentException If pausing is not allowed
      */
     public function pause(Offer $offer): Offer
     {
         if (! $offer->canBePaused()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot pause Offer: current status '{$offer->status->label()}' is not Active. "
                 .'Only Active offers can be paused.'
             );
@@ -82,12 +83,12 @@ class OfferService
      *
      * Resumed offers become available for purchase again.
      *
-     * @throws \InvalidArgumentException If resuming is not allowed
+     * @throws InvalidArgumentException If resuming is not allowed
      */
     public function resume(Offer $offer): Offer
     {
         if (! $offer->canBeResumed()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot resume Offer: current status '{$offer->status->label()}' is not Paused. "
                 .'Only Paused offers can be resumed.'
             );
@@ -96,7 +97,7 @@ class OfferService
         // Re-validate Price Book is still active before resuming
         $priceBook = $offer->priceBook;
         if ($priceBook !== null && ! $priceBook->isActive()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot resume Offer: the referenced Price Book is no longer active. '
                 .'Update the Price Book or link a different active Price Book before resuming.'
             );
@@ -117,12 +118,12 @@ class OfferService
      * Cancelled is a terminal state - the offer cannot be reactivated.
      * Any non-terminal offer can be cancelled.
      *
-     * @throws \InvalidArgumentException If cancellation is not allowed
+     * @throws InvalidArgumentException If cancellation is not allowed
      */
     public function cancel(Offer $offer): Offer
     {
         if (! $offer->canBeCancelled()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot cancel Offer: current status '{$offer->status->label()}' does not allow cancellation. "
                 .'Only non-terminal offers (not Cancelled or Expired) can be cancelled.'
             );
@@ -143,12 +144,12 @@ class OfferService
      * Used when the validity period ends. This is typically called
      * by the ExpireOffersJob scheduled task.
      *
-     * @throws \InvalidArgumentException If expiration is not allowed
+     * @throws InvalidArgumentException If expiration is not allowed
      */
     public function expire(Offer $offer): Offer
     {
         if (! $offer->isActive()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot expire Offer: current status '{$offer->status->label()}' is not Active. "
                 .'Only Active offers can be expired.'
             );

@@ -13,26 +13,26 @@ use App\Models\Pim\Region;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 
 /**
  * Page for manually creating a bottle product (Wine Variant).
  *
- * @property Form $form
+ * @property \Filament\Schemas\Schema $form
  */
 class CreateManualBottle extends Page
 {
     protected static string $resource = ProductResource::class;
 
-    protected static string $view = 'filament.resources.pim.product-resource.pages.create-manual-bottle';
+    protected string $view = 'filament.resources.pim.product-resource.pages.create-manual-bottle';
 
     protected static ?string $title = 'Create Bottle Product Manually';
 
@@ -59,10 +59,10 @@ class CreateManualBottle extends Page
         ];
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Section::make('Wine Master')
                     ->description('Select an existing Wine Master or create a new one.')
                     ->schema([

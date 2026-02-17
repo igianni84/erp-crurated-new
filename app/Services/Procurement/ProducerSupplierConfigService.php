@@ -5,8 +5,10 @@ namespace App\Services\Procurement;
 use App\Models\AuditLog;
 use App\Models\Customer\Party;
 use App\Models\Procurement\ProducerSupplierConfig;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing ProducerSupplierConfig lifecycle.
@@ -22,13 +24,13 @@ class ProducerSupplierConfigService
      * This method ensures there's always a config available for a party,
      * creating an empty one if necessary.
      *
-     * @throws \InvalidArgumentException If party is not a supplier or producer
+     * @throws InvalidArgumentException If party is not a supplier or producer
      */
     public function getOrCreate(Party $party): ProducerSupplierConfig
     {
         // Validate that the party is a supplier or producer
         if (! $party->isSupplier() && ! $party->isProducer()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot get/create config for party '{$party->legal_name}': party must have Supplier or Producer role."
             );
         }
@@ -63,7 +65,7 @@ class ProducerSupplierConfigService
      *
      * @param  array<string, mixed>  $data  Updatable fields: default_bottling_deadline_days, allowed_formats, serialization_constraints, notes
      *
-     * @throws \InvalidArgumentException If validation fails
+     * @throws InvalidArgumentException If validation fails
      */
     public function update(ProducerSupplierConfig $config, array $data): ProducerSupplierConfig
     {
@@ -71,7 +73,7 @@ class ProducerSupplierConfigService
         if (array_key_exists('default_bottling_deadline_days', $data)) {
             $deadlineDays = $data['default_bottling_deadline_days'];
             if ($deadlineDays !== null && (! is_int($deadlineDays) || $deadlineDays <= 0)) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'default_bottling_deadline_days must be a positive integer or null.'
                 );
             }
@@ -81,7 +83,7 @@ class ProducerSupplierConfigService
         if (array_key_exists('allowed_formats', $data)) {
             $allowedFormats = $data['allowed_formats'];
             if ($allowedFormats !== null && ! is_array($allowedFormats)) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'allowed_formats must be an array of format strings or null.'
                 );
             }
@@ -91,7 +93,7 @@ class ProducerSupplierConfigService
         if (array_key_exists('serialization_constraints', $data)) {
             $serializationConstraints = $data['serialization_constraints'];
             if ($serializationConstraints !== null && ! is_array($serializationConstraints)) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'serialization_constraints must be an array or null.'
                 );
             }
@@ -137,15 +139,7 @@ class ProducerSupplierConfigService
      * supplier/producer.
      *
      * @param  \App\Models\Product\SellableSku|\App\Models\Product\LiquidProduct|mixed  $product  The product to get defaults for
-     * @return array{
-     *     default_bottling_deadline_days: int|null,
-     *     default_bottling_deadline_date: \Carbon\Carbon|null,
-     *     allowed_formats: array<int, string>|null,
-     *     serialization_constraints: array<string, mixed>|null,
-     *     authorized_serialization_locations: array<int, string>|null,
-     *     required_serialization_location: string|null,
-     *     has_config: bool
-     * }
+     * @return array{default_bottling_deadline_days: int|null, default_bottling_deadline_date: Carbon|null, allowed_formats: array<int, string>|null, serialization_constraints: array<string, mixed>|null, authorized_serialization_locations: array<int, string>|null, required_serialization_location: string|null, has_config: bool}
      */
     public function getDefaultsForProduct(Party $party, mixed $product): array
     {

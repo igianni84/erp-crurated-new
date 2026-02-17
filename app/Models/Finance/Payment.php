@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,14 +33,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $stripe_payment_intent_id
  * @property string|null $stripe_charge_id
  * @property string|null $bank_reference
- * @property \Carbon\Carbon $received_at
+ * @property Carbon $received_at
  * @property string|null $customer_id
  * @property array<string, mixed>|null $metadata
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Payment extends Model
 {

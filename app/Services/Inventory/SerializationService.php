@@ -13,6 +13,8 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
+use RuntimeException;
 
 /**
  * Service for managing serialization logic.
@@ -27,7 +29,7 @@ class SerializationService
      *
      * @return bool True if location is authorized for serialization
      *
-     * @throws \InvalidArgumentException If location is null
+     * @throws InvalidArgumentException If location is null
      */
     public function canSerializeAtLocation(Location $location): bool
     {
@@ -45,20 +47,20 @@ class SerializationService
      * @param  User  $operator  The user performing serialization
      * @return Collection<int, SerializedBottle> The created serialized bottles
      *
-     * @throws \InvalidArgumentException If serialization cannot be performed
+     * @throws InvalidArgumentException If serialization cannot be performed
      */
     public function serializeBatch(InboundBatch $batch, int $quantity, User $operator): Collection
     {
         // Validate quantity is positive
         if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Quantity must be greater than zero'
             );
         }
 
         // Validate serialization can start on this batch
         if (! $batch->canStartSerialization()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot start serialization on this batch. Check batch status and location authorization.'
             );
         }
@@ -66,7 +68,7 @@ class SerializationService
         // Validate quantity doesn't exceed remaining unserialized
         $remainingUnserialized = $batch->remaining_unserialized;
         if ($quantity > $remainingUnserialized) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot serialize {$quantity} bottles. Only {$remainingUnserialized} remain unserialized."
             );
         }
@@ -74,27 +76,27 @@ class SerializationService
         // Validate location is authorized for serialization
         $location = $batch->receivingLocation;
         if (! $location) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Batch has no receiving location configured'
             );
         }
 
         if (! $this->canSerializeAtLocation($location)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Serialization not authorized at this location'
             );
         }
 
         // Validate batch has allocation lineage
         if (! $batch->hasAllocationLineage()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Batch must have allocation lineage to serialize bottles'
             );
         }
 
         // Validate batch has product reference
         if (! $batch->product_reference_type || ! $batch->product_reference_id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Batch must have a product reference to serialize bottles'
             );
         }
@@ -151,7 +153,7 @@ class SerializationService
 
         while (SerializedBottle::where('serial_number', $serialNumber)->exists()) {
             if ($attempts >= $maxAttempts) {
-                throw new \RuntimeException(
+                throw new RuntimeException(
                     'Failed to generate unique serial number after maximum attempts'
                 );
             }
@@ -218,7 +220,7 @@ class SerializationService
      * @param  InboundBatch  $batch  The batch to get format for
      * @return string The format ID
      *
-     * @throws \InvalidArgumentException If no format can be determined
+     * @throws InvalidArgumentException If no format can be determined
      */
     protected function getDefaultFormatId(InboundBatch $batch): string
     {
@@ -243,7 +245,7 @@ class SerializationService
             }
         }
 
-        throw new \InvalidArgumentException(
+        throw new InvalidArgumentException(
             'Cannot determine format for serialization. Please ensure batch has valid product reference with formats.'
         );
     }
@@ -260,7 +262,7 @@ class SerializationService
      * @param  string  $wmsEventId  The WMS event ID for tracking
      * @return Collection<int, SerializedBottle>|null The created bottles, or null if rejected
      *
-     * @throws \InvalidArgumentException For validation errors other than location authorization
+     * @throws InvalidArgumentException For validation errors other than location authorization
      */
     public function processWmsSerializationEvent(
         InboundBatch $batch,
@@ -307,7 +309,7 @@ class SerializationService
             ]);
 
             return $bottles;
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             // Log the failure but re-throw for the caller to handle
             Log::warning('WMS serialization event failed validation', [
                 'wms_event_id' => $wmsEventId,
@@ -377,7 +379,7 @@ class SerializationService
      *
      * @return User The system user
      *
-     * @throws \RuntimeException If no system user can be found
+     * @throws RuntimeException If no system user can be found
      */
     protected function getSystemUser(): User
     {
@@ -402,7 +404,7 @@ class SerializationService
             return $firstUser;
         }
 
-        throw new \RuntimeException(
+        throw new RuntimeException(
             'No user available for WMS-triggered operations. Please ensure at least one user exists.'
         );
     }
@@ -416,7 +418,7 @@ class SerializationService
     {
         try {
             return $this->getSystemUser()->id;
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             // Return 0 as fallback - this shouldn't happen in production
             Log::error('Failed to get system user ID for audit trail', [
                 'error' => $e->getMessage(),

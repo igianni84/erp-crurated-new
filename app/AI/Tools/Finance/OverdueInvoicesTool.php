@@ -10,10 +10,11 @@ use Carbon\Carbon;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class OverdueInvoicesTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get overdue invoices to prioritize collection efforts.';
     }
@@ -31,7 +32,7 @@ class OverdueInvoicesTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $daysMin = (int) ($request['days_overdue_min'] ?? 0);
         $limit = (int) ($request['limit'] ?? 20);

@@ -5,7 +5,9 @@ namespace App\Filament\Resources\Inventory\LocationResource\Pages;
 use App\Enums\Inventory\InboundBatchStatus;
 use App\Filament\Resources\Inventory\LocationResource;
 use App\Models\Inventory\Location;
-use Filament\Actions;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -16,9 +18,9 @@ class EditLocation extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
-            Actions\RestoreAction::make(),
+            ViewAction::make(),
+            DeleteAction::make(),
+            RestoreAction::make(),
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Finance;
 
+use Exception;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -24,17 +25,17 @@ use Illuminate\Support\Str;
  */
 class IntegrationConfiguration extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cog-6-tooth';
 
     protected static ?string $navigationLabel = 'Integration Settings';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 81;
 
     protected static ?string $title = 'Integration Configuration';
 
-    protected static string $view = 'filament.pages.finance.integration-configuration';
+    protected string $view = 'filament.pages.finance.integration-configuration';
 
     // =========================================================================
     // Header Actions
@@ -165,7 +166,7 @@ class IntegrationConfiguration extends Page
                     ->danger()
                     ->send();
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::channel('finance')->error('Stripe connection test exception', [
                 'error' => $e->getMessage(),
                 'tested_by' => auth()->id(),

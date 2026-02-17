@@ -4,10 +4,13 @@ namespace App\Filament\Pages;
 
 use App\Enums\Commercial\EmpConfidenceLevel;
 use App\Models\Commercial\EstimatedMarketPrice;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -15,17 +18,17 @@ class PricingIntelligence extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-presentation-chart-line';
 
     protected static ?string $navigationLabel = 'Pricing Intelligence';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 2;
 
     protected static ?string $title = 'Pricing Intelligence';
 
-    protected static string $view = 'filament.pages.pricing-intelligence';
+    protected string $view = 'filament.pages.pricing-intelligence';
 
     /**
      * Deviation threshold for highlighting (percentage).
@@ -37,7 +40,7 @@ class PricingIntelligence extends Page implements HasTable
         return $table
             ->query(EstimatedMarketPrice::query()->with(['sellableSku.wineVariant.wineMaster', 'sellableSku.format', 'sellableSku.caseConfiguration']))
             ->columns([
-                Tables\Columns\TextColumn::make('sellable_sku_label')
+                TextColumn::make('sellable_sku_label')
                     ->label('Sellable SKU')
                     ->getStateUsing(function (EstimatedMarketPrice $record): string {
                         $sku = $record->sellableSku;
@@ -85,38 +88,38 @@ class PricingIntelligence extends Page implements HasTable
                             ->select('estimated_market_prices.*');
                     })
                     ->wrap(),
-                Tables\Columns\TextColumn::make('market')
+                TextColumn::make('market')
                     ->label('Market')
                     ->badge()
                     ->color('gray')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('emp_value')
+                TextColumn::make('emp_value')
                     ->label('EMP Value')
                     ->money(fn (EstimatedMarketPrice $record): string => 'EUR')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('confidence_level')
+                TextColumn::make('confidence_level')
                     ->label('Confidence')
                     ->badge()
                     ->formatStateUsing(fn (EmpConfidenceLevel $state): string => $state->label())
                     ->color(fn (EmpConfidenceLevel $state): string => $state->color())
                     ->icon(fn (EmpConfidenceLevel $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('active_price_book_price')
+                TextColumn::make('active_price_book_price')
                     ->label('Price Book Price')
                     ->getStateUsing(fn (EstimatedMarketPrice $record): string => '—')
                     ->color('gray')
                     ->tooltip('Price Book integration coming in US-009+'),
-                Tables\Columns\TextColumn::make('active_offer_price')
+                TextColumn::make('active_offer_price')
                     ->label('Offer Price')
                     ->getStateUsing(fn (EstimatedMarketPrice $record): string => '—')
                     ->color('gray')
                     ->tooltip('Offer integration coming in US-033+'),
-                Tables\Columns\TextColumn::make('delta_vs_emp')
+                TextColumn::make('delta_vs_emp')
                     ->label('Delta vs EMP')
                     ->getStateUsing(fn (EstimatedMarketPrice $record): string => '—')
                     ->color('gray')
                     ->tooltip('Delta calculation available when Price Book is implemented'),
-                Tables\Columns\TextColumn::make('freshness_indicator')
+                TextColumn::make('freshness_indicator')
                     ->label('Freshness')
                     ->badge()
                     ->getStateUsing(fn (EstimatedMarketPrice $record): string => ucfirst($record->getFreshnessIndicator()))
@@ -127,14 +130,14 @@ class PricingIntelligence extends Page implements HasTable
                         'stale' => 'heroicon-o-exclamation-triangle',
                         default => 'heroicon-o-question-mark-circle',
                     }),
-                Tables\Columns\TextColumn::make('fetched_at')
+                TextColumn::make('fetched_at')
                     ->label('Last Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('market')
+                SelectFilter::make('market')
                     ->label('Market')
                     ->options(fn (): array => EstimatedMarketPrice::query()
                         ->distinct()
@@ -142,30 +145,30 @@ class PricingIntelligence extends Page implements HasTable
                         ->toArray())
                     ->multiple()
                     ->searchable(),
-                Tables\Filters\SelectFilter::make('confidence_level')
+                SelectFilter::make('confidence_level')
                     ->label('Confidence Level')
                     ->options(collect(EmpConfidenceLevel::cases())->mapWithKeys(fn (EmpConfidenceLevel $level) => [
                         $level->value => $level->label(),
                     ]))
                     ->multiple(),
-                Tables\Filters\Filter::make('deviation_high')
+                Filter::make('deviation_high')
                     ->label('Significant Deviation (>15%)')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query)
                     ->indicator('High Deviation'),
-                Tables\Filters\Filter::make('stale_data')
+                Filter::make('stale_data')
                     ->label('Stale Data (>7 days)')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query->where('fetched_at', '<', now()->subDays(7)))
                     ->indicator('Stale Data'),
-                Tables\Filters\Filter::make('missing_data')
+                Filter::make('missing_data')
                     ->label('Missing Fetched Date')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query->whereNull('fetched_at'))
                     ->indicator('Missing Date'),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_detail')
+            ->recordActions([
+                Action::make('view_detail')
                     ->label('View Detail')
                     ->icon('heroicon-o-eye')
                     ->url(fn (EstimatedMarketPrice $record): string => PricingIntelligenceDetail::getUrl(['record' => $record->sellable_sku_id]))

@@ -16,6 +16,8 @@ use App\Models\Fulfillment\ShippingOrderLine;
 use App\Models\Inventory\SerializedBottle;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+use Throwable;
 
 /**
  * Service for managing WMS (Warehouse Management System) integration.
@@ -67,13 +69,13 @@ class WmsIntegrationService
      * @param  ShippingOrder  $so  The shipping order to send instructions for
      * @return array{success: bool, message_id: string, payload: array<string, mixed>}
      *
-     * @throws \InvalidArgumentException If SO is not in valid state
+     * @throws InvalidArgumentException If SO is not in valid state
      */
     public function sendPickingInstructions(ShippingOrder $so): array
     {
         // Validate SO status
         if ($so->status !== ShippingOrderStatus::Picking && $so->status !== ShippingOrderStatus::Planned) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot send picking instructions: Shipping Order must be in Planned or Picking status. '
                 ."Current status: {$so->status->label()}."
             );
@@ -120,13 +122,13 @@ class WmsIntegrationService
      * @param  ShippingOrder  $so  The shipping order
      * @return array{success: bool, bound_count: int, discrepancy_count: int, details: list<array{line_id: string, serial: string, status: string, error?: string}>}
      *
-     * @throws \InvalidArgumentException If SO is not in picking status
+     * @throws InvalidArgumentException If SO is not in picking status
      */
     public function receivePickingFeedback(array $pickedSerials, ShippingOrder $so): array
     {
         // Validate SO status
         if ($so->status !== ShippingOrderStatus::Picking) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot receive picking feedback: Shipping Order must be in Picking status. '
                 ."Current status: {$so->status->label()}."
             );
@@ -237,7 +239,7 @@ class WmsIntegrationService
                         'serial' => $serialNumber,
                         'status' => 'bound',
                     ];
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     $discrepancyCount++;
                     $details[] = [
                         'line_id' => $lineId,
@@ -383,7 +385,7 @@ class WmsIntegrationService
      * @param  array<int, string>  $shippedSerials  The serials confirmed as shipped by WMS
      * @return array{success: bool, shipment: Shipment, warnings: list<string>}
      *
-     * @throws \InvalidArgumentException If confirmation validation fails
+     * @throws InvalidArgumentException If confirmation validation fails
      */
     public function confirmShipment(Shipment $shipment, string $trackingNumber, array $shippedSerials): array
     {
@@ -391,7 +393,7 @@ class WmsIntegrationService
         $so = $shipment->shippingOrder;
 
         if ($so === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: Shipping Order not found for shipment.'
             );
         }
@@ -418,7 +420,7 @@ class WmsIntegrationService
                 'partial_shipment'
             );
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: partial shipment detected. Expected '
                 .count($expectedSerials).' serials, received '.count($shippedSerials)
                 .'. Missing: '.implode(', ', $missingSerials)
@@ -448,7 +450,7 @@ class WmsIntegrationService
                 'validation_failed'
             );
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: some shipped serials failed validation: '
                 .implode(', ', $invalidSerials)
             );
@@ -620,7 +622,7 @@ class WmsIntegrationService
         $so = $line->shippingOrder;
 
         if ($so === null) {
-            throw new \InvalidArgumentException('Cannot request re-pick: Shipping Order not found for line.');
+            throw new InvalidArgumentException('Cannot request re-pick: Shipping Order not found for line.');
         }
 
         // Unbind the line if currently bound

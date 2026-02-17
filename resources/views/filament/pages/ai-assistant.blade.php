@@ -390,6 +390,20 @@
 
                                     try {
                                         const parsed = JSON.parse(data);
+                                        if (parsed.error) {
+                                            this.receivedFirstChunk = true;
+                                            const msg = this.messages[aiIndex];
+                                            if (msg.content.trim().length > 0) {
+                                                // Content was already streamed — append error notice, don't wipe
+                                                msg.content += '\n\n---\n*Note: response may be incomplete due to a server error.*';
+                                                msg.html = this.renderMarkdown(msg.content);
+                                            } else {
+                                                msg.content = parsed.error;
+                                                msg.html = parsed.error;
+                                                msg.isError = true;
+                                            }
+                                            continue;
+                                        }
                                         if (parsed.content) {
                                             if (!this.receivedFirstChunk) {
                                                 this.receivedFirstChunk = true;

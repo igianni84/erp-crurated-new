@@ -3,6 +3,7 @@
 namespace App\Models\Allocation;
 
 use App\Enums\Allocation\VoucherTransferStatus;
+use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
@@ -109,11 +110,11 @@ class VoucherTransfer extends Model
     /**
      * Get the audit logs for this transfer.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

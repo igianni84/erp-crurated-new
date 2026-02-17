@@ -6,20 +6,21 @@ use App\Enums\Fulfillment\ShipmentStatus;
 use App\Filament\Resources\Fulfillment\ShipmentResource;
 use App\Models\Fulfillment\Shipment;
 use App\Models\Inventory\SerializedBottle;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Support\HtmlString;
 
 class ViewShipment extends ViewRecord
 {
     protected static string $resource = ShipmentResource::class;
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 // Status Banner
                 Section::make()
@@ -27,7 +28,7 @@ class ViewShipment extends ViewRecord
                         TextEntry::make('status')
                             ->label('')
                             ->badge()
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->formatStateUsing(fn (ShipmentStatus $state): string => $state->label())
                             ->color(fn (ShipmentStatus $state): string => $state->color())
                             ->icon(fn (ShipmentStatus $state): string => $state->icon()),

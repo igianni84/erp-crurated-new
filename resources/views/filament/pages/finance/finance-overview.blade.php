@@ -473,7 +473,7 @@
             </dl>
             @if($pendingReconciliations > 0 || $mismatchedReconciliations > 0)
                 <div class="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <a href="{{ route('filament.admin.resources.finance.payments.index', ['tableFilters' => ['reconciliation_status' => ['value' => 'pending']]]) }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
+                    <a href="{{ route('filament.admin.resources.finance.payments.index', ['filters' => ['reconciliation_status' => ['value' => 'pending']]]) }}" class="text-xs text-primary-600 dark:text-primary-400 hover:underline">
                         View payments &rarr;
                     </a>
                 </div>

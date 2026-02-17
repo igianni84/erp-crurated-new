@@ -4,25 +4,43 @@ namespace App\Filament\Resources\Inventory;
 
 use App\Enums\Inventory\InboundBatchStatus;
 use App\Enums\Inventory\OwnershipType;
-use App\Filament\Resources\Inventory\InboundBatchResource\Pages;
+use App\Filament\Resources\Inventory\InboundBatchResource\Pages\CreateInboundBatch;
+use App\Filament\Resources\Inventory\InboundBatchResource\Pages\ListInboundBatches;
+use App\Filament\Resources\Inventory\InboundBatchResource\Pages\ViewInboundBatch;
 use App\Models\Allocation\Allocation;
 use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\Location;
 use App\Models\Pim\WineVariant;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Carbon\Carbon;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class InboundBatchResource extends Resource
 {
     protected static ?string $model = InboundBatch::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-inbox-arrow-down';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-inbox-arrow-down';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 2;
 
@@ -43,13 +61,13 @@ class InboundBatchResource extends Resource
         return $user !== null && $user->isAdmin();
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form->schema([
+        return $schema->components([
             // Warning Banner Section
-            Forms\Components\Section::make()
+            Section::make()
                 ->schema([
-                    Forms\Components\Placeholder::make('warning_banner')
+                    Placeholder::make('warning_banner')
                         ->label('')
                         ->content('⚠️ MANUAL CREATION - This action bypasses normal WMS/procurement workflows. Manual batch creation is for exceptional cases only and requires full audit justification. All data entered will be permanently recorded.')
                         ->extraAttributes(['class' => 'text-danger-600 dark:text-danger-400 font-semibold']),
@@ -57,10 +75,10 @@ class InboundBatchResource extends Resource
                 ->extraAttributes(['class' => 'bg-danger-50 dark:bg-danger-950/30 border-danger-300 dark:border-danger-700']),
 
             // Mandatory Reason Section
-            Forms\Components\Section::make('Audit Justification')
+            Section::make('Audit Justification')
                 ->description('Required: Explain why this batch is being created manually instead of through normal workflows.')
                 ->schema([
-                    Forms\Components\Textarea::make('manual_creation_reason')
+                    Textarea::make('manual_creation_reason')
                         ->label('Reason for Manual Creation')
                         ->placeholder('Explain why this batch is being created manually (e.g., WMS system failure, legacy data migration, correction of missing records, etc.)')
                         ->required()
@@ -74,9 +92,9 @@ class InboundBatchResource extends Resource
                 ->extraAttributes(['class' => 'bg-warning-50 dark:bg-warning-950/30 border-warning-300 dark:border-warning-700']),
 
             // Source Information
-            Forms\Components\Section::make('Source Information')
+            Section::make('Source Information')
                 ->schema([
-                    Forms\Components\Select::make('source_type')
+                    Select::make('source_type')
                         ->label('Source Type')
                         ->options([
                             'producer' => 'Producer',
@@ -86,7 +104,7 @@ class InboundBatchResource extends Resource
                         ->required()
                         ->native(false),
 
-                    Forms\Components\Select::make('product_reference_type')
+                    Select::make('product_reference_type')
                         ->label('Product Reference Type')
                         ->options([
                             WineVariant::class => 'Wine Variant',
@@ -96,7 +114,7 @@ class InboundBatchResource extends Resource
                         ->default(WineVariant::class)
                         ->live(),
 
-                    Forms\Components\Select::make('product_reference_id')
+                    Select::make('product_reference_id')
                         ->label('Product Reference')
                         ->options(function (): array {
                             return WineVariant::query()
@@ -115,7 +133,7 @@ class InboundBatchResource extends Resource
                         ->required()
                         ->helperText('Select the wine product for this inbound batch'),
 
-                    Forms\Components\Select::make('allocation_id')
+                    Select::make('allocation_id')
                         ->label('Allocation (Lineage)')
                         ->options(function (): array {
                             return Allocation::query()
@@ -134,9 +152,9 @@ class InboundBatchResource extends Resource
                 ->columns(2),
 
             // Quantities Section
-            Forms\Components\Section::make('Quantities')
+            Section::make('Quantities')
                 ->schema([
-                    Forms\Components\TextInput::make('quantity_expected')
+                    TextInput::make('quantity_expected')
                         ->label('Quantity Expected')
                         ->numeric()
                         ->required()
@@ -144,7 +162,7 @@ class InboundBatchResource extends Resource
                         ->default(1)
                         ->helperText('The quantity that was expected to arrive'),
 
-                    Forms\Components\TextInput::make('quantity_received')
+                    TextInput::make('quantity_received')
                         ->label('Quantity Received')
                         ->numeric()
                         ->required()
@@ -152,7 +170,7 @@ class InboundBatchResource extends Resource
                         ->default(1)
                         ->helperText('The actual quantity received (may differ from expected)'),
 
-                    Forms\Components\Select::make('packaging_type')
+                    Select::make('packaging_type')
                         ->label('Packaging Type')
                         ->options([
                             'bottles' => 'Bottles',
@@ -167,9 +185,9 @@ class InboundBatchResource extends Resource
                 ->columns(3),
 
             // Location & Ownership Section
-            Forms\Components\Section::make('Location & Ownership')
+            Section::make('Location & Ownership')
                 ->schema([
-                    Forms\Components\Select::make('receiving_location_id')
+                    Select::make('receiving_location_id')
                         ->label('Receiving Location')
                         ->relationship('receivingLocation', 'name')
                         ->searchable()
@@ -177,7 +195,7 @@ class InboundBatchResource extends Resource
                         ->required()
                         ->helperText('The physical location where this batch is received'),
 
-                    Forms\Components\Select::make('ownership_type')
+                    Select::make('ownership_type')
                         ->label('Ownership Type')
                         ->options(collect(OwnershipType::cases())
                             ->mapWithKeys(fn (OwnershipType $type): array => [$type->value => $type->label()])
@@ -186,7 +204,7 @@ class InboundBatchResource extends Resource
                         ->native(false)
                         ->default(OwnershipType::CururatedOwned->value),
 
-                    Forms\Components\DatePicker::make('received_date')
+                    DatePicker::make('received_date')
                         ->label('Received Date')
                         ->required()
                         ->default(now())
@@ -196,9 +214,9 @@ class InboundBatchResource extends Resource
                 ->columns(3),
 
             // Serialization Status Section
-            Forms\Components\Section::make('Serialization')
+            Section::make('Serialization')
                 ->schema([
-                    Forms\Components\Select::make('serialization_status')
+                    Select::make('serialization_status')
                         ->label('Serialization Status')
                         ->options(collect(InboundBatchStatus::cases())
                             ->mapWithKeys(fn (InboundBatchStatus $status): array => [$status->value => $status->label()])
@@ -211,14 +229,14 @@ class InboundBatchResource extends Resource
                 ->columns(1),
 
             // Additional Information Section
-            Forms\Components\Section::make('Additional Information')
+            Section::make('Additional Information')
                 ->schema([
-                    Forms\Components\TextInput::make('wms_reference_id')
+                    TextInput::make('wms_reference_id')
                         ->label('WMS Reference ID')
                         ->maxLength(255)
                         ->helperText('Optional: External WMS system reference (if applicable)'),
 
-                    Forms\Components\Textarea::make('condition_notes')
+                    Textarea::make('condition_notes')
                         ->label('Condition Notes')
                         ->rows(3)
                         ->maxLength(2000)
@@ -228,9 +246,9 @@ class InboundBatchResource extends Resource
                 ->collapsible(),
 
             // Audit Confirmation Section
-            Forms\Components\Section::make('Confirmation')
+            Section::make('Confirmation')
                 ->schema([
-                    Forms\Components\Checkbox::make('audit_confirmation')
+                    Checkbox::make('audit_confirmation')
                         ->label('I confirm that this manual batch creation is necessary and I have provided accurate justification')
                         ->required()
                         ->accepted()
@@ -244,7 +262,7 @@ class InboundBatchResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Batch ID')
                     ->searchable()
                     ->sortable()
@@ -254,7 +272,7 @@ class InboundBatchResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (InboundBatch $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('source_type')
+                TextColumn::make('source_type')
                     ->label('Source')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => ucfirst($state))
@@ -266,7 +284,7 @@ class InboundBatchResource extends Resource
                     })
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('product_reference_type')
+                TextColumn::make('product_reference_type')
                     ->label('Product Reference')
                     ->formatStateUsing(function (InboundBatch $record): string {
                         $type = class_basename($record->product_reference_type);
@@ -278,39 +296,39 @@ class InboundBatchResource extends Resource
                     })
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('quantity_expected')
+                TextColumn::make('quantity_expected')
                     ->label('Expected')
                     ->numeric()
                     ->alignEnd()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('quantity_received')
+                TextColumn::make('quantity_received')
                     ->label('Received')
                     ->numeric()
                     ->alignEnd()
                     ->sortable()
                     ->color(fn (InboundBatch $record): string => $record->hasDiscrepancy() ? 'danger' : 'success'),
 
-                Tables\Columns\TextColumn::make('packaging_type')
+                TextColumn::make('packaging_type')
                     ->label('Packaging')
                     ->badge()
                     ->color('gray')
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('receivingLocation.name')
+                TextColumn::make('receivingLocation.name')
                     ->label('Receiving Location')
                     ->searchable()
                     ->sortable()
                     ->icon('heroicon-o-map-pin')
                     ->limit(20),
 
-                Tables\Columns\TextColumn::make('received_date')
+                TextColumn::make('received_date')
                     ->label('Received Date')
                     ->date()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('serialization_status')
+                TextColumn::make('serialization_status')
                     ->label('Serialization')
                     ->badge()
                     ->formatStateUsing(fn (InboundBatchStatus $state): string => $state->label())
@@ -318,7 +336,7 @@ class InboundBatchResource extends Resource
                     ->icon(fn (InboundBatchStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('ownership_type')
+                TextColumn::make('ownership_type')
                     ->label('Ownership')
                     ->badge()
                     ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
@@ -327,7 +345,7 @@ class InboundBatchResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\IconColumn::make('has_discrepancy')
+                IconColumn::make('has_discrepancy')
                     ->label('Discrepancy')
                     ->state(fn (InboundBatch $record): bool => $record->hasDiscrepancy())
                     ->boolean()
@@ -339,7 +357,7 @@ class InboundBatchResource extends Resource
                         return $query->orderByRaw('quantity_expected != quantity_received '.$direction);
                     }),
 
-                Tables\Columns\IconColumn::make('pending_serialization_indicator')
+                IconColumn::make('pending_serialization_indicator')
                     ->label('Pending')
                     ->state(fn (InboundBatch $record): bool => $record->serialization_status->canStartSerialization() && $record->remaining_unserialized > 0)
                     ->boolean()
@@ -352,14 +370,14 @@ class InboundBatchResource extends Resource
                     }),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('serialization_status')
+                SelectFilter::make('serialization_status')
                     ->options(collect(InboundBatchStatus::cases())
                         ->mapWithKeys(fn (InboundBatchStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Serialization Status'),
 
-                Tables\Filters\SelectFilter::make('receiving_location_id')
+                SelectFilter::make('receiving_location_id')
                     ->options(fn (): array => Location::query()
                         ->orderBy('name')
                         ->pluck('name', 'id')
@@ -367,18 +385,18 @@ class InboundBatchResource extends Resource
                     ->searchable()
                     ->label('Receiving Location'),
 
-                Tables\Filters\SelectFilter::make('ownership_type')
+                SelectFilter::make('ownership_type')
                     ->options(collect(OwnershipType::cases())
                         ->mapWithKeys(fn (OwnershipType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Ownership Type'),
 
-                Tables\Filters\Filter::make('received_date_range')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('received_from')
+                Filter::make('received_date_range')
+                    ->schema([
+                        DatePicker::make('received_from')
                             ->label('Received From'),
-                        \Filament\Forms\Components\DatePicker::make('received_until')
+                        DatePicker::make('received_until')
                             ->label('Received Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -396,30 +414,30 @@ class InboundBatchResource extends Resource
                         $indicators = [];
 
                         if ($data['received_from'] ?? null) {
-                            $indicators['received_from'] = 'From '.\Carbon\Carbon::parse($data['received_from'])->toFormattedDateString();
+                            $indicators['received_from'] = 'From '.Carbon::parse($data['received_from'])->toFormattedDateString();
                         }
 
                         if ($data['received_until'] ?? null) {
-                            $indicators['received_until'] = 'Until '.\Carbon\Carbon::parse($data['received_until'])->toFormattedDateString();
+                            $indicators['received_until'] = 'Until '.Carbon::parse($data['received_until'])->toFormattedDateString();
                         }
 
                         return $indicators;
                     }),
 
-                Tables\Filters\Filter::make('has_discrepancy')
+                Filter::make('has_discrepancy')
                     ->label('Has Discrepancy')
                     ->query(fn (Builder $query): Builder => $query->whereColumn('quantity_expected', '!=', 'quantity_received'))
                     ->toggle(),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('received_date', 'desc')
@@ -448,9 +466,9 @@ class InboundBatchResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListInboundBatches::route('/'),
-            'create' => Pages\CreateInboundBatch::route('/create'),
-            'view' => Pages\ViewInboundBatch::route('/{record}'),
+            'index' => ListInboundBatches::route('/'),
+            'create' => CreateInboundBatch::route('/create'),
+            'view' => ViewInboundBatch::route('/{record}'),
         ];
     }
 
@@ -459,7 +477,7 @@ class InboundBatchResource extends Resource
         return parent::getEloquentQuery()
             ->with(['receivingLocation'])
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

@@ -5,22 +5,32 @@ namespace App\Filament\Resources\Finance;
 use App\Enums\Finance\PaymentSource;
 use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
-use App\Filament\Resources\Finance\PaymentResource\Pages;
+use App\Filament\Resources\Finance\PaymentResource\Pages\ListPayments;
+use App\Filament\Resources\Finance\PaymentResource\Pages\ViewPayment;
 use App\Models\Finance\Payment;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PaymentResource extends Resource
 {
     protected static ?string $model = Payment::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-banknotes';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 20;
 
@@ -30,10 +40,10 @@ class PaymentResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Payments';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in later stories
             ]);
     }
@@ -42,14 +52,14 @@ class PaymentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('payment_reference')
+                TextColumn::make('payment_reference')
                     ->label('Reference')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->copyMessage('Payment reference copied'),
 
-                Tables\Columns\TextColumn::make('source')
+                TextColumn::make('source')
                     ->label('Source')
                     ->badge()
                     ->formatStateUsing(fn (PaymentSource $state): string => $state->label())
@@ -57,18 +67,18 @@ class PaymentResource extends Resource
                     ->icon(fn (PaymentSource $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('amount')
+                TextColumn::make('amount')
                     ->label('Amount')
                     ->money(fn (Payment $record): string => $record->currency)
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('currency')
+                TextColumn::make('currency')
                     ->label('Currency')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (PaymentStatus $state): string => $state->label())
@@ -76,7 +86,7 @@ class PaymentResource extends Resource
                     ->icon(fn (PaymentStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('reconciliation_status')
+                TextColumn::make('reconciliation_status')
                     ->label('Reconciliation')
                     ->badge()
                     ->formatStateUsing(fn (ReconciliationStatus $state): string => $state->label())
@@ -87,7 +97,7 @@ class PaymentResource extends Resource
                         ? 'Mismatch: '.$record->getMismatchReason()
                         : null),
 
-                Tables\Columns\TextColumn::make('mismatch_type')
+                TextColumn::make('mismatch_type')
                     ->label('Issue')
                     ->getStateUsing(fn (Payment $record): ?string => $record->hasMismatch()
                         ? $record->getMismatchTypeLabel()
@@ -100,7 +110,7 @@ class PaymentResource extends Resource
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: false),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -115,44 +125,44 @@ class PaymentResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('received_at')
+                TextColumn::make('received_at')
                     ->label('Received At')
                     ->dateTime()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('stripe_payment_intent_id')
+                TextColumn::make('stripe_payment_intent_id')
                     ->label('Stripe PI')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('N/A'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('source')
+                SelectFilter::make('source')
                     ->options(collect(PaymentSource::cases())
                         ->mapWithKeys(fn (PaymentSource $source) => [$source->value => $source->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Source'),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(PaymentStatus::cases())
                         ->mapWithKeys(fn (PaymentStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('reconciliation_status')
+                SelectFilter::make('reconciliation_status')
                     ->options(collect(ReconciliationStatus::cases())
                         ->mapWithKeys(fn (ReconciliationStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Reconciliation Status'),
 
-                Tables\Filters\Filter::make('received_at')
-                    ->form([
-                        Forms\Components\DatePicker::make('received_from')
+                Filter::make('received_at')
+                    ->schema([
+                        DatePicker::make('received_from')
                             ->label('Received From'),
-                        Forms\Components\DatePicker::make('received_until')
+                        DatePicker::make('received_until')
                             ->label('Received Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -178,16 +188,16 @@ class PaymentResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('export_csv')
+            ->toolbarActions([
+                BulkAction::make('export_csv')
                     ->label('Export to CSV')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                    ->action(function (Collection $records): StreamedResponse {
                         return response()->streamDownload(function () use ($records): void {
                             $handle = fopen('php://output', 'w');
                             if ($handle !== false) {
@@ -240,8 +250,8 @@ class PaymentResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPayments::route('/'),
-            'view' => Pages\ViewPayment::route('/{record}'),
+            'index' => ListPayments::route('/'),
+            'view' => ViewPayment::route('/{record}'),
         ];
     }
 
@@ -249,7 +259,7 @@ class PaymentResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -263,13 +273,13 @@ class PaymentResource extends Resource
         return parent::getGlobalSearchEloquentQuery()->with(['customer']);
     }
 
-    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string
+    public static function getGlobalSearchResultTitle(Model $record): string
     {
         /** @var Payment $record */
         return $record->payment_reference;
     }
 
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var Payment $record */
         return [
@@ -279,7 +289,7 @@ class PaymentResource extends Resource
         ];
     }
 
-    public static function getGlobalSearchResultUrl(\Illuminate\Database\Eloquent\Model $record): ?string
+    public static function getGlobalSearchResultUrl(Model $record): ?string
     {
         return static::getUrl('view', ['record' => $record]);
     }

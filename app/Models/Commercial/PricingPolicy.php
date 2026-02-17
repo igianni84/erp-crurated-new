@@ -3,11 +3,14 @@
 namespace App\Models\Commercial;
 
 use App\Enums\Commercial\ExecutionCadence;
+use App\Enums\Commercial\ExecutionStatus;
 use App\Enums\Commercial\PricingPolicyInputSource;
 use App\Enums\Commercial\PricingPolicyStatus;
 use App\Enums\Commercial\PricingPolicyType;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,7 +43,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property array<string, mixed> $logic_definition
  * @property ExecutionCadence $execution_cadence
  * @property PricingPolicyStatus $status
- * @property \Carbon\Carbon|null $last_executed_at
+ * @property Carbon|null $last_executed_at
  */
 class PricingPolicy extends Model
 {
@@ -102,11 +105,11 @@ class PricingPolicy extends Model
     /**
      * Get the audit logs for this pricing policy.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -153,7 +156,7 @@ class PricingPolicy extends Model
     public function successfulExecutionsCount(): int
     {
         return $this->executions()
-            ->where('status', \App\Enums\Commercial\ExecutionStatus::Success)
+            ->where('status', ExecutionStatus::Success)
             ->count();
     }
 
@@ -163,7 +166,7 @@ class PricingPolicy extends Model
     public function failedExecutionsCount(): int
     {
         return $this->executions()
-            ->where('status', \App\Enums\Commercial\ExecutionStatus::Failed)
+            ->where('status', ExecutionStatus::Failed)
             ->count();
     }
 

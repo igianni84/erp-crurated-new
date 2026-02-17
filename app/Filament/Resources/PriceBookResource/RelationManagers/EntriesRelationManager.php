@@ -3,14 +3,26 @@
 namespace App\Filament\Resources\PriceBookResource\RelationManagers;
 
 use App\Enums\Commercial\PriceSource;
+use App\Models\Commercial\EstimatedMarketPrice;
 use App\Models\Commercial\PriceBook;
 use App\Models\Commercial\PriceBookEntry;
 use App\Models\Pim\SellableSku;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -23,13 +35,13 @@ class EntriesRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'id';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Price Entry')
+        return $schema
+            ->components([
+                Section::make('Price Entry')
                     ->schema([
-                        Forms\Components\Select::make('sellable_sku_id')
+                        Select::make('sellable_sku_id')
                             ->label('Sellable SKU')
                             ->options(function (): array {
                                 return SellableSku::query()
@@ -58,7 +70,7 @@ class EntriesRelationManager extends RelationManager
                             })
                             ->required()
                             ->disabled(fn (?PriceBookEntry $record): bool => $record !== null),
-                        Forms\Components\TextInput::make('base_price')
+                        TextInput::make('base_price')
                             ->label('Base Price')
                             ->numeric()
                             ->required()
@@ -66,7 +78,7 @@ class EntriesRelationManager extends RelationManager
                             ->step(0.01)
                             ->prefix(fn (): string => $this->getOwnerRecord() instanceof PriceBook ? $this->getOwnerRecord()->currency : 'EUR')
                             ->helperText('The base price for this SKU in this price book'),
-                        Forms\Components\Select::make('source')
+                        Select::make('source')
                             ->label('Source')
                             ->options(collect(PriceSource::cases())->mapWithKeys(fn (PriceSource $source): array => [
                                 $source->value => $source->label(),
@@ -89,24 +101,24 @@ class EntriesRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('id')
             ->columns([
-                Tables\Columns\TextColumn::make('sellableSku.sku_code')
+                TextColumn::make('sellableSku.sku_code')
                     ->label('SKU Code')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->weight('bold'),
-                Tables\Columns\TextColumn::make('sellableSku.wineVariant.wineMaster.name')
+                TextColumn::make('sellableSku.wineVariant.wineMaster.name')
                     ->label('Wine')
                     ->searchable()
                     ->sortable()
                     ->limit(30),
-                Tables\Columns\TextColumn::make('sellableSku.wineVariant.vintage_year')
+                TextColumn::make('sellableSku.wineVariant.vintage_year')
                     ->label('Vintage')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('sellableSku.format.name')
+                TextColumn::make('sellableSku.format.name')
                     ->label('Format')
                     ->sortable(),
-                Tables\Columns\TextInputColumn::make('base_price')
+                TextInputColumn::make('base_price')
                     ->label('Base Price')
                     ->rules(['required', 'numeric', 'min:0.01'])
                     ->sortable()
@@ -123,28 +135,28 @@ class EntriesRelationManager extends RelationManager
                             ->body('Price has been updated and source set to Manual.')
                             ->send();
                     }),
-                Tables\Columns\TextColumn::make('source')
+                TextColumn::make('source')
                     ->label('Source')
                     ->badge()
                     ->formatStateUsing(fn (PriceSource $state): string => $state->label())
                     ->color(fn (PriceSource $state): string => $state->color())
                     ->icon(fn (PriceSource $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('emp_value')
+                TextColumn::make('emp_value')
                     ->label('EMP Value')
                     ->getStateUsing(function (PriceBookEntry $record) use ($priceBook): string {
                         // Try to find EMP for this SKU in the price book's market
-                        $emp = \App\Models\Commercial\EstimatedMarketPrice::where('sellable_sku_id', $record->sellable_sku_id)
+                        $emp = EstimatedMarketPrice::where('sellable_sku_id', $record->sellable_sku_id)
                             ->where('market', $priceBook->market)
                             ->first();
 
                         return $emp !== null ? number_format((float) $emp->emp_value, 2) : '—';
                     })
                     ->color('gray'),
-                Tables\Columns\TextColumn::make('delta_vs_emp')
+                TextColumn::make('delta_vs_emp')
                     ->label('Delta vs EMP')
                     ->getStateUsing(function (PriceBookEntry $record) use ($priceBook): string {
-                        $emp = \App\Models\Commercial\EstimatedMarketPrice::where('sellable_sku_id', $record->sellable_sku_id)
+                        $emp = EstimatedMarketPrice::where('sellable_sku_id', $record->sellable_sku_id)
                             ->where('market', $priceBook->market)
                             ->first();
 
@@ -159,7 +171,7 @@ class EntriesRelationManager extends RelationManager
                         return sprintf('%+.1f%%', $delta);
                     })
                     ->color(function (PriceBookEntry $record) use ($priceBook): string {
-                        $emp = \App\Models\Commercial\EstimatedMarketPrice::where('sellable_sku_id', $record->sellable_sku_id)
+                        $emp = EstimatedMarketPrice::where('sellable_sku_id', $record->sellable_sku_id)
                             ->where('market', $priceBook->market)
                             ->first();
 
@@ -181,19 +193,19 @@ class EntriesRelationManager extends RelationManager
                         return 'success';
                     })
                     ->badge(),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('source')
+                SelectFilter::make('source')
                     ->label('Source')
                     ->options(collect(PriceSource::cases())->mapWithKeys(fn (PriceSource $source): array => [
                         $source->value => $source->label(),
                     ])),
-                Tables\Filters\TernaryFilter::make('has_emp')
+                TernaryFilter::make('has_emp')
                     ->label('Has EMP')
                     ->placeholder('All')
                     ->trueLabel('With EMP data')
@@ -212,38 +224,38 @@ class EntriesRelationManager extends RelationManager
                     ),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Add Price')
                     ->icon('heroicon-o-plus')
                     ->visible($isEditable)
-                    ->mutateFormDataUsing(function (array $data): array {
+                    ->mutateDataUsing(function (array $data): array {
                         $data['source'] = PriceSource::Manual->value;
 
                         return $data;
                     }),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                EditAction::make()
                     ->visible($isEditable)
-                    ->mutateFormDataUsing(function (array $data): array {
+                    ->mutateDataUsing(function (array $data): array {
                         // Set source to manual when editing
                         $data['source'] = PriceSource::Manual->value;
                         $data['policy_id'] = null;
 
                         return $data;
                     }),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->visible($isEditable),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('bulk_adjust_percentage')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('bulk_adjust_percentage')
                         ->label('Adjust by %')
                         ->icon('heroicon-o-adjustments-horizontal')
                         ->color('warning')
                         ->visible($isEditable)
                         ->form([
-                            Forms\Components\TextInput::make('percentage')
+                            TextInput::make('percentage')
                                 ->label('Percentage Adjustment')
                                 ->numeric()
                                 ->required()
@@ -274,13 +286,13 @@ class EntriesRelationManager extends RelationManager
                                 ->body("Adjusted {$updated} prices by {$percentage}%.")
                                 ->send();
                         }),
-                    Tables\Actions\BulkAction::make('bulk_set_price')
+                    BulkAction::make('bulk_set_price')
                         ->label('Set Fixed Price')
                         ->icon('heroicon-o-currency-euro')
                         ->color('info')
                         ->visible($isEditable)
                         ->form([
-                            Forms\Components\TextInput::make('price')
+                            TextInput::make('price')
                                 ->label('New Price')
                                 ->numeric()
                                 ->required()
@@ -310,7 +322,7 @@ class EntriesRelationManager extends RelationManager
                                 ->body("Set {$updated} prices to {$currency} {$newPrice}.")
                                 ->send();
                         }),
-                    Tables\Actions\DeleteBulkAction::make()
+                    DeleteBulkAction::make()
                         ->visible($isEditable),
                 ]),
             ])
@@ -321,7 +333,7 @@ class EntriesRelationManager extends RelationManager
                 : 'This price book has no price entries.')
             ->emptyStateIcon('heroicon-o-currency-euro')
             ->emptyStateActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Add Price')
                     ->icon('heroicon-o-plus')
                     ->visible($isEditable),

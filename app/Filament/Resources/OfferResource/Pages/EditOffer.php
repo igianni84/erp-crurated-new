@@ -4,7 +4,8 @@ namespace App\Filament\Resources\OfferResource\Pages;
 
 use App\Filament\Resources\OfferResource;
 use App\Models\Commercial\Offer;
-use Filament\Actions;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditOffer extends EditRecord
@@ -17,8 +18,8 @@ class EditOffer extends EditRecord
         $record = $this->getRecord();
 
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make()
+            ViewAction::make(),
+            DeleteAction::make()
                 ->visible(fn () => $record->isEditable()),
         ];
     }

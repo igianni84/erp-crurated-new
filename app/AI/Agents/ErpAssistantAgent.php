@@ -29,18 +29,17 @@ use App\AI\Tools\Procurement\InboundScheduleTool;
 use App\AI\Tools\Procurement\PendingPurchaseOrdersTool;
 use App\AI\Tools\Procurement\ProcurementIntentsStatusTool;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Attributes\MaxSteps;
-use Laravel\Ai\Attributes\Model;
-use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Concerns\RemembersConversations;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
+use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Promptable;
+use Stringable;
 
-#[Provider('anthropic')]
-#[Model('claude-sonnet-4-5-20250929')]
 #[MaxSteps(10)]
 #[Temperature(0.3)]
 class ErpAssistantAgent implements Agent, Conversational, HasTools
@@ -51,13 +50,23 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
         protected User $user
     ) {}
 
-    public function instructions(): \Stringable|string
+    public function provider(): string
+    {
+        return (string) config('ai-assistant.provider', 'anthropic');
+    }
+
+    public function model(): string
+    {
+        return (string) config('ai-assistant.model', 'claude-sonnet-4-5-20250929');
+    }
+
+    public function instructions(): Stringable|string
     {
         return (string) file_get_contents(app_path('AI/Prompts/erp-system-prompt.md'));
     }
 
     /**
-     * @return array<\Laravel\Ai\Contracts\Tool>
+     * @return array<Tool>
      */
     public function tools(): array
     {
@@ -77,7 +86,7 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
         }
 
         if ($denied !== []) {
-            \Illuminate\Support\Facades\Log::info('AI tools denied for user', [
+            Log::info('AI tools denied for user', [
                 'user_id' => $this->user->id,
                 'role' => $this->user->role->value,
                 'denied_tools' => $denied,
@@ -88,7 +97,7 @@ class ErpAssistantAgent implements Agent, Conversational, HasTools
     }
 
     /**
-     * @return array<\Laravel\Ai\Contracts\Tool>
+     * @return array<Tool>
      */
     protected function allTools(): array
     {

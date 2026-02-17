@@ -7,23 +7,33 @@ use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\SourcingModel;
 use App\Filament\Resources\Procurement\ProcurementIntentResource;
 use App\Models\Allocation\Allocation;
+use App\Models\Pim\CaseConfiguration;
 use App\Models\Pim\Format;
 use App\Models\Pim\LiquidProduct;
 use App\Models\Pim\SellableSku;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateProcurementIntent extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = ProcurementIntentResource::class;
 
@@ -31,10 +41,10 @@ class CreateProcurementIntent extends CreateRecord
      * Get the form for creating a procurement intent.
      * Implements a multi-step wizard for intent creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -51,7 +61,7 @@ class CreateProcurementIntent extends CreateRecord
     protected function getWizardSubmitActions(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex gap-3">
                     <x-filament::button
                         type="submit"
@@ -67,7 +77,7 @@ class CreateProcurementIntent extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -83,15 +93,15 @@ class CreateProcurementIntent extends CreateRecord
      * Step 1: Product Selection
      * Select product type and the specific product.
      */
-    protected function getProductStep(): Wizard\Step
+    protected function getProductStep(): Step
     {
-        return Wizard\Step::make('Product')
+        return Step::make('Product')
             ->description('Select the product for this procurement intent')
             ->icon('heroicon-o-cube')
             ->schema([
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('intent_info')
+                        Placeholder::make('intent_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -103,10 +113,10 @@ class CreateProcurementIntent extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Product Type')
+                Section::make('Product Type')
                     ->description('Choose the type of product to source')
                     ->schema([
-                        Forms\Components\Radio::make('product_type')
+                        Radio::make('product_type')
                             ->label('What type of product are you sourcing?')
                             ->options([
                                 'bottle_sku' => 'Bottle SKU (Already bottled wine)',
@@ -129,10 +139,10 @@ class CreateProcurementIntent extends CreateRecord
                     ]),
 
                 // Bottle SKU Selection (when product_type = bottle_sku)
-                Forms\Components\Section::make('Bottle SKU Selection')
+                Section::make('Bottle SKU Selection')
                     ->description('Select the wine, vintage, and format')
                     ->schema([
-                        Forms\Components\Select::make('wine_master_id')
+                        Select::make('wine_master_id')
                             ->label('Wine')
                             ->placeholder('Search for a wine by name or producer...')
                             ->searchable()
@@ -161,7 +171,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->required()
                             ->helperText('Type at least 2 characters to search for wines by name or producer'),
 
-                        Forms\Components\Select::make('wine_variant_id')
+                        Select::make('wine_variant_id')
                             ->label('Vintage')
                             ->placeholder('Select vintage year...')
                             ->options(function (Get $get): array {
@@ -198,7 +208,7 @@ class CreateProcurementIntent extends CreateRecord
                             })
                             ->helperText('Select the vintage year'),
 
-                        Forms\Components\Select::make('format_id')
+                        Select::make('format_id')
                             ->label('Format')
                             ->placeholder('Select bottle format...')
                             ->options(function (): array {
@@ -238,10 +248,10 @@ class CreateProcurementIntent extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('product_type') !== 'bottle_sku'),
 
                 // Liquid Product Selection (when product_type = liquid_product)
-                Forms\Components\Section::make('Liquid Product Selection')
+                Section::make('Liquid Product Selection')
                     ->description('Select the wine and vintage (liquid form)')
                     ->schema([
-                        Forms\Components\Select::make('liquid_wine_master_id')
+                        Select::make('liquid_wine_master_id')
                             ->label('Wine')
                             ->placeholder('Search for a wine by name or producer...')
                             ->searchable()
@@ -269,7 +279,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->required()
                             ->helperText('Type at least 2 characters to search for wines by name or producer'),
 
-                        Forms\Components\Select::make('liquid_wine_variant_id')
+                        Select::make('liquid_wine_variant_id')
                             ->label('Vintage')
                             ->placeholder('Select vintage year...')
                             ->options(function (Get $get): array {
@@ -322,9 +332,9 @@ class CreateProcurementIntent extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('product_type') !== 'liquid_product'),
 
                 // Product Preview and Allocations Count
-                Forms\Components\Section::make('Selected Product Preview')
+                Section::make('Selected Product Preview')
                     ->schema([
-                        Forms\Components\Placeholder::make('product_preview')
+                        Placeholder::make('product_preview')
                             ->label('Product')
                             ->content(function (Get $get): string {
                                 $productType = $get('product_type');
@@ -397,7 +407,7 @@ class CreateProcurementIntent extends CreateRecord
                             })
                             ->columnSpanFull(),
 
-                        Forms\Components\Placeholder::make('existing_allocations')
+                        Placeholder::make('existing_allocations')
                             ->label('Existing Allocations')
                             ->content(function (Get $get): HtmlString {
                                 $productType = $get('product_type');
@@ -437,7 +447,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->columnSpanFull(),
 
                         // Warning if no matching SKU/LiquidProduct exists
-                        Forms\Components\Placeholder::make('no_product_warning')
+                        Placeholder::make('no_product_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">'
@@ -463,8 +473,8 @@ class CreateProcurementIntent extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('product_type') === null),
 
                 // Hidden fields to store the actual product references
-                Forms\Components\Hidden::make('sellable_sku_id'),
-                Forms\Components\Hidden::make('liquid_product_id'),
+                Hidden::make('sellable_sku_id'),
+                Hidden::make('liquid_product_id'),
             ]);
     }
 
@@ -472,16 +482,16 @@ class CreateProcurementIntent extends CreateRecord
      * Step 2: Source & Model
      * Define trigger type and sourcing model.
      */
-    protected function getSourceAndModelStep(): Wizard\Step
+    protected function getSourceAndModelStep(): Step
     {
-        return Wizard\Step::make('Source & Model')
+        return Step::make('Source & Model')
             ->description('Define the trigger type and sourcing model')
             ->icon('heroicon-o-cog-6-tooth')
             ->schema([
-                Forms\Components\Section::make('Trigger Type')
+                Section::make('Trigger Type')
                     ->description('What triggered this procurement intent?')
                     ->schema([
-                        Forms\Components\Select::make('trigger_type')
+                        Select::make('trigger_type')
                             ->label('Trigger Type')
                             ->options(function (): array {
                                 /** @var array<string, string> $options */
@@ -498,7 +508,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->live()
                             ->helperText('The reason for this procurement intent'),
 
-                        Forms\Components\Placeholder::make('trigger_guidance')
+                        Placeholder::make('trigger_guidance')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $triggerType = $get('trigger_type');
@@ -524,10 +534,10 @@ class CreateProcurementIntent extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Sourcing Model')
+                Section::make('Sourcing Model')
                     ->description('How will the product be sourced?')
                     ->schema([
-                        Forms\Components\Select::make('sourcing_model')
+                        Select::make('sourcing_model')
                             ->label('Sourcing Model')
                             ->options(function (): array {
                                 /** @var array<string, string> $options */
@@ -544,7 +554,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->live()
                             ->helperText('The commercial arrangement for this sourcing'),
 
-                        Forms\Components\Placeholder::make('sourcing_guidance')
+                        Placeholder::make('sourcing_guidance')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $sourcingModel = $get('sourcing_model');
@@ -569,10 +579,10 @@ class CreateProcurementIntent extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Quantity')
+                Section::make('Quantity')
                     ->description('How many bottles or bottle-equivalents?')
                     ->schema([
-                        Forms\Components\TextInput::make('quantity')
+                        TextInput::make('quantity')
                             ->label('Quantity')
                             ->numeric()
                             ->required()
@@ -596,16 +606,16 @@ class CreateProcurementIntent extends CreateRecord
      * Step 3: Delivery
      * Define delivery preferences.
      */
-    protected function getDeliveryStep(): Wizard\Step
+    protected function getDeliveryStep(): Step
     {
-        return Wizard\Step::make('Delivery')
+        return Step::make('Delivery')
             ->description('Define delivery preferences')
             ->icon('heroicon-o-truck')
             ->schema([
-                Forms\Components\Section::make('Preferred Inbound Location')
+                Section::make('Preferred Inbound Location')
                     ->description('Where should the wine be delivered?')
                     ->schema([
-                        Forms\Components\Select::make('preferred_inbound_location')
+                        Select::make('preferred_inbound_location')
                             ->label('Preferred Location')
                             ->options([
                                 'main_warehouse' => 'Main Warehouse',
@@ -616,7 +626,7 @@ class CreateProcurementIntent extends CreateRecord
                             ->placeholder('Select preferred location...')
                             ->helperText('The warehouse where the wine should be delivered'),
 
-                        Forms\Components\Placeholder::make('location_preview')
+                        Placeholder::make('location_preview')
                             ->label('Serialization Constraints')
                             ->content(function (Get $get): HtmlString {
                                 $location = $get('preferred_inbound_location');
@@ -642,10 +652,10 @@ class CreateProcurementIntent extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Rationale')
+                Section::make('Rationale')
                     ->description('Operational notes for context')
                     ->schema([
-                        Forms\Components\Textarea::make('rationale')
+                        Textarea::make('rationale')
                             ->label('Rationale')
                             ->placeholder('Enter operational notes or context for this procurement intent...')
                             ->rows(4)
@@ -658,16 +668,16 @@ class CreateProcurementIntent extends CreateRecord
      * Step 4: Review
      * Review all data before creating.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->description('Review and create the procurement intent')
             ->icon('heroicon-o-check-badge')
             ->schema([
                 // Draft status info
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('draft_info')
+                        Placeholder::make('draft_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -680,10 +690,10 @@ class CreateProcurementIntent extends CreateRecord
                     ]),
 
                 // Product Summary
-                Forms\Components\Section::make('Product')
+                Section::make('Product')
                     ->icon('heroicon-o-cube')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_product_type')
+                        Placeholder::make('review_product_type')
                             ->label('Product Type')
                             ->content(fn (Get $get): string => match ($get('product_type')) {
                                 'bottle_sku' => 'Bottle SKU',
@@ -691,7 +701,7 @@ class CreateProcurementIntent extends CreateRecord
                                 default => 'Not selected',
                             }),
 
-                        Forms\Components\Placeholder::make('review_product')
+                        Placeholder::make('review_product')
                             ->label('Product')
                             ->content(function (Get $get): string {
                                 $productType = $get('product_type');
@@ -750,10 +760,10 @@ class CreateProcurementIntent extends CreateRecord
                     ->columns(2),
 
                 // Source & Model Summary
-                Forms\Components\Section::make('Source & Model')
+                Section::make('Source & Model')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_trigger_type')
+                        Placeholder::make('review_trigger_type')
                             ->label('Trigger Type')
                             ->content(function (Get $get): string {
                                 $triggerType = $get('trigger_type');
@@ -765,7 +775,7 @@ class CreateProcurementIntent extends CreateRecord
                                 return $enum !== null ? $enum->label() : $triggerType;
                             }),
 
-                        Forms\Components\Placeholder::make('review_sourcing_model')
+                        Placeholder::make('review_sourcing_model')
                             ->label('Sourcing Model')
                             ->content(function (Get $get): string {
                                 $sourcingModel = $get('sourcing_model');
@@ -777,7 +787,7 @@ class CreateProcurementIntent extends CreateRecord
                                 return $enum !== null ? $enum->label() : $sourcingModel;
                             }),
 
-                        Forms\Components\Placeholder::make('review_quantity')
+                        Placeholder::make('review_quantity')
                             ->label('Quantity')
                             ->content(function (Get $get): string {
                                 $quantityValue = $get('quantity');
@@ -790,10 +800,10 @@ class CreateProcurementIntent extends CreateRecord
                     ->columns(3),
 
                 // Delivery Summary
-                Forms\Components\Section::make('Delivery')
+                Section::make('Delivery')
                     ->icon('heroicon-o-truck')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_location')
+                        Placeholder::make('review_location')
                             ->label('Preferred Location')
                             ->content(function (Get $get): string {
                                 $location = $get('preferred_inbound_location');
@@ -807,7 +817,7 @@ class CreateProcurementIntent extends CreateRecord
                                 };
                             }),
 
-                        Forms\Components\Placeholder::make('review_rationale')
+                        Placeholder::make('review_rationale')
                             ->label('Rationale')
                             ->content(function (Get $get): string {
                                 $rationale = $get('rationale');
@@ -818,9 +828,9 @@ class CreateProcurementIntent extends CreateRecord
                     ->columns(2),
 
                 // Warnings
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('no_allocation_warning')
+                        Placeholder::make('no_allocation_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">'
@@ -928,12 +938,12 @@ class CreateProcurementIntent extends CreateRecord
 
                 if ($sku === null) {
                     // We need a case configuration - get the default one
-                    $defaultCaseConfig = \App\Models\Pim\CaseConfiguration::query()
+                    $defaultCaseConfig = CaseConfiguration::query()
                         ->where('is_default', true)
                         ->first();
 
                     if ($defaultCaseConfig === null) {
-                        $defaultCaseConfig = \App\Models\Pim\CaseConfiguration::first();
+                        $defaultCaseConfig = CaseConfiguration::first();
                     }
 
                     if ($defaultCaseConfig !== null) {

@@ -7,6 +7,7 @@ use App\Models\Allocation\Allocation;
 use App\Models\AuditLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing Allocation lifecycle and consumption.
@@ -21,12 +22,12 @@ class AllocationService
      *
      * When activated, constraints become read-only and cannot be modified.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function activate(Allocation $allocation): Allocation
     {
         if (! $allocation->status->canTransitionTo(AllocationStatus::Active)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot activate allocation: current status '{$allocation->status->label()}' does not allow transition to Active. "
                 .'Only Draft allocations can be activated.'
             );
@@ -46,12 +47,12 @@ class AllocationService
      *
      * Closed allocations cannot be reopened. Create a new allocation if needed.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function close(Allocation $allocation): Allocation
     {
         if (! $allocation->status->canTransitionTo(AllocationStatus::Closed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot close allocation: current status '{$allocation->status->label()}' does not allow transition to Closed. "
                 .'Only Active or Exhausted allocations can be closed. Closed allocations cannot be reopened.'
             );
@@ -72,18 +73,18 @@ class AllocationService
      * This method handles the consumption atomically to prevent race conditions.
      * If remaining_quantity becomes 0, the allocation is automatically marked as exhausted.
      *
-     * @throws \InvalidArgumentException If allocation cannot be consumed or quantity exceeds available
+     * @throws InvalidArgumentException If allocation cannot be consumed or quantity exceeds available
      */
     public function consumeAllocation(Allocation $allocation, int $quantity): Allocation
     {
         if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Quantity must be greater than zero'
             );
         }
 
         if (! $allocation->status->allowsConsumption()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot consume allocation: status '{$allocation->status->label()}' does not allow consumption. "
                 .'Only Active allocations can be consumed.'
             );
@@ -92,7 +93,7 @@ class AllocationService
         // Check availability including active reservations
         if (! $this->checkAvailability($allocation, $quantity)) {
             $available = $this->getRemainingAvailable($allocation);
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot consume {$quantity} units: only {$available} units available "
                 .'(accounting for active reservations).'
             );
@@ -106,7 +107,7 @@ class AllocationService
             // Double-check availability after lock
             if (! $this->checkAvailability($allocation, $quantity)) {
                 $available = $this->getRemainingAvailable($allocation);
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Cannot consume {$quantity} units: only {$available} units available "
                     .'(accounting for active reservations).'
                 );
@@ -180,12 +181,12 @@ class AllocationService
      * This is typically called automatically when remaining_quantity reaches 0,
      * but can also be called manually if needed.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function markAsExhausted(Allocation $allocation): Allocation
     {
         if (! $allocation->status->canTransitionTo(AllocationStatus::Exhausted)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot mark allocation as exhausted: current status '{$allocation->status->label()}' does not allow this transition."
             );
         }
@@ -204,7 +205,7 @@ class AllocationService
      *
      * Validates the transition is allowed and provides user-friendly error messages.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function transitionTo(Allocation $allocation, AllocationStatus $targetStatus): Allocation
     {
@@ -224,14 +225,14 @@ class AllocationService
                 $message .= ' Closed allocations cannot be reopened - create a new allocation instead.';
             }
 
-            throw new \InvalidArgumentException($message);
+            throw new InvalidArgumentException($message);
         }
 
         return match ($targetStatus) {
             AllocationStatus::Active => $this->activate($allocation),
             AllocationStatus::Exhausted => $this->markAsExhausted($allocation),
             AllocationStatus::Closed => $this->close($allocation),
-            default => throw new \InvalidArgumentException("Unsupported target status: {$targetStatus->label()}"),
+            default => throw new InvalidArgumentException("Unsupported target status: {$targetStatus->label()}"),
         };
     }
 

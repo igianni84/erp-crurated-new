@@ -5,6 +5,7 @@ namespace App\Listeners\Procurement;
 use App\Events\VoucherIssued;
 use App\Models\Procurement\ProcurementIntent;
 use App\Services\Procurement\ProcurementIntentService;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Support\Facades\Log;
 
@@ -78,7 +79,7 @@ class CreateProcurementIntentOnVoucherIssued implements ShouldQueue
 
             // Log the source context for audit trail
             $this->logSourceContext($intent, $event);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error('Failed to auto-create ProcurementIntent from voucher issuance', [
                 'allocation_id' => $event->allocation->id,
                 'sale_reference' => $event->saleReference,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Finance;
 use App\Http\Controllers\Controller;
 use App\Jobs\Finance\ProcessStripeWebhookJob;
 use App\Models\Finance\StripeWebhook;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -73,7 +74,7 @@ class StripeWebhookController extends Controller
                 'success' => false,
                 'message' => 'Invalid signature',
             ], 400);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::channel('finance')->error('Stripe webhook construction failed', [
                 'error' => $e->getMessage(),
             ]);

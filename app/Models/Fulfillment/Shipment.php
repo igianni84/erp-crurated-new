@@ -3,13 +3,16 @@
 namespace App\Models\Fulfillment;
 
 use App\Enums\Fulfillment\ShipmentStatus;
+use App\Models\AuditLog;
 use App\Models\Inventory\Location;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * Shipment Model
@@ -27,8 +30,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $shipping_order_id
  * @property string $carrier
  * @property string|null $tracking_number
- * @property \Carbon\Carbon|null $shipped_at
- * @property \Carbon\Carbon|null $delivered_at
+ * @property Carbon|null $shipped_at
+ * @property Carbon|null $delivered_at
  * @property ShipmentStatus $status
  * @property array<int, string> $shipped_bottle_serials
  * @property string $origin_warehouse_id
@@ -110,7 +113,7 @@ class Shipment extends Model
 
             // Only check immutability if we were already shipped
             if ($originalStatus !== ShipmentStatus::Preparing && $shipment->isDirty('shipped_bottle_serials')) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'shipped_bottle_serials is immutable after shipment confirmation'
                 );
             }
@@ -120,7 +123,7 @@ class Shipment extends Model
                 $newStatus = $shipment->status;
 
                 if (! $originalStatus->canTransitionTo($newStatus)) {
-                    throw new \InvalidArgumentException(
+                    throw new InvalidArgumentException(
                         "Invalid status transition from {$originalStatus->value} to {$newStatus->value}"
                     );
                 }
@@ -151,11 +154,11 @@ class Shipment extends Model
     /**
      * Get the audit logs for this shipment.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Pim\WineMasterResource\Pages;
 
 use App\Filament\Resources\Pim\WineMasterResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListWineMasters extends ListRecords
@@ -13,7 +13,7 @@ class ListWineMasters extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 }

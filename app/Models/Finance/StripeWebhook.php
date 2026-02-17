@@ -3,6 +3,8 @@
 namespace App\Models\Finance;
 
 use App\Services\Finance\LogSanitizer;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
@@ -20,11 +22,11 @@ use InvalidArgumentException;
  * @property string $event_type
  * @property array<string, mixed> $payload
  * @property bool $processed
- * @property \Carbon\Carbon|null $processed_at
+ * @property Carbon|null $processed_at
  * @property string|null $error_message
  * @property int $retry_count
- * @property \Carbon\Carbon|null $last_retry_at
- * @property \Carbon\Carbon|null $created_at
+ * @property Carbon|null $last_retry_at
+ * @property Carbon|null $created_at
  */
 class StripeWebhook extends Model
 {
@@ -204,12 +206,11 @@ class StripeWebhook extends Model
     // =========================================================================
     // Query Scopes
     // =========================================================================
-
     /**
      * Scope to get only processed webhooks.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<StripeWebhook>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<StripeWebhook>
+     * @param  Builder<StripeWebhook>  $query
+     * @return Builder<StripeWebhook>
      */
     public function scopeProcessed($query)
     {
@@ -219,8 +220,8 @@ class StripeWebhook extends Model
     /**
      * Scope to get only pending webhooks.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<StripeWebhook>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<StripeWebhook>
+     * @param  Builder<StripeWebhook>  $query
+     * @return Builder<StripeWebhook>
      */
     public function scopePending($query)
     {
@@ -230,8 +231,8 @@ class StripeWebhook extends Model
     /**
      * Scope to get only failed webhooks (has error message but not processed).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<StripeWebhook>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<StripeWebhook>
+     * @param  Builder<StripeWebhook>  $query
+     * @return Builder<StripeWebhook>
      */
     public function scopeFailed($query)
     {
@@ -242,8 +243,8 @@ class StripeWebhook extends Model
     /**
      * Scope to filter by event type.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<StripeWebhook>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<StripeWebhook>
+     * @param  Builder<StripeWebhook>  $query
+     * @return Builder<StripeWebhook>
      */
     public function scopeOfType($query, string $eventType)
     {

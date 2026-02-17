@@ -6,6 +6,7 @@ use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\PaymentSource;
+use App\Enums\Finance\ReconciliationStatus;
 use App\Enums\Finance\RefundMethod;
 use App\Enums\Finance\RefundStatus;
 use App\Enums\Finance\RefundType;
@@ -28,18 +29,22 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
 use InvalidArgumentException;
 
 class ViewInvoice extends ViewRecord
@@ -54,9 +59,9 @@ class ViewInvoice extends ViewRecord
         return 'Invoice: '.($record->invoice_number ?? 'Draft #'.$record->id);
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getHeaderSection(),
                 Tabs::make('Invoice Details')
@@ -85,7 +90,7 @@ class ViewInvoice extends ViewRecord
                             TextEntry::make('invoice_number')
                                 ->label('Invoice Number')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->copyable()
                                 ->copyMessage('Invoice number copied')
                                 ->placeholder('Draft - Not yet issued'),
@@ -139,7 +144,7 @@ class ViewInvoice extends ViewRecord
                                 ->label('Total Amount')
                                 ->money(fn (Invoice $record): string => $record->currency)
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                         ])->columnSpan(1),
 
                         Group::make([
@@ -1338,7 +1343,7 @@ class ViewInvoice extends ViewRecord
 
                 return $mailService->canSendEmail($this->getInvoice());
             })
-            ->form([
+            ->schema([
                 Placeholder::make('recipient_info')
                     ->label('Recipient')
                     ->content(function (): string {
@@ -1464,7 +1469,7 @@ class ViewInvoice extends ViewRecord
             ->icon('heroicon-o-banknotes')
             ->color('info')
             ->visible(fn (): bool => $this->getInvoice()->canReceivePayment())
-            ->form([
+            ->schema([
                 Placeholder::make('invoice_info')
                     ->label('Invoice Details')
                     ->content(function (): string {
@@ -1496,7 +1501,7 @@ class ViewInvoice extends ViewRecord
                     ->helperText('The date the payment was received'),
                 Placeholder::make('partial_payment_warning')
                     ->label('')
-                    ->content(function (\Filament\Forms\Get $get): \Illuminate\Contracts\Support\Htmlable|string {
+                    ->content(function (Get $get): Htmlable|string {
                         $amount = $get('amount');
                         $outstanding = $this->getInvoice()->getOutstandingAmount();
 
@@ -1504,7 +1509,7 @@ class ViewInvoice extends ViewRecord
                             $remaining = bcsub($outstanding, (string) $amount, 2);
                             $currency = $this->getInvoice()->currency;
 
-                            return new \Illuminate\Support\HtmlString(
+                            return new HtmlString(
                                 '<div class="p-3 rounded-lg bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-400">'.
                                 '<strong>⚠ Partial Payment:</strong> This will leave '.
                                 "{$currency} {$remaining} outstanding on this invoice.".
@@ -1514,7 +1519,7 @@ class ViewInvoice extends ViewRecord
 
                         return '';
                     })
-                    ->visible(fn (\Filament\Forms\Get $get): bool => $get('amount') !== null
+                    ->visible(fn (Get $get): bool => $get('amount') !== null
                         && bccomp((string) $get('amount'), $this->getInvoice()->getOutstandingAmount(), 2) < 0),
             ])
             ->requiresConfirmation()
@@ -1540,7 +1545,7 @@ class ViewInvoice extends ViewRecord
                     $paymentService->applyToInvoice($payment, $invoice, (string) $data['amount']);
 
                     // Mark as reconciled since we're applying directly to a known invoice
-                    $paymentService->markReconciled($payment, \App\Enums\Finance\ReconciliationStatus::Matched);
+                    $paymentService->markReconciled($payment, ReconciliationStatus::Matched);
 
                     // Refresh the record to show updated amounts
                     $this->record->refresh();
@@ -1572,7 +1577,7 @@ class ViewInvoice extends ViewRecord
             ->icon('heroicon-o-receipt-refund')
             ->color('warning')
             ->visible(fn (): bool => $this->getInvoice()->canHaveCreditNote())
-            ->form([
+            ->schema([
                 Placeholder::make('invoice_info')
                     ->label('Original Invoice')
                     ->content(function (): string {
@@ -1657,7 +1662,7 @@ class ViewInvoice extends ViewRecord
                     ->body("Credit note for {$invoice->currency} {$amount} has been created as draft. Navigate to Credit Notes to issue it.")
                     ->success()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('view')
+                        Action::make('view')
                             ->label('View Credit Note')
                             ->url(route('filament.admin.resources.finance.credit-notes.view', ['record' => $creditNote->id])),
                     ])
@@ -1675,10 +1680,10 @@ class ViewInvoice extends ViewRecord
             ->icon('heroicon-o-arrow-uturn-left')
             ->color('danger')
             ->visible(fn (): bool => $this->getInvoice()->isPaid())
-            ->form([
+            ->schema([
                 Placeholder::make('warning')
                     ->label('')
-                    ->content(new \Illuminate\Support\HtmlString(
+                    ->content(new HtmlString(
                         '<div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-700">'.
                         '<div class="flex items-start gap-3">'.
                         '<svg class="w-6 h-6 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">'.
@@ -1737,7 +1742,7 @@ class ViewInvoice extends ViewRecord
                         return $options;
                     })
                     ->live()
-                    ->afterStateUpdated(function (\Filament\Forms\Set $set, \Filament\Forms\Get $get, ?string $state): void {
+                    ->afterStateUpdated(function (Set $set, Get $get, ?string $state): void {
                         if ($state === null) {
                             return;
                         }
@@ -1769,7 +1774,7 @@ class ViewInvoice extends ViewRecord
                     ->required()
                     ->numeric()
                     ->minValue(0.01)
-                    ->maxValue(function (\Filament\Forms\Get $get): float {
+                    ->maxValue(function (Get $get): float {
                         $paymentId = $get('payment_id');
                         if ($paymentId === null) {
                             return 0;
@@ -1783,9 +1788,9 @@ class ViewInvoice extends ViewRecord
                         return $invoicePayment !== null ? (float) $invoicePayment->amount_applied : 0;
                     })
                     ->prefix(fn (): string => $this->getInvoice()->currency)
-                    ->disabled(fn (\Filament\Forms\Get $get): bool => $get('refund_type') === RefundType::Full->value)
+                    ->disabled(fn (Get $get): bool => $get('refund_type') === RefundType::Full->value)
                     ->dehydrated()
-                    ->helperText(function (\Filament\Forms\Get $get): string {
+                    ->helperText(function (Get $get): string {
                         $paymentId = $get('payment_id');
                         if ($paymentId === null) {
                             return 'Select a payment first';
@@ -1807,7 +1812,7 @@ class ViewInvoice extends ViewRecord
                         RefundMethod::Stripe->value => RefundMethod::Stripe->label(),
                         RefundMethod::BankTransfer->value => RefundMethod::BankTransfer->label(),
                     ])
-                    ->helperText(function (\Filament\Forms\Get $get): string {
+                    ->helperText(function (Get $get): string {
                         $method = $get('method');
                         if ($method === RefundMethod::Stripe->value) {
                             return 'Refund will be processed automatically via Stripe';
@@ -1911,7 +1916,7 @@ class ViewInvoice extends ViewRecord
                         ->body("Refund for {$invoice->currency} {$amount} has been created with status Pending. Method: {$methodLabel}.")
                         ->success()
                         ->actions([
-                            \Filament\Notifications\Actions\Action::make('view')
+                            Action::make('view')
                                 ->label('View Refund')
                                 ->url(route('filament.admin.resources.finance.refunds.view', ['record' => $refund->id])),
                         ])

@@ -4,22 +4,37 @@ namespace App\Filament\Resources\Fulfillment;
 
 use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
 use App\Enums\Fulfillment\ShippingOrderExceptionType;
-use App\Filament\Resources\Fulfillment\ShippingOrderExceptionResource\Pages;
+use App\Filament\Resources\Fulfillment\ShippingOrderExceptionResource\Pages\ListShippingOrderExceptions;
+use App\Filament\Resources\Fulfillment\ShippingOrderExceptionResource\Pages\ViewShippingOrderException;
 use App\Models\Fulfillment\ShippingOrderException;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ShippingOrderExceptionResource extends Resource
 {
     protected static ?string $model = ShippingOrderException::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-exclamation-triangle';
 
-    protected static ?string $navigationGroup = 'Fulfillment';
+    protected static string|\UnitEnum|null $navigationGroup = 'Fulfillment';
 
     protected static ?int $navigationSort = 3;
 
@@ -29,13 +44,13 @@ class ShippingOrderExceptionResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Exceptions & Holds';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Exception Information')
+        return $schema
+            ->components([
+                Section::make('Exception Information')
                     ->schema([
-                        Forms\Components\Select::make('shipping_order_id')
+                        Select::make('shipping_order_id')
                             ->label('Shipping Order')
                             ->relationship('shippingOrder', 'id')
                             ->required()
@@ -43,7 +58,7 @@ class ShippingOrderExceptionResource extends Resource
                             ->preload()
                             ->disabled(),
 
-                        Forms\Components\Select::make('shipping_order_line_id')
+                        Select::make('shipping_order_line_id')
                             ->label('Shipping Order Line')
                             ->relationship('shippingOrderLine', 'id')
                             ->searchable()
@@ -51,14 +66,14 @@ class ShippingOrderExceptionResource extends Resource
                             ->disabled()
                             ->placeholder('Order-level exception'),
 
-                        Forms\Components\Select::make('exception_type')
+                        Select::make('exception_type')
                             ->label('Exception Type')
                             ->options(collect(ShippingOrderExceptionType::cases())
                                 ->mapWithKeys(fn (ShippingOrderExceptionType $type) => [$type->value => $type->label()])
                                 ->toArray())
                             ->disabled(),
 
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->label('Status')
                             ->options(collect(ShippingOrderExceptionStatus::cases())
                                 ->mapWithKeys(fn (ShippingOrderExceptionStatus $status) => [$status->value => $status->label()])
@@ -67,28 +82,28 @@ class ShippingOrderExceptionResource extends Resource
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Details')
+                Section::make('Details')
                     ->schema([
-                        Forms\Components\Textarea::make('description')
+                        Textarea::make('description')
                             ->label('Description')
                             ->rows(3)
                             ->disabled()
                             ->columnSpanFull(),
 
-                        Forms\Components\Textarea::make('resolution_path')
+                        Textarea::make('resolution_path')
                             ->label('Resolution Path')
                             ->rows(3)
                             ->disabled()
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Resolution')
+                Section::make('Resolution')
                     ->schema([
-                        Forms\Components\DateTimePicker::make('resolved_at')
+                        DateTimePicker::make('resolved_at')
                             ->label('Resolved At')
                             ->disabled(),
 
-                        Forms\Components\Select::make('resolved_by')
+                        Select::make('resolved_by')
                             ->label('Resolved By')
                             ->relationship('resolvedByUser', 'name')
                             ->disabled(),
@@ -102,7 +117,7 @@ class ShippingOrderExceptionResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Exception ID')
                     ->searchable()
                     ->sortable()
@@ -111,7 +126,7 @@ class ShippingOrderExceptionResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (ShippingOrderException $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('shippingOrder.id')
+                TextColumn::make('shippingOrder.id')
                     ->label('SO ID')
                     ->searchable()
                     ->sortable()
@@ -122,7 +137,7 @@ class ShippingOrderExceptionResource extends Resource
                     ->color('primary')
                     ->tooltip(fn (ShippingOrderException $record): string => $record->shipping_order_id),
 
-                Tables\Columns\TextColumn::make('exception_type')
+                TextColumn::make('exception_type')
                     ->label('Exception Type')
                     ->badge()
                     ->formatStateUsing(fn (ShippingOrderExceptionType $state): string => $state->label())
@@ -130,13 +145,13 @@ class ShippingOrderExceptionResource extends Resource
                     ->icon(fn (ShippingOrderExceptionType $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('description')
+                TextColumn::make('description')
                     ->label('Description')
                     ->limit(50)
                     ->tooltip(fn (ShippingOrderException $record): string => $record->description)
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (ShippingOrderExceptionStatus $state): string => $state->label())
@@ -144,38 +159,38 @@ class ShippingOrderExceptionResource extends Resource
                     ->icon(fn (ShippingOrderExceptionStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created At')
                     ->dateTime()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('resolved_at')
+                TextColumn::make('resolved_at')
                     ->label('Resolved At')
                     ->dateTime()
                     ->sortable()
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('createdByUser.name')
+                TextColumn::make('createdByUser.name')
                     ->label('Created By')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('resolvedByUser.name')
+                TextColumn::make('resolvedByUser.name')
                     ->label('Resolved By')
                     ->sortable()
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('exception_type')
+                SelectFilter::make('exception_type')
                     ->options(collect(ShippingOrderExceptionType::cases())
                         ->mapWithKeys(fn (ShippingOrderExceptionType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Exception Type'),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(ShippingOrderExceptionStatus::cases())
                         ->mapWithKeys(fn (ShippingOrderExceptionStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -183,11 +198,11 @@ class ShippingOrderExceptionResource extends Resource
                     ->label('Status')
                     ->default([ShippingOrderExceptionStatus::Active->value]),
 
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        Forms\Components\DatePicker::make('created_from')
+                Filter::make('date_range')
+                    ->schema([
+                        DatePicker::make('created_from')
                             ->label('Created From'),
-                        Forms\Components\DatePicker::make('created_until')
+                        DatePicker::make('created_until')
                             ->label('Created Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -213,18 +228,18 @@ class ShippingOrderExceptionResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
+            ->toolbarActions([
+                BulkActionGroup::make([
                     // Export CSV
-                    Tables\Actions\BulkAction::make('export_csv')
+                    BulkAction::make('export_csv')
                         ->label('Export CSV')
                         ->icon('heroicon-o-arrow-down-tray')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                        ->action(function (Collection $records): StreamedResponse {
                             return response()->streamDownload(function () use ($records): void {
                                 $handle = fopen('php://output', 'w');
                                 if ($handle === false) {
@@ -286,7 +301,7 @@ class ShippingOrderExceptionResource extends Resource
      *
      * @return array<string, string>
      */
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var ShippingOrderException $record */
         return [
@@ -314,8 +329,8 @@ class ShippingOrderExceptionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListShippingOrderExceptions::route('/'),
-            'view' => Pages\ViewShippingOrderException::route('/{record}'),
+            'index' => ListShippingOrderExceptions::route('/'),
+            'view' => ViewShippingOrderException::route('/{record}'),
         ];
     }
 
@@ -323,7 +338,7 @@ class ShippingOrderExceptionResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -338,7 +353,7 @@ class ShippingOrderExceptionResource extends Resource
     /**
      * Exceptions cannot be edited directly from the UI.
      */
-    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    public static function canEdit(Model $record): bool
     {
         return false;
     }
@@ -346,7 +361,7 @@ class ShippingOrderExceptionResource extends Resource
     /**
      * Exceptions cannot be deleted.
      */
-    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    public static function canDelete(Model $record): bool
     {
         return false;
     }

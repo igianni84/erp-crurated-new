@@ -188,7 +188,7 @@ class WineVariant extends Model
             ['attribute_definition_id' => $definition->id],
             [
                 'value' => null,
-                'source' => $this->data_source ?? \App\Enums\DataSource::Manual,
+                'source' => $this->data_source ?? DataSource::Manual,
                 'is_locked' => false,
             ]
         );

@@ -3,22 +3,33 @@
 namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\StorageBillingStatus;
-use App\Filament\Resources\Finance\StorageBillingResource\Pages;
+use App\Filament\Resources\Finance\StorageBillingResource\Pages\ListStorageBilling;
+use App\Filament\Resources\Finance\StorageBillingResource\Pages\ViewStorageBilling;
 use App\Models\Finance\StorageBillingPeriod;
 use Carbon\Carbon;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StorageBillingResource extends Resource
 {
     protected static ?string $model = StorageBillingPeriod::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 70;
 
@@ -28,10 +39,10 @@ class StorageBillingResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Storage Billing Periods';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in US-E088
             ]);
     }
@@ -40,7 +51,7 @@ class StorageBillingResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('period')
+                TextColumn::make('period')
                     ->label('Period')
                     ->getStateUsing(fn (StorageBillingPeriod $record): string => $record->getPeriodLabel())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
@@ -53,7 +64,7 @@ class StorageBillingResource extends Resource
                         });
                     }),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -67,26 +78,26 @@ class StorageBillingResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('bottle_count')
+                TextColumn::make('bottle_count')
                     ->label('Bottles')
                     ->numeric()
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('bottle_days')
+                TextColumn::make('bottle_days')
                     ->label('Bottle Days')
                     ->numeric()
                     ->sortable()
                     ->alignEnd()
                     ->description(fn (StorageBillingPeriod $record): string => number_format($record->getAverageBottlesPerDay(), 1).' avg/day'),
 
-                Tables\Columns\TextColumn::make('calculated_amount')
+                TextColumn::make('calculated_amount')
                     ->label('Amount')
                     ->money(fn (StorageBillingPeriod $record): string => $record->currency)
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (StorageBillingStatus $state): string => $state->label())
@@ -94,7 +105,7 @@ class StorageBillingResource extends Resource
                     ->icon(fn (StorageBillingStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('invoice.invoice_number')
+                TextColumn::make('invoice.invoice_number')
                     ->label('Invoice')
                     ->placeholder('Not invoiced')
                     ->url(fn (StorageBillingPeriod $record): ?string => $record->invoice
@@ -102,13 +113,13 @@ class StorageBillingResource extends Resource
                         : null)
                     ->color('primary'),
 
-                Tables\Columns\TextColumn::make('location.name')
+                TextColumn::make('location.name')
                     ->label('Location')
                     ->placeholder('All locations')
                     ->toggleable()
                     ->toggledHiddenByDefault(),
 
-                Tables\Columns\TextColumn::make('calculated_at')
+                TextColumn::make('calculated_at')
                     ->label('Calculated')
                     ->dateTime()
                     ->sortable()
@@ -116,11 +127,11 @@ class StorageBillingResource extends Resource
                     ->toggledHiddenByDefault(),
             ])
             ->filters([
-                Tables\Filters\Filter::make('period')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('period_from')
+                Filter::make('period')
+                    ->schema([
+                        DatePicker::make('period_from')
                             ->label('Period From'),
-                        \Filament\Forms\Components\DatePicker::make('period_to')
+                        DatePicker::make('period_to')
                             ->label('Period To'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -146,16 +157,16 @@ class StorageBillingResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(StorageBillingStatus::cases())
                         ->mapWithKeys(fn (StorageBillingStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\Filter::make('customer')
-                    ->form([
-                        \Filament\Forms\Components\Select::make('customer_id')
+                Filter::make('customer')
+                    ->schema([
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->relationship('customer', 'name')
                             ->searchable()
@@ -168,16 +179,16 @@ class StorageBillingResource extends Resource
                         );
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('export_csv')
+            ->toolbarActions([
+                BulkAction::make('export_csv')
                     ->label('Export to CSV')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                    ->action(function (Collection $records): StreamedResponse {
                         return response()->streamDownload(function () use ($records): void {
                             $handle = fopen('php://output', 'w');
                             if ($handle !== false) {
@@ -234,8 +245,8 @@ class StorageBillingResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListStorageBilling::route('/'),
-            'view' => Pages\ViewStorageBilling::route('/{record}'),
+            'index' => ListStorageBilling::route('/'),
+            'view' => ViewStorageBilling::route('/{record}'),
         ];
     }
 
@@ -243,7 +254,7 @@ class StorageBillingResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 

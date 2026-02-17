@@ -8,7 +8,9 @@ use App\Enums\Commercial\ExecutionType;
 use App\Enums\Commercial\PricingPolicyStatus;
 use App\Models\Commercial\PricingPolicy;
 use App\Models\Commercial\PricingPolicyExecution;
+use App\Services\Commercial\ExecutionResult;
 use App\Services\Commercial\PricingPolicyService;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Carbon;
@@ -80,7 +82,7 @@ class ExecuteScheduledPricingPoliciesJob implements ShouldQueue
                     $executedCount++;
 
                     Log::info("Successfully executed pricing policy: {$policy->name}, generated {$result->pricesGenerated} prices");
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     $errorCount++;
 
                     // Log the error
@@ -190,7 +192,7 @@ class ExecuteScheduledPricingPoliciesJob implements ShouldQueue
     /**
      * Generate a log summary for the execution.
      *
-     * @param  \App\Services\Commercial\ExecutionResult  $result
+     * @param  ExecutionResult  $result
      */
     protected function generateLogSummary(PricingPolicy $policy, $result): string
     {

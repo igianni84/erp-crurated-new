@@ -2,9 +2,11 @@
 
 namespace App\Models\AI;
 
+use App\Models\User;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use InvalidArgumentException;
 
 class AiAuditLog extends Model
 {
@@ -46,23 +48,23 @@ class AiAuditLog extends Model
         parent::boot();
 
         static::updating(function (): void {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'AI audit logs are immutable and cannot be updated.'
             );
         });
 
         static::deleting(function (): void {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'AI audit logs are immutable and cannot be deleted.'
             );
         });
     }
 
     /**
-     * @return BelongsTo<\App\Models\User, $this>
+     * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class);
+        return $this->belongsTo(User::class);
     }
 }

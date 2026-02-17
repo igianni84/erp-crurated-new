@@ -9,10 +9,11 @@ use App\Models\Pim\SellableSku;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class PriceBookCoverageTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get price book coverage vs total active sellable SKUs.';
     }
@@ -29,7 +30,7 @@ class PriceBookCoverageTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $totalActiveSkus = SellableSku::where('lifecycle_status', SellableSku::STATUS_ACTIVE)->count();
 

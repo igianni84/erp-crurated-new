@@ -6,27 +6,27 @@ use App\Enums\Commercial\EmpConfidenceLevel;
 use App\Enums\Commercial\EmpSource;
 use App\Models\Commercial\EstimatedMarketPrice;
 use App\Models\Pim\SellableSku;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Actions\Action;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Collection;
 
 class PricingIntelligenceDetail extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-presentation-chart-line';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-presentation-chart-line';
 
     protected static ?string $navigationLabel = 'Pricing Intelligence Detail';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 3;
 
@@ -34,7 +34,7 @@ class PricingIntelligenceDetail extends Page
 
     protected static ?string $slug = 'pricing-intelligence/{record}';
 
-    protected static string $view = 'filament.pages.pricing-intelligence-detail';
+    protected string $view = 'filament.pages.pricing-intelligence-detail';
 
     public ?string $record = null;
 
@@ -108,11 +108,11 @@ class PricingIntelligenceDetail extends Page
             ->implode(' · ');
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->record($this->sellableSku)
-            ->schema([
+            ->components([
                 Tabs::make('Pricing Intelligence Detail')
                     ->tabs([
                         $this->getEmpOverviewTab(),
@@ -620,7 +620,7 @@ class PricingIntelligenceDetail extends Page
                         Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('market')
                                     ->label('Market')
                                     ->placeholder('All markets')

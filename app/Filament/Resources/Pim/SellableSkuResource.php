@@ -2,16 +2,28 @@
 
 namespace App\Filament\Resources\Pim;
 
-use App\Filament\Resources\Pim\SellableSkuResource\Pages;
+use App\Filament\Resources\Pim\SellableSkuResource\Pages\CreateSellableSku;
+use App\Filament\Resources\Pim\SellableSkuResource\Pages\EditSellableSku;
+use App\Filament\Resources\Pim\SellableSkuResource\Pages\ListSellableSkus;
 use App\Models\Pim\CaseConfiguration;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -20,9 +32,9 @@ class SellableSkuResource extends Resource
 {
     protected static ?string $model = SellableSku::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-tag';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-tag';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 5;
 
@@ -32,13 +44,13 @@ class SellableSkuResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Sellable SKUs';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Product Reference')
+        return $schema
+            ->components([
+                Section::make('Product Reference')
                     ->schema([
-                        Forms\Components\Select::make('wine_variant_id')
+                        Select::make('wine_variant_id')
                             ->label('Wine Variant')
                             ->relationship('wineVariant', 'id')
                             ->getOptionLabelFromRecordUsing(function (WineVariant $record): string {
@@ -51,9 +63,9 @@ class SellableSkuResource extends Resource
                             ->preload()
                             ->required(),
                     ]),
-                Forms\Components\Section::make('SKU Configuration')
+                Section::make('SKU Configuration')
                     ->schema([
-                        Forms\Components\Select::make('format_id')
+                        Select::make('format_id')
                             ->label('Format')
                             ->relationship('format', 'name')
                             ->getOptionLabelFromRecordUsing(fn (Format $record): string => "{$record->name} ({$record->volume_ml} ml)")
@@ -61,7 +73,7 @@ class SellableSkuResource extends Resource
                             ->searchable()
                             ->preload()
                             ->live(),
-                        Forms\Components\Select::make('case_configuration_id')
+                        Select::make('case_configuration_id')
                             ->label('Case Configuration')
                             ->relationship(
                                 'caseConfiguration',
@@ -87,21 +99,21 @@ class SellableSkuResource extends Resource
                             ->preload(),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Identifiers')
+                Section::make('Identifiers')
                     ->schema([
-                        Forms\Components\TextInput::make('sku_code')
+                        TextInput::make('sku_code')
                             ->label('SKU Code')
                             ->disabled()
                             ->dehydrated()
                             ->helperText('Auto-generated based on wine, vintage, format, and case configuration'),
-                        Forms\Components\TextInput::make('barcode')
+                        TextInput::make('barcode')
                             ->label('Barcode')
                             ->maxLength(255),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Status')
+                Section::make('Status')
                     ->schema([
-                        Forms\Components\Select::make('lifecycle_status')
+                        Select::make('lifecycle_status')
                             ->label('Lifecycle Status')
                             ->options([
                                 'draft' => 'Draft',
@@ -119,20 +131,20 @@ class SellableSkuResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('sku_code')
+                TextColumn::make('sku_code')
                     ->label('SKU Code')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->weight('bold'),
-                Tables\Columns\TextColumn::make('wineVariant.wineMaster.name')
+                TextColumn::make('wineVariant.wineMaster.name')
                     ->label('Wine')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('wineVariant.vintage_year')
+                TextColumn::make('wineVariant.vintage_year')
                     ->label('Vintage')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('format.name')
+                TextColumn::make('format.name')
                     ->label('Format')
                     ->sortable()
                     ->description(function (SellableSku $record): string {
@@ -141,7 +153,7 @@ class SellableSkuResource extends Resource
 
                         return $format->volume_ml.' ml';
                     }),
-                Tables\Columns\TextColumn::make('caseConfiguration.name')
+                TextColumn::make('caseConfiguration.name')
                     ->label('Case')
                     ->sortable()
                     ->description(function (SellableSku $record): string {
@@ -157,11 +169,11 @@ class SellableSkuResource extends Resource
 
                         return "{$caseConfig->bottles_per_case}x {$caseType}";
                     }),
-                Tables\Columns\TextColumn::make('barcode')
+                TextColumn::make('barcode')
                     ->label('Barcode')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('lifecycle_status')
+                TextColumn::make('lifecycle_status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -177,17 +189,17 @@ class SellableSkuResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('wine_variant_id')
+                SelectFilter::make('wine_variant_id')
                     ->label('Wine Variant')
                     ->relationship('wineVariant', 'id')
                     ->getOptionLabelFromRecordUsing(function (WineVariant $record): string {
@@ -198,34 +210,34 @@ class SellableSkuResource extends Resource
                     })
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('format_id')
+                SelectFilter::make('format_id')
                     ->label('Format')
                     ->relationship('format', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('case_configuration_id')
+                SelectFilter::make('case_configuration_id')
                     ->label('Case Configuration')
                     ->relationship('caseConfiguration', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('lifecycle_status')
+                SelectFilter::make('lifecycle_status')
                     ->label('Status')
                     ->options([
                         'draft' => 'Draft',
                         'active' => 'Active',
                         'retired' => 'Retired',
                     ]),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
@@ -278,9 +290,9 @@ class SellableSkuResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSellableSkus::route('/'),
-            'create' => Pages\CreateSellableSku::route('/create'),
-            'edit' => Pages\EditSellableSku::route('/{record}/edit'),
+            'index' => ListSellableSkus::route('/'),
+            'create' => CreateSellableSku::route('/create'),
+            'edit' => EditSellableSku::route('/{record}/edit'),
         ];
     }
 }

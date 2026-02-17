@@ -5,6 +5,7 @@ namespace App\Models\Inventory;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,7 +25,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $inbound_batch_id
  * @property string $reason
  * @property string|null $resolution
- * @property \Carbon\Carbon|null $resolved_at
+ * @property Carbon|null $resolved_at
  * @property int|null $resolved_by
  * @property int $created_by
  */

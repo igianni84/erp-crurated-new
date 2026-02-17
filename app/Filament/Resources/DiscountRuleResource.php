@@ -4,24 +4,40 @@ namespace App\Filament\Resources;
 
 use App\Enums\Commercial\DiscountRuleStatus;
 use App\Enums\Commercial\DiscountRuleType;
-use App\Filament\Resources\DiscountRuleResource\Pages;
+use App\Filament\Resources\DiscountRuleResource\Pages\CreateDiscountRule;
+use App\Filament\Resources\DiscountRuleResource\Pages\EditDiscountRule;
+use App\Filament\Resources\DiscountRuleResource\Pages\ListDiscountRules;
+use App\Filament\Resources\DiscountRuleResource\Pages\ViewDiscountRule;
 use App\Models\Commercial\DiscountRule;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
 
 class DiscountRuleResource extends Resource
 {
     protected static ?string $model = DiscountRule::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-receipt-percent';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-receipt-percent';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 6;
 
@@ -38,18 +54,18 @@ class DiscountRuleResource extends Resource
         return null;
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Rule Information')
+        return $schema
+            ->components([
+                Section::make('Rule Information')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255)
                             ->placeholder('e.g., Summer Sale 15%, Volume Discount 6+')
                             ->columnSpanFull(),
-                        Forms\Components\Radio::make('rule_type')
+                        Radio::make('rule_type')
                             ->label('Rule Type')
                             ->options(collect(DiscountRuleType::cases())->mapWithKeys(fn (DiscountRuleType $type) => [
                                 $type->value => $type->label(),
@@ -61,7 +77,7 @@ class DiscountRuleResource extends Resource
                             ->live()
                             ->disabled(fn (?DiscountRule $record) => $record !== null && ! $record->canBeEdited())
                             ->columnSpanFull(),
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->options(collect(DiscountRuleStatus::cases())->mapWithKeys(fn (DiscountRuleStatus $status) => [
                                 $status->value => $status->label(),
                             ]))
@@ -77,11 +93,11 @@ class DiscountRuleResource extends Resource
                     ->columns(1),
 
                 // Dynamic Logic Builder Section
-                Forms\Components\Section::make('Logic Configuration')
+                Section::make('Logic Configuration')
                     ->description('Configure the discount calculation logic based on the rule type selected above.')
                     ->schema([
                         // Percentage Discount - Simple value input
-                        Forms\Components\TextInput::make('logic_definition.value')
+                        TextInput::make('logic_definition.value')
                             ->label('Discount Percentage')
                             ->numeric()
                             ->required(fn (Get $get): bool => $get('rule_type') === DiscountRuleType::Percentage->value)
@@ -95,7 +111,7 @@ class DiscountRuleResource extends Resource
                             ->live(onBlur: true),
 
                         // Fixed Amount Discount - Simple value input
-                        Forms\Components\TextInput::make('logic_definition.value')
+                        TextInput::make('logic_definition.value')
                             ->label('Discount Amount')
                             ->numeric()
                             ->required(fn (Get $get): bool => $get('rule_type') === DiscountRuleType::FixedAmount->value)
@@ -108,10 +124,10 @@ class DiscountRuleResource extends Resource
                             ->live(onBlur: true),
 
                         // Tiered Discount - Multiple tiers based on price ranges
-                        Forms\Components\Repeater::make('logic_definition.tiers')
+                        Repeater::make('logic_definition.tiers')
                             ->label('Price Tiers')
                             ->schema([
-                                Forms\Components\TextInput::make('min')
+                                TextInput::make('min')
                                     ->label('Minimum Price')
                                     ->numeric()
                                     ->prefix('€')
@@ -119,7 +135,7 @@ class DiscountRuleResource extends Resource
                                     ->step(0.01)
                                     ->placeholder('0.00')
                                     ->required(),
-                                Forms\Components\TextInput::make('max')
+                                TextInput::make('max')
                                     ->label('Maximum Price')
                                     ->numeric()
                                     ->prefix('€')
@@ -127,7 +143,7 @@ class DiscountRuleResource extends Resource
                                     ->step(0.01)
                                     ->placeholder('Leave empty for unlimited')
                                     ->helperText('Leave empty for no upper limit'),
-                                Forms\Components\TextInput::make('value')
+                                TextInput::make('value')
                                     ->label('Discount %')
                                     ->numeric()
                                     ->suffix('%')
@@ -148,16 +164,16 @@ class DiscountRuleResource extends Resource
                             ->live(),
 
                         // Volume-Based Discount - Multiple thresholds based on quantity
-                        Forms\Components\Repeater::make('logic_definition.thresholds')
+                        Repeater::make('logic_definition.thresholds')
                             ->label('Quantity Thresholds')
                             ->schema([
-                                Forms\Components\TextInput::make('min_qty')
+                                TextInput::make('min_qty')
                                     ->label('Minimum Quantity')
                                     ->integer()
                                     ->minValue(1)
                                     ->placeholder('e.g., 6')
                                     ->required(),
-                                Forms\Components\TextInput::make('value')
+                                TextInput::make('value')
                                     ->label('Discount Amount')
                                     ->numeric()
                                     ->prefix('€')
@@ -177,7 +193,7 @@ class DiscountRuleResource extends Resource
                             ->live(),
 
                         // Placeholder message when no rule type selected
-                        Forms\Components\Placeholder::make('select_type_message')
+                        Placeholder::make('select_type_message')
                             ->label('')
                             ->content(new HtmlString('
                                 <div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -194,10 +210,10 @@ class DiscountRuleResource extends Resource
                     ->visible(fn (Get $get): bool => $get('rule_type') !== null || true),
 
                 // Preview Section
-                Forms\Components\Section::make('Rule Preview')
+                Section::make('Rule Preview')
                     ->description('See how your discount rule will be displayed and calculated.')
                     ->schema([
-                        Forms\Components\Placeholder::make('preview')
+                        Placeholder::make('preview')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 return self::generateRulePreview($get);
@@ -357,29 +373,29 @@ class DiscountRuleResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable()
                     ->weight('medium'),
-                Tables\Columns\TextColumn::make('rule_type')
+                TextColumn::make('rule_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (DiscountRuleType $state): string => $state->label())
                     ->color(fn (DiscountRuleType $state): string => $state->color())
                     ->icon(fn (DiscountRuleType $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('summary')
+                TextColumn::make('summary')
                     ->label('Summary')
                     ->getStateUsing(fn (DiscountRule $record): string => $record->getSummary())
                     ->color('gray')
                     ->wrap(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (DiscountRuleStatus $state): string => $state->label())
                     ->color(fn (DiscountRuleStatus $state): string => $state->color())
                     ->icon(fn (DiscountRuleStatus $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('offers_using_count')
+                TextColumn::make('offers_using_count')
                     ->label('Offers Using')
                     ->getStateUsing(fn (DiscountRule $record): int => $record->getOffersUsingCount())
                     ->badge()
@@ -388,38 +404,38 @@ class DiscountRuleResource extends Resource
                         return $query->withCount('offerBenefits')
                             ->orderBy('offer_benefits_count', $direction);
                     }),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Last Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('rule_type')
+                SelectFilter::make('rule_type')
                     ->label('Rule Type')
                     ->options(collect(DiscountRuleType::cases())->mapWithKeys(fn (DiscountRuleType $type) => [
                         $type->value => $type->label(),
                     ])),
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(DiscountRuleStatus::cases())->mapWithKeys(fn (DiscountRuleStatus $status) => [
                         $status->value => $status->label(),
                     ])),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make()
                     ->visible(fn (DiscountRule $record): bool => $record->canBeEdited()),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('activate')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('activate')
                         ->label('Activate Selected')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
                         ->modalHeading('Activate Rules')
                         ->modalDescription('Are you sure you want to activate the selected discount rules?')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $activated = 0;
                             foreach ($records as $record) {
                                 /** @var DiscountRule $record */
@@ -429,20 +445,20 @@ class DiscountRuleResource extends Resource
                                     $activated++;
                                 }
                             }
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title("{$activated} rule(s) activated")
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('deactivate')
+                    BulkAction::make('deactivate')
                         ->label('Deactivate Selected')
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
                         ->requiresConfirmation()
                         ->modalHeading('Deactivate Rules')
                         ->modalDescription('Are you sure you want to deactivate the selected discount rules? Rules with active Offers will be skipped.')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $deactivated = 0;
                             $skipped = 0;
                             foreach ($records as $record) {
@@ -459,14 +475,14 @@ class DiscountRuleResource extends Resource
                             if ($skipped > 0) {
                                 $message .= ", {$skipped} skipped (have active Offers)";
                             }
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title($message)
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->before(function (\Illuminate\Database\Eloquent\Collection $records, Tables\Actions\DeleteBulkAction $action): void {
+                    DeleteBulkAction::make()
+                        ->before(function (Collection $records, DeleteBulkAction $action): void {
                             $hasReferencedRules = false;
                             foreach ($records as $record) {
                                 /** @var DiscountRule $record */
@@ -476,7 +492,7 @@ class DiscountRuleResource extends Resource
                                 }
                             }
                             if ($hasReferencedRules) {
-                                \Filament\Notifications\Notification::make()
+                                Notification::make()
                                     ->title('Cannot delete')
                                     ->body('Some rules are referenced by Offers and cannot be deleted.')
                                     ->danger()
@@ -499,10 +515,10 @@ class DiscountRuleResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListDiscountRules::route('/'),
-            'create' => Pages\CreateDiscountRule::route('/create'),
-            'view' => Pages\ViewDiscountRule::route('/{record}'),
-            'edit' => Pages\EditDiscountRule::route('/{record}/edit'),
+            'index' => ListDiscountRules::route('/'),
+            'create' => CreateDiscountRule::route('/create'),
+            'view' => ViewDiscountRule::route('/{record}'),
+            'edit' => EditDiscountRule::route('/{record}/edit'),
         ];
     }
 

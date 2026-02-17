@@ -23,7 +23,7 @@ class ImportLivex extends Page
 {
     protected static string $resource = ProductResource::class;
 
-    protected static string $view = 'filament.resources.pim.product-resource.pages.import-livex';
+    protected string $view = 'filament.resources.pim.product-resource.pages.import-livex';
 
     protected static ?string $title = 'Import from Liv-ex';
 

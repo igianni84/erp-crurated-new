@@ -4,24 +4,31 @@ namespace App\Filament\Resources\Inventory;
 
 use App\Enums\Inventory\BottleState;
 use App\Enums\Inventory\OwnershipType;
-use App\Filament\Resources\Inventory\SerializedBottleResource\Pages;
+use App\Filament\Resources\Inventory\SerializedBottleResource\Pages\ListSerializedBottles;
+use App\Filament\Resources\Inventory\SerializedBottleResource\Pages\ViewSerializedBottle;
 use App\Models\Allocation\Allocation;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
-use Filament\Forms\Form;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class SerializedBottleResource extends Resource
 {
     protected static ?string $model = SerializedBottle::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 4;
 
@@ -31,17 +38,17 @@ class SerializedBottleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Serialized Bottles';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
         // SerializedBottles are immutable after creation - no edit form
-        return $form->schema([]);
+        return $schema->components([]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('serial_number')
+                TextColumn::make('serial_number')
                     ->label('Serial Number')
                     ->searchable()
                     ->sortable()
@@ -50,7 +57,7 @@ class SerializedBottleResource extends Resource
                     ->weight('bold')
                     ->icon('heroicon-o-qr-code'),
 
-                Tables\Columns\TextColumn::make('wine_format')
+                TextColumn::make('wine_format')
                     ->label('Wine + Format')
                     ->state(function (SerializedBottle $record): string {
                         $wineVariant = $record->wineVariant;
@@ -76,7 +83,7 @@ class SerializedBottleResource extends Resource
                     ->wrap()
                     ->limit(40),
 
-                Tables\Columns\TextColumn::make('allocation_lineage')
+                TextColumn::make('allocation_lineage')
                     ->label('Allocation Lineage')
                     ->state(function (SerializedBottle $record): string {
                         $allocation = $record->allocation;
@@ -93,21 +100,21 @@ class SerializedBottleResource extends Resource
                     ->icon('heroicon-o-link')
                     ->limit(30),
 
-                Tables\Columns\TextColumn::make('currentLocation.name')
+                TextColumn::make('currentLocation.name')
                     ->label('Current Location')
                     ->searchable()
                     ->sortable()
                     ->icon('heroicon-o-map-pin')
                     ->limit(20),
 
-                Tables\Columns\TextColumn::make('custody_holder')
+                TextColumn::make('custody_holder')
                     ->label('Custody Holder')
                     ->placeholder('—')
                     ->sortable()
                     ->toggleable()
                     ->limit(20),
 
-                Tables\Columns\TextColumn::make('state')
+                TextColumn::make('state')
                     ->label('State')
                     ->badge()
                     ->formatStateUsing(fn (BottleState $state): string => $state->label())
@@ -115,7 +122,7 @@ class SerializedBottleResource extends Resource
                     ->icon(fn (BottleState $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('ownership_type')
+                TextColumn::make('ownership_type')
                     ->label('Ownership')
                     ->badge()
                     ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
@@ -124,7 +131,7 @@ class SerializedBottleResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\IconColumn::make('nft_status')
+                IconColumn::make('nft_status')
                     ->label('NFT')
                     ->state(fn (SerializedBottle $record): bool => $record->hasNft())
                     ->boolean()
@@ -135,14 +142,14 @@ class SerializedBottleResource extends Resource
                     ->tooltip(fn (SerializedBottle $record): string => $record->hasNft() ? 'NFT Minted' : 'NFT Pending')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('serialized_at')
+                TextColumn::make('serialized_at')
                     ->label('Serialized At')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('allocation_id')
+                SelectFilter::make('allocation_id')
                     ->label('Allocation Lineage')
                     ->options(function (): array {
                         return Allocation::query()
@@ -157,7 +164,7 @@ class SerializedBottleResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                Tables\Filters\SelectFilter::make('current_location_id')
+                SelectFilter::make('current_location_id')
                     ->label('Location')
                     ->options(fn (): array => Location::query()
                         ->orderBy('name')
@@ -166,33 +173,33 @@ class SerializedBottleResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                Tables\Filters\SelectFilter::make('state')
+                SelectFilter::make('state')
                     ->options(collect(BottleState::cases())
                         ->mapWithKeys(fn (BottleState $state) => [$state->value => $state->label()])
                         ->toArray())
                     ->multiple()
                     ->label('State'),
 
-                Tables\Filters\SelectFilter::make('ownership_type')
+                SelectFilter::make('ownership_type')
                     ->options(collect(OwnershipType::cases())
                         ->mapWithKeys(fn (OwnershipType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Ownership Type'),
 
-                Tables\Filters\TernaryFilter::make('has_nft')
+                TernaryFilter::make('has_nft')
                     ->label('NFT Status')
                     ->queries(
                         true: fn (Builder $query) => $query->whereNotNull('nft_reference'),
                         false: fn (Builder $query) => $query->whereNull('nft_reference'),
                     ),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // SerializedBottles should not be bulk deleted - they are immutable audit records
             ])
             ->defaultSort('serialized_at', 'desc')
@@ -257,8 +264,8 @@ class SerializedBottleResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSerializedBottles::route('/'),
-            'view' => Pages\ViewSerializedBottle::route('/{record}'),
+            'index' => ListSerializedBottles::route('/'),
+            'view' => ViewSerializedBottle::route('/{record}'),
         ];
     }
 
@@ -267,7 +274,7 @@ class SerializedBottleResource extends Resource
         return parent::getEloquentQuery()
             ->with(['wineVariant.wineMaster', 'format', 'allocation', 'currentLocation'])
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

@@ -5,14 +5,32 @@ namespace App\Filament\Resources;
 use App\Enums\Commercial\OfferStatus;
 use App\Enums\Commercial\OfferType;
 use App\Enums\Commercial\OfferVisibility;
-use App\Filament\Resources\OfferResource\Pages;
+use App\Filament\Resources\OfferResource\Pages\BulkCreateOffers;
+use App\Filament\Resources\OfferResource\Pages\CreateOffer;
+use App\Filament\Resources\OfferResource\Pages\EditOffer;
+use App\Filament\Resources\OfferResource\Pages\ListOffers;
+use App\Filament\Resources\OfferResource\Pages\ViewOffer;
 use App\Models\Commercial\Offer;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
@@ -20,9 +38,9 @@ class OfferResource extends Resource
 {
     protected static ?string $model = Offer::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-gift';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-gift';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 4;
 
@@ -32,28 +50,28 @@ class OfferResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Offers';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Offer Information')
+        return $schema
+            ->components([
+                Section::make('Offer Information')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('sellable_sku_id')
+                        Select::make('sellable_sku_id')
                             ->label('Sellable SKU')
                             ->relationship('sellableSku', 'sku_code')
                             ->searchable()
                             ->preload()
                             ->required(),
-                        Forms\Components\Select::make('channel_id')
+                        Select::make('channel_id')
                             ->label('Channel')
                             ->relationship('channel', 'name')
                             ->searchable()
                             ->preload()
                             ->required(),
-                        Forms\Components\Select::make('price_book_id')
+                        Select::make('price_book_id')
                             ->label('Price Book')
                             ->relationship('priceBook', 'name')
                             ->searchable()
@@ -61,9 +79,9 @@ class OfferResource extends Resource
                             ->required(),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Offer Type & Visibility')
+                Section::make('Offer Type & Visibility')
                     ->schema([
-                        Forms\Components\Select::make('offer_type')
+                        Select::make('offer_type')
                             ->label('Offer Type')
                             ->options(collect(OfferType::cases())->mapWithKeys(fn (OfferType $type) => [
                                 $type->value => $type->label(),
@@ -71,36 +89,36 @@ class OfferResource extends Resource
                             ->required()
                             ->default(OfferType::Standard->value)
                             ->native(false),
-                        Forms\Components\Select::make('visibility')
+                        Select::make('visibility')
                             ->options(collect(OfferVisibility::cases())->mapWithKeys(fn (OfferVisibility $visibility) => [
                                 $visibility->value => $visibility->label(),
                             ]))
                             ->required()
                             ->default(OfferVisibility::Public->value)
                             ->native(false),
-                        Forms\Components\TextInput::make('campaign_tag')
+                        TextInput::make('campaign_tag')
                             ->label('Campaign Tag')
                             ->maxLength(255)
                             ->placeholder('e.g., summer-2026, black-friday')
                             ->helperText('Optional tag for grouping related offers'),
                     ])
                     ->columns(3),
-                Forms\Components\Section::make('Validity Period')
+                Section::make('Validity Period')
                     ->schema([
-                        Forms\Components\DateTimePicker::make('valid_from')
+                        DateTimePicker::make('valid_from')
                             ->label('Valid From')
                             ->required()
                             ->native(false),
-                        Forms\Components\DateTimePicker::make('valid_to')
+                        DateTimePicker::make('valid_to')
                             ->label('Valid To')
                             ->native(false)
                             ->helperText('Leave empty for indefinite validity')
                             ->after('valid_from'),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Status')
+                Section::make('Status')
                     ->schema([
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->options(collect(OfferStatus::cases())->mapWithKeys(fn (OfferStatus $status) => [
                                 $status->value => $status->label(),
                             ]))
@@ -117,13 +135,13 @@ class OfferResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable()
                     ->description(fn (Offer $record): ?string => $record->isExpiringSoon() ? 'Expiring soon' : null)
                     ->icon(fn (Offer $record): ?string => $record->isExpiringSoon() ? 'heroicon-o-exclamation-triangle' : null)
                     ->iconColor('warning'),
-                Tables\Columns\TextColumn::make('sellable_sku_display')
+                TextColumn::make('sellable_sku_display')
                     ->label('Sellable SKU')
                     ->getStateUsing(function (Offer $record): string {
                         $sku = $record->sellableSku;
@@ -157,29 +175,29 @@ class OfferResource extends Resource
                     })
                     ->wrap()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('offer_type')
+                TextColumn::make('offer_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (OfferType $state): string => $state->label())
                     ->color(fn (OfferType $state): string => $state->color())
                     ->icon(fn (OfferType $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('channel.name')
+                TextColumn::make('channel.name')
                     ->label('Channel')
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (OfferStatus $state): string => $state->label())
                     ->color(fn (OfferStatus $state): string => $state->color())
                     ->icon(fn (OfferStatus $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('valid_from')
+                TextColumn::make('valid_from')
                     ->label('Valid From')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('valid_to')
+                TextColumn::make('valid_to')
                     ->label('Valid To')
                     ->dateTime()
                     ->sortable()
@@ -187,45 +205,45 @@ class OfferResource extends Resource
                     ->color(fn (Offer $record): ?string => $record->isExpiringSoon() ? 'warning' : null)
                     ->weight(fn (Offer $record): ?string => $record->isExpiringSoon() ? 'bold' : null)
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('visibility')
+                TextColumn::make('visibility')
                     ->badge()
                     ->formatStateUsing(fn (OfferVisibility $state): string => $state->label())
                     ->color(fn (OfferVisibility $state): string => $state->color())
                     ->icon(fn (OfferVisibility $state): string => $state->icon())
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('campaign_tag')
+                TextColumn::make('campaign_tag')
                     ->label('Campaign')
                     ->badge()
                     ->color('gray')
                     ->placeholder('-')
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Last Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(OfferStatus::cases())->mapWithKeys(fn (OfferStatus $status) => [
                         $status->value => $status->label(),
                     ])),
-                Tables\Filters\SelectFilter::make('offer_type')
+                SelectFilter::make('offer_type')
                     ->label('Offer Type')
                     ->options(collect(OfferType::cases())->mapWithKeys(fn (OfferType $type) => [
                         $type->value => $type->label(),
                     ])),
-                Tables\Filters\SelectFilter::make('channel_id')
+                SelectFilter::make('channel_id')
                     ->label('Channel')
                     ->relationship('channel', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('visibility')
+                SelectFilter::make('visibility')
                     ->options(collect(OfferVisibility::cases())->mapWithKeys(fn (OfferVisibility $visibility) => [
                         $visibility->value => $visibility->label(),
                     ])),
-                Tables\Filters\TernaryFilter::make('expiring_soon')
+                TernaryFilter::make('expiring_soon')
                     ->label('Expiring Soon')
                     ->placeholder('All')
                     ->trueLabel('Expiring within 7 days')
@@ -239,7 +257,7 @@ class OfferResource extends Resource
                                 ->orWhere('valid_to', '>', now()->addDays(7));
                         }),
                     ),
-                Tables\Filters\TernaryFilter::make('active_validity')
+                TernaryFilter::make('active_validity')
                     ->label('Validity Status')
                     ->placeholder('All')
                     ->trueLabel('Currently valid')
@@ -259,23 +277,23 @@ class OfferResource extends Resource
                                 });
                         }),
                     ),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make()
                     ->visible(fn (Offer $record): bool => $record->isEditable()),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('pause')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('pause')
                         ->label('Pause Selected')
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
                         ->requiresConfirmation()
                         ->modalHeading('Pause Offers')
                         ->modalDescription('Are you sure you want to pause the selected offers? Only active offers can be paused.')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $paused = 0;
                             foreach ($records as $record) {
                                 /** @var Offer $record */
@@ -285,20 +303,20 @@ class OfferResource extends Resource
                                     $paused++;
                                 }
                             }
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title("{$paused} offer(s) paused")
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('cancel')
+                    BulkAction::make('cancel')
                         ->label('Cancel Selected')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
                         ->requiresConfirmation()
                         ->modalHeading('Cancel Offers')
                         ->modalDescription('Are you sure you want to cancel the selected offers? This action cannot be undone.')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $cancelled = 0;
                             foreach ($records as $record) {
                                 /** @var Offer $record */
@@ -308,14 +326,14 @@ class OfferResource extends Resource
                                     $cancelled++;
                                 }
                             }
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title("{$cancelled} offer(s) cancelled")
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -362,11 +380,11 @@ class OfferResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListOffers::route('/'),
-            'create' => Pages\CreateOffer::route('/create'),
-            'bulk-create' => Pages\BulkCreateOffers::route('/bulk-create'),
-            'view' => Pages\ViewOffer::route('/{record}'),
-            'edit' => Pages\EditOffer::route('/{record}/edit'),
+            'index' => ListOffers::route('/'),
+            'create' => CreateOffer::route('/create'),
+            'bulk-create' => BulkCreateOffers::route('/bulk-create'),
+            'view' => ViewOffer::route('/{record}'),
+            'edit' => EditOffer::route('/{record}/edit'),
         ];
     }
 

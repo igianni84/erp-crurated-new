@@ -5,15 +5,18 @@ namespace App\Models\Procurement;
 use App\Enums\Procurement\BottlingInstructionStatus;
 use App\Enums\Procurement\BottlingPreferenceStatus;
 use App\Models\Allocation\Voucher;
+use App\Models\AuditLog;
 use App\Models\Pim\LiquidProduct;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * BottlingInstruction Model
@@ -28,13 +31,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property array<string> $allowed_formats JSON array of allowed bottle formats
  * @property array<string> $allowed_case_configurations JSON array of allowed case configurations
  * @property string|null $default_bottling_rule Default rule applied if customer doesn't specify preferences
- * @property \Carbon\Carbon $bottling_deadline Deadline for customer preferences (required)
+ * @property Carbon $bottling_deadline Deadline for customer preferences (required)
  * @property BottlingPreferenceStatus $preference_status Status of customer preference collection
  * @property bool $personalised_bottling_required Whether personalised bottling is required
  * @property bool $early_binding_required Whether early voucher-bottle binding is required
  * @property string|null $delivery_location Preferred delivery location
  * @property BottlingInstructionStatus $status Current lifecycle status
- * @property \Carbon\Carbon|null $defaults_applied_at When defaults were applied (if any)
+ * @property Carbon|null $defaults_applied_at When defaults were applied (if any)
  */
 class BottlingInstruction extends Model
 {
@@ -101,7 +104,7 @@ class BottlingInstruction extends Model
         static::saving(function (BottlingInstruction $instruction): void {
             // Enforce invariant: procurement_intent_id is required
             if (empty($instruction->procurement_intent_id)) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'A Bottling Instruction cannot exist without a Procurement Intent'
                 );
             }
@@ -109,7 +112,7 @@ class BottlingInstruction extends Model
             // Enforce invariant: bottling_deadline is required
             // Use empty() to handle null, empty string, or missing value
             if (empty($instruction->getAttributes()['bottling_deadline'])) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Bottling deadline is required for Bottling Instructions'
                 );
             }
@@ -139,11 +142,11 @@ class BottlingInstruction extends Model
     /**
      * Get the audit logs for this bottling instruction.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

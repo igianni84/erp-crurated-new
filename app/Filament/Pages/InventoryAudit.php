@@ -11,6 +11,7 @@ use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use App\Models\User;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -22,6 +23,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -45,17 +47,17 @@ class InventoryAudit extends Page implements HasForms, HasTable
     use InteractsWithForms;
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-list';
 
     protected static ?string $navigationLabel = 'Audit Log';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 10;
 
     protected static ?string $title = 'Module B Audit Log';
 
-    protected static string $view = 'filament.pages.inventory-audit';
+    protected string $view = 'filament.pages.inventory-audit';
 
     /**
      * Get the page heading.
@@ -184,7 +186,7 @@ class InventoryAudit extends Page implements HasForms, HasTable
                             return $auditable->serial_number ?? (string) $auditable->id;
                         }
 
-                        /** @var \App\Models\Inventory\InventoryCase|\App\Models\Inventory\InboundBatch $auditable */
+                        /** @var InventoryCase|InboundBatch $auditable */
                         return (string) $auditable->id;
                     })
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -305,7 +307,7 @@ class InventoryAudit extends Page implements HasForms, HasTable
 
                 Filter::make('date_range')
                     ->label('Date Range')
-                    ->form([
+                    ->schema([
                         DatePicker::make('date_from')
                             ->label('From'),
                         DatePicker::make('date_until')
@@ -388,8 +390,8 @@ class InventoryAudit extends Page implements HasForms, HasTable
                         });
                     }),
             ])
-            ->actions([
-                \Filament\Tables\Actions\Action::make('view_entity')
+            ->recordActions([
+                Action::make('view_entity')
                     ->label('View Entity')
                     ->icon('heroicon-o-eye')
                     ->url(function (AuditLog $record): ?string {
@@ -413,18 +415,18 @@ class InventoryAudit extends Page implements HasForms, HasTable
                     ->visible(fn (AuditLog $record): bool => $record->auditable !== null)
                     ->openUrlInNewTab(),
 
-                \Filament\Tables\Actions\Action::make('view_details')
+                Action::make('view_details')
                     ->label('Details')
                     ->icon('heroicon-o-information-circle')
                     ->modalHeading(fn (AuditLog $record): string => $record->getEventLabel().' Details')
-                    ->modalContent(function (AuditLog $record): \Illuminate\Contracts\View\View {
+                    ->modalContent(function (AuditLog $record): View {
                         return view('filament.pages.partials.audit-detail-modal', [
                             'record' => $record,
                         ]);
                     })
                     ->modalWidth('lg'),
             ])
-            ->bulkActions([])
+            ->toolbarActions([])
             ->defaultSort('created_at', 'desc')
             ->poll('30s')
             ->striped()
@@ -493,7 +495,7 @@ class InventoryAudit extends Page implements HasForms, HasTable
         $query = $this->getTableQuery();
 
         // Apply active filters from the table
-        $filters = $this->tableFilters ?? [];
+        $filters = $this->filters ?? [];
 
         if (! empty($filters['auditable_type']['values'] ?? [])) {
             $query->whereIn('auditable_type', $filters['auditable_type']['values']);

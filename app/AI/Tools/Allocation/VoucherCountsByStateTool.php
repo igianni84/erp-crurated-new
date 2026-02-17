@@ -10,10 +10,11 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class VoucherCountsByStateTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get voucher distribution across lifecycle states.';
     }
@@ -30,7 +31,7 @@ class VoucherCountsByStateTool extends BaseTool implements Tool
         return ToolAccessLevel::Basic;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $query = Voucher::query();
 

@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Procurement\SupplierProducerResource\Pages;
 use App\Enums\Customer\PartyRoleType;
 use App\Filament\Resources\Procurement\SupplierProducerResource;
 use App\Models\Customer\Party;
-use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListSupplierProducers extends ListRecords

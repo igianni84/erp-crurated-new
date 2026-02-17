@@ -4,16 +4,20 @@ namespace App\Models\Inventory;
 
 use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Models\Allocation\Allocation;
+use App\Models\AuditLog;
 use App\Models\Pim\CaseConfiguration;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * InventoryCase Model
@@ -41,7 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property bool $is_original
  * @property bool $is_breakable
  * @property CaseIntegrityStatus $integrity_status
- * @property \Carbon\Carbon|null $broken_at
+ * @property Carbon|null $broken_at
  * @property int|null $broken_by
  * @property string|null $broken_reason
  */
@@ -107,7 +111,7 @@ class InventoryCase extends Model
 
                 // If original was broken and trying to change to intact, block it
                 if ($originalStatus === CaseIntegrityStatus::Broken && $newStatus === CaseIntegrityStatus::Intact) {
-                    throw new \InvalidArgumentException(
+                    throw new InvalidArgumentException(
                         'Cannot revert case integrity status from BROKEN to INTACT. Breaking is irreversible.'
                     );
                 }
@@ -178,19 +182,19 @@ class InventoryCase extends Model
     /**
      * Get the audit logs for this case.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
      * Get the movement items associated with this case.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<MovementItem, $this>
+     * @return HasMany<MovementItem, $this>
      */
-    public function movementItems(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function movementItems(): HasMany
     {
         return $this->hasMany(MovementItem::class, 'case_id');
     }
@@ -198,9 +202,9 @@ class InventoryCase extends Model
     /**
      * Get the inventory movements that involve this case.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<InventoryMovement, MovementItem, $this>
+     * @return HasManyThrough<InventoryMovement, MovementItem, $this>
      */
-    public function movements(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    public function movements(): HasManyThrough
     {
         return $this->hasManyThrough(
             InventoryMovement::class,

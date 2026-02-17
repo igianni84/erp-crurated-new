@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Pim\RegionResource\Pages;
 
 use App\Filament\Resources\Pim\RegionResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListRegions extends ListRecords
@@ -13,7 +13,7 @@ class ListRegions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 }

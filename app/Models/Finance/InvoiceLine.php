@@ -6,6 +6,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\ServiceFeeType;
 use App\Models\Pim\SellableSku;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -29,8 +30,8 @@ use InvalidArgumentException;
  * @property string $line_total
  * @property int|null $sellable_sku_id
  * @property array<string, mixed>|null $metadata
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class InvoiceLine extends Model
 {

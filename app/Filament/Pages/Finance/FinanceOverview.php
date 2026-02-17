@@ -12,9 +12,12 @@ use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
 use App\Models\Finance\Refund;
+use App\Models\Finance\StripeWebhook;
 use App\Services\Finance\XeroIntegrationService;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -52,19 +55,19 @@ use Illuminate\Support\Facades\Cache;
  */
 class FinanceOverview extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationLabel = 'Overview';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 1;
 
     protected static ?string $title = 'Finance Overview';
 
-    protected static string $view = 'filament.pages.finance.finance-overview';
+    protected string $view = 'filament.pages.finance.finance-overview';
 
     /**
      * Track dismissed alerts for this session.
@@ -196,7 +199,7 @@ class FinanceOverview extends Page
                 'color' => 'danger',
                 'count' => $mismatchedCount,
                 'url' => route('filament.admin.resources.finance.payments.index', [
-                    'tableFilters' => ['reconciliation_status' => ['value' => 'mismatched']],
+                    'filters' => ['reconciliation_status' => ['value' => 'mismatched']],
                 ]),
                 'dismissible' => true,
             ];
@@ -413,7 +416,7 @@ class FinanceOverview extends Page
     public function getOverdueInvoicesUrl(): string
     {
         return route('filament.admin.resources.finance.invoices.index', [
-            'activeTab' => 'overdue',
+            'tab' => 'overdue',
         ]);
     }
 
@@ -423,7 +426,7 @@ class FinanceOverview extends Page
     public function getPendingReconciliationsUrl(): string
     {
         return route('filament.admin.resources.finance.payments.index', [
-            'tableFilters' => [
+            'filters' => [
                 'reconciliation_status' => ['value' => 'pending'],
             ],
         ]);
@@ -643,17 +646,17 @@ class FinanceOverview extends Page
      */
     public function getStripeHealthSummary(): array
     {
-        $lastWebhook = \App\Models\Finance\StripeWebhook::query()
+        $lastWebhook = StripeWebhook::query()
             ->orderBy('created_at', 'desc')
             ->first();
 
-        $failedCount = \App\Models\Finance\StripeWebhook::failed()->count();
-        $pendingCount = \App\Models\Finance\StripeWebhook::pending()
+        $failedCount = StripeWebhook::failed()->count();
+        $pendingCount = StripeWebhook::pending()
             ->whereNull('error_message')
             ->count();
 
         $oneHourAgo = now()->subHour();
-        $hasNoRecent = ! \App\Models\Finance\StripeWebhook::query()
+        $hasNoRecent = ! StripeWebhook::query()
             ->where('created_at', '>=', $oneHourAgo)
             ->exists();
 
@@ -690,14 +693,7 @@ class FinanceOverview extends Page
     /**
      * Get Xero integration health summary.
      *
-     * @return array{
-     *     status: string,
-     *     status_color: string,
-     *     sync_enabled: bool,
-     *     pending_count: int,
-     *     failed_count: int,
-     *     last_sync: \Carbon\Carbon|null
-     * }
+     * @return array{status: string, status_color: string, sync_enabled: bool, pending_count: int, failed_count: int, last_sync: Carbon|null}
      */
     public function getXeroHealthSummary(): array
     {
@@ -1106,7 +1102,6 @@ class FinanceOverview extends Page
     // =========================================================================
     // Recent Activity Feed (US-E118)
     // =========================================================================
-
     /**
      * Get recent activity feed for the last 24 hours.
      *
@@ -1116,19 +1111,7 @@ class FinanceOverview extends Page
      * - Credit notes issued
      * - Refunds processed
      *
-     * @return array<array{
-     *     type: string,
-     *     icon: string,
-     *     icon_color: string,
-     *     title: string,
-     *     description: string,
-     *     amount: string|null,
-     *     currency: string,
-     *     timestamp: \Carbon\Carbon,
-     *     url: string|null,
-     *     model_type: string,
-     *     model_id: int|string
-     * }>
+     * @return array<array{type: string, icon: string, icon_color: string, title: string, description: string, amount: string|null, currency: string, timestamp: Carbon, url: string|null, model_type: string, model_id: int|string}>
      */
     public function getRecentActivityFeed(): array
     {

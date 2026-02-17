@@ -4,12 +4,16 @@ namespace App\Models\Allocation;
 
 use App\Enums\Allocation\ReservationContextType;
 use App\Enums\Allocation\ReservationStatus;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use InvalidArgumentException;
 
 /**
  * TemporaryReservation Model
@@ -25,10 +29,10 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property ReservationContextType $context_type
  * @property string|null $context_reference
  * @property ReservationStatus $status
- * @property \Carbon\Carbon $expires_at
+ * @property Carbon $expires_at
  * @property int|null $created_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class TemporaryReservation extends Model
 {
@@ -83,7 +87,7 @@ class TemporaryReservation extends Model
         static::saving(function (TemporaryReservation $reservation): void {
             // Ensure quantity is positive
             if ($reservation->quantity <= 0) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Reservation quantity must be greater than zero'
                 );
             }
@@ -103,11 +107,11 @@ class TemporaryReservation extends Model
     /**
      * Get the audit logs for this reservation.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -212,8 +216,8 @@ class TemporaryReservation extends Model
     /**
      * Scope to get only active reservations.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<TemporaryReservation>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<TemporaryReservation>
+     * @param  Builder<TemporaryReservation>  $query
+     * @return Builder<TemporaryReservation>
      */
     public function scopeActive($query)
     {
@@ -223,8 +227,8 @@ class TemporaryReservation extends Model
     /**
      * Scope to get expired reservations that need status update.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<TemporaryReservation>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<TemporaryReservation>
+     * @param  Builder<TemporaryReservation>  $query
+     * @return Builder<TemporaryReservation>
      */
     public function scopeNeedsExpiration($query)
     {

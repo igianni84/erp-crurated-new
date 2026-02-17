@@ -7,6 +7,7 @@ use App\Models\Finance\Invoice;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Event-to-Invoice Traceability Report page for Finance module.
@@ -20,11 +21,11 @@ use Illuminate\Support\Collection;
  */
 class EventToInvoiceTraceabilityReport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrows-right-left';
 
     protected static ?string $navigationLabel = 'Event Traceability';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -32,7 +33,7 @@ class EventToInvoiceTraceabilityReport extends Page
 
     protected static ?string $title = 'Event-to-Invoice Traceability';
 
-    protected static string $view = 'filament.pages.finance.event-to-invoice-traceability-report';
+    protected string $view = 'filament.pages.finance.event-to-invoice-traceability-report';
 
     /**
      * Filter by event type (source_type).
@@ -465,7 +466,7 @@ class EventToInvoiceTraceabilityReport extends Page
     /**
      * Export to CSV.
      */
-    public function exportToCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToCsv(): StreamedResponse
     {
         $data = $this->getTraceabilityData();
         $summary = $this->getSummary();

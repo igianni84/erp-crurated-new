@@ -2,6 +2,9 @@
 
 namespace App\Models\Pim;
 
+use App\Models\Commercial\BundleComponent;
+use App\Models\Commercial\EstimatedMarketPrice;
+use App\Models\Commercial\Offer;
 use App\Traits\Auditable;
 use App\Traits\AuditLoggable;
 use App\Traits\HasUuid;
@@ -12,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class SellableSku extends Model
 {
@@ -169,31 +173,31 @@ class SellableSku extends Model
     /**
      * Get the estimated market prices for this SKU.
      *
-     * @return HasMany<\App\Models\Commercial\EstimatedMarketPrice, $this>
+     * @return HasMany<EstimatedMarketPrice, $this>
      */
     public function estimatedMarketPrices(): HasMany
     {
-        return $this->hasMany(\App\Models\Commercial\EstimatedMarketPrice::class);
+        return $this->hasMany(EstimatedMarketPrice::class);
     }
 
     /**
      * Get the offers for this SKU.
      *
-     * @return HasMany<\App\Models\Commercial\Offer, $this>
+     * @return HasMany<Offer, $this>
      */
     public function offers(): HasMany
     {
-        return $this->hasMany(\App\Models\Commercial\Offer::class);
+        return $this->hasMany(Offer::class);
     }
 
     /**
      * Get the bundle components that reference this SKU.
      *
-     * @return HasMany<\App\Models\Commercial\BundleComponent, $this>
+     * @return HasMany<BundleComponent, $this>
      */
     public function bundleComponents(): HasMany
     {
-        return $this->hasMany(\App\Models\Commercial\BundleComponent::class);
+        return $this->hasMany(BundleComponent::class);
     }
 
     /**
@@ -519,7 +523,7 @@ class SellableSku extends Model
         if ($this->isComposite()) {
             $errors = $this->validateCompositeForActivation();
             if (! empty($errors)) {
-                throw new \RuntimeException(implode(' ', $errors));
+                throw new RuntimeException(implode(' ', $errors));
             }
         }
 

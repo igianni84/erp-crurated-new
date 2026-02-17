@@ -11,10 +11,11 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class RevenueSummaryTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get revenue summary for a given period, optionally grouped by invoice type.';
     }
@@ -36,7 +37,7 @@ class RevenueSummaryTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         [$from, $to] = $this->parsePeriod($request['period'] ?? 'this_month');
         $groupBy = $request['group_by'] ?? 'invoice_type';

@@ -6,8 +6,9 @@ use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
 use App\Filament\Resources\Finance\PaymentResource;
 use App\Models\Finance\Payment;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListPayments extends ListRecords
@@ -15,7 +16,7 @@ class ListPayments extends ListRecords
     protected static string $resource = PaymentResource::class;
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
@@ -25,7 +26,7 @@ class ListPayments extends ListRecords
     }
 
     /**
-     * @return array<string, Tab>
+     * @return array<string, \Filament\Schemas\Components\Tabs\Tab>
      */
     public function getTabs(): array
     {

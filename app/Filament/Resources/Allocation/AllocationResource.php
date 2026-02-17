@@ -5,23 +5,37 @@ namespace App\Filament\Resources\Allocation;
 use App\Enums\Allocation\AllocationSourceType;
 use App\Enums\Allocation\AllocationStatus;
 use App\Enums\Allocation\AllocationSupplyForm;
-use App\Filament\Resources\Allocation\AllocationResource\Pages;
+use App\Filament\Resources\Allocation\AllocationResource\Pages\CreateAllocation;
+use App\Filament\Resources\Allocation\AllocationResource\Pages\EditAllocation;
+use App\Filament\Resources\Allocation\AllocationResource\Pages\ListAllocations;
+use App\Filament\Resources\Allocation\AllocationResource\Pages\ViewAllocation;
 use App\Models\Allocation\Allocation;
-use Filament\Forms;
-use Filament\Forms\Form;
+use App\Models\Pim\WineMaster;
+use App\Models\Pim\WineVariant;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class AllocationResource extends Resource
 {
     protected static ?string $model = Allocation::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cube-transparent';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube-transparent';
 
-    protected static ?string $navigationGroup = 'Allocations';
+    protected static string|\UnitEnum|null $navigationGroup = 'Allocations';
 
     protected static ?int $navigationSort = 1;
 
@@ -31,10 +45,10 @@ class AllocationResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Allocations';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in US-008 through US-012
             ]);
     }
@@ -43,14 +57,14 @@ class AllocationResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Allocation ID')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->copyMessage('Allocation ID copied'),
 
-                Tables\Columns\TextColumn::make('bottle_sku')
+                TextColumn::make('bottle_sku')
                     ->label('Bottle SKU')
                     ->state(fn (Allocation $record): string => $record->getBottleSkuLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -63,7 +77,7 @@ class AllocationResource extends Resource
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy(
-                            \App\Models\Pim\WineMaster::query()
+                            WineMaster::query()
                                 ->select('name')
                                 ->join('wine_variants', 'wine_masters.id', '=', 'wine_variants.wine_master_id')
                                 ->whereColumn('wine_variants.id', 'allocations.wine_variant_id')
@@ -73,7 +87,7 @@ class AllocationResource extends Resource
                     })
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('supply_form')
+                TextColumn::make('supply_form')
                     ->label('Supply Form')
                     ->badge()
                     ->formatStateUsing(fn (AllocationSupplyForm $state): string => $state->label())
@@ -81,7 +95,7 @@ class AllocationResource extends Resource
                     ->icon(fn (AllocationSupplyForm $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('source_type')
+                TextColumn::make('source_type')
                     ->label('Source Type')
                     ->badge()
                     ->formatStateUsing(fn (AllocationSourceType $state): string => $state->label())
@@ -89,7 +103,7 @@ class AllocationResource extends Resource
                     ->icon(fn (AllocationSourceType $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (AllocationStatus $state): string => $state->label())
@@ -97,19 +111,19 @@ class AllocationResource extends Resource
                     ->icon(fn (AllocationStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('total_quantity')
+                TextColumn::make('total_quantity')
                     ->label('Total Qty')
                     ->numeric()
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('sold_quantity')
+                TextColumn::make('sold_quantity')
                     ->label('Sold Qty')
                     ->numeric()
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('remaining_quantity')
+                TextColumn::make('remaining_quantity')
                     ->label('Remaining Qty')
                     ->state(fn (Allocation $record): int => $record->remaining_quantity)
                     ->numeric()
@@ -121,14 +135,14 @@ class AllocationResource extends Resource
                     ->weight(fn (Allocation $record): string => $record->isNearExhaustion() ? 'bold' : 'normal')
                     ->icon(fn (Allocation $record): ?string => $record->isNearExhaustion() ? 'heroicon-o-exclamation-triangle' : null),
 
-                Tables\Columns\TextColumn::make('availability_window')
+                TextColumn::make('availability_window')
                     ->label('Availability')
                     ->state(fn (Allocation $record): string => $record->getAvailabilityWindowLabel())
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy('expected_availability_start', $direction);
                     }),
 
-                Tables\Columns\TextColumn::make('constraint_summary')
+                TextColumn::make('constraint_summary')
                     ->label('Constraints')
                     ->state(function (Allocation $record): string {
                         $constraint = $record->constraint;
@@ -138,14 +152,14 @@ class AllocationResource extends Resource
                     ->wrap()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(AllocationStatus::cases())
                         ->mapWithKeys(fn (AllocationStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -157,25 +171,25 @@ class AllocationResource extends Resource
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('source_type')
+                SelectFilter::make('source_type')
                     ->options(collect(AllocationSourceType::cases())
                         ->mapWithKeys(fn (AllocationSourceType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Source Type'),
 
-                Tables\Filters\SelectFilter::make('supply_form')
+                SelectFilter::make('supply_form')
                     ->options(collect(AllocationSupplyForm::cases())
                         ->mapWithKeys(fn (AllocationSupplyForm $form) => [$form->value => $form->label()])
                         ->toArray())
                     ->label('Supply Form'),
 
-                Tables\Filters\Filter::make('wine_variant')
-                    ->form([
-                        Forms\Components\Select::make('wine_variant_id')
+                Filter::make('wine_variant')
+                    ->schema([
+                        Select::make('wine_variant_id')
                             ->label('Bottle SKU (Wine Variant)')
                             ->relationship('wineVariant', 'id')
-                            ->getOptionLabelFromRecordUsing(function (\App\Models\Pim\WineVariant $record): string {
+                            ->getOptionLabelFromRecordUsing(function (WineVariant $record): string {
                                 $wineMaster = $record->wineMaster;
                                 $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown Wine';
                                 $vintage = $record->vintage_year ?? 'NV';
@@ -192,21 +206,21 @@ class AllocationResource extends Resource
                         );
                     }),
 
-                Tables\Filters\Filter::make('near_exhaustion')
+                Filter::make('near_exhaustion')
                     ->label('Near Exhaustion')
                     ->query(fn (Builder $query): Builder => $query->whereRaw('(total_quantity - sold_quantity) < (total_quantity * 0.10)'))
                     ->toggle(),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc')
@@ -254,10 +268,10 @@ class AllocationResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListAllocations::route('/'),
-            'create' => Pages\CreateAllocation::route('/create'),
-            'view' => Pages\ViewAllocation::route('/{record}'),
-            'edit' => Pages\EditAllocation::route('/{record}/edit'),
+            'index' => ListAllocations::route('/'),
+            'create' => CreateAllocation::route('/create'),
+            'view' => ViewAllocation::route('/{record}'),
+            'edit' => EditAllocation::route('/{record}/edit'),
         ];
     }
 
@@ -265,7 +279,7 @@ class AllocationResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

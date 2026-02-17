@@ -9,14 +9,17 @@ use App\Filament\Resources\Allocation\VoucherResource;
 use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\AuditLog;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 
 class ViewCaseEntitlement extends ViewRecord
@@ -46,16 +49,16 @@ class ViewCaseEntitlement extends ViewRecord
      * Get the header actions for the view page.
      * No manual actions - case entitlements break automatically.
      *
-     * @return array<\Filament\Actions\Action|\Filament\Actions\ActionGroup>
+     * @return array<Action|ActionGroup>
      */
     protected function getHeaderActions(): array
     {
         return [];
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 // Header section with status banner
                 $this->getHeaderSection(),
@@ -89,7 +92,7 @@ class ViewCaseEntitlement extends ViewRecord
                                 ->copyable()
                                 ->copyMessage('Entitlement ID copied')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                         ])->columnSpan(1),
                         Group::make([
                             TextEntry::make('customer.name')
@@ -110,7 +113,7 @@ class ViewCaseEntitlement extends ViewRecord
                                 ->formatStateUsing(fn (CaseEntitlementStatus $state): string => $state->label())
                                 ->color(fn (CaseEntitlementStatus $state): string => $state->color())
                                 ->icon(fn (CaseEntitlementStatus $state): string => $state->icon())
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                         ])->columnSpan(1),
                         Group::make([
                             TextEntry::make('created_at')
@@ -188,11 +191,11 @@ class ViewCaseEntitlement extends ViewRecord
             ->icon('heroicon-o-ticket')
             ->collapsible()
             ->headerActions([
-                \Filament\Infolists\Components\Actions\Action::make('viewAllVouchers')
+                Action::make('viewAllVouchers')
                     ->label('View All in Vouchers List')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(fn (CaseEntitlement $record): string => VoucherResource::getUrl('index', [
-                        'tableFilters' => [
+                        'filters' => [
                             'case_entitlement' => [
                                 'case_entitlement_id' => $record->id,
                             ],
@@ -210,7 +213,7 @@ class ViewCaseEntitlement extends ViewRecord
                             ->badge()
                             ->color('primary')
                             ->weight(FontWeight::Bold)
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->getStateUsing(fn (CaseEntitlement $record): string => (string) $record->vouchers()->count()),
                         TextEntry::make('issued_vouchers')
                             ->label('Issued')

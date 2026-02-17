@@ -1,6 +1,7 @@
 # Gap Analysis — Module C (Fulfillment & Shipping)
 
 **Data:** 9 febbraio 2026
+**Ultima verifica approfondita:** 16 febbraio 2026
 **Scope:** Confronto tra documentazione funzionale (ERP-FULL-DOC.md §10), PRD UI/UX (prd-module-c-fulfillment.md) e codice effettivamente implementato.
 
 ---
@@ -16,9 +17,11 @@
 | Copertura funzionale | **~93%** |
 | Copertura UI/UX | **~95%** |
 | Copertura invarianti | **100%** |
-| Test coverage | **0%** |
+| Test coverage | **~3%** (solo AI tools; 0% domain logic core) |
 
 **Verdetto complessivo:** Il modulo è architetturalmente solido e copre la quasi totalità delle specifiche funzionali. Le lacune sono concentrate su: integrazione Customer, API WMS, policies di autorizzazione e test automatizzati.
+
+> **Nota di verifica (16 feb 2026):** Documento verificato rigorosamente contro il codice sorgente con analisi indipendente di ogni singolo file (modelli, enum, servizi, risorse Filament, migrazioni, route, policy, test). Esistono **16 test** in `tests/Unit/AI/Tools/Fulfillment/FulfillmentToolsTest.php` (AI tools: 5 PendingShippingOrdersTool, 6 ShipmentStatusTool, 5 ShipmentsInTransitTool), ma **zero test** per i 5 core domain services (~3.728 righe di business logic senza test). Tutte le altre metriche sono confermate accurate. Nessun file mancante o non documentato è stato trovato. Vedi §10 per dettaglio completo della verifica.
 
 ---
 
@@ -48,11 +51,11 @@
 ### 2.3 Services (5)
 | Service | Righe | Responsabilità |
 |---------|-------|---------------|
-| `ShippingOrderService` | ~1000 | Lifecycle SO, validazione voucher, lock/unlock, 3-checkpoint validation |
-| `ShipmentService` | ~770 | Creazione/conferma shipment, redemption, ownership transfer, case breaking |
-| `LateBindingService` | ~660 | Late binding voucher→bottle, early binding validation, unbinding |
-| `VoucherLockService` | ~455 | Lock/unlock atomico, rollback, validazione concorrenza |
-| `WmsIntegrationService` | ~845 | Picking instructions, feedback, serial validation, re-pick, discrepancy |
+| `ShippingOrderService` | 997 | Lifecycle SO, validazione voucher, lock/unlock, 3-checkpoint validation |
+| `ShipmentService` | 772 | Creazione/conferma shipment, redemption, ownership transfer, case breaking |
+| `LateBindingService` | 660 | Late binding voucher→bottle, early binding validation, unbinding |
+| `VoucherLockService` | 455 | Lock/unlock atomico, rollback, validazione concorrenza |
+| `WmsIntegrationService` | 844 | Picking instructions, feedback, serial validation, re-pick, discrepancy |
 
 ### 2.4 Filament Resources (3) + Pages (8) + Dashboard (1)
 | Componente | Pagine |
@@ -81,8 +84,8 @@
 |-----|-------|
 | `UpdateProvenanceOnShipmentJob` | Aggiornamento provenance blockchain (placeholder MVP) |
 
-### 2.8 Seeders (3)
-- `ShippingOrderSeeder`, `ShipmentSeeder`, `ShippingOrderLineSeeder`
+### 2.8 Seeders (2)
+- `ShippingOrderSeeder` (gestisce anche le ShippingOrderLines — lifecycle completo), `ShipmentSeeder` (failure simulation)
 
 ---
 
@@ -96,7 +99,7 @@
 | Redemption avviene solo al shipment | §10.3.2 | ✅ `triggerRedemption()` chiamato SOLO da `confirmShipment()` |
 | Late binding solo in Module C | §10.3.3 | ✅ `LateBindingService` unico punto di binding |
 | Early binding exception (Module D) | §10.3.3 | ✅ `validateEarlyBinding()` con NO FALLBACK |
-| Non-serialized inventory (case binding) | §10.3.4 | ✅ `bound_case_id` su ShippingOrderLine |
+| Non-serialized inventory (case binding) | §10.3.4 | ⚠️ Campo `bound_case_id` esiste su ShippingOrderLine, ma il binding è sempre bottle-level: la logica registra il case_id incidentalmente, non supporta fulfillment case-level senza serializzazione |
 
 ### 3.2 Entità Core
 
@@ -126,7 +129,7 @@
 | Validazione fulfillment constraints | ✅ Ownership, custody, state, allocation checks |
 | WMS esegue, ERP autorizza | ✅ `WmsIntegrationService` orchestra, non esegue direttamente |
 
-### 3.5 Case Handling (§10.7) — COMPLETO ✅
+### 3.5 Case Handling (§10.7) — PARZIALE ⚠️
 
 | Requisito | Implementazione |
 |-----------|----------------|
@@ -134,6 +137,7 @@
 | Case breaking irreversibile | ✅ `breakCasesForShipment()` in ShipmentService, `Intact → Broken` |
 | Decisioni auditable | ✅ Audit log per ogni case broken con reason |
 | Composite SKU handling | ✅ Documentato, binding per bottle nella composizione |
+| Non-serialized (fungible case) fulfillment | ⚠️ ERP-FULL-DOC §10 definisce 3 modelli di fulfillment (serialized, early-personalized, non-serialized fungible). Solo i primi 2 sono pienamente coperti. Il workflow per inventario non-serializzato (case-level allocation senza bottle-level tracking) non ha una user story dedicata nel PRD. |
 
 ### 3.6 Multi-warehouse (§10.8) — PARZIALE ⚠️
 
@@ -161,8 +165,8 @@
 
 | Scenario | Stato | Note |
 |----------|-------|------|
-| Active consignment — NO redemption | ✅ | Documentazione chiara in `checkVoucherEligibility()` |
-| Third-party stock restrictions | ⚠️ | Ownership check presente ma non granulare per third-party custody |
+| Active consignment — NO redemption | ⚠️ | Gestito implicitamente nelle eligibility checks di `checkVoucherEligibility()`, ma nessuna user story dedicata nel PRD. ERP-FULL-DOC §10.10.1 lo definisce esplicitamente. |
+| Third-party stock restrictions | ❌ | **Zero ownership checks** nei services — vedi GAP-C09. Enum `OwnershipType` esiste ma non è mai chiamato in Module C. |
 
 ### 3.9 Governance & Invarianti (§10.11) — TUTTI IMPLEMENTATI ✅
 
@@ -307,9 +311,9 @@
 
 ### 5.1 GAP CRITICI (Bloccanti per produzione)
 
-#### GAP-C01: Nessun Test Automatizzato
+#### GAP-C01: Nessun Test per Domain Logic Core
 - **Severità:** 🔴 CRITICA
-- **Descrizione:** Zero test per Module C — nessun unit test, feature test o integration test
+- **Descrizione:** Esistono **16 test** in `tests/Unit/AI/Tools/Fulfillment/FulfillmentToolsTest.php` (AI tools: 5 PendingShippingOrdersTool, 6 ShipmentStatusTool, 5 ShipmentsInTransitTool), ma **zero test per i 5 core domain services** (ShippingOrderService 997 righe, ShipmentService 772 righe, LateBindingService 660 righe, VoucherLockService 455 righe, WmsIntegrationService 844 righe — totale 3.728 righe). Nessun feature test o integration test per i workflow di fulfillment.
 - **Impatto:** Impossibile verificare correttezza dei workflow critici (late binding, redemption, case breaking)
 - **Raccomandazione:** Scrivere test per:
   - ShippingOrderService (lifecycle, voucher validation, lock/unlock)
@@ -366,12 +370,12 @@
 - **Raccomandazione:** Implementare integrazione reale quando infrastruttura blockchain disponibile
 - **Effort stimato:** Dipende da provider blockchain
 
-#### GAP-C07: Address Model Integration
+#### GAP-C07: Address Model Non Integrato in Module C
 - **Severità:** 🟡 MEDIA
-- **Descrizione:** `destination_address_id` presente ma nessun Address model — fallback su campo text
-- **Impatto:** Nessun riuso indirizzi salvati, nessuna validazione strutturata
-- **Raccomandazione:** Implementare Address model in Module K e integrare nel wizard SO
-- **Effort stimato:** 1-2 giorni
+- **Descrizione:** `Address` model esiste già in `app/Models/Customer/Address.php` (200 righe, con AddressType enum, relazioni polimorfiche, `getFormattedAddress()`, `getOneLine()`), ma **Module C non lo usa**. `ShipmentService::resolveDestinationAddress()` ritorna placeholder text invece di caricare il model. ShippingOrder non definisce la relazione BelongsTo verso Address.
+- **Impatto:** Nessun riuso indirizzi salvati, nessuna validazione strutturata, placeholder hardcoded nel service
+- **Raccomandazione:** Integrare Address model esistente nel wizard SO e in ShipmentService (model già pronto, serve solo wiring)
+- **Effort stimato:** 0.5-1 giorno
 
 #### GAP-C08: Automated Warehouse Selection
 - **Severità:** 🟡 MEDIA
@@ -380,13 +384,21 @@
 - **Raccomandazione:** Aggiungere suggerimento automatico basato su: stock availability, proximity, cost
 - **Effort stimato:** 2-3 giorni
 
-### 5.4 GAP BASSI (Nice-to-have)
+### 5.4 GAP ALTI (Rischio operativo)
 
-#### GAP-C09: Third-Party Custody Granularity
-- **Severità:** 🟢 BASSA
-- **Descrizione:** Ownership check generico, non differenzia tra custody types
-- **Impatto:** Edge case raro nel business model attuale
-- **Effort stimato:** 1 giorno
+#### GAP-C09: Nessuna Validazione Ownership Type
+- **Severità:** 🟠 ALTA
+- **Descrizione:** L'enum `OwnershipType` (crurated_owned, in_custody, third_party_owned) esiste con metodi `hasFullOwnership()` e `canConsumeForEvents()`, ma **nessun service di Module C lo chiama**. Zero ownership checks in 5 punti critici:
+  1. `LateBindingService::bindVoucherToBottle()` — nessun check
+  2. `LateBindingService::validateBinding()` — nessun check
+  3. `WmsIntegrationService::validateSerial()` — nessun check
+  4. `WmsIntegrationService::validateSerials()` — nessun check
+  5. `ShipmentService::triggerOwnershipTransfer()` — nessun check (commento esplicito: "ownership_type transition would be handled by dedicated InventoryService")
+- **Impatto:** Bottiglie `third_party_owned` o `in_custody` possono essere spedite a clienti senza alcun controllo. Rischio di spedire stock che non è di proprietà Crurated.
+- **Raccomandazione:** Aggiungere `ownership_type` validation in `bindVoucherToBottle()` e `validateSerial()` come minimo. Rifiutare binding se `!bottle->ownership_type->hasFullOwnership()`.
+- **Effort stimato:** 0.5-1 giorno
+
+### 5.5 GAP BASSI (Nice-to-have)
 
 #### GAP-C10: Partial Shipment Support
 - **Severità:** 🟢 BASSA
@@ -434,12 +446,13 @@
 
 | Priorità | Gap | Effort |
 |----------|-----|--------|
-| 🔴 Critico | GAP-C01: Test automatizzati | 3-4 giorni |
+| 🔴 Critico | GAP-C01: Test domain logic core | 3-4 giorni |
 | 🔴 Critico | GAP-C02: API WMS | 1-2 giorni |
 | 🟠 Alto | GAP-C03: Customer integration tabs | 0.5-1 giorno |
 | 🟠 Alto | GAP-C04: Authorization policies | 0.5 giorno |
+| 🟠 Alto | GAP-C09: Ownership type validation | 0.5-1 giorno |
 | 🟡 Medio | GAP-C05: Internal transfer orchestration | 2-3 giorni |
-| 🟡 Medio | GAP-C07: Address model | 1-2 giorni |
+| 🟡 Medio | GAP-C07: Address model integration (wiring) | 0.5-1 giorno |
 | 🟡 Medio | GAP-C08: Auto warehouse selection | 2-3 giorni |
 | **Totale stimato** | | **~11-16 giorni** |
 
@@ -447,11 +460,114 @@
 
 ## 9. Conclusione
 
-Module C è **architetturalmente maturo e ben implementato**. La copertura funzionale è del ~93% con tutti i 10 invarianti di business rispettati al 100%. I service layer sono robusti (~3,730 righe di business logic) con pattern coerenti di audit, immutability e validation.
+Module C è **architetturalmente maturo e ben implementato**. La copertura funzionale è del ~93% con tutti i 10 invarianti di business rispettati al 100%. I service layer sono robusti (3.728 righe di business logic verificate) con pattern coerenti di audit, immutability e validation.
 
 Le lacune principali sono:
-1. **Nessun test** — rischio significativo per un modulo che gestisce redemption irreversibili e ownership transfer
+1. **Nessun test domain logic** — rischio significativo per un modulo che gestisce redemption irreversibili e ownership transfer (16 test AI tools esistono, ma 0 per i 5 core services — 3.728 righe senza copertura)
 2. **API WMS mancanti** — la logica c'è tutta, mancano gli endpoint HTTP
-3. **Customer integration** — tab mancanti nel CustomerResource
+3. **Ownership type validation assente** — `OwnershipType` enum esiste ma nessun service lo chiama, rischio spedizione stock non di proprietà
+4. **Customer integration** — tab mancanti nel CustomerResource
 
 La qualità del codice è alta con pattern coerenti (enum-driven state machines, boot guards, audit logging, allocation lineage enforcement). L'implementazione riflette fedelmente sia il documento funzionale che il PRD UI/UX.
+
+> **Ultimo aggiornamento:** 16 febbraio 2026 — Verifica approfondita indipendente: ogni file verificato singolarmente (5 modelli, 8 enum, 5 servizi, 3 risorse Filament + 8 pagine + 1 dashboard, 6 migrazioni, 1 evento, 1 listener, 1 job, 2 seeder, 16 test). Correzioni applicate: conteggio test (15→16), righe servizi esatte, case handling non-serializzato (⚠️ non ✅), aggiunta sezione §10 report di verifica.
+
+---
+
+## 10. Report di Verifica Indipendente (16 feb 2026)
+
+Verifica approfondita eseguita contro il codice sorgente. Ogni singolo file è stato letto e confrontato con le affermazioni del documento.
+
+### 10.1 Inventario File — Risultato: COMPLETO ✅
+
+| Categoria | Dichiarati | Trovati | Extra non documentati | Stato |
+|-----------|-----------|---------|----------------------|-------|
+| Models (`app/Models/Fulfillment/`) | 5 | 5 | 0 | ✅ |
+| Enums (`app/Enums/Fulfillment/`) | 8 | 8 | 0 | ✅ |
+| Services (`app/Services/Fulfillment/`) | 5 | 5 | 0 | ✅ |
+| Filament Resources | 3 | 3 | 0 | ✅ |
+| Filament Pages | 8 | 8 | 0 | ✅ |
+| Dashboard | 1 | 1 | 0 | ✅ |
+| Migrations | 6 | 6 | 0 | ✅ |
+| Events | 1 | 1 | 0 | ✅ |
+| Listeners | 1 | 1 | 0 | ✅ |
+| Jobs | 1 | 1 | 0 | ✅ |
+| Seeders | 2 | 2 | 0 | ✅ |
+| Test files | 1 | 1 | 0 | ✅ |
+
+### 10.2 Righe Servizi — Risultato: CONFERMATO ✅
+
+| Servizio | Dichiarato (originale) | Effettivo | Scarto |
+|----------|----------------------|-----------|--------|
+| ShippingOrderService | ~1000 | 997 | -0.3% |
+| ShipmentService | ~770 | 772 | +0.3% |
+| LateBindingService | ~660 | 660 | 0% |
+| VoucherLockService | ~455 | 455 | 0% |
+| WmsIntegrationService | ~845 | 844 | -0.1% |
+| **Totale** | **~3.730** | **3.728** | **-0.05%** |
+
+### 10.3 Enum Cases — Risultato: 100% CORRETTO ✅
+
+Ogni case di ogni enum è stato verificato. Tutti gli 8 enum hanno esattamente i case dichiarati, nessun case mancante o extra.
+
+### 10.4 Boot Guards — Risultato: CONFERMATO ✅
+
+| Modello | Guard | Verificato |
+|---------|-------|-----------|
+| ShippingOrder | Status transition validation + previous_status tracking | ✅ |
+| ShippingOrderLine | allocation_id IMMUTABILE (boot guard anti-modifica) | ✅ |
+| Shipment | shipped_bottle_serials IMMUTABILE dopo conferma + status transition | ✅ |
+| ShippingOrderAuditLog | NO update + NO delete (boot guard) + NO SoftDeletes + NO updated_at | ✅ |
+
+### 10.5 Test — Correzione Applicata
+
+| Metrica | Valore originale | Valore corretto |
+|---------|-----------------|----------------|
+| Test AI tools | 15 | **16** (5 PendingShippingOrdersTool + 6 ShipmentStatusTool + 5 ShipmentsInTransitTool) |
+| Test domain services | 0 | 0 (confermato) |
+
+### 10.6 Route e Policy — Risultato: GAP CONFERMATI ✅
+
+- `routes/api.php`: Nessun endpoint WMS — confermato
+- `routes/web.php`: Nessuna rotta fulfillment — confermato
+- `app/Policies/`: Nessuna policy per ShippingOrder, Shipment, ShippingOrderException — confermato (directory Fulfillment non esiste)
+
+### 10.7 Customer Integration — Risultato: GAP CONFERMATO ✅
+
+- Customer model **HA** le relazioni `shippingOrders()` e `shipments()` (HasManyThrough)
+- ShippingOrder **HA** la relazione `customer()` (BelongsTo)
+- CustomerResource `getRelations()` ritorna array vuoto — **nessun RelationManager**
+- ViewCustomer ha 10 tab, **nessuno** per Shipping Orders o Shipments
+- Nota: i progress log (progress-modC.txt) dichiarano US-C057/US-C058 come implementate, ma il codice attuale NON le contiene
+
+### 10.8 Address Model — Risultato: GAP CONFERMATO ✅
+
+- `Address` model esiste (199 righe) con `AddressType`, relazioni polimorfiche, `getFormattedAddress()`, `getOneLine()`
+- `ShipmentService::resolveDestinationAddress()` ritorna placeholder text con commenti TODO espliciti
+- `ShippingOrder` NON ha relazione BelongsTo verso Address (campo `destination_address_id` in fillable ma nessuna relazione)
+- Migration ha `destination_address_id` senza FK constraint + colonna TEXT `destination_address` come workaround
+
+### 10.9 OwnershipType — Risultato: GAP CONFERMATO ✅
+
+- Enum `OwnershipType` esiste in `app/Enums/Inventory/OwnershipType.php` con cases `CururatedOwned`, `InCustody`, `ThirdPartyOwned`
+- `hasFullOwnership()` usato solo in Module B (MovementService)
+- `canConsumeForEvents()` usato solo in Module B (InventoryService, MovementService) e UI
+- **Zero riferimenti** a `OwnershipType` in qualsiasi servizio Module C
+- ShipmentService:345 commento: "ownership_type transition to customer_owned would be handled by a dedicated InventoryService in Module B"
+
+### 10.10 Case Handling Non-Serializzato — Correzione Applicata
+
+Il campo `bound_case_id` esiste su ShippingOrderLine e `LateBindingService` registra il case_id quando un bottle appartiene a un case. Tuttavia:
+- Il binding è **sempre** voucher → serialized bottle → (incidentalmente) case
+- **Non esiste** workflow per binding diretto voucher → case senza serializzazione
+- Corretto da ✅ a ⚠️ nella sezione 3.5
+
+### 10.11 Discrepanze Trovate e Corrette
+
+| # | Sezione | Valore originale | Valore corretto | Tipo |
+|---|---------|-----------------|----------------|------|
+| 1 | §1, §5.1 GAP-C01 | 15 test | **16 test** | Conteggio errato |
+| 2 | §2.3 righe servizi | Approssimativi (~) | Esatti (997, 772, 660, 455, 844) | Precisione |
+| 3 | §3.5 case handling | ✅ `bound_case_id` | ⚠️ Campo esiste ma workflow case-level non implementato | Valutazione errata |
+
+**Nessun file mancante, nessun file extra non documentato, nessuna affermazione strutturale errata.**

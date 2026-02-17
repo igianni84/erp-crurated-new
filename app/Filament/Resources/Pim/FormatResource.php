@@ -2,21 +2,34 @@
 
 namespace App\Filament\Resources\Pim;
 
-use App\Filament\Resources\Pim\FormatResource\Pages;
+use App\Filament\Resources\Pim\FormatResource\Pages\CreateFormat;
+use App\Filament\Resources\Pim\FormatResource\Pages\EditFormat;
+use App\Filament\Resources\Pim\FormatResource\Pages\ListFormats;
 use App\Models\Pim\Format;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class FormatResource extends Resource
 {
     protected static ?string $model = Format::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cube';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 3;
 
@@ -26,17 +39,17 @@ class FormatResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Formats';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Format Details')
+        return $schema
+            ->components([
+                Section::make('Format Details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255)
                             ->placeholder('e.g., Standard Bottle, Magnum'),
-                        Forms\Components\TextInput::make('volume_ml')
+                        TextInput::make('volume_ml')
                             ->label('Volume (ml)')
                             ->required()
                             ->numeric()
@@ -44,12 +57,12 @@ class FormatResource extends Resource
                             ->placeholder('e.g., 750'),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Settings')
+                Section::make('Settings')
                     ->schema([
-                        Forms\Components\Toggle::make('is_standard')
+                        Toggle::make('is_standard')
                             ->label('Standard Format')
                             ->helperText('Mark as a standard bottle format'),
-                        Forms\Components\Toggle::make('allowed_for_liquid_conversion')
+                        Toggle::make('allowed_for_liquid_conversion')
                             ->label('Allowed for Liquid Conversion')
                             ->helperText('Can be used as final format for liquid products'),
                     ])
@@ -61,46 +74,46 @@ class FormatResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('volume_ml')
+                TextColumn::make('volume_ml')
                     ->label('Volume (ml)')
                     ->sortable()
                     ->formatStateUsing(fn (int $state): string => number_format($state).' ml'),
-                Tables\Columns\IconColumn::make('is_standard')
+                IconColumn::make('is_standard')
                     ->label('Standard')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\IconColumn::make('allowed_for_liquid_conversion')
+                IconColumn::make('allowed_for_liquid_conversion')
                     ->label('Liquid Conversion')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\TernaryFilter::make('is_standard')
+                TernaryFilter::make('is_standard')
                     ->label('Standard Format'),
-                Tables\Filters\TernaryFilter::make('allowed_for_liquid_conversion')
+                TernaryFilter::make('allowed_for_liquid_conversion')
                     ->label('Liquid Conversion'),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('volume_ml');
@@ -116,9 +129,9 @@ class FormatResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListFormats::route('/'),
-            'create' => Pages\CreateFormat::route('/create'),
-            'edit' => Pages\EditFormat::route('/{record}/edit'),
+            'index' => ListFormats::route('/'),
+            'create' => CreateFormat::route('/create'),
+            'edit' => EditFormat::route('/{record}/edit'),
         ];
     }
 }

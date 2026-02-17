@@ -9,8 +9,10 @@ use App\Models\Commercial\PriceBook;
 use App\Models\Commercial\PriceBookEntry;
 use App\Models\Pim\SellableSku;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing PriceBook lifecycle and operations.
@@ -29,26 +31,26 @@ class PriceBookService
      *
      * @param  User  $approver  The user approving the activation
      *
-     * @throws \InvalidArgumentException If activation is not allowed
+     * @throws InvalidArgumentException If activation is not allowed
      */
     public function activate(PriceBook $priceBook, User $approver): PriceBook
     {
         if (! $priceBook->isDraft()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot activate PriceBook: current status '{$priceBook->status->label()}' is not Draft. "
                 .'Only Draft PriceBooks can be activated.'
             );
         }
 
         if (! $priceBook->hasEntries()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot activate PriceBook: it must have at least one price entry. '
                 .'Add prices before activating.'
             );
         }
 
         if (! $approver->canApprovePriceBooks()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot activate PriceBook: user does not have approval permissions. '
                 .'Manager role or higher is required.'
             );
@@ -80,12 +82,12 @@ class PriceBookService
      * Archived PriceBooks are no longer used for pricing but are retained
      * for historical reference.
      *
-     * @throws \InvalidArgumentException If archiving is not allowed
+     * @throws InvalidArgumentException If archiving is not allowed
      */
     public function archive(PriceBook $priceBook): PriceBook
     {
         if (! $priceBook->canBeArchived()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot archive PriceBook: current status '{$priceBook->status->label()}' does not allow archiving. "
                 .'Only Active or Expired PriceBooks can be archived.'
             );
@@ -106,12 +108,12 @@ class PriceBookService
      * Used when a new PriceBook is activated for the same context,
      * or when the validity period ends.
      *
-     * @throws \InvalidArgumentException If expiring is not allowed
+     * @throws InvalidArgumentException If expiring is not allowed
      */
     public function expirePriceBook(PriceBook $priceBook): PriceBook
     {
         if (! $priceBook->isActive()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot expire PriceBook: current status '{$priceBook->status->label()}' is not Active. "
                 .'Only Active PriceBooks can be expired.'
             );
@@ -132,7 +134,7 @@ class PriceBookService
      * Creates a new draft PriceBook with all entries from the source,
      * but with new metadata (name, validity period, etc.).
      *
-     * @param  array{name?: string, market?: string, channel_id?: string|null, currency?: string, valid_from?: \Carbon\Carbon|string, valid_to?: \Carbon\Carbon|string|null}  $newMetadata
+     * @param  array{name?: string, market?: string, channel_id?: string|null, currency?: string, valid_from?: Carbon|string, valid_to?: Carbon|string|null}  $newMetadata
      */
     public function cloneToNew(PriceBook $source, array $newMetadata = []): PriceBook
     {

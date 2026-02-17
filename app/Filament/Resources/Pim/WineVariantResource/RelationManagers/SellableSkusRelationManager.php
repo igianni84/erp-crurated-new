@@ -6,13 +6,36 @@ use App\Models\Pim\CaseConfiguration;
 use App\Models\Pim\CompositeSkuItem;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
+use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use RuntimeException;
 
 class SellableSkusRelationManager extends RelationManager
 {
@@ -20,21 +43,21 @@ class SellableSkusRelationManager extends RelationManager
 
     protected static ?string $title = 'Sellable SKUs';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
         /** @var WineVariant $wineVariant */
         $wineVariant = $this->ownerRecord;
 
-        return $form
-            ->schema([
-                Forms\Components\Section::make('SKU Type')
+        return $schema
+            ->components([
+                Section::make('SKU Type')
                     ->description('Choose whether this is a standard SKU or a composite bundle')
                     ->schema([
-                        Forms\Components\Toggle::make('is_composite')
+                        Toggle::make('is_composite')
                             ->label('Composite SKU (Bundle)')
                             ->helperText('A composite SKU is made up of multiple other SKUs sold as an indivisible bundle')
                             ->live()
-                            ->afterStateUpdated(function (Forms\Set $set, bool $state): void {
+                            ->afterStateUpdated(function (Set $set, bool $state): void {
                                 if ($state) {
                                     // Clear format/case config when switching to composite
                                     $set('format_id', null);
@@ -42,18 +65,18 @@ class SellableSkusRelationManager extends RelationManager
                                 }
                             }),
                     ]),
-                Forms\Components\Section::make('SKU Configuration')
+                Section::make('SKU Configuration')
                     ->description('Select the format and case configuration for this SKU')
                     ->schema([
-                        Forms\Components\Select::make('format_id')
+                        Select::make('format_id')
                             ->label('Format')
                             ->relationship('format', 'name')
                             ->getOptionLabelFromRecordUsing(fn (Format $record): string => "{$record->name} ({$record->volume_ml} ml)")
-                            ->required(fn (Forms\Get $get): bool => ! $get('is_composite'))
+                            ->required(fn (Get $get): bool => ! $get('is_composite'))
                             ->searchable()
                             ->preload()
                             ->live(),
-                        Forms\Components\Select::make('case_configuration_id')
+                        Select::make('case_configuration_id')
                             ->label('Case Configuration')
                             ->relationship(
                                 'caseConfiguration',
@@ -74,20 +97,20 @@ class SellableSkusRelationManager extends RelationManager
 
                                 return "{$record->name} ({$record->bottles_per_case}x {$caseType})";
                             })
-                            ->required(fn (Forms\Get $get): bool => ! $get('is_composite'))
+                            ->required(fn (Get $get): bool => ! $get('is_composite'))
                             ->searchable()
                             ->preload(),
                     ])
                     ->columns(2)
-                    ->visible(fn (Forms\Get $get): bool => ! $get('is_composite')),
-                Forms\Components\Section::make('Bundle Composition')
+                    ->visible(fn (Get $get): bool => ! $get('is_composite')),
+                Section::make('Bundle Composition')
                     ->description('Select the SKUs that make up this bundle. All component SKUs must be active for the bundle to be activated.')
                     ->schema([
-                        Forms\Components\Repeater::make('compositeItems')
+                        Repeater::make('compositeItems')
                             ->label('Component SKUs')
                             ->relationship()
                             ->schema([
-                                Forms\Components\Select::make('sellable_sku_id')
+                                Select::make('sellable_sku_id')
                                     ->label('SKU')
                                     ->options(function () use ($wineVariant): array {
                                         // Get all non-composite SKUs from this wine variant
@@ -104,7 +127,7 @@ class SellableSkusRelationManager extends RelationManager
                                     ->required()
                                     ->searchable()
                                     ->columnSpan(2),
-                                Forms\Components\TextInput::make('quantity')
+                                TextInput::make('quantity')
                                     ->label('Qty')
                                     ->numeric()
                                     ->minValue(1)
@@ -119,25 +142,25 @@ class SellableSkusRelationManager extends RelationManager
                             ->minItems(1)
                             ->helperText('Warning: Only active component SKUs can be part of an active bundle.'),
                     ])
-                    ->visible(fn (Forms\Get $get): bool => (bool) $get('is_composite')),
-                Forms\Components\Section::make('Identifiers')
+                    ->visible(fn (Get $get): bool => (bool) $get('is_composite')),
+                Section::make('Identifiers')
                     ->schema([
-                        Forms\Components\TextInput::make('sku_code')
+                        TextInput::make('sku_code')
                             ->label('SKU Code')
                             ->disabled()
                             ->dehydrated()
                             ->helperText('Auto-generated based on wine, vintage, format, and case configuration'),
-                        Forms\Components\TextInput::make('barcode')
+                        TextInput::make('barcode')
                             ->label('Barcode')
                             ->maxLength(255)
                             ->placeholder('e.g., EAN-13 or UPC'),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Status & Integrity')
+                Section::make('Status & Integrity')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('lifecycle_status')
+                                Select::make('lifecycle_status')
                                     ->label('Lifecycle Status')
                                     ->options([
                                         SellableSku::STATUS_DRAFT => 'Draft',
@@ -147,7 +170,7 @@ class SellableSkusRelationManager extends RelationManager
                                     ->default(SellableSku::STATUS_DRAFT)
                                     ->required()
                                     ->native(false),
-                                Forms\Components\Select::make('source')
+                                Select::make('source')
                                     ->label('Source')
                                     ->options([
                                         SellableSku::SOURCE_MANUAL => 'Manual',
@@ -159,22 +182,22 @@ class SellableSkusRelationManager extends RelationManager
                                     ->required()
                                     ->native(false),
                             ]),
-                        Forms\Components\Grid::make(3)
+                        Grid::make(3)
                             ->schema([
-                                Forms\Components\Toggle::make('is_intrinsic')
+                                Toggle::make('is_intrinsic')
                                     ->label('Intrinsic SKU')
                                     ->helperText('Original producer packaging configuration'),
-                                Forms\Components\Toggle::make('is_producer_original')
+                                Toggle::make('is_producer_original')
                                     ->label('Producer Original')
                                     ->helperText('Exactly as released by the producer'),
-                                Forms\Components\Toggle::make('is_verified')
+                                Toggle::make('is_verified')
                                     ->label('Verified')
                                     ->helperText('Configuration has been verified'),
                             ]),
                     ]),
-                Forms\Components\Section::make('Notes')
+                Section::make('Notes')
                     ->schema([
-                        Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label('Notes')
                             ->rows(2)
                             ->placeholder('Any additional notes about this SKU...'),
@@ -189,7 +212,7 @@ class SellableSkusRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('sku_code')
             ->columns([
-                Tables\Columns\TextColumn::make('sku_code')
+                TextColumn::make('sku_code')
                     ->label('SKU Code')
                     ->searchable()
                     ->sortable()
@@ -197,12 +220,12 @@ class SellableSkusRelationManager extends RelationManager
                     ->weight('bold')
                     ->icon(fn (SellableSku $record): ?string => $record->isComposite() ? 'heroicon-o-cube-transparent' : null)
                     ->iconPosition('before'),
-                Tables\Columns\TextColumn::make('type')
+                TextColumn::make('type')
                     ->label('Type')
                     ->badge()
                     ->getStateUsing(fn (SellableSku $record): string => $record->isComposite() ? 'Bundle' : 'Standard')
                     ->color(fn (SellableSku $record): string => $record->isComposite() ? 'warning' : 'gray'),
-                Tables\Columns\TextColumn::make('format.name')
+                TextColumn::make('format.name')
                     ->label('Format')
                     ->sortable()
                     ->getStateUsing(function (SellableSku $record): string {
@@ -225,7 +248,7 @@ class SellableSkusRelationManager extends RelationManager
 
                         return $format !== null ? $format->volume_ml.' ml' : '';
                     }),
-                Tables\Columns\TextColumn::make('caseConfiguration.name')
+                TextColumn::make('caseConfiguration.name')
                     ->label('Case')
                     ->sortable()
                     ->getStateUsing(function (SellableSku $record): string {
@@ -269,7 +292,7 @@ class SellableSkusRelationManager extends RelationManager
 
                         return null;
                     }),
-                Tables\Columns\TextColumn::make('integrity_flags')
+                TextColumn::make('integrity_flags')
                     ->label('Integrity')
                     ->badge()
                     ->getStateUsing(function (SellableSku $record): string {
@@ -279,17 +302,17 @@ class SellableSkusRelationManager extends RelationManager
                     })
                     ->color(fn (SellableSku $record): string => $record->hasIntegrityFlags() ? 'success' : 'gray')
                     ->icon(fn (SellableSku $record): ?string => $record->is_verified ? 'heroicon-o-check-badge' : null),
-                Tables\Columns\TextColumn::make('source')
+                TextColumn::make('source')
                     ->label('Source')
                     ->badge()
                     ->formatStateUsing(fn (SellableSku $record): string => $record->getSourceLabel())
                     ->color(fn (SellableSku $record): string => $record->getSourceColor())
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('barcode')
+                TextColumn::make('barcode')
                     ->label('Barcode')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('lifecycle_status')
+                TextColumn::make('lifecycle_status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (SellableSku $record): string => $record->getStatusLabel())
@@ -297,19 +320,19 @@ class SellableSkusRelationManager extends RelationManager
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('format_id')
+                SelectFilter::make('format_id')
                     ->label('Format')
                     ->relationship('format', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('lifecycle_status')
+                SelectFilter::make('lifecycle_status')
                     ->label('Status')
                     ->options([
                         SellableSku::STATUS_DRAFT => 'Draft',
                         SellableSku::STATUS_ACTIVE => 'Active',
                         SellableSku::STATUS_RETIRED => 'Retired',
                     ]),
-                Tables\Filters\SelectFilter::make('source')
+                SelectFilter::make('source')
                     ->label('Source')
                     ->options([
                         SellableSku::SOURCE_MANUAL => 'Manual',
@@ -317,23 +340,23 @@ class SellableSkusRelationManager extends RelationManager
                         SellableSku::SOURCE_PRODUCER => 'Producer',
                         SellableSku::SOURCE_GENERATED => 'Generated',
                     ]),
-                Tables\Filters\TernaryFilter::make('is_intrinsic')
+                TernaryFilter::make('is_intrinsic')
                     ->label('Intrinsic'),
-                Tables\Filters\TernaryFilter::make('is_verified')
+                TernaryFilter::make('is_verified')
                     ->label('Verified'),
-                Tables\Filters\TernaryFilter::make('is_composite')
+                TernaryFilter::make('is_composite')
                     ->label('Composite/Bundle'),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Create SKU')
                     ->icon('heroicon-o-plus'),
-                Tables\Actions\CreateAction::make('create_composite')
+                CreateAction::make('create_composite')
                     ->label('Create Bundle')
                     ->icon('heroicon-o-cube-transparent')
                     ->color('warning')
-                    ->mutateFormDataUsing(function (array $data): array {
+                    ->mutateDataUsing(function (array $data): array {
                         $data['is_composite'] = true;
                         // Composite SKUs don't need format/case config
                         $data['format_id'] = null;
@@ -375,7 +398,7 @@ class SellableSkusRelationManager extends RelationManager
 
                         return $sku;
                     }),
-                Tables\Actions\Action::make('generate_intrinsic')
+                Action::make('generate_intrinsic')
                     ->label('Generate Intrinsic SKUs')
                     ->icon('heroicon-o-sparkles')
                     ->color('info')
@@ -386,9 +409,9 @@ class SellableSkusRelationManager extends RelationManager
                         $this->generateIntrinsicSkus();
                     }),
             ])
-            ->actions([
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\Action::make('activate')
+            ->recordActions([
+                ActionGroup::make([
+                    Action::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check')
                         ->color('success')
@@ -417,7 +440,7 @@ class SellableSkusRelationManager extends RelationManager
                             return false;
                         })
                         ->action(fn (SellableSku $record) => $this->activateSku($record)),
-                    Tables\Actions\Action::make('retire')
+                    Action::make('retire')
                         ->label('Retire')
                         ->icon('heroicon-o-archive-box')
                         ->color('danger')
@@ -426,14 +449,14 @@ class SellableSkusRelationManager extends RelationManager
                         ->modalDescription('Are you sure you want to retire this SKU? It will no longer be available for sale.')
                         ->visible(fn (SellableSku $record): bool => $record->isActive())
                         ->action(fn (SellableSku $record) => $this->retireSku($record)),
-                    Tables\Actions\Action::make('reactivate')
+                    Action::make('reactivate')
                         ->label('Reactivate')
                         ->icon('heroicon-o-arrow-path')
                         ->color('warning')
                         ->requiresConfirmation()
                         ->visible(fn (SellableSku $record): bool => $record->isRetired())
                         ->action(fn (SellableSku $record) => $this->reactivateSku($record)),
-                    Tables\Actions\Action::make('verify')
+                    Action::make('verify')
                         ->label('Mark Verified')
                         ->icon('heroicon-o-check-badge')
                         ->color('info')
@@ -450,13 +473,13 @@ class SellableSkusRelationManager extends RelationManager
                     ->icon('heroicon-o-arrow-path')
                     ->button()
                     ->size('sm'),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('bulk_activate')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('bulk_activate')
                         ->label('Activate Selected')
                         ->icon('heroicon-o-check')
                         ->color('success')
@@ -471,7 +494,7 @@ class SellableSkusRelationManager extends RelationManager
                                     try {
                                         $record->activate();
                                         $activated++;
-                                    } catch (\RuntimeException $e) {
+                                    } catch (RuntimeException $e) {
                                         $skipped++;
                                         $errors[] = "{$record->sku_code}: {$e->getMessage()}";
                                     }
@@ -494,7 +517,7 @@ class SellableSkusRelationManager extends RelationManager
                                     ->send();
                             }
                         }),
-                    Tables\Actions\BulkAction::make('bulk_retire')
+                    BulkAction::make('bulk_retire')
                         ->label('Retire Selected')
                         ->icon('heroicon-o-archive-box')
                         ->color('danger')
@@ -512,7 +535,7 @@ class SellableSkusRelationManager extends RelationManager
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\BulkAction::make('bulk_verify')
+                    BulkAction::make('bulk_verify')
                         ->label('Mark Verified')
                         ->icon('heroicon-o-check-badge')
                         ->color('info')
@@ -530,8 +553,8 @@ class SellableSkusRelationManager extends RelationManager
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')
@@ -539,10 +562,10 @@ class SellableSkusRelationManager extends RelationManager
             ->emptyStateDescription('Create SKUs to define how this wine can be sold.')
             ->emptyStateIcon('heroicon-o-cube')
             ->emptyStateActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Create SKU')
                     ->icon('heroicon-o-plus'),
-                Tables\Actions\Action::make('generate_intrinsic_empty')
+                Action::make('generate_intrinsic_empty')
                     ->label('Generate Intrinsic SKUs')
                     ->icon('heroicon-o-sparkles')
                     ->color('info')
@@ -674,7 +697,7 @@ class SellableSkusRelationManager extends RelationManager
      */
     protected function generateCompositeSkuCode(WineVariant $wineVariant): string
     {
-        /** @var \App\Models\Pim\WineMaster $wineMaster */
+        /** @var WineMaster $wineMaster */
         $wineMaster = $wineVariant->wineMaster;
 
         // Generate wine code from name (first 4 chars uppercase, alphanumeric only)

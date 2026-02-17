@@ -9,12 +9,16 @@ use App\Models\Customer\Customer;
 use App\Models\Pim\SellableSku;
 use App\Services\Commercial\SimulationService;
 use Carbon\Carbon;
-use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 
@@ -28,17 +32,17 @@ class PriceSimulation extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-calculator';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calculator';
 
     protected static ?string $navigationLabel = 'Price Simulation';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 90;
 
     protected static ?string $title = 'Price Simulation';
 
-    protected static string $view = 'filament.pages.price-simulation';
+    protected string $view = 'filament.pages.price-simulation';
 
     /**
      * Form data storage.
@@ -78,15 +82,15 @@ class PriceSimulation extends Page implements HasForms
     /**
      * Get the form schema.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Simulation Parameters')
+        return $schema
+            ->components([
+                Section::make('Simulation Parameters')
                     ->description('Configure the pricing simulation context')
                     ->schema([
                         // Info Box
-                        Forms\Components\Placeholder::make('simulation_info')
+                        Placeholder::make('simulation_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-info-50 dark:bg-info-950 p-4 border border-info-200 dark:border-info-800">'
@@ -108,7 +112,7 @@ class PriceSimulation extends Page implements HasForms
                             ->columnSpanFull(),
 
                         // Sellable SKU
-                        Forms\Components\Select::make('sellable_sku_id')
+                        Select::make('sellable_sku_id')
                             ->label('Sellable SKU')
                             ->required()
                             ->searchable()
@@ -148,7 +152,7 @@ class PriceSimulation extends Page implements HasForms
                             ->columnSpan(2),
 
                         // SKU Preview
-                        Forms\Components\Placeholder::make('sku_preview')
+                        Placeholder::make('sku_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('sellable_sku_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -168,7 +172,7 @@ class PriceSimulation extends Page implements HasForms
                             ->columnSpanFull(),
 
                         // Channel
-                        Forms\Components\Select::make('channel_id')
+                        Select::make('channel_id')
                             ->label('Channel')
                             ->required()
                             ->searchable()
@@ -184,7 +188,7 @@ class PriceSimulation extends Page implements HasForms
                             ->helperText('The sales channel context for the simulation'),
 
                         // Customer (Optional)
-                        Forms\Components\Select::make('customer_id')
+                        Select::make('customer_id')
                             ->label('Customer (Optional)')
                             ->searchable()
                             ->preload()
@@ -210,7 +214,7 @@ class PriceSimulation extends Page implements HasForms
                             ->helperText('Optional: specify a customer to check eligibility'),
 
                         // Date
-                        Forms\Components\DatePicker::make('date')
+                        DatePicker::make('date')
                             ->label('Simulation Date')
                             ->required()
                             ->native(false)
@@ -218,7 +222,7 @@ class PriceSimulation extends Page implements HasForms
                             ->helperText('The date for validity checks'),
 
                         // Quantity
-                        Forms\Components\TextInput::make('quantity')
+                        TextInput::make('quantity')
                             ->label('Quantity')
                             ->required()
                             ->numeric()

@@ -9,9 +9,11 @@ use App\Events\Finance\StoragePaymentBlocked;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\StorageBillingPeriod;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to block storage billing periods with overdue INV3 invoices.
@@ -91,7 +93,7 @@ class BlockOverdueStorageBillingJob implements ShouldQueue
                 $this->blockPeriod($period, $overdueInvoice, $daysOverdue);
 
                 $blockedCount++;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to block storage billing period', [
                     'period_id' => $data['period']->id ?? 'unknown',
                     'error' => $e->getMessage(),
@@ -234,9 +236,9 @@ class BlockOverdueStorageBillingJob implements ShouldQueue
      * Get query builder for storage billing periods at risk of being blocked.
      * Useful for reporting and dashboard widgets.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     * @return Builder<Invoice>
      */
-    public static function getOverdueInvoicesQuery(int $thresholdDays): \Illuminate\Database\Eloquent\Builder
+    public static function getOverdueInvoicesQuery(int $thresholdDays): Builder
     {
         $thresholdDate = now()->subDays($thresholdDays)->startOfDay();
 
@@ -263,9 +265,9 @@ class BlockOverdueStorageBillingJob implements ShouldQueue
     /**
      * Get storage billing periods currently blocked.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<StorageBillingPeriod>
+     * @return Builder<StorageBillingPeriod>
      */
-    public static function getBlockedPeriodsQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getBlockedPeriodsQuery(): Builder
     {
         return StorageBillingPeriod::query()
             ->where('status', StorageBillingStatus::Blocked);
@@ -282,9 +284,9 @@ class BlockOverdueStorageBillingJob implements ShouldQueue
     /**
      * Get blocked storage billing periods for a specific customer.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<StorageBillingPeriod>
+     * @return Builder<StorageBillingPeriod>
      */
-    public static function getBlockedPeriodsForCustomer(string $customerId): \Illuminate\Database\Eloquent\Builder
+    public static function getBlockedPeriodsForCustomer(string $customerId): Builder
     {
         return self::getBlockedPeriodsQuery()->where('customer_id', $customerId);
     }

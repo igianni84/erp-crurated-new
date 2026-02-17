@@ -5,24 +5,35 @@ namespace App\Filament\Resources\Procurement;
 use App\Enums\Procurement\ProcurementIntentStatus;
 use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\SourcingModel;
-use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages;
+use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\AggregatedProcurementIntents;
+use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\CreateProcurementIntent;
+use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\ListProcurementIntents;
+use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\ViewProcurementIntent;
 use App\Models\Procurement\ProcurementIntent;
 use App\Services\Procurement\ProcurementIntentService;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use InvalidArgumentException;
 
 class ProcurementIntentResource extends Resource
 {
     protected static ?string $model = ProcurementIntent::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $navigationGroup = 'Procurement';
+    protected static string|\UnitEnum|null $navigationGroup = 'Procurement';
 
     protected static ?int $navigationSort = 1;
 
@@ -34,10 +45,10 @@ class ProcurementIntentResource extends Resource
 
     protected static ?string $slug = 'procurement/intents';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in wizard stories (US-010 to US-013)
             ]);
     }
@@ -46,7 +57,7 @@ class ProcurementIntentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Intent ID')
                     ->searchable()
                     ->sortable()
@@ -55,7 +66,7 @@ class ProcurementIntentResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (ProcurementIntent $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('product')
+                TextColumn::make('product')
                     ->label('Product')
                     ->state(fn (ProcurementIntent $record): string => $record->getProductLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -92,14 +103,14 @@ class ProcurementIntentResource extends Resource
                     })
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('quantity')
+                TextColumn::make('quantity')
                     ->label('Quantity')
                     ->numeric()
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\TextColumn::make('trigger_type')
+                TextColumn::make('trigger_type')
                     ->label('Trigger')
                     ->badge()
                     ->formatStateUsing(fn (ProcurementTriggerType $state): string => $state->label())
@@ -107,7 +118,7 @@ class ProcurementIntentResource extends Resource
                     ->icon(fn (ProcurementTriggerType $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('sourcing_model')
+                TextColumn::make('sourcing_model')
                     ->label('Sourcing Model')
                     ->badge()
                     ->formatStateUsing(fn (SourcingModel $state): string => $state->label())
@@ -115,12 +126,12 @@ class ProcurementIntentResource extends Resource
                     ->icon(fn (SourcingModel $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('preferred_inbound_location')
+                TextColumn::make('preferred_inbound_location')
                     ->label('Preferred Location')
                     ->placeholder('Not specified')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (ProcurementIntentStatus $state): string => $state->label())
@@ -128,7 +139,7 @@ class ProcurementIntentResource extends Resource
                     ->icon(fn (ProcurementIntentStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('linked_objects_count')
+                TextColumn::make('linked_objects_count')
                     ->label('Linked Objects')
                     ->state(fn (ProcurementIntent $record): int => $record->purchase_orders_count
                         + $record->bottling_instructions_count
@@ -136,7 +147,7 @@ class ProcurementIntentResource extends Resource
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'success' : 'gray'),
 
-                Tables\Columns\IconColumn::make('awaiting_action')
+                IconColumn::make('awaiting_action')
                     ->label('Awaiting Action')
                     ->boolean()
                     ->state(fn (ProcurementIntent $record): bool => $record->status !== ProcurementIntentStatus::Closed
@@ -151,14 +162,14 @@ class ProcurementIntentResource extends Resource
                         ? 'No linked objects - awaiting action'
                         : null),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(ProcurementIntentStatus::cases())
                         ->mapWithKeys(fn (ProcurementIntentStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -170,28 +181,28 @@ class ProcurementIntentResource extends Resource
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('trigger_type')
+                SelectFilter::make('trigger_type')
                     ->options(collect(ProcurementTriggerType::cases())
                         ->mapWithKeys(fn (ProcurementTriggerType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Trigger Type'),
 
-                Tables\Filters\SelectFilter::make('sourcing_model')
+                SelectFilter::make('sourcing_model')
                     ->options(collect(SourcingModel::cases())
                         ->mapWithKeys(fn (SourcingModel $model) => [$model->value => $model->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Sourcing Model'),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('approve')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('approve')
                         ->label('Approve Selected')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
@@ -229,7 +240,7 @@ class ProcurementIntentResource extends Resource
                                 try {
                                     $service->approve($record);
                                     $approved++;
-                                } catch (\InvalidArgumentException $e) {
+                                } catch (InvalidArgumentException $e) {
                                     $errors[] = "Intent {$record->id}: {$e->getMessage()}";
                                 }
                             }
@@ -276,10 +287,10 @@ class ProcurementIntentResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListProcurementIntents::route('/'),
-            'create' => Pages\CreateProcurementIntent::route('/create'),
-            'view' => Pages\ViewProcurementIntent::route('/{record}'),
-            'aggregated' => Pages\AggregatedProcurementIntents::route('/aggregated'),
+            'index' => ListProcurementIntents::route('/'),
+            'create' => CreateProcurementIntent::route('/create'),
+            'view' => ViewProcurementIntent::route('/{record}'),
+            'aggregated' => AggregatedProcurementIntents::route('/aggregated'),
         ];
     }
 
@@ -287,7 +298,7 @@ class ProcurementIntentResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

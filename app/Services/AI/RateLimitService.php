@@ -5,7 +5,9 @@ namespace App\Services\AI;
 use App\Enums\UserRole;
 use App\Models\AI\AiAuditLog;
 use App\Models\User;
+use DateTimeInterface;
 use Illuminate\Support\Facades\Cache;
+use Throwable;
 
 class RateLimitService
 {
@@ -64,7 +66,7 @@ class RateLimitService
             if (Cache::get($dayKey) === 1) {
                 Cache::put($dayKey, 1, 86400);
             }
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Cache unavailable — counters not incremented.
             // Fallback check() uses audit log COUNT.
         }
@@ -78,7 +80,7 @@ class RateLimitService
             if ($count !== null) {
                 return (int) $count;
             }
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Cache unavailable — fall through to DB
         }
 
@@ -93,14 +95,14 @@ class RateLimitService
             if ($count !== null) {
                 return (int) $count;
             }
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Cache unavailable — fall through to DB
         }
 
         return $this->countFromAuditLog($user, now()->startOfDay());
     }
 
-    protected function countFromAuditLog(User $user, \DateTimeInterface $since): int
+    protected function countFromAuditLog(User $user, DateTimeInterface $since): int
     {
         return AiAuditLog::query()
             ->where('user_id', $user->id)

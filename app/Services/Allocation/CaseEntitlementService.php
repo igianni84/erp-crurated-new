@@ -11,6 +11,7 @@ use App\Models\Pim\SellableSku;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing CaseEntitlement lifecycle and operations.
@@ -40,7 +41,7 @@ class CaseEntitlementService
      * @param  SellableSku  $sellableSku  The sellable SKU (case) that was sold
      * @return CaseEntitlement The created case entitlement
      *
-     * @throws \InvalidArgumentException If vouchers are invalid
+     * @throws InvalidArgumentException If vouchers are invalid
      */
     public function createFromVouchers(
         array|Collection $vouchers,
@@ -50,7 +51,7 @@ class CaseEntitlementService
         $voucherCollection = $vouchers instanceof Collection ? $vouchers : collect($vouchers);
 
         if ($voucherCollection->isEmpty()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create case entitlement: no vouchers provided.'
             );
         }
@@ -58,19 +59,19 @@ class CaseEntitlementService
         // Validate all vouchers belong to the same customer
         foreach ($voucherCollection as $voucher) {
             if ($voucher->customer_id !== $customer->id) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Cannot create case entitlement: voucher {$voucher->id} does not belong to customer {$customer->id}."
                 );
             }
 
             if ($voucher->isPartOfCase()) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Cannot create case entitlement: voucher {$voucher->id} is already part of another case entitlement."
                 );
             }
 
             if ($voucher->isTerminal()) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Cannot create case entitlement: voucher {$voucher->id} is in terminal state '{$voucher->lifecycle_state->label()}'."
                 );
             }
@@ -117,19 +118,19 @@ class CaseEntitlementService
      * @param  string  $reason  The reason for breaking (transfer, trade, partial_redemption)
      * @return CaseEntitlement The updated case entitlement
      *
-     * @throws \InvalidArgumentException If case cannot be broken
+     * @throws InvalidArgumentException If case cannot be broken
      */
     public function breakEntitlement(CaseEntitlement $caseEntitlement, string $reason): CaseEntitlement
     {
         if (! $caseEntitlement->canBeBroken()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot break case entitlement: case is already broken.'
             );
         }
 
         $validReasons = [self::REASON_TRANSFER, self::REASON_TRADE, self::REASON_PARTIAL_REDEMPTION];
         if (! in_array($reason, $validReasons, true)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot break case entitlement: invalid reason '{$reason}'. Valid reasons are: "
                 .implode(', ', $validReasons)
             );

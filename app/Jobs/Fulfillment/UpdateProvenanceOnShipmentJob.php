@@ -4,9 +4,11 @@ namespace App\Jobs\Fulfillment;
 
 use App\Models\Fulfillment\Shipment;
 use App\Models\Inventory\SerializedBottle;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to update on-chain provenance after a shipment is confirmed.
@@ -90,7 +92,7 @@ class UpdateProvenanceOnShipmentJob implements ShouldQueue
             try {
                 $this->updateBottleProvenance($bottle, $customer->id);
                 $bottlesUpdated++;
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::warning("Failed to update provenance for bottle {$serial}: {$e->getMessage()}");
                 $bottlesFailed++;
             }
@@ -130,7 +132,7 @@ class UpdateProvenanceOnShipmentJob implements ShouldQueue
      * @param  SerializedBottle  $bottle  The bottle to update
      * @param  string  $newOwnerId  The ID of the new owner
      *
-     * @throws \Exception If the update fails
+     * @throws Exception If the update fails
      */
     protected function callBlockchainService(SerializedBottle $bottle, string $newOwnerId): void
     {
@@ -169,7 +171,7 @@ class UpdateProvenanceOnShipmentJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(?\Throwable $exception): void
+    public function failed(?Throwable $exception): void
     {
         Log::error(
             "UpdateProvenanceOnShipmentJob failed permanently for shipment {$this->shipment->id}",

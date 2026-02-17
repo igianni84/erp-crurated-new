@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Fulfillment\ShippingOrderResource\Pages;
 
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListShippingOrders extends ListRecords
@@ -13,7 +13,7 @@ class ListShippingOrders extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Create Shipping Order')
                 ->icon('heroicon-o-plus'),
         ];

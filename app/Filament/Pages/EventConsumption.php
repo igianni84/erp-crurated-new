@@ -13,19 +13,30 @@ use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Inventory\InventoryService;
 use App\Services\Inventory\MovementService;
-use Filament\Forms;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Wizard;
+use Exception;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
 
 /**
  * Page for recording event consumption of inventory.
@@ -34,23 +45,23 @@ use Illuminate\Support\HtmlString;
  * Only stored, non-committed bottles can be consumed. Committed bottles
  * (reserved for voucher fulfillment) are blocked from consumption.
  *
- * @property Form $form
+ * @property \Filament\Schemas\Schema $form
  */
 class EventConsumption extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-fire';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-fire';
 
     protected static ?string $navigationLabel = 'Event Consumption';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 9;
 
     protected static ?string $title = 'Event Consumption';
 
-    protected static string $view = 'filament.pages.event-consumption';
+    protected string $view = 'filament.pages.event-consumption';
 
     /**
      * @var array<string, mixed>
@@ -78,20 +89,20 @@ class EventConsumption extends Page implements HasForms
         return 'Record consumption of inventory for events';
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Wizard::make([
                     // Step 1: Select Event Location
-                    Wizard\Step::make('Event Location')
+                    Step::make('Event Location')
                         ->description('Select the event location')
                         ->icon('heroicon-o-calendar')
                         ->schema([
                             Section::make('Select Event Location')
                                 ->description('Choose the location where the event is taking place. Inventory will be consumed from this location.')
                                 ->schema([
-                                    Forms\Components\Select::make('event_location_id')
+                                    Select::make('event_location_id')
                                         ->label('Event Location')
                                         ->options(function (): array {
                                             return Location::query()
@@ -108,14 +119,14 @@ class EventConsumption extends Page implements HasForms
                                         ->preload()
                                         ->required()
                                         ->live()
-                                        ->afterStateUpdated(function (Forms\Set $set): void {
+                                        ->afterStateUpdated(function (Set $set): void {
                                             // Reset selected items when location changes
                                             $set('selected_bottles', []);
                                             $set('selected_cases', []);
                                         })
                                         ->helperText('Only active event locations are shown.'),
 
-                                    Forms\Components\Placeholder::make('event_location_info')
+                                    Placeholder::make('event_location_info')
                                         ->label('Location Details')
                                         ->visible(fn (Get $get): bool => $get('event_location_id') !== null)
                                         ->content(function (Get $get): HtmlString {
@@ -168,20 +179,20 @@ class EventConsumption extends Page implements HasForms
                         ]),
 
                     // Step 2: Event Reference
-                    Wizard\Step::make('Event Reference')
+                    Step::make('Event Reference')
                         ->description('Enter event details')
                         ->icon('heroicon-o-document-text')
                         ->schema([
                             Section::make('Event Information')
                                 ->description('Provide details about the event for audit purposes.')
                                 ->schema([
-                                    Forms\Components\TextInput::make('event_reference')
+                                    TextInput::make('event_reference')
                                         ->label('Event Reference')
                                         ->placeholder('e.g., Annual Tasting 2026, VIP Dinner #123')
                                         ->maxLength(255)
                                         ->helperText('Optional - enter a reference to identify this event.'),
 
-                                    Forms\Components\Textarea::make('event_notes')
+                                    Textarea::make('event_notes')
                                         ->label('Event Notes (Optional)')
                                         ->placeholder('Enter any additional notes about this event consumption...')
                                         ->rows(3),
@@ -189,13 +200,13 @@ class EventConsumption extends Page implements HasForms
                         ]),
 
                     // Step 3: Select Items (only Crurated-owned, stored, non-committed)
-                    Wizard\Step::make('Select Items')
+                    Step::make('Select Items')
                         ->description('Choose items to consume')
                         ->icon('heroicon-o-squares-2x2')
                         ->schema([
                             Section::make()
                                 ->schema([
-                                    Forms\Components\Placeholder::make('consumption_notice')
+                                    Placeholder::make('consumption_notice')
                                         ->label('')
                                         ->content(new HtmlString(<<<'HTML'
                                             <div class="p-4 rounded-lg bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800">
@@ -221,7 +232,7 @@ class EventConsumption extends Page implements HasForms
                                 ->description('Choose individual bottles to consume. Only free (non-committed) bottles are shown.')
                                 ->collapsible()
                                 ->schema([
-                                    Forms\Components\CheckboxList::make('selected_bottles')
+                                    CheckboxList::make('selected_bottles')
                                         ->label('')
                                         ->options(function (Get $get): array {
                                             $locationId = $get('event_location_id');
@@ -294,7 +305,7 @@ class EventConsumption extends Page implements HasForms
                                     return $inventoryService->getCommittedBottlesAtLocation($location)->count() > 0;
                                 })
                                 ->schema([
-                                    Forms\Components\Placeholder::make('committed_warning')
+                                    Placeholder::make('committed_warning')
                                         ->label('')
                                         ->content(function (): HtmlString {
                                             $user = auth()->user();
@@ -323,7 +334,7 @@ class EventConsumption extends Page implements HasForms
                                             HTML);
                                         }),
 
-                                    Forms\Components\Placeholder::make('committed_bottles_list')
+                                    Placeholder::make('committed_bottles_list')
                                         ->label('Committed Bottles at this Location')
                                         ->content(function (Get $get): HtmlString {
                                             $locationId = $get('event_location_id');
@@ -405,7 +416,7 @@ class EventConsumption extends Page implements HasForms
                                 ->description('Choose intact cases to consume. All bottles in selected cases will be consumed and the case will be marked as broken.')
                                 ->collapsible()
                                 ->schema([
-                                    Forms\Components\Placeholder::make('case_warning')
+                                    Placeholder::make('case_warning')
                                         ->label('')
                                         ->content(new HtmlString(<<<'HTML'
                                             <div class="p-3 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
@@ -415,7 +426,7 @@ class EventConsumption extends Page implements HasForms
                                             </div>
                                         HTML)),
 
-                                    Forms\Components\CheckboxList::make('selected_cases')
+                                    CheckboxList::make('selected_cases')
                                         ->label('')
                                         ->options(function (Get $get): array {
                                             $locationId = $get('event_location_id');
@@ -447,7 +458,7 @@ class EventConsumption extends Page implements HasForms
                                         ->helperText('Showing up to 100 intact cases at this location.'),
                                 ]),
 
-                            Forms\Components\Placeholder::make('selection_summary')
+                            Placeholder::make('selection_summary')
                                 ->label('Selection Summary')
                                 ->content(function (Get $get): HtmlString {
                                     /** @var array<int, string> $bottles */
@@ -486,18 +497,18 @@ class EventConsumption extends Page implements HasForms
                                     ->danger()
                                     ->send();
 
-                                throw new \Filament\Support\Exceptions\Halt;
+                                throw new Halt;
                             }
                         }),
 
                     // Step 4: Review and Confirm
-                    Wizard\Step::make('Review & Confirm')
+                    Step::make('Review & Confirm')
                         ->description('Review and execute consumption')
                         ->icon('heroicon-o-check-circle')
                         ->schema([
                             Section::make('Consumption Summary')
                                 ->schema([
-                                    Forms\Components\Placeholder::make('consumption_summary')
+                                    Placeholder::make('consumption_summary')
                                         ->label('')
                                         ->content(function (Get $get): HtmlString {
                                             $locationId = $get('event_location_id');
@@ -549,7 +560,7 @@ class EventConsumption extends Page implements HasForms
 
                             Section::make('Confirmation')
                                 ->schema([
-                                    Forms\Components\Placeholder::make('warning')
+                                    Placeholder::make('warning')
                                         ->label('')
                                         ->content(new HtmlString(<<<'HTML'
                                             <div class="p-4 rounded-lg bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800">
@@ -574,7 +585,7 @@ class EventConsumption extends Page implements HasForms
                                             </div>
                                         HTML)),
 
-                                    Forms\Components\Checkbox::make('confirm_consumption')
+                                    Checkbox::make('confirm_consumption')
                                         ->label('I confirm that I want to consume these items for this event. I understand this action is IRREVERSIBLE.')
                                         ->required()
                                         ->accepted(),
@@ -692,7 +703,7 @@ class EventConsumption extends Page implements HasForms
                             $movements->push($movement);
                             $consumedBottles++;
                         }
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         $errors[] = "Bottle {$bottleId}: {$e->getMessage()}";
                     }
                 }
@@ -717,23 +728,23 @@ class EventConsumption extends Page implements HasForms
                                         );
                                         $movements->push($movement);
                                     }
-                                } catch (\InvalidArgumentException $e) {
+                                } catch (InvalidArgumentException $e) {
                                     $errors[] = "Case bottle {$bottle->serial_number}: {$e->getMessage()}";
                                 }
                             }
                             $consumedCases++;
                         }
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         $errors[] = "Case {$caseId}: {$e->getMessage()}";
                     }
                 }
 
                 // If all consumption failed, throw exception to rollback
                 if ($consumedBottles === 0 && $consumedCases === 0) {
-                    throw new \Exception('No items were consumed successfully.');
+                    throw new Exception('No items were consumed successfully.');
                 }
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->title('Consumption Failed')
                 ->body($e->getMessage())
@@ -763,7 +774,7 @@ class EventConsumption extends Page implements HasForms
                 ->success()
                 ->persistent()
                 ->actions([
-                    \Filament\Notifications\Actions\Action::make('view_movements')
+                    Action::make('view_movements')
                         ->label('View Movements')
                         ->url(InventoryMovementResource::getUrl('index'))
                         ->button(),

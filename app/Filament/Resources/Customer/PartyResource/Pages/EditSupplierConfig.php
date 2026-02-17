@@ -6,17 +6,21 @@ use App\Filament\Resources\Customer\PartyResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Party;
 use App\Models\Procurement\ProducerSupplierConfig;
-use Filament\Actions;
-use Filament\Forms;
+use Filament\Actions\Action;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Illuminate\Contracts\Support\Htmlable;
 
 /**
- * @property Form $form
+ * @property \Filament\Schemas\Schema $form
  */
 class EditSupplierConfig extends Page implements HasForms
 {
@@ -24,7 +28,7 @@ class EditSupplierConfig extends Page implements HasForms
 
     protected static string $resource = PartyResource::class;
 
-    protected static string $view = 'filament.resources.customer.party-resource.pages.edit-supplier-config';
+    protected string $view = 'filament.resources.customer.party-resource.pages.edit-supplier-config';
 
     /**
      * @var array<string, mixed>
@@ -81,7 +85,7 @@ class EditSupplierConfig extends Page implements HasForms
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('back')
+            Action::make('back')
                 ->label('Back to Party')
                 ->icon('heroicon-o-arrow-left')
                 ->color('gray')
@@ -89,14 +93,14 @@ class EditSupplierConfig extends Page implements HasForms
         ];
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Bottling Defaults')
+        return $schema
+            ->components([
+                Section::make('Bottling Defaults')
                     ->description('Default values used when creating Bottling Instructions')
                     ->schema([
-                        Forms\Components\TextInput::make('default_bottling_deadline_days')
+                        TextInput::make('default_bottling_deadline_days')
                             ->label('Default Bottling Deadline (days)')
                             ->numeric()
                             ->minValue(1)
@@ -104,7 +108,7 @@ class EditSupplierConfig extends Page implements HasForms
                             ->helperText('Number of days from intent creation to bottling deadline. Leave empty if no default.')
                             ->suffix('days'),
 
-                        Forms\Components\TagsInput::make('allowed_formats')
+                        TagsInput::make('allowed_formats')
                             ->label('Allowed Formats')
                             ->helperText('Enter allowed bottle formats (e.g., 750ml, 1500ml, 3000ml). Leave empty for no restrictions.')
                             ->placeholder('Add format...')
@@ -112,12 +116,12 @@ class EditSupplierConfig extends Page implements HasForms
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Serialization Constraints')
+                Section::make('Serialization Constraints')
                     ->description('Constraints for serialization location and routing')
                     ->collapsed()
                     ->collapsible()
                     ->schema([
-                        Forms\Components\KeyValue::make('serialization_constraints')
+                        KeyValue::make('serialization_constraints')
                             ->label('Constraints')
                             ->keyLabel('Constraint Type')
                             ->valueLabel('Value')
@@ -126,9 +130,9 @@ class EditSupplierConfig extends Page implements HasForms
                             ->reorderable(),
                     ]),
 
-                Forms\Components\Section::make('Notes')
+                Section::make('Notes')
                     ->schema([
-                        Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label('General Notes')
                             ->rows(4)
                             ->helperText('Any general notes about working with this supplier/producer (e.g., preferred communication methods, lead times, quality requirements)'),
@@ -195,6 +199,6 @@ class EditSupplierConfig extends Page implements HasForms
             ->send();
 
         // Redirect back to party view
-        redirect()->route('filament.admin.resources.customer.parties.view', ['record' => $this->record->id, 'activeTab' => 'supplier-config']);
+        redirect()->route('filament.admin.resources.customer.parties.view', ['record' => $this->record->id, 'tab' => 'supplier-config']);
     }
 }

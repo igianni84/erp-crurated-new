@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Pim\FormatResource\Pages;
 
 use App\Filament\Resources\Pim\FormatResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListFormats extends ListRecords
@@ -13,7 +13,7 @@ class ListFormats extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 }

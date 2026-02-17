@@ -9,6 +9,7 @@ use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * EstimatedMarketPrice Model
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $emp_value
  * @property EmpSource $source
  * @property EmpConfidenceLevel $confidence_level
- * @property \Illuminate\Support\Carbon|null $fetched_at
+ * @property Carbon|null $fetched_at
  */
 class EstimatedMarketPrice extends Model
 {

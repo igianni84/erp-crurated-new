@@ -16,6 +16,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Throwable;
 
 /**
  * Listener: HandleStripePaymentFailure
@@ -67,7 +68,7 @@ class HandleStripePaymentFailure implements ShouldQueue
             });
 
             $webhook->markProcessed();
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::channel('finance')->error('Failed to process payment failure webhook', [
                 'event_id' => $webhook->event_id,
                 'error' => $e->getMessage(),
@@ -253,7 +254,7 @@ class HandleStripePaymentFailure implements ShouldQueue
                 'payment_id' => $event->payment->id,
                 'recipients_count' => count($recipients),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Don't fail the webhook processing if notification fails
             Log::channel('finance')->error('Failed to send payment failure notification', [
                 'payment_id' => $event->payment->id,

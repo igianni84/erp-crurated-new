@@ -3,10 +3,18 @@
 namespace App\Filament\Pages;
 
 use App\Models\AuditLog;
+use App\Models\Procurement\BottlingInstruction;
+use App\Models\Procurement\Inbound;
+use App\Models\Procurement\ProcurementIntent;
+use App\Models\Procurement\PurchaseOrder;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Pages\Page;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -15,17 +23,17 @@ class ProcurementAudit extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-magnifying-glass';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-magnifying-glass';
 
     protected static ?string $navigationLabel = 'Audit Trail';
 
-    protected static ?string $navigationGroup = 'Procurement';
+    protected static string|\UnitEnum|null $navigationGroup = 'Procurement';
 
     protected static ?int $navigationSort = 10;
 
     protected static ?string $title = 'Procurement Audit Trail';
 
-    protected static string $view = 'filament.pages.procurement-audit';
+    protected string $view = 'filament.pages.procurement-audit';
 
     /**
      * List of Procurement model types for filtering.
@@ -62,19 +70,19 @@ class ProcurementAudit extends Page implements HasTable
                     ->with(['user'])
             )
             ->columns([
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Date/Time')
                     ->dateTime('M j, Y H:i:s')
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('event')
+                TextColumn::make('event')
                     ->label('Event')
                     ->badge()
                     ->formatStateUsing(fn (AuditLog $record): string => $record->getEventLabel())
                     ->color(fn (AuditLog $record): string => $record->getEventColor())
                     ->icon(fn (AuditLog $record): string => $record->getEventIcon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('auditable_type')
+                TextColumn::make('auditable_type')
                     ->label('Entity Type')
                     ->sortable()
                     ->formatStateUsing(fn (string $state): string => self::PROCUREMENT_ENTITY_TYPES[$state] ?? class_basename($state))
@@ -86,14 +94,14 @@ class ProcurementAudit extends Page implements HasTable
                         'App\Models\Procurement\Inbound' => 'primary',
                         default => 'gray',
                     }),
-                Tables\Columns\TextColumn::make('auditable_id')
+                TextColumn::make('auditable_id')
                     ->label('Entity ID')
                     ->searchable()
                     ->copyable()
                     ->copyMessage('Entity ID copied')
                     ->limit(12)
                     ->tooltip(fn (AuditLog $record): string => (string) $record->auditable_id),
-                Tables\Columns\TextColumn::make('entity_label')
+                TextColumn::make('entity_label')
                     ->label('Entity Label')
                     ->getStateUsing(function (AuditLog $record): string {
                         $auditable = $record->auditable;
@@ -102,15 +110,15 @@ class ProcurementAudit extends Page implements HasTable
                         }
 
                         // Use entity-specific labels
-                        if ($auditable instanceof \App\Models\Procurement\ProcurementIntent) {
+                        if ($auditable instanceof ProcurementIntent) {
                             return $auditable->getProductLabel();
                         }
 
-                        if ($auditable instanceof \App\Models\Procurement\PurchaseOrder) {
+                        if ($auditable instanceof PurchaseOrder) {
                             return $auditable->getProductLabel();
                         }
 
-                        if ($auditable instanceof \App\Models\Procurement\BottlingInstruction) {
+                        if ($auditable instanceof BottlingInstruction) {
                             $liquidProduct = $auditable->liquidProduct;
                             if ($liquidProduct !== null) {
                                 $wineVariant = $liquidProduct->wineVariant;
@@ -122,7 +130,7 @@ class ProcurementAudit extends Page implements HasTable
                             return 'Unknown Product';
                         }
 
-                        if ($auditable instanceof \App\Models\Procurement\Inbound) {
+                        if ($auditable instanceof Inbound) {
                             return $auditable->warehouse.' ('.$auditable->quantity.' units)';
                         }
 
@@ -130,13 +138,13 @@ class ProcurementAudit extends Page implements HasTable
                     })
                     ->wrap()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('user.name')
+                TextColumn::make('user.name')
                     ->label('User')
                     ->searchable()
                     ->sortable()
                     ->default('System')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('changes_summary')
+                TextColumn::make('changes_summary')
                     ->label('Changes')
                     ->getStateUsing(function (AuditLog $record): string {
                         if ($record->event === AuditLog::EVENT_CREATED) {
@@ -178,20 +186,20 @@ class ProcurementAudit extends Page implements HasTable
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('auditable_type')
+                SelectFilter::make('auditable_type')
                     ->label('Entity Type')
                     ->options(self::PROCUREMENT_ENTITY_TYPES)
                     ->multiple()
                     ->searchable(),
-                Tables\Filters\SelectFilter::make('event')
+                SelectFilter::make('event')
                     ->label('Event Type')
                     ->options(self::EVENT_TYPES)
                     ->multiple(),
-                Tables\Filters\Filter::make('created_at')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('from')
+                Filter::make('created_at')
+                    ->schema([
+                        DatePicker::make('from')
                             ->label('From Date'),
-                        \Filament\Forms\Components\DatePicker::make('until')
+                        DatePicker::make('until')
                             ->label('Until Date'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -216,21 +224,21 @@ class ProcurementAudit extends Page implements HasTable
 
                         return $indicators;
                     }),
-                Tables\Filters\SelectFilter::make('user_id')
+                SelectFilter::make('user_id')
                     ->label('User')
                     ->relationship('user', 'name')
                     ->searchable()
                     ->preload(),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_details')
+            ->recordActions([
+                Action::make('view_details')
                     ->label('View Details')
                     ->icon('heroicon-o-eye')
                     ->modalHeading(fn (AuditLog $record): string => $record->getEventLabel().' - '.(self::PROCUREMENT_ENTITY_TYPES[$record->auditable_type] ?? class_basename($record->auditable_type)))
                     ->modalContent(fn (AuditLog $record) => view('filament.components.audit-detail', ['record' => $record]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Close'),
-                Tables\Actions\Action::make('view_entity')
+                Action::make('view_entity')
                     ->label('View Entity')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(function (AuditLog $record): ?string {
@@ -254,7 +262,7 @@ class ProcurementAudit extends Page implements HasTable
                     ->visible(fn (AuditLog $record): bool => $record->auditable !== null),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('export')
+                Action::make('export')
                     ->label('Export CSV')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
@@ -332,11 +340,11 @@ class ProcurementAudit extends Page implements HasTable
                 if ($record->auditable !== null) {
                     $auditable = $record->auditable;
 
-                    if ($auditable instanceof \App\Models\Procurement\ProcurementIntent) {
+                    if ($auditable instanceof ProcurementIntent) {
                         $entityLabel = $auditable->getProductLabel();
-                    } elseif ($auditable instanceof \App\Models\Procurement\PurchaseOrder) {
+                    } elseif ($auditable instanceof PurchaseOrder) {
                         $entityLabel = $auditable->getProductLabel();
-                    } elseif ($auditable instanceof \App\Models\Procurement\BottlingInstruction) {
+                    } elseif ($auditable instanceof BottlingInstruction) {
                         $liquidProduct = $auditable->liquidProduct;
                         if ($liquidProduct !== null) {
                             $wineVariant = $liquidProduct->wineVariant;
@@ -348,7 +356,7 @@ class ProcurementAudit extends Page implements HasTable
                         } else {
                             $entityLabel = 'Unknown Product';
                         }
-                    } elseif ($auditable instanceof \App\Models\Procurement\Inbound) {
+                    } elseif ($auditable instanceof Inbound) {
                         $entityLabel = $auditable->warehouse.' ('.$auditable->quantity.' units)';
                     }
                 }

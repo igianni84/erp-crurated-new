@@ -10,10 +10,11 @@ use App\Models\Finance\Invoice;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class OutstandingInvoicesTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get invoices with outstanding balances, ordered by amount owed.';
     }
@@ -33,7 +34,7 @@ class OutstandingInvoicesTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $limit = (int) ($request['limit'] ?? 20);
 

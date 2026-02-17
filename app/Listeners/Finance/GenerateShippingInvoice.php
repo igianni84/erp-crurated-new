@@ -9,6 +9,7 @@ use App\Services\Finance\ShippingTaxService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Listener: GenerateShippingInvoice
@@ -137,7 +138,7 @@ class GenerateShippingInvoice implements ShouldQueue
                     'shipping_order_ids' => $event->getAllShippingOrderIds(),
                     'is_multi_shipment' => $event->isMultiShipment(),
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to auto-issue INV2 invoice', [
                     'invoice_id' => $invoice->id,
                     'shipping_order_ids' => $event->getAllShippingOrderIds(),

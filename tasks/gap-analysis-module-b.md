@@ -1,6 +1,6 @@
 # Module B (Inventory) — Gap Analysis Report
 
-**Data:** 9 Febbraio 2026
+**Data:** 9 Febbraio 2026 (aggiornato 16 Febbraio 2026 post-seconda verifica indipendente approfondita)
 **Fonti confrontate:**
 1. **DOC-FUN** = `tasks/ERP-FULL-DOC.md` (sezione Module B) — Documentazione funzionale
 2. **PRD-UI** = `tasks/prd-module-b-inventory.md` — PRD UI/UX con 58 user stories
@@ -10,18 +10,18 @@
 
 ## Executive Summary
 
-Il Module B è **sostanzialmente completo e fedele alla documentazione**. Su 58 user stories, la copertura è eccellente. L'implementazione va addirittura *oltre* le specifiche in alcune aree (servizio aggiuntivo, pagina aggiuntiva, seeder completi, enforcement robusto). Le discrepanze trovate sono prevalentemente **cosmetiche o architetturali minori**, con poche omissioni funzionali reali.
+Il Module B è **completo al 100% delle user stories (58/58)** e fedele alla documentazione. L'implementazione va addirittura *oltre* le specifiche in alcune aree (servizio aggiuntivo, pagine aggiuntive, seeder completi, enforcement robusto). Le discrepanze residue sono **architetturali minori** e integrazioni placeholder (NFT blockchain).
 
 | Categoria | DOC-FUN | PRD-UI | IMPL | Status |
 |-----------|---------|--------|------|--------|
 | Models | 7 | 7 | 7 | ✅ Completo |
 | Enums | 10 | 10 | 10 | ✅ Completo |
-| Services | 3 | 3 | 4 | ✅ +1 extra |
-| Jobs | 3 | 3 | 3 | ✅ Completo |
+| Services | 3 | 3 | 4 (20+ metodi pubblici in InventoryService) | ✅ +1 extra |
+| Jobs | 3 | 3 | 3 | ⚠️ 1 mai dispatchato |
 | Filament Resources | 5 | 5 | 5 | ✅ Completo |
-| Custom Pages | 3-4 | 5+ | 6 | ✅ +extra |
+| Custom Pages | 3-4 | 5+ | 7 | ✅ +extra (SerializationQueue inclusa) |
 | Migrations | ~7 | ~7 | 8 | ✅ +1 extra |
-| Seeders | Non specificati | Non specificati | 4 | ✅ Bonus |
+| Seeders | Non specificati | Non specificati | 4 (Module B) + 1 (Module 0/PIM) | ✅ Bonus |
 | Events/Listeners | 0 | 0 | 0 | ⚠️ Vedi nota |
 | Policies | Non specificati | Non specificati | 0 | ⚠️ Vedi nota |
 | Widgets | 3 (separati) | 3 (separati) | 0 (inline) | ⚠️ Architetturale |
@@ -62,7 +62,7 @@ Il Module B è **sostanzialmente completo e fedele alla documentazione**. Su 58 
 
 1. **BottleState enum ha 7 valori invece di 6**: L'implementazione include `MisSerialized` che non è nel DOC-FUN originale ma è necessario per US-B029. Questo è un'**aggiunta coerente**.
 
-2. **OwnershipType enum**: Il valore `CururatedOwned` ha un typo (`Cururated` → dovrebbe essere `CuratedOwned` o `CuratedOwned`). **Bug minore** da verificare.
+2. **OwnershipType enum**: Il valore `CururatedOwned` ha un typo (`Cururated` → dovrebbe essere `CruatedOwned` come abbreviazione di "Crurated", oppure `CurratedOwned`). **Bug minore** confermato — il label() restituisce correttamente "Crurated Owned" ma il nome del case PHP è errato.
 
 ---
 
@@ -86,7 +86,7 @@ Il Module B è **sostanzialmente completo e fedele alla documentazione**. Su 58 
 ### Metodi aggiuntivi rispetto alla spec
 
 Tutti gli enum hanno metodi `label()`, `color()`, `icon()` come da convenzione codebase. Molti hanno metodi domain-specific aggiuntivi che arricchiscono la business logic:
-- `LocationType::typicallySupportsSerialiation()`
+- `LocationType::typicallySupportsSerialiation()` ⚠️ **Typo**: manca "z" — dovrebbe essere `typicallySupportsSerialization()`
 - `LocationStatus::canReceiveInventory()`, `canDispatchInventory()`
 - `InboundBatchStatus::canStartSerialization()`, `requiresAttention()`
 - `BottleState::isAvailableForFulfillment()`, `isPhysicallyPresent()`, `isTerminal()`
@@ -110,7 +110,7 @@ Questi vanno **oltre la spec** ma sono tutti coerenti e utili.
 
 ### Dettagli
 
-**InventoryService** — Tutti i metodi da spec implementati + extra:
+**InventoryService** — Tutti i metodi da spec implementati + 15 extra (20 metodi pubblici totali):
 - ✅ `getCommittedQuantity()` — con cache-first optimization
 - ✅ `getFreeQuantity()`
 - ✅ `canConsume()`
@@ -121,6 +121,16 @@ Questi vanno **oltre la spec** ma sono tutti coerenti e utili.
 - ➕ `getAtRiskAllocations()` — per alert dashboard (free < 10%)
 - ➕ `validateAllocationLineageMatch()` — validazione cross-check
 - ➕ `getAvailableBottlesForAllocation()` — per fulfillment
+- ➕ `getPendingSerializationCount()` — conteggio bottiglie in attesa
+- ➕ `getCannotConsumeReason()` — ragione leggibile per blocco consumo
+- ➕ `getCommittedBottlesAtLocation()` — bottiglie committed per location
+- ➕ `getPendingSerializationStats()` — statistiche dettagliate serializzazione
+- ➕ `getBottlesFromAtRiskAllocations()` — bottiglie da allocazioni a rischio
+- ➕ `getAtRiskAllocationIds()` — ID allocazioni a rischio
+- ➕ `bottleMatchesAllocation()` — check non-throwing
+- ➕ `filterBottlesByAllocation()` — filtro collection per allocazione
+- ➕ `hasAvailableBottlesForAllocation()` — boolean check disponibilità
+- ➕ `getAllocationLineageDisplay()` — stringa leggibile lineage
 
 **SerializationService** — Tutti i metodi da spec + extra:
 - ✅ `canSerializeAtLocation()`
@@ -152,15 +162,27 @@ Questi vanno **oltre la spec** ma sono tutti coerenti e utili.
 
 ## 4. JOBS — Confronto Dettagliato
 
-### ✅ Tutti e 3 i job implementati
+### ✅ Tutti e 3 i job implementati (1 mai dispatchato)
 
-| Job | DOC-FUN | IMPL | Delta |
-|-----|---------|------|-------|
-| MintProvenanceNftJob | ✅ | ✅ | Placeholder blockchain |
-| UpdateProvenanceOnMovementJob | ✅ | ✅ | Placeholder blockchain |
-| SyncCommittedInventoryJob | ✅ | ✅ | +static cache helpers |
+| Job | DOC-FUN | IMPL | Dispatch | Delta |
+|-----|---------|------|----------|-------|
+| MintProvenanceNftJob | ✅ | ✅ | ✅ `SerializationService::queueNftMinting()` | Placeholder blockchain |
+| UpdateProvenanceOnMovementJob | ✅ | ✅ | ❌ **MAI DISPATCHATO** | Placeholder blockchain, dispatch mancante |
+| SyncCommittedInventoryJob | ✅ | ✅ | ✅ Via static cache helpers | +static cache helpers (ma `invalidateCache()` mai chiamata, no scheduler config) |
 
-### Nota importante
+### ⚠️ Gap: UpdateProvenanceOnMovementJob mai dispatchato
+
+Il job esiste strutturalmente ed è correttamente implementato (placeholder), MA **non viene mai dispatchato** da nessuna parte del codebase. Dovrebbe essere dispatchato in `MovementService::createMovement()` dopo la creazione del movimento. Le provenance updates on movement non avvengono mai.
+
+**Severità: MEDIA** — Il job è placeholder, quindi l'impatto è limitato finché non si sceglie il blockchain provider. Ma il dispatch call mancante dovrebbe essere aggiunto.
+
+### ⚠️ Nota: SyncCommittedInventoryJob integrazione parziale
+
+- `SyncCommittedInventoryJob::invalidateCache()` esiste ma **non viene mai chiamata** da nessun listener di lifecycle voucher
+- Non è stata trovata configurazione scheduler per eseguire il job periodicamente
+- Il metodo `isCacheFresh()` esiste ma non è usato da InventoryService
+
+### Nota sui placeholder blockchain
 
 I job blockchain (`MintProvenanceNftJob`, `UpdateProvenanceOnMovementJob`) hanno un'**implementazione placeholder** del servizio blockchain. Questo è coerente con le Open Questions del DOC-FUN che citano "NFT blockchain provider - Which blockchain/provider for NFT minting?" come decisione pendente.
 
@@ -204,7 +226,7 @@ I job blockchain (`MintProvenanceNftJob`, `UpdateProvenanceOnMovementJob`) hanno
 - ✅ Immutability notice banner
 - ✅ Tutte e 3 le actions (Damaged/Destroyed, Missing, Mis-serialized)
 - ✅ Row color coding per stato critico
-- ⚠️ **Naming**: La spec chiama la risorsa "Bottle Registry" — verificare che il navigation label sia coerente
+- ✅ **Naming**: Il navigation label è `'Bottle Registry'` come da spec — verificato (`$navigationLabel = 'Bottle Registry'`)
 
 **CaseResource** — Implementazione fedele + extra:
 - ✅ canCreate() returns false (cases created via serialization)
@@ -223,28 +245,31 @@ I job blockchain (`MintProvenanceNftJob`, `UpdateProvenanceOnMovementJob`) hanno
 
 ## 6. CUSTOM PAGES — Confronto Dettagliato
 
+### ✅ Tutte e 7 le pagine custom sono implementate
+
 | Pagina | DOC-FUN | PRD-UI | IMPL | Delta |
 |--------|---------|--------|------|-------|
-| InventoryOverview | ✅ | ✅ | ✅ | Più ricco della spec |
-| SerializationQueue | ✅ | ✅ | ❌ | **NON IMPLEMENTATA** come pagina separata |
+| InventoryOverview | ✅ | ✅ | ✅ | Più ricco della spec (22 metodi, 12 KPI) |
+| SerializationQueue | ✅ | ✅ | ✅ | Implementata con HasTable, polling 30s |
 | EventConsumption | ✅ | ✅ | ✅ | 4-step wizard come da spec |
 | CreateInternalTransfer | ✅ | ✅ | ✅ | 4-step wizard come da spec |
 | CreateConsignmentPlacement | ✅ | ✅ | ✅ | 4-step wizard come da spec |
-| InventoryAudit | ❌ | ✅ (US-B058) | ✅ | Implementata |
+| InventoryAudit | ❌ | ✅ (US-B058) | ✅ | Implementata (23 tipi evento, export CSV) |
 | CommittedInventoryOverride | ❌ | ✅ (US-B047) | ✅ | **EXTRA** - 5-step wizard |
 
-### 🔴 Gap Critico: Serialization Queue
+### ✅ SerializationQueue (US-B019 — COMPLETA)
 
-La **Serialization Queue** è specificata sia nel DOC-FUN che nel PRD-UI come pagina dedicata che mostra:
-- Batches con status `pending_serialization` o `partially_serialized`
-- Solo batches in location con `serialization_authorized = true`
-- Colonne: batch_id, product, quantity_remaining_unserialized, receiving_location, allocation_lineage
-- Filtri: location, date range
-- Action: link a "Start Serialization"
-
-**Nell'implementazione attuale**, questa funzionalità è parzialmente coperta dal filtro nella InboundBatchResource list (filtrando per serialization_status), ma **manca una pagina dedicata** con le pre-condizioni (solo batches in location autorizzate) e il focus UX specifico.
-
-**Severità: MEDIA** — La funzionalità è raggiungibile ma non con il focus operativo richiesto.
+La pagina `SerializationQueue.php` (330 righe) è **completamente implementata**:
+- Implementa `HasTable` con tabella completa Filament
+- Query pre-filtrata: solo batch con status `PendingSerialization` o `PartiallySerialized`
+- Filtro per location autorizzate (`serialization_authorized = true`)
+- 8 colonne: batch ID, product, qty remaining, location, allocation, status, ownership, received_at
+- 2 filtri: location (solo autorizzate), date range
+- Action inline "Serialize" con input quantità e conferma
+- Action "View" per aprire InboundBatchResource
+- Polling 30 secondi per aggiornamento real-time
+- Metodo `getQueueStats()` per statistiche
+- Navigazione: Inventory group, sort order 3
 
 ### ✅ InventoryOverview
 
@@ -339,7 +364,7 @@ La spec prevedeva 3 widget Filament separati renderizzati nella InventoryOvervie
 | 1. Infrastruttura Base | B001-B011 | 11 | 11 | ✅ |
 | 2. Locations CRUD | B012-B014 | 3 | 3 | ✅ |
 | 3. Inbound Batches CRUD | B015-B018 | 4 | 4 | ✅ |
-| 4. Serialization Flow | B019-B024 | 6 | 5 | ⚠️ B019 parziale |
+| 4. Serialization Flow | B019-B024 | 6 | 6 | ✅ (B019 COMPLETA) |
 | 5. Serialized Bottles CRUD | B025-B029 | 5 | 5 | ✅ |
 | 6. Cases CRUD | B030-B032 | 3 | 3 | ✅ |
 | 7. Inventory Movements | B033-B038 | 6 | 6 | ✅ |
@@ -348,14 +373,9 @@ La spec prevedeva 3 widget Filament separati renderizzati nella InventoryOvervie
 | 10. Edge Cases | B047-B052 | 6 | 6 | ✅ |
 | 11. NFT & Provenance | B053-B054 | 2 | 2 | ⚠️ Placeholder |
 | 12. Audit & Governance | B055-B058 | 4 | 4 | ✅ |
-| **TOTALE** | | **58** | **57** | **98.3%** |
+| **TOTALE** | | **58** | **58** | **100%** |
 
-### US con gap parziali
-
-**US-B019 (Serialization Queue page)** — ⚠️ PARZIALE
-- La funzionalità è raggiungibile filtrando InboundBatch per serialization_status
-- Ma manca la pagina dedicata con pre-filtro location autorizzate
-- Severità: MEDIA
+### US con note
 
 **US-B053/B054 (NFT & Provenance)** — ⚠️ PLACEHOLDER
 - I job esistono e funzionano strutturalmente
@@ -391,16 +411,21 @@ Questo funziona ma è meno **event-driven** rispetto al pattern architetturale g
 
 ## 11. SEEDERS — Valutazione (Bonus)
 
-I seeders non sono specificati nella documentazione ma sono stati implementati con alta qualità:
+I seeders non sono specificati nella documentazione ma sono stati implementati con alta qualità.
 
-| Seeder | Records | Note |
-|--------|---------|------|
-| LocationSeeder | 12 | Tutti i 5 tipi, distribuzione realistica |
-| SerializedBottleSeeder | ~500+ | Con distribuzione stati, NFT per premium, legacy bottles |
-| InventoryCaseSeeder | ~100+ | Distribuzione per tipo vino, integrità realistica |
-| InventoryMovementSeeder | ~90 | 7 categorie, triggers misti |
+**4 seeders Module B** (+ 1 Module 0/PIM usato come dipendenza):
 
-Qualità dei seeders: **ALTA** — Dati realistici per demo e testing.
+| Seeder | Modulo | Records | Note |
+|--------|--------|---------|------|
+| LocationSeeder | B | 12 | Tutti i 5 tipi, distribuzione realistica (Milano, London, Roma, Geneva, etc.) |
+| SerializedBottleSeeder | B | ~500-800 | Con distribuzione stati, NFT per premium; ~10% in stato terminale (destroyed/missing/consumed) |
+| InventoryCaseSeeder | B | ~100-150 | Distribuzione per tipo vino, ~25% broken, integrità realistica |
+| InventoryMovementSeeder | B | ~30 espliciti (~155-210 totali) | Transfers + consignments; movimenti aggiuntivi auto-generati da case breaking, destruction, missing, consumption |
+| CaseConfigurationSeeder | **0 (PIM)** | 8 | 8 configurazioni case (6x750 OWC, 12x750, 1x1500, etc.) — **appartiene a Module 0**, usato come dipendenza da Module B |
+
+**Nota:** CaseConfigurationSeeder referenzia `App\Models\Pim\CaseConfiguration` ed è chiamato nella Phase 1 (foundation) del `DatabaseSeeder`, non nella sezione Module B. È una dipendenza cross-module, non un seeder Module B.
+
+Qualità dei seeders: **ALTA** — Dati realistici per demo e testing. Usano correttamente il service layer (SerializationService, MovementService) per garantire lifecycle coerente.
 
 ---
 
@@ -408,59 +433,72 @@ Qualità dei seeders: **ALTA** — Dati realistici per demo e testing.
 
 ### 🔴 Gap Critici (0)
 
-Nessun gap critico trovato.
+Nessun gap critico trovato. Tutte le 58 user stories sono implementate.
 
 ### 🟡 Gap Medi (1)
 
-| # | Gap | US | Descrizione | Effort stimato |
-|---|-----|----|-------------|----------------|
-| 1 | Serialization Queue mancante | US-B019 | Pagina dedicata con pre-filtro location autorizzate | 4-6h |
+| # | Gap | Descrizione | Effort stimato |
+|---|-----|-------------|----------------|
+| 1 | UpdateProvenanceOnMovementJob non dispatchato | Job esiste ma non viene mai chiamato. Aggiungere dispatch in `MovementService::createMovement()` | 1-2h |
 
-### 🟢 Gap Bassi / Architetturali (4)
+### 🟢 Gap Bassi / Architetturali (5)
 
 | # | Gap | Descrizione | Effort stimato |
 |---|-----|-------------|----------------|
 | 1 | Widgets inline vs separati | Widget dashboard incorporati nella page invece che classi separate | 2-4h (refactor opzionale) |
 | 2 | Nessun Event/Listener | Comunicazione cross-module via services invece che events | 4-8h (refactor opzionale) |
 | 3 | NFT placeholder | Implementazione blockchain placeholder | Dipende dal provider |
-| 4 | Typo OwnershipType | `CururatedOwned` → `CuratedOwned` | 30min |
+| 4 | Typo `CururatedOwned` | `CururatedOwned` → `CuratedOwned` in OwnershipType (value stringa e label sono corretti, solo il nome del case PHP è errato) | 30min |
+| 5 | Typo `typicallySupportsSerialiation` | Manca "z" in metodo LocationType — dovrebbe essere `typicallySupportsSerialization` | 15min |
 
-### ✅ Extra rispetto alla spec (5)
+### 🔵 Integrazione da completare (2)
+
+| # | Item | Descrizione | Effort stimato |
+|---|------|-------------|----------------|
+| 1 | SyncCommittedInventoryJob cache invalidation | `invalidateCache()` mai chiamata da lifecycle voucher | 2-3h |
+| 2 | SyncCommittedInventoryJob scheduler | Nessuna configurazione scheduler trovata | 30min |
+
+### ✅ Extra rispetto alla spec (6)
 
 | # | Extra | Descrizione |
 |---|-------|-------------|
 | 1 | CommittedInventoryOverrideService | Servizio dedicato per US-B047 (non era specificato come servizio separato) |
 | 2 | CommittedInventoryOverride page | Pagina dedicata con 5-step wizard e UX "dolorosa" |
-| 3 | InventoryAudit page | Pagina audit globale con export CSV |
-| 4 | 4 Seeders completi | Dati realistici per tutti i tipi |
-| 5 | Doppio enforcement immutabilità | Attribute mutators + boot guards (più robusto della spec) |
+| 3 | InventoryAudit page | Pagina audit globale con export CSV (23 tipi evento) |
+| 4 | SerializationQueue page | Pagina dedicata con HasTable, polling 30s, queue stats |
+| 5 | 4 Seeders Module B completi | Dati realistici per tutti i tipi (LocationSeeder, SerializedBottleSeeder, InventoryCaseSeeder, InventoryMovementSeeder) |
+| 6 | Doppio enforcement immutabilità | Attribute mutators + boot guards (più robusto della spec) |
 
 ---
 
 ## 13. RACCOMANDAZIONI
 
 ### Priorità 1 (Raccomandato)
-1. **Implementare Serialization Queue** come pagina Filament dedicata (`app/Filament/Pages/SerializationQueue.php`) con:
-   - Query pre-filtrata: solo batches in location con serialization_authorized = true
-   - Solo status pending_serialization e partially_serialized
-   - Colonne: batch_id, product, quantity remaining, location, allocation
-   - Link diretto a Start Serialization action
+1. **Aggiungere dispatch per UpdateProvenanceOnMovementJob** in `MovementService::createMovement()` dopo la creazione del movimento — attualmente il job non viene mai invocato
 
-2. **Fixare typo OwnershipType**: `CururatedOwned` → `CuratedOwned` (o `CruatedOwned` se inteso come abbreviazione di "Crurated")
+2. **Fixare typo OwnershipType**: `CururatedOwned` → `CuratedOwned` (il nome corretto del brand è "Crurated", quindi il case PHP dovrebbe essere `CuratedOwned` o `CruatedOwned`). Nota: il value stringa `'crurated_owned'` e il label `'Crurated Owned'` sono corretti — solo il nome del case PHP è errato.
+
+3. **Fixare typo LocationType**: `typicallySupportsSerialiation()` → `typicallySupportsSerialization()`
 
 ### Priorità 2 (Nice to have)
-3. **Estrarre widget** dalla InventoryOverview in classi Filament Widget separate per riusabilità
+4. **Configurare scheduler** per `SyncCommittedInventoryJob` e aggiungere chiamate a `invalidateCache()` nei listener lifecycle voucher
 
-4. **Aggiungere Domain Events** per comunicazione cross-module (BottleSerialized, BottleStateChanged, MovementRecorded) per allineamento con pattern architetturale codebase
+5. **Estrarre widget** dalla InventoryOverview in classi Filament Widget separate per riusabilità
+
+6. **Aggiungere Domain Events** per comunicazione cross-module (BottleSerialized, BottleStateChanged, MovementRecorded) per allineamento con pattern architetturale codebase
 
 ### Priorità 3 (Differita)
-5. **Integrazione NFT** — Dipende dalla scelta del blockchain provider
-6. **Policy classes** — Attualmente access control gestito a livello Filament resource; policy dedicate migliorerebbero testabilità
+7. **Integrazione NFT** — Dipende dalla scelta del blockchain provider
+8. **Policy classes** — Attualmente access control gestito a livello Filament resource; policy dedicate migliorerebbero testabilità
 
 ---
 
 ## 14. CONCLUSIONE
 
-**Module B è implementato al 98%+ delle specifiche**, con enforcement robusto degli invarianti e diversi miglioramenti rispetto alla documentazione originale. L'unico gap funzionale significativo è la Serialization Queue page dedicata. Le altre differenze sono architetturali (widgets inline, mancanza events) e non impattano la funzionalità.
+**Module B è implementato al 100% delle user stories (58/58)**, con enforcement robusto degli invarianti e diversi miglioramenti rispetto alla documentazione originale. Non ci sono gap funzionali sulle user stories. L'unico gap operativo è il dispatch mancante per `UpdateProvenanceOnMovementJob` (placeholder blockchain). Le altre differenze sono architetturali (widgets inline, mancanza events) e non impattano la funzionalità.
 
-La qualità del codice è alta, con pattern consistenti, immutabilità ben enforzata, e UX pensata per operazioni critiche.
+La qualità del codice è eccellente: invarianti ben enforzate con meccanismi multi-layer (doppio enforcement per immutabilità), architettura service-layer pulita, immutabilità robusta, e audit trail completo.
+
+---
+
+*Documento aggiornato il 16 Febbraio 2026 sulla base di una seconda verifica indipendente approfondita del codice sorgente tramite 10 agenti specializzati paralleli. Correzioni applicate: conteggio seeders (4 Module B, non 5), risoluzione naming "Bottle Registry" (confermato corretto), correzione typo nella correzione typo (typicallySupportsSerialization), chiarimento CaseConfigurationSeeder come dipendenza Module 0/PIM.*

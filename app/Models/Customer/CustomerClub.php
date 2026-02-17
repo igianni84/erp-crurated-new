@@ -3,8 +3,11 @@
 namespace App\Models\Customer;
 
 use App\Enums\Customer\AffiliationStatus;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -20,12 +23,12 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property string $customer_id
  * @property string $club_id
  * @property AffiliationStatus $affiliation_status
- * @property \Carbon\Carbon $start_date
- * @property \Carbon\Carbon|null $end_date
+ * @property Carbon $start_date
+ * @property Carbon|null $end_date
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class CustomerClub extends Model
 {
@@ -89,11 +92,11 @@ class CustomerClub extends Model
     /**
      * Get the audit logs for this customer-club affiliation.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -168,8 +171,8 @@ class CustomerClub extends Model
     /**
      * Scope to get only active affiliations.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CustomerClub>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CustomerClub>
+     * @param  Builder<CustomerClub>  $query
+     * @return Builder<CustomerClub>
      */
     public function scopeActive($query)
     {
@@ -179,8 +182,8 @@ class CustomerClub extends Model
     /**
      * Scope to get only effective affiliations (active, started, not ended).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CustomerClub>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CustomerClub>
+     * @param  Builder<CustomerClub>  $query
+     * @return Builder<CustomerClub>
      */
     public function scopeEffective($query)
     {

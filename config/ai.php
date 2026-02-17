@@ -52,7 +52,7 @@ return [
     'providers' => [
         'anthropic' => [
             'driver' => 'anthropic',
-            'key' => env('ANTHROPIC_API_KEY'),
+            'key' => env('ANTHROPIC_KEY', env('ANTHROPIC_API_KEY')),
         ],
 
         'azure' => [

@@ -4,6 +4,7 @@ namespace App\Models\Commercial;
 
 use App\Enums\Commercial\DiscountRuleStatus;
 use App\Enums\Commercial\DiscountRuleType;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Builder;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Carbon;
 
 /**
  * DiscountRule Model
@@ -36,8 +38,8 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property DiscountRuleType $rule_type
  * @property array<string, mixed> $logic_definition
  * @property DiscountRuleStatus $status
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class DiscountRule extends Model
 {
@@ -95,11 +97,11 @@ class DiscountRule extends Model
     /**
      * Get the audit logs for this discount rule.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     // =========================================================================

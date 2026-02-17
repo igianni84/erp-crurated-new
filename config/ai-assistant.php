@@ -12,6 +12,8 @@ return [
     |
     */
 
+    'provider' => env('AI_PROVIDER', 'anthropic'),
+
     'model' => env('AI_ASSISTANT_MODEL', 'claude-sonnet-4-5-20250929'),
 
     'max_steps' => (int) env('AI_ASSISTANT_MAX_STEPS', 10),

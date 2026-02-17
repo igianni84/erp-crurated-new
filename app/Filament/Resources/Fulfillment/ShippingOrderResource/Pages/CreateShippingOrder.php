@@ -13,20 +13,33 @@ use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
 use App\Models\Fulfillment\ShippingOrder;
 use App\Models\Fulfillment\ShippingOrderLine;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Carbon\Carbon;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateShippingOrder extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = ShippingOrderResource::class;
 
@@ -44,10 +57,10 @@ class CreateShippingOrder extends CreateRecord
      * Get the form for creating a shipping order.
      * Implements a multi-step wizard for SO creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -64,7 +77,7 @@ class CreateShippingOrder extends CreateRecord
     protected function getWizardSubmitAction(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <x-filament::button
                     type="submit"
                     size="sm"
@@ -79,7 +92,7 @@ class CreateShippingOrder extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -96,16 +109,16 @@ class CreateShippingOrder extends CreateRecord
      * Step 1: Customer & Destination Selection (US-C018)
      * Allows selection of Customer with autocomplete and destination address entry.
      */
-    protected function getCustomerAndDestinationStep(): Wizard\Step
+    protected function getCustomerAndDestinationStep(): Step
     {
-        return Wizard\Step::make('Customer & Destination')
+        return Step::make('Customer & Destination')
             ->description('Select the customer and destination address')
             ->icon('heroicon-o-user')
             ->schema([
-                Forms\Components\Section::make('Customer Selection')
+                Section::make('Customer Selection')
                     ->description('Search and select the customer for this shipping order')
                     ->schema([
-                        Forms\Components\Select::make('customer_id')
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->placeholder('Search for a customer by name or email...')
                             ->searchable()
@@ -137,7 +150,7 @@ class CreateShippingOrder extends CreateRecord
                             ->helperText('Type at least 2 characters to search for customers. Only active customers are shown.'),
 
                         // Customer info placeholder (shown when customer is selected)
-                        Forms\Components\Placeholder::make('customer_info')
+                        Placeholder::make('customer_info')
                             ->label('Customer Details')
                             ->visible(fn (Get $get): bool => $get('customer_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -181,7 +194,7 @@ class CreateShippingOrder extends CreateRecord
                             }),
 
                         // Eligibility warning (shown when customer not eligible)
-                        Forms\Components\Placeholder::make('eligibility_warning')
+                        Placeholder::make('eligibility_warning')
                             ->label('')
                             ->visible(function (Get $get): bool {
                                 $customerId = $get('customer_id');
@@ -229,12 +242,12 @@ class CreateShippingOrder extends CreateRecord
                     ])
                     ->columns(1),
 
-                Forms\Components\Section::make('Destination Address')
+                Section::make('Destination Address')
                     ->description('Enter the shipping destination address')
                     ->schema([
                         // Note: When Module K (Addresses) is implemented, this will show
                         // a select of saved addresses plus an option to add new
-                        Forms\Components\Placeholder::make('saved_addresses_info')
+                        Placeholder::make('saved_addresses_info')
                             ->label('')
                             ->content(new HtmlString(<<<'HTML'
                                 <div class="p-3 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800">
@@ -247,7 +260,7 @@ class CreateShippingOrder extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('customer_id') !== null)
                             ->columnSpanFull(),
 
-                        Forms\Components\Textarea::make('destination_address')
+                        Textarea::make('destination_address')
                             ->label('Destination Address')
                             ->placeholder("Enter the full shipping address...\n\nExample:\nJohn Doe\n123 Wine Street\nBordeaux 33000\nFrance")
                             ->rows(5)
@@ -274,7 +287,7 @@ class CreateShippingOrder extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
 
                 if (! $customer->isActive()) {
@@ -284,7 +297,7 @@ class CreateShippingOrder extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
             });
     }
@@ -293,17 +306,17 @@ class CreateShippingOrder extends CreateRecord
      * Step 2: Voucher Selection (US-C019)
      * Allows multi-select of customer vouchers for the shipping order.
      */
-    protected function getVoucherSelectionStep(): Wizard\Step
+    protected function getVoucherSelectionStep(): Step
     {
-        return Wizard\Step::make('Voucher Selection')
+        return Step::make('Voucher Selection')
             ->description('Select vouchers to include in this shipment')
             ->icon('heroicon-o-ticket')
             ->schema([
-                Forms\Components\Section::make('Available Vouchers')
+                Section::make('Available Vouchers')
                     ->description('Select the vouchers to ship to this customer')
                     ->schema([
                         // Info about voucher selection
-                        Forms\Components\Placeholder::make('voucher_selection_info')
+                        Placeholder::make('voucher_selection_info')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $customerId = $get('customer_id');
@@ -338,7 +351,7 @@ class CreateShippingOrder extends CreateRecord
                             }),
 
                         // Suspended vouchers warning
-                        Forms\Components\Placeholder::make('suspended_warning')
+                        Placeholder::make('suspended_warning')
                             ->label('')
                             ->visible(function (Get $get): bool {
                                 $customerId = $get('customer_id');
@@ -370,15 +383,15 @@ class CreateShippingOrder extends CreateRecord
                             HTML)),
 
                         // Filters section
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\TextInput::make('voucher_filter_wine')
+                                TextInput::make('voucher_filter_wine')
                                     ->label('Filter by Wine')
                                     ->placeholder('Search wine name...')
                                     ->live(debounce: 300)
                                     ->afterStateUpdated(fn (Set $set) => $set('selected_vouchers', [])),
 
-                                Forms\Components\Select::make('voucher_filter_allocation')
+                                Select::make('voucher_filter_allocation')
                                     ->label('Filter by Allocation')
                                     ->placeholder('All allocations')
                                     ->options(function (Get $get): array {
@@ -406,7 +419,7 @@ class CreateShippingOrder extends CreateRecord
                             ]),
 
                         // Voucher selection checklist
-                        Forms\Components\CheckboxList::make('selected_vouchers')
+                        CheckboxList::make('selected_vouchers')
                             ->label('Select Vouchers')
                             ->required()
                             ->minItems(1)
@@ -427,7 +440,7 @@ class CreateShippingOrder extends CreateRecord
                             ]),
 
                         // Selected vouchers count
-                        Forms\Components\Placeholder::make('selected_count')
+                        Placeholder::make('selected_count')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $selected = $get('selected_vouchers') ?? [];
@@ -460,7 +473,7 @@ class CreateShippingOrder extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
 
                 // Validate that selected vouchers are still eligible
@@ -480,7 +493,7 @@ class CreateShippingOrder extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
 
                 // Check if any vouchers are already in another active SO
@@ -493,7 +506,7 @@ class CreateShippingOrder extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
             });
     }
@@ -502,18 +515,18 @@ class CreateShippingOrder extends CreateRecord
      * Step 3: Shipping Method (US-C020)
      * Allows configuration of carrier, shipping method, incoterms, and requested ship date.
      */
-    protected function getShippingMethodStep(): Wizard\Step
+    protected function getShippingMethodStep(): Step
     {
-        return Wizard\Step::make('Shipping Method')
+        return Step::make('Shipping Method')
             ->description('Configure shipping details and delivery preferences')
             ->icon('heroicon-o-truck')
             ->schema([
-                Forms\Components\Section::make('Carrier & Method')
+                Section::make('Carrier & Method')
                     ->description('Select the carrier and shipping method')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('carrier')
+                                Select::make('carrier')
                                     ->label('Carrier')
                                     ->placeholder('Select a carrier...')
                                     ->options(
@@ -534,7 +547,7 @@ class CreateShippingOrder extends CreateRecord
                                     ->live()
                                     ->required(),
 
-                                Forms\Components\TextInput::make('shipping_method')
+                                TextInput::make('shipping_method')
                                     ->label('Shipping Method')
                                     ->placeholder('e.g., Express, Standard, Economy...')
                                     ->helperText('Specify the shipping service tier or method')
@@ -542,7 +555,7 @@ class CreateShippingOrder extends CreateRecord
                             ]),
 
                         // Carrier info note for "Other"
-                        Forms\Components\Placeholder::make('other_carrier_note')
+                        Placeholder::make('other_carrier_note')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('carrier') === Carrier::Other->value)
                             ->content(new HtmlString(<<<'HTML'
@@ -556,12 +569,12 @@ class CreateShippingOrder extends CreateRecord
                     ])
                     ->columns(1),
 
-                Forms\Components\Section::make('Terms & Schedule')
+                Section::make('Terms & Schedule')
                     ->description('Set delivery terms and requested ship date')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('incoterms')
+                                Select::make('incoterms')
                                     ->label('Incoterms')
                                     ->placeholder('Select incoterms...')
                                     ->options(
@@ -581,7 +594,7 @@ class CreateShippingOrder extends CreateRecord
                                     })
                                     ->live(),
 
-                                Forms\Components\DatePicker::make('requested_ship_date')
+                                DatePicker::make('requested_ship_date')
                                     ->label('Requested Ship Date')
                                     ->placeholder('Select date...')
                                     ->minDate(now()->startOfDay())
@@ -591,7 +604,7 @@ class CreateShippingOrder extends CreateRecord
                             ]),
 
                         // Incoterms explanation
-                        Forms\Components\Placeholder::make('incoterms_explanation')
+                        Placeholder::make('incoterms_explanation')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('incoterms') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -629,10 +642,10 @@ class CreateShippingOrder extends CreateRecord
                     ])
                     ->columns(1),
 
-                Forms\Components\Section::make('Special Instructions')
+                Section::make('Special Instructions')
                     ->description('Additional notes or requirements for this shipment')
                     ->schema([
-                        Forms\Components\Textarea::make('special_instructions')
+                        Textarea::make('special_instructions')
                             ->label('Special Instructions')
                             ->placeholder("Enter any special handling instructions, delivery notes, or requirements...\n\nExamples:\n- Fragile wine, handle with care\n- Temperature controlled storage required\n- Delivery appointment required")
                             ->rows(4)
@@ -647,7 +660,7 @@ class CreateShippingOrder extends CreateRecord
                 // Validate requested_ship_date is not in the past
                 $requestedShipDate = $get('requested_ship_date');
                 if ($requestedShipDate) {
-                    $date = \Carbon\Carbon::parse($requestedShipDate);
+                    $date = Carbon::parse($requestedShipDate);
                     if ($date->isBefore(now()->startOfDay())) {
                         Notification::make()
                             ->title('Invalid Ship Date')
@@ -655,7 +668,7 @@ class CreateShippingOrder extends CreateRecord
                             ->danger()
                             ->send();
 
-                        throw new \Filament\Support\Exceptions\Halt;
+                        throw new Halt;
                     }
                 }
             });
@@ -665,16 +678,16 @@ class CreateShippingOrder extends CreateRecord
      * Step 4: Packaging Preferences (US-C021)
      * Allows selection of packaging preference with inline explanations.
      */
-    protected function getPackagingPreferencesStep(): Wizard\Step
+    protected function getPackagingPreferencesStep(): Step
     {
-        return Wizard\Step::make('Packaging')
+        return Step::make('Packaging')
             ->description('Choose how bottles should be packaged for shipping')
             ->icon('heroicon-o-archive-box')
             ->schema([
-                Forms\Components\Section::make('Packaging Preference')
+                Section::make('Packaging Preference')
                     ->description('Select how you want the bottles to be packaged for this shipment')
                     ->schema([
-                        Forms\Components\Radio::make('packaging_preference')
+                        Radio::make('packaging_preference')
                             ->label('Select Packaging Option')
                             ->options(
                                 collect(PackagingPreference::cases())
@@ -692,7 +705,7 @@ class CreateShippingOrder extends CreateRecord
                             ->columnSpanFull(),
 
                         // Visual breakdown of packaging options
-                        Forms\Components\Placeholder::make('packaging_details')
+                        Placeholder::make('packaging_details')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $selected = $get('packaging_preference');
@@ -737,7 +750,7 @@ class CreateShippingOrder extends CreateRecord
                             ->columnSpanFull(),
 
                         // Warning for preserve_cases option
-                        Forms\Components\Placeholder::make('preserve_cases_warning')
+                        Placeholder::make('preserve_cases_warning')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('packaging_preference') === PackagingPreference::PreserveCases->value)
                             ->content(new HtmlString(<<<'HTML'
@@ -768,14 +781,14 @@ class CreateShippingOrder extends CreateRecord
      * Step 5: Review & Submit (US-C022)
      * Read-only summary of all data before creating the Shipping Order.
      */
-    protected function getReviewAndSubmitStep(): Wizard\Step
+    protected function getReviewAndSubmitStep(): Step
     {
-        return Wizard\Step::make('Review & Submit')
+        return Step::make('Review & Submit')
             ->description('Review all details before creating the shipping order')
             ->icon('heroicon-o-clipboard-document-check')
             ->schema([
                 // Draft info banner
-                Forms\Components\Placeholder::make('draft_info_banner')
+                Placeholder::make('draft_info_banner')
                     ->label('')
                     ->content(new HtmlString(<<<'HTML'
                         <div class="p-4 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800">
@@ -797,11 +810,11 @@ class CreateShippingOrder extends CreateRecord
                     ->columnSpanFull(),
 
                 // Section 1: Customer & Destination Summary
-                Forms\Components\Section::make('Customer & Destination')
+                Section::make('Customer & Destination')
                     ->description('Shipping destination details')
                     ->icon('heroicon-o-user')
                     ->schema([
-                        Forms\Components\Placeholder::make('customer_summary')
+                        Placeholder::make('customer_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $customerId = $get('customer_id');
@@ -842,11 +855,11 @@ class CreateShippingOrder extends CreateRecord
                     ->columns(1),
 
                 // Section 2: Vouchers Summary
-                Forms\Components\Section::make('Vouchers')
+                Section::make('Vouchers')
                     ->description('Items to be shipped')
                     ->icon('heroicon-o-ticket')
                     ->schema([
-                        Forms\Components\Placeholder::make('vouchers_summary')
+                        Placeholder::make('vouchers_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $selectedVouchers = $get('selected_vouchers') ?? [];
@@ -926,11 +939,11 @@ class CreateShippingOrder extends CreateRecord
                     ->columns(1),
 
                 // Section 3: Shipping Method Summary
-                Forms\Components\Section::make('Shipping Method')
+                Section::make('Shipping Method')
                     ->description('Carrier and delivery details')
                     ->icon('heroicon-o-truck')
                     ->schema([
-                        Forms\Components\Placeholder::make('shipping_method_summary')
+                        Placeholder::make('shipping_method_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $carrierValue = $get('carrier');
@@ -965,7 +978,7 @@ class CreateShippingOrder extends CreateRecord
                                 // Build ship date display
                                 $dateDisplay = '<span class="text-gray-400">Not specified</span>';
                                 if ($requestedShipDate) {
-                                    $formattedDate = \Carbon\Carbon::parse($requestedShipDate)->format('d M Y');
+                                    $formattedDate = Carbon::parse($requestedShipDate)->format('d M Y');
                                     $dateDisplay = '<span class="font-medium text-gray-900 dark:text-gray-100">'.$formattedDate.'</span>';
                                 }
 
@@ -1008,11 +1021,11 @@ class CreateShippingOrder extends CreateRecord
                     ->columns(1),
 
                 // Section 4: Packaging Summary
-                Forms\Components\Section::make('Packaging')
+                Section::make('Packaging')
                     ->description('How bottles will be packaged')
                     ->icon('heroicon-o-archive-box')
                     ->schema([
-                        Forms\Components\Placeholder::make('packaging_summary')
+                        Placeholder::make('packaging_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $packagingValue = $get('packaging_preference');
@@ -1082,7 +1095,7 @@ class CreateShippingOrder extends CreateRecord
                     ->columns(1),
 
                 // Final confirmation message
-                Forms\Components\Placeholder::make('final_confirmation')
+                Placeholder::make('final_confirmation')
                     ->label('')
                     ->content(new HtmlString(<<<'HTML'
                         <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">

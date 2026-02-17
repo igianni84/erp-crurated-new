@@ -3,29 +3,34 @@
 namespace App\Filament\Pages;
 
 use App\Models\AuditLog;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Pages\Page;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CommercialAudit extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-magnifying-glass';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-magnifying-glass';
 
     protected static ?string $navigationLabel = 'Audit Trail';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 10;
 
     protected static ?string $title = 'Commercial Audit Trail';
 
-    protected static string $view = 'filament.pages.commercial-audit';
+    protected string $view = 'filament.pages.commercial-audit';
 
     /**
      * List of Commercial model types for filtering.
@@ -67,32 +72,32 @@ class CommercialAudit extends Page implements HasTable
                     ->with(['user'])
             )
             ->columns([
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Date/Time')
                     ->dateTime('M j, Y H:i:s')
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('event')
+                TextColumn::make('event')
                     ->label('Event')
                     ->badge()
                     ->formatStateUsing(fn (AuditLog $record): string => $record->getEventLabel())
                     ->color(fn (AuditLog $record): string => $record->getEventColor())
                     ->icon(fn (AuditLog $record): string => $record->getEventIcon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('auditable_type')
+                TextColumn::make('auditable_type')
                     ->label('Entity Type')
                     ->sortable()
                     ->formatStateUsing(fn (string $state): string => self::COMMERCIAL_ENTITY_TYPES[$state] ?? class_basename($state))
                     ->badge()
                     ->color('gray'),
-                Tables\Columns\TextColumn::make('auditable_id')
+                TextColumn::make('auditable_id')
                     ->label('Entity ID')
                     ->searchable()
                     ->copyable()
                     ->copyMessage('Entity ID copied')
                     ->limit(12)
                     ->tooltip(fn (AuditLog $record): string => (string) $record->auditable_id),
-                Tables\Columns\TextColumn::make('entity_name')
+                TextColumn::make('entity_name')
                     ->label('Entity Name')
                     ->getStateUsing(function (AuditLog $record): string {
                         $auditable = $record->auditable;
@@ -102,7 +107,7 @@ class CommercialAudit extends Page implements HasTable
                         // Try common name properties
                         /** @var object $auditable */
                         if (property_exists($auditable, 'name') || method_exists($auditable, 'getAttribute')) {
-                            /** @var \Illuminate\Database\Eloquent\Model $auditable */
+                            /** @var Model $auditable */
                             $name = $auditable->getAttribute('name');
                             if ($name !== null) {
                                 return (string) $name;
@@ -113,13 +118,13 @@ class CommercialAudit extends Page implements HasTable
                     })
                     ->wrap()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('user.name')
+                TextColumn::make('user.name')
                     ->label('User')
                     ->searchable()
                     ->sortable()
                     ->default('System')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('changes_summary')
+                TextColumn::make('changes_summary')
                     ->label('Changes')
                     ->getStateUsing(function (AuditLog $record): string {
                         if ($record->event === AuditLog::EVENT_CREATED) {
@@ -144,20 +149,20 @@ class CommercialAudit extends Page implements HasTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('auditable_type')
+                SelectFilter::make('auditable_type')
                     ->label('Entity Type')
                     ->options(self::COMMERCIAL_ENTITY_TYPES)
                     ->multiple()
                     ->searchable(),
-                Tables\Filters\SelectFilter::make('event')
+                SelectFilter::make('event')
                     ->label('Event Type')
                     ->options(self::EVENT_TYPES)
                     ->multiple(),
-                Tables\Filters\Filter::make('created_at')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('from')
+                Filter::make('created_at')
+                    ->schema([
+                        DatePicker::make('from')
                             ->label('From Date'),
-                        \Filament\Forms\Components\DatePicker::make('until')
+                        DatePicker::make('until')
                             ->label('Until Date'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -182,14 +187,14 @@ class CommercialAudit extends Page implements HasTable
 
                         return $indicators;
                     }),
-                Tables\Filters\SelectFilter::make('user_id')
+                SelectFilter::make('user_id')
                     ->label('User')
                     ->relationship('user', 'name')
                     ->searchable()
                     ->preload(),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_details')
+            ->recordActions([
+                Action::make('view_details')
                     ->label('View Details')
                     ->icon('heroicon-o-eye')
                     ->modalHeading(fn (AuditLog $record): string => $record->getEventLabel().' - '.(self::COMMERCIAL_ENTITY_TYPES[$record->auditable_type] ?? class_basename($record->auditable_type)))
@@ -198,7 +203,7 @@ class CommercialAudit extends Page implements HasTable
                     ->modalCancelActionLabel('Close'),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('export')
+                Action::make('export')
                     ->label('Export CSV')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
@@ -274,7 +279,7 @@ class CommercialAudit extends Page implements HasTable
             foreach ($records as $record) {
                 $entityName = '—';
                 if ($record->auditable !== null) {
-                    /** @var \Illuminate\Database\Eloquent\Model $auditable */
+                    /** @var Model $auditable */
                     $auditable = $record->auditable;
                     $name = $auditable->getAttribute('name');
                     if ($name !== null) {

@@ -4,25 +4,41 @@ namespace App\Filament\Resources\Customer;
 
 use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\CustomerType;
-use App\Filament\Resources\Customer\CustomerResource\Pages;
+use App\Filament\Resources\Customer\CustomerResource\Pages\CreateCustomer;
+use App\Filament\Resources\Customer\CustomerResource\Pages\EditCustomer;
+use App\Filament\Resources\Customer\CustomerResource\Pages\ListCustomers;
+use App\Filament\Resources\Customer\CustomerResource\Pages\ViewCustomer;
 use App\Models\Customer\Customer;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Facades\Gate;
 
 class CustomerResource extends Resource
 {
     protected static ?string $model = Customer::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-user-group';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
 
-    protected static ?string $navigationGroup = 'Customers';
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers';
 
     protected static ?int $navigationSort = 1;
 
@@ -32,23 +48,23 @@ class CustomerResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Customers';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Customer Information')
+        return $schema
+            ->components([
+                Section::make('Customer Information')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->label('Name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\TextInput::make('email')
+                        TextInput::make('email')
                             ->label('Email')
                             ->email()
                             ->required()
                             ->unique(ignoreRecord: true)
                             ->maxLength(255),
-                        Forms\Components\Select::make('customer_type')
+                        Select::make('customer_type')
                             ->label('Customer Type')
                             ->options(collect(CustomerType::cases())->mapWithKeys(fn (CustomerType $type) => [
                                 $type->value => $type->label(),
@@ -56,7 +72,7 @@ class CustomerResource extends Resource
                             ->default(CustomerType::B2C->value)
                             ->required()
                             ->native(false),
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->label('Status')
                             ->options(collect(CustomerStatus::cases())->mapWithKeys(fn (CustomerStatus $status) => [
                                 $status->value => $status->label(),
@@ -73,7 +89,7 @@ class CustomerResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('display_name')
+                TextColumn::make('display_name')
                     ->label('Customer Name')
                     ->state(fn (Customer $record): string => $record->getName())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -89,7 +105,7 @@ class CustomerResource extends Resource
                     })
                     ->weight('bold'),
 
-                Tables\Columns\TextColumn::make('customer_type')
+                TextColumn::make('customer_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (?CustomerType $state): string => $state?->label() ?? '-')
@@ -97,14 +113,14 @@ class CustomerResource extends Resource
                     ->icon(fn (?CustomerType $state): ?string => $state?->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('membership_tier')
+                TextColumn::make('membership_tier')
                     ->label('Membership')
                     ->badge()
                     ->state(fn (Customer $record): string => 'N/A')
                     ->color('gray')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (?CustomerStatus $state): string => $state?->label() ?? '-')
@@ -112,14 +128,14 @@ class CustomerResource extends Resource
                     ->icon(fn (?CustomerStatus $state): ?string => $state?->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('accounts_count')
+                TextColumn::make('accounts_count')
                     ->label('Accounts')
                     ->counts('accounts')
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\IconColumn::make('has_active_blocks')
+                IconColumn::make('has_active_blocks')
                     ->label('Blocks')
                     ->state(fn (Customer $record): bool => false)
                     ->boolean()
@@ -129,37 +145,37 @@ class CustomerResource extends Resource
                     ->falseColor('success')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('email')
+                TextColumn::make('email')
                     ->label('Email')
                     ->searchable()
                     ->icon('heroicon-o-envelope')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('party.tax_id')
+                TextColumn::make('party.tax_id')
                     ->label('Tax ID')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('customer_type')
+                SelectFilter::make('customer_type')
                     ->label('Customer Type')
                     ->options(collect(CustomerType::cases())->mapWithKeys(fn (CustomerType $type) => [
                         $type->value => $type->label(),
                     ])),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->label('Status')
                     ->options(collect(CustomerStatus::cases())->mapWithKeys(fn (CustomerStatus $status) => [
                         $status->value => $status->label(),
                     ])),
 
-                Tables\Filters\SelectFilter::make('membership_tier')
+                SelectFilter::make('membership_tier')
                     ->label('Membership Tier')
                     ->options([
                         'legacy' => 'Legacy',
@@ -167,17 +183,17 @@ class CustomerResource extends Resource
                         'invitation_only' => 'Invitation Only',
                     ]),
 
-                Tables\Filters\TernaryFilter::make('has_blocks')
+                TernaryFilter::make('has_blocks')
                     ->label('Has Active Blocks')
                     ->placeholder('All')
                     ->trueLabel('With Blocks')
                     ->falseLabel('Without Blocks'),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\Action::make('suspend')
+            ->recordActions([
+                ViewAction::make(),
+                Action::make('suspend')
                     ->label('Suspend')
                     ->icon('heroicon-o-pause-circle')
                     ->color('warning')
@@ -186,7 +202,7 @@ class CustomerResource extends Resource
                     ->action(fn (Customer $record) => $record->update(['status' => CustomerStatus::Suspended]))
                     ->visible(fn (Customer $record): bool => $record->status === CustomerStatus::Active
                         && Gate::allows('suspend', $record)),
-                Tables\Actions\Action::make('activate')
+                Action::make('activate')
                     ->label('Activate')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -196,9 +212,9 @@ class CustomerResource extends Resource
                     ->visible(fn (Customer $record): bool => ($record->status === CustomerStatus::Suspended || $record->status === CustomerStatus::Prospect)
                         && Gate::allows('activate', $record)),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('suspend')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('suspend')
                         ->label('Suspend')
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
@@ -208,7 +224,7 @@ class CustomerResource extends Resource
                             $records->each(fn (Customer $record) => $record->update(['status' => CustomerStatus::Suspended]));
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('activate')
+                    BulkAction::make('activate')
                         ->label('Activate')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
@@ -218,8 +234,8 @@ class CustomerResource extends Resource
                             $records->each(fn (Customer $record) => $record->update(['status' => CustomerStatus::Active]));
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -235,10 +251,10 @@ class CustomerResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCustomers::route('/'),
-            'create' => Pages\CreateCustomer::route('/create'),
-            'view' => Pages\ViewCustomer::route('/{record}'),
-            'edit' => Pages\EditCustomer::route('/{record}/edit'),
+            'index' => ListCustomers::route('/'),
+            'create' => CreateCustomer::route('/create'),
+            'view' => ViewCustomer::route('/{record}'),
+            'edit' => EditCustomer::route('/{record}/edit'),
         ];
     }
 
@@ -279,7 +295,7 @@ class CustomerResource extends Resource
             ->with(['party', 'accounts'])
             ->withCount('accounts')
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

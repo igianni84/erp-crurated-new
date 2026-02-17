@@ -2,22 +2,42 @@
 
 namespace App\Filament\Resources\PricingPolicyResource\Pages;
 
+use App\Enums\Commercial\ChannelStatus;
 use App\Enums\Commercial\ExecutionCadence;
+use App\Enums\Commercial\PolicyScopeType;
+use App\Enums\Commercial\PriceBookStatus;
 use App\Enums\Commercial\PricingPolicyInputSource;
 use App\Enums\Commercial\PricingPolicyStatus;
 use App\Enums\Commercial\PricingPolicyType;
 use App\Filament\Resources\PricingPolicyResource;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
+use App\Models\Commercial\Channel;
+use App\Models\Commercial\EstimatedMarketPrice;
+use App\Models\Commercial\PriceBook;
+use App\Models\Commercial\PricingPolicy;
+use App\Models\Commercial\PricingPolicyScope;
+use App\Models\Pim\SellableSku;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreatePricingPolicy extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = PricingPolicyResource::class;
 
@@ -25,10 +45,10 @@ class CreatePricingPolicy extends CreateRecord
      * Get the form for creating a pricing policy.
      * Implements a multi-step wizard for pricing policy creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -45,7 +65,7 @@ class CreatePricingPolicy extends CreateRecord
     protected function getWizardSubmitAction(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex items-center gap-3">
                     <x-filament::button
                         type="submit"
@@ -75,7 +95,7 @@ class CreatePricingPolicy extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -93,26 +113,26 @@ class CreatePricingPolicy extends CreateRecord
      * Step 1: Type Selection
      * Defines the name and policy type of the pricing policy.
      */
-    protected function getTypeStep(): Wizard\Step
+    protected function getTypeStep(): Step
     {
-        return Wizard\Step::make('Type')
+        return Step::make('Type')
             ->description('Select the type of Pricing Policy')
             ->icon('heroicon-o-calculator')
             ->schema([
                 // Info section
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('policy_info')
+                        Placeholder::make('policy_info')
                             ->label('')
                             ->content('Pricing Policies automate the generation of prices for your Price Books. Each policy type uses a different calculation method to determine prices.')
                             ->columnSpanFull(),
                     ]),
 
                 // Name section
-                Forms\Components\Section::make('Policy Identity')
+                Section::make('Policy Identity')
                     ->description('Give your policy a clear, descriptive name')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->label('Name')
                             ->required()
                             ->maxLength(255)
@@ -121,10 +141,10 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Policy type selection
-                Forms\Components\Section::make('Policy Type')
+                Section::make('Policy Type')
                     ->description('Choose how this policy will calculate prices')
                     ->schema([
-                        Forms\Components\Radio::make('policy_type')
+                        Radio::make('policy_type')
                             ->label('')
                             ->options([
                                 PricingPolicyType::CostPlusMargin->value => PricingPolicyType::CostPlusMargin->label(),
@@ -145,7 +165,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->columnSpanFull(),
 
                         // Dynamic info based on selected type
-                        Forms\Components\Placeholder::make('type_details')
+                        Placeholder::make('type_details')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $type = $get('policy_type');
@@ -242,16 +262,16 @@ class CreatePricingPolicy extends CreateRecord
      * Step 2: Inputs Definition
      * Defines the inputs based on policy type.
      */
-    protected function getInputsStep(): Wizard\Step
+    protected function getInputsStep(): Step
     {
-        return Wizard\Step::make('Inputs')
+        return Step::make('Inputs')
             ->description('Define the input sources for your policy')
             ->icon('heroicon-o-arrow-right-start-on-rectangle')
             ->schema([
                 // Info section
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('inputs_info')
+                        Placeholder::make('inputs_info')
                             ->label('')
                             ->content(function (Get $get): string {
                                 $type = $get('policy_type');
@@ -273,11 +293,11 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Cost + Margin inputs
-                Forms\Components\Section::make('Cost Source')
+                Section::make('Cost Source')
                     ->description('Define where cost data comes from')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::CostPlusMargin->value)
                     ->schema([
-                        Forms\Components\Select::make('cost_source')
+                        Select::make('cost_source')
                             ->label('Cost Source')
                             ->options([
                                 'product_catalog' => 'Product Catalog (Sellable SKU cost)',
@@ -289,7 +309,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->helperText('Select where to retrieve cost data for margin calculations')
                             ->live(),
 
-                        Forms\Components\Placeholder::make('cost_source_info')
+                        Placeholder::make('cost_source_info')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $source = $get('cost_source');
@@ -316,17 +336,17 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(1),
 
                 // Reference Price Book inputs
-                Forms\Components\Section::make('Source Price Book')
+                Section::make('Source Price Book')
                     ->description('Select the Price Book to use as a reference')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::ReferencePriceBook->value)
                     ->schema([
-                        Forms\Components\Select::make('source_price_book_id')
+                        Select::make('source_price_book_id')
                             ->label('Reference Price Book')
                             ->options(function (): array {
-                                return \App\Models\Commercial\PriceBook::query()
+                                return PriceBook::query()
                                     ->whereIn('status', [
-                                        \App\Enums\Commercial\PriceBookStatus::Active,
-                                        \App\Enums\Commercial\PriceBookStatus::Draft,
+                                        PriceBookStatus::Active,
+                                        PriceBookStatus::Draft,
                                     ])
                                     ->orderBy('name')
                                     ->get()
@@ -341,7 +361,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->helperText('Select an existing Price Book to use as the base for price calculations')
                             ->live(),
 
-                        Forms\Components\Placeholder::make('source_preview')
+                        Placeholder::make('source_preview')
                             ->label('Source Price Book Details')
                             ->content(function (Get $get): HtmlString {
                                 $id = $get('source_price_book_id');
@@ -349,14 +369,14 @@ class CreatePricingPolicy extends CreateRecord
                                     return new HtmlString('<p class="text-gray-500">Select a Price Book to see its details.</p>');
                                 }
 
-                                $pb = \App\Models\Commercial\PriceBook::withCount('entries')->find($id);
+                                $pb = PriceBook::withCount('entries')->find($id);
                                 if (! $pb) {
                                     return new HtmlString('<p class="text-red-500">Price Book not found.</p>');
                                 }
 
                                 $statusColor = match ($pb->status) {
-                                    \App\Enums\Commercial\PriceBookStatus::Active => 'green',
-                                    \App\Enums\Commercial\PriceBookStatus::Draft => 'yellow',
+                                    PriceBookStatus::Active => 'green',
+                                    PriceBookStatus::Draft => 'yellow',
                                     default => 'gray',
                                 };
 
@@ -388,11 +408,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(1),
 
                 // External Index inputs
-                Forms\Components\Section::make('Index Configuration')
+                Section::make('Index Configuration')
                     ->description('Configure the external index source')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::IndexBased->value)
                     ->schema([
-                        Forms\Components\Radio::make('index_type')
+                        Radio::make('index_type')
                             ->label('Index Type')
                             ->options([
                                 'emp' => 'Estimated Market Price (EMP)',
@@ -408,10 +428,10 @@ class CreatePricingPolicy extends CreateRecord
                             ->columnSpanFull(),
 
                         // EMP-specific options
-                        Forms\Components\Select::make('emp_market')
+                        Select::make('emp_market')
                             ->label('EMP Market')
                             ->options(function (): array {
-                                $markets = \App\Models\Commercial\EstimatedMarketPrice::query()
+                                $markets = EstimatedMarketPrice::query()
                                     ->distinct()
                                     ->pluck('market')
                                     ->sort()
@@ -425,7 +445,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('index_type') === 'emp')
                             ->helperText('Select the market for EMP values'),
 
-                        Forms\Components\Select::make('emp_confidence_threshold')
+                        Select::make('emp_confidence_threshold')
                             ->label('Minimum Confidence Level')
                             ->options([
                                 'any' => 'Any confidence level',
@@ -438,7 +458,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->helperText('Only use EMP values at or above this confidence threshold'),
 
                         // FX-specific options
-                        Forms\Components\Select::make('source_currency')
+                        Select::make('source_currency')
                             ->label('Source Currency')
                             ->options([
                                 'EUR' => 'EUR (Euro)',
@@ -451,7 +471,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('index_type') === 'fx_rate')
                             ->helperText('Currency to convert from'),
 
-                        Forms\Components\Select::make('target_currency')
+                        Select::make('target_currency')
                             ->label('Target Currency')
                             ->options([
                                 'EUR' => 'EUR (Euro)',
@@ -464,7 +484,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('index_type') === 'fx_rate')
                             ->helperText('Currency to convert to'),
 
-                        Forms\Components\TextInput::make('fx_rate_buffer')
+                        TextInput::make('fx_rate_buffer')
                             ->label('Rate Buffer (%)')
                             ->numeric()
                             ->default(0)
@@ -474,7 +494,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('index_type') === 'fx_rate')
                             ->helperText('Add a buffer to the exchange rate (e.g., 2% for hedging)'),
 
-                        Forms\Components\Placeholder::make('fx_info')
+                        Placeholder::make('fx_info')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('index_type') === 'fx_rate')
                             ->content(new HtmlString(
@@ -488,11 +508,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Fixed Adjustment inputs
-                Forms\Components\Section::make('Adjustment Configuration')
+                Section::make('Adjustment Configuration')
                     ->description('Define the adjustment to apply')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::FixedAdjustment->value)
                     ->schema([
-                        Forms\Components\Radio::make('adjustment_type')
+                        Radio::make('adjustment_type')
                             ->label('Adjustment Type')
                             ->options([
                                 'percentage' => 'Percentage Adjustment',
@@ -507,7 +527,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live()
                             ->columnSpanFull(),
 
-                        Forms\Components\TextInput::make('adjustment_value')
+                        TextInput::make('adjustment_value')
                             ->label(fn (Get $get): string => $get('adjustment_type') === 'fixed_amount'
                                 ? 'Amount'
                                 : 'Percentage')
@@ -519,7 +539,7 @@ class CreatePricingPolicy extends CreateRecord
                                 ? 'Use positive values for increase, negative for decrease (e.g., 10 or -5)'
                                 : 'Use positive values for increase, negative for decrease (e.g., 5 for +5%, -10 for -10%)'),
 
-                        Forms\Components\Placeholder::make('adjustment_preview')
+                        Placeholder::make('adjustment_preview')
                             ->label('Preview')
                             ->content(function (Get $get): HtmlString {
                                 $type = $get('adjustment_type');
@@ -558,11 +578,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(1),
 
                 // Rounding inputs
-                Forms\Components\Section::make('Rounding Rule')
+                Section::make('Rounding Rule')
                     ->description('Select the price rounding pattern')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::Rounding->value)
                     ->schema([
-                        Forms\Components\Radio::make('rounding_rule')
+                        Radio::make('rounding_rule')
                             ->label('Rounding Pattern')
                             ->options([
                                 '.99' => 'End in .99 (e.g., €64.37 → €64.99)',
@@ -585,7 +605,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live()
                             ->columnSpanFull(),
 
-                        Forms\Components\Select::make('rounding_direction')
+                        Select::make('rounding_direction')
                             ->label('Rounding Direction')
                             ->options([
                                 'nearest' => 'Nearest (up or down)',
@@ -595,7 +615,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->default('nearest')
                             ->helperText('How to handle the main number when applying the pattern'),
 
-                        Forms\Components\Placeholder::make('rounding_preview')
+                        Placeholder::make('rounding_preview')
                             ->label('Examples')
                             ->content(function (Get $get): HtmlString {
                                 $rule = $get('rounding_rule') ?? '.99';
@@ -633,16 +653,16 @@ class CreatePricingPolicy extends CreateRecord
      * Step 3: Logic Definition
      * Defines the calculation logic based on policy type.
      */
-    protected function getLogicStep(): Wizard\Step
+    protected function getLogicStep(): Step
     {
-        return Wizard\Step::make('Logic')
+        return Step::make('Logic')
             ->description('Define the calculation logic')
             ->icon('heroicon-o-calculator')
             ->schema([
                 // Info section
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('logic_info')
+                        Placeholder::make('logic_info')
                             ->label('')
                             ->content(function (Get $get): string {
                                 $type = $get('policy_type');
@@ -664,11 +684,11 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Cost + Margin Logic
-                Forms\Components\Section::make('Margin Configuration')
+                Section::make('Margin Configuration')
                     ->description('Define how margin is calculated')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::CostPlusMargin->value)
                     ->schema([
-                        Forms\Components\Radio::make('margin_type')
+                        Radio::make('margin_type')
                             ->label('Margin Type')
                             ->options([
                                 'percentage' => 'Percentage Margin',
@@ -683,7 +703,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live()
                             ->columnSpanFull(),
 
-                        Forms\Components\TextInput::make('margin_percentage')
+                        TextInput::make('margin_percentage')
                             ->label('Margin Percentage')
                             ->numeric()
                             ->required()
@@ -695,7 +715,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->helperText('The percentage to add to cost (e.g., 30 means selling at cost + 30%)')
                             ->live(),
 
-                        Forms\Components\TextInput::make('markup_fixed_amount')
+                        TextInput::make('markup_fixed_amount')
                             ->label('Fixed Markup Amount')
                             ->numeric()
                             ->required()
@@ -707,7 +727,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live(),
 
                         // Tiered margins toggle
-                        Forms\Components\Toggle::make('use_tiered_margins')
+                        Toggle::make('use_tiered_margins')
                             ->label('Use Tiered Margins')
                             ->helperText('Apply different margins based on product category or price range')
                             ->default(false)
@@ -715,11 +735,11 @@ class CreatePricingPolicy extends CreateRecord
                             ->columnSpanFull(),
 
                         // Tiered margins configuration
-                        Forms\Components\Repeater::make('tiered_margins')
+                        Repeater::make('tiered_margins')
                             ->label('Tier Configuration')
                             ->visible(fn (Get $get): bool => $get('use_tiered_margins') === true)
                             ->schema([
-                                Forms\Components\Select::make('tier_type')
+                                Select::make('tier_type')
                                     ->label('Tier Based On')
                                     ->options([
                                         'category' => 'Product Category',
@@ -729,24 +749,24 @@ class CreatePricingPolicy extends CreateRecord
                                     ->required()
                                     ->live(),
 
-                                Forms\Components\TextInput::make('tier_category')
+                                TextInput::make('tier_category')
                                     ->label('Category Name')
                                     ->visible(fn (Get $get): bool => ($get('tier_type') ?? 'category') === 'category')
                                     ->placeholder('e.g., Premium Wines'),
 
-                                Forms\Components\TextInput::make('tier_min_price')
+                                TextInput::make('tier_min_price')
                                     ->label('Min Price')
                                     ->numeric()
                                     ->prefix('€')
                                     ->visible(fn (Get $get): bool => ($get('tier_type') ?? 'category') === 'price_range'),
 
-                                Forms\Components\TextInput::make('tier_max_price')
+                                TextInput::make('tier_max_price')
                                     ->label('Max Price')
                                     ->numeric()
                                     ->prefix('€')
                                     ->visible(fn (Get $get): bool => ($get('tier_type') ?? 'category') === 'price_range'),
 
-                                Forms\Components\TextInput::make('tier_margin')
+                                TextInput::make('tier_margin')
                                     ->label('Margin %')
                                     ->numeric()
                                     ->required()
@@ -761,11 +781,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Reference Price Book Logic
-                Forms\Components\Section::make('Adjustment Configuration')
+                Section::make('Adjustment Configuration')
                     ->description('Define how to adjust reference prices')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::ReferencePriceBook->value)
                     ->schema([
-                        Forms\Components\Radio::make('ref_adjustment_type')
+                        Radio::make('ref_adjustment_type')
                             ->label('Adjustment Type')
                             ->options([
                                 'percentage' => 'Percentage Adjustment',
@@ -780,7 +800,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live()
                             ->columnSpanFull(),
 
-                        Forms\Components\TextInput::make('ref_adjustment_value')
+                        TextInput::make('ref_adjustment_value')
                             ->label(fn (Get $get): string => ($get('ref_adjustment_type') ?? 'percentage') === 'fixed_amount'
                                 ? 'Adjustment Amount'
                                 : 'Adjustment Percentage')
@@ -792,22 +812,22 @@ class CreatePricingPolicy extends CreateRecord
                             ->live(),
 
                         // Tiered adjustments toggle
-                        Forms\Components\Toggle::make('use_tiered_adjustments')
+                        Toggle::make('use_tiered_adjustments')
                             ->label('Use Tiered Adjustments')
                             ->helperText('Apply different adjustments based on product category')
                             ->default(false)
                             ->live()
                             ->columnSpanFull(),
 
-                        Forms\Components\Repeater::make('tiered_adjustments')
+                        Repeater::make('tiered_adjustments')
                             ->label('Tier Configuration')
                             ->visible(fn (Get $get): bool => $get('use_tiered_adjustments') === true)
                             ->schema([
-                                Forms\Components\TextInput::make('tier_category')
+                                TextInput::make('tier_category')
                                     ->label('Category Name')
                                     ->placeholder('e.g., Premium Wines'),
 
-                                Forms\Components\TextInput::make('tier_adjustment')
+                                TextInput::make('tier_adjustment')
                                     ->label('Adjustment %')
                                     ->numeric()
                                     ->required()
@@ -823,11 +843,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(1),
 
                 // Index-Based Logic
-                Forms\Components\Section::make('Index Multiplier')
+                Section::make('Index Multiplier')
                     ->description('Define how to calculate prices from the index')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::IndexBased->value)
                     ->schema([
-                        Forms\Components\TextInput::make('index_multiplier')
+                        TextInput::make('index_multiplier')
                             ->label('Index Multiplier')
                             ->numeric()
                             ->required()
@@ -838,7 +858,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->helperText('Multiply the index value by this factor (e.g., 1.1 for 10% above market)')
                             ->live(),
 
-                        Forms\Components\TextInput::make('index_fixed_adjustment')
+                        TextInput::make('index_fixed_adjustment')
                             ->label('Fixed Adjustment')
                             ->numeric()
                             ->default(0)
@@ -846,7 +866,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->helperText('Add/subtract a fixed amount after multiplier (optional)')
                             ->live(),
 
-                        Forms\Components\Placeholder::make('index_example')
+                        Placeholder::make('index_example')
                             ->label('Calculation Example')
                             ->content(function (Get $get): HtmlString {
                                 $multiplier = (float) ($get('index_multiplier') ?? 1.0);
@@ -873,11 +893,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Fixed Adjustment - just show what was configured in Step 2
-                Forms\Components\Section::make('Adjustment Summary')
+                Section::make('Adjustment Summary')
                     ->description('Review the adjustment configured in Step 2')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::FixedAdjustment->value)
                     ->schema([
-                        Forms\Components\Placeholder::make('adjustment_summary')
+                        Placeholder::make('adjustment_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $type = $get('adjustment_type') ?? 'percentage';
@@ -905,11 +925,11 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Rounding - just show what was configured in Step 2
-                Forms\Components\Section::make('Rounding Summary')
+                Section::make('Rounding Summary')
                     ->description('Review the rounding rule configured in Step 2')
                     ->visible(fn (Get $get): bool => $get('policy_type') === PricingPolicyType::Rounding->value)
                     ->schema([
-                        Forms\Components\Placeholder::make('rounding_summary')
+                        Placeholder::make('rounding_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $rule = $get('rounding_rule') ?? '.99';
@@ -942,7 +962,7 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Optional Rounding for non-rounding policies
-                Forms\Components\Section::make('Final Rounding (Optional)')
+                Section::make('Final Rounding (Optional)')
                     ->description('Apply rounding to the calculated price')
                     ->visible(fn (Get $get): bool => ! in_array($get('policy_type'), [
                         PricingPolicyType::Rounding->value,
@@ -950,14 +970,14 @@ class CreatePricingPolicy extends CreateRecord
                     ], true))
                     ->collapsed()
                     ->schema([
-                        Forms\Components\Toggle::make('apply_rounding')
+                        Toggle::make('apply_rounding')
                             ->label('Apply Rounding')
                             ->helperText('Round the final calculated price')
                             ->default(false)
                             ->live()
                             ->columnSpanFull(),
 
-                        Forms\Components\Select::make('final_rounding_rule')
+                        Select::make('final_rounding_rule')
                             ->label('Rounding Pattern')
                             ->options([
                                 '.99' => 'End in .99',
@@ -970,7 +990,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->default('.99')
                             ->visible(fn (Get $get): bool => $get('apply_rounding') === true),
 
-                        Forms\Components\Select::make('final_rounding_direction')
+                        Select::make('final_rounding_direction')
                             ->label('Direction')
                             ->options([
                                 'nearest' => 'Nearest',
@@ -983,10 +1003,10 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Formula Preview
-                Forms\Components\Section::make('Formula Preview')
+                Section::make('Formula Preview')
                     ->description('Plain-language summary of your pricing logic')
                     ->schema([
-                        Forms\Components\Placeholder::make('formula_preview')
+                        Placeholder::make('formula_preview')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 return self::generateFormulaPreview($get);
@@ -1126,32 +1146,32 @@ class CreatePricingPolicy extends CreateRecord
      * Step 4: Scope & Target
      * Defines the target Price Book and scope of the Pricing Policy.
      */
-    protected function getScopeAndTargetStep(): Wizard\Step
+    protected function getScopeAndTargetStep(): Step
     {
-        return Wizard\Step::make('Scope & Target')
+        return Step::make('Scope & Target')
             ->description('Define target Price Book and SKU scope')
             ->icon('heroicon-o-funnel')
             ->schema([
                 // Info section
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('scope_info')
+                        Placeholder::make('scope_info')
                             ->label('')
                             ->content('Pricing Policies generate prices into a target Price Book. Define which Price Book to target and which SKUs should be affected.')
                             ->columnSpanFull(),
                     ]),
 
                 // Target Price Book section
-                Forms\Components\Section::make('Target Price Book')
+                Section::make('Target Price Book')
                     ->description('Select the Price Book where prices will be generated')
                     ->schema([
-                        Forms\Components\Select::make('target_price_book_id')
+                        Select::make('target_price_book_id')
                             ->label('Target Price Book')
                             ->options(function (): array {
-                                return \App\Models\Commercial\PriceBook::query()
+                                return PriceBook::query()
                                     ->whereIn('status', [
-                                        \App\Enums\Commercial\PriceBookStatus::Draft,
-                                        \App\Enums\Commercial\PriceBookStatus::Active,
+                                        PriceBookStatus::Draft,
+                                        PriceBookStatus::Active,
                                     ])
                                     ->orderBy('name')
                                     ->get()
@@ -1166,7 +1186,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live()
                             ->helperText('Select the Price Book where generated prices will be written'),
 
-                        Forms\Components\Placeholder::make('target_price_book_preview')
+                        Placeholder::make('target_price_book_preview')
                             ->label('Target Price Book Details')
                             ->content(function (Get $get): HtmlString {
                                 $id = $get('target_price_book_id');
@@ -1174,14 +1194,14 @@ class CreatePricingPolicy extends CreateRecord
                                     return new HtmlString('<p class="text-gray-500">Select a Price Book to see its details.</p>');
                                 }
 
-                                $pb = \App\Models\Commercial\PriceBook::withCount('entries')->with('channel')->find($id);
+                                $pb = PriceBook::withCount('entries')->with('channel')->find($id);
                                 if (! $pb) {
                                     return new HtmlString('<p class="text-red-500">Price Book not found.</p>');
                                 }
 
                                 $statusColor = match ($pb->status) {
-                                    \App\Enums\Commercial\PriceBookStatus::Active => 'green',
-                                    \App\Enums\Commercial\PriceBookStatus::Draft => 'yellow',
+                                    PriceBookStatus::Active => 'green',
+                                    PriceBookStatus::Draft => 'yellow',
                                     default => 'gray',
                                 };
 
@@ -1228,22 +1248,22 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(1),
 
                 // Scope Definition section
-                Forms\Components\Section::make('Scope Definition')
+                Section::make('Scope Definition')
                     ->description('Define which SKUs this policy will affect')
                     ->schema([
-                        Forms\Components\Radio::make('scope_type')
+                        Radio::make('scope_type')
                             ->label('Scope Type')
                             ->options([
-                                'all' => \App\Enums\Commercial\PolicyScopeType::All->label(),
-                                'category' => \App\Enums\Commercial\PolicyScopeType::Category->label(),
-                                'product' => \App\Enums\Commercial\PolicyScopeType::Product->label(),
-                                'sku' => \App\Enums\Commercial\PolicyScopeType::Sku->label(),
+                                'all' => PolicyScopeType::All->label(),
+                                'category' => PolicyScopeType::Category->label(),
+                                'product' => PolicyScopeType::Product->label(),
+                                'sku' => PolicyScopeType::Sku->label(),
                             ])
                             ->descriptions([
-                                'all' => \App\Enums\Commercial\PolicyScopeType::All->description(),
-                                'category' => \App\Enums\Commercial\PolicyScopeType::Category->description(),
-                                'product' => \App\Enums\Commercial\PolicyScopeType::Product->description(),
-                                'sku' => \App\Enums\Commercial\PolicyScopeType::Sku->description(),
+                                'all' => PolicyScopeType::All->description(),
+                                'category' => PolicyScopeType::Category->description(),
+                                'product' => PolicyScopeType::Product->description(),
+                                'sku' => PolicyScopeType::Sku->description(),
                             ])
                             ->default('all')
                             ->required()
@@ -1251,7 +1271,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->columnSpanFull(),
 
                         // Category selection
-                        Forms\Components\TextInput::make('scope_category')
+                        TextInput::make('scope_category')
                             ->label('Category')
                             ->placeholder('e.g., Premium Wines, Bordeaux, Champagne')
                             ->helperText('Enter the category name to filter by')
@@ -1259,7 +1279,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->required(fn (Get $get): bool => $get('scope_type') === 'category'),
 
                         // Product selection
-                        Forms\Components\TextInput::make('scope_product')
+                        TextInput::make('scope_product')
                             ->label('Product')
                             ->placeholder('e.g., Château Margaux 2015')
                             ->helperText('Enter the product name to filter by (all formats)')
@@ -1267,11 +1287,11 @@ class CreatePricingPolicy extends CreateRecord
                             ->required(fn (Get $get): bool => $get('scope_type') === 'product'),
 
                         // SKU selection
-                        Forms\Components\Select::make('scope_skus')
+                        Select::make('scope_skus')
                             ->label('Specific SKUs')
                             ->multiple()
                             ->options(function (): array {
-                                return \App\Models\Pim\SellableSku::query()
+                                return SellableSku::query()
                                     ->where('lifecycle_status', 'active')
                                     ->with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])
                                     ->orderBy('sku_code')
@@ -1298,16 +1318,16 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(1),
 
                 // Market/Channel Filters section
-                Forms\Components\Section::make('Market & Channel Filters')
+                Section::make('Market & Channel Filters')
                     ->description('Optionally restrict the scope to specific markets or channels')
                     ->collapsed()
                     ->schema([
-                        Forms\Components\Select::make('scope_markets')
+                        Select::make('scope_markets')
                             ->label('Markets')
                             ->multiple()
                             ->options(function (): array {
                                 // Get unique markets from EMP records
-                                $markets = \App\Models\Commercial\EstimatedMarketPrice::query()
+                                $markets = EstimatedMarketPrice::query()
                                     ->distinct()
                                     ->pluck('market')
                                     ->sort()
@@ -1332,12 +1352,12 @@ class CreatePricingPolicy extends CreateRecord
                             ->searchable()
                             ->helperText('Leave empty to apply to all markets'),
 
-                        Forms\Components\Select::make('scope_channels')
+                        Select::make('scope_channels')
                             ->label('Channels')
                             ->multiple()
                             ->options(function (): array {
-                                return \App\Models\Commercial\Channel::query()
-                                    ->where('status', \App\Enums\Commercial\ChannelStatus::Active)
+                                return Channel::query()
+                                    ->where('status', ChannelStatus::Active)
                                     ->orderBy('name')
                                     ->pluck('name', 'id')
                                     ->toArray();
@@ -1348,16 +1368,16 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Scope Preview section
-                Forms\Components\Section::make('Scope Preview')
+                Section::make('Scope Preview')
                     ->description('Preview of the SKUs that will be affected')
                     ->schema([
-                        Forms\Components\Placeholder::make('scope_preview')
+                        Placeholder::make('scope_preview')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $scopeType = $get('scope_type') ?? 'all';
 
                                 // Calculate SKU count based on scope
-                                $query = \App\Models\Pim\SellableSku::query()
+                                $query = SellableSku::query()
                                     ->where('lifecycle_status', 'active');
 
                                 $scopeDescription = '';
@@ -1456,16 +1476,16 @@ class CreatePricingPolicy extends CreateRecord
      * Step 5: Execution
      * Defines the execution cadence of the Pricing Policy.
      */
-    protected function getExecutionStep(): Wizard\Step
+    protected function getExecutionStep(): Step
     {
-        return Wizard\Step::make('Execution')
+        return Step::make('Execution')
             ->description('Define when and how the policy executes')
             ->icon('heroicon-o-play')
             ->schema([
                 // Important note about policy execution
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('execution_info')
+                        Placeholder::make('execution_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 rounded-lg border bg-blue-50 border-blue-200">
@@ -1484,10 +1504,10 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Execution Cadence section
-                Forms\Components\Section::make('Execution Cadence')
+                Section::make('Execution Cadence')
                     ->description('Choose when this policy should generate prices')
                     ->schema([
-                        Forms\Components\Radio::make('execution_cadence')
+                        Radio::make('execution_cadence')
                             ->label('')
                             ->options([
                                 ExecutionCadence::Manual->value => ExecutionCadence::Manual->label(),
@@ -1505,7 +1525,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->columnSpanFull(),
 
                         // Dynamic info based on selected cadence
-                        Forms\Components\Placeholder::make('cadence_details')
+                        Placeholder::make('cadence_details')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $cadence = $get('execution_cadence');
@@ -1581,11 +1601,11 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Scheduled Options section
-                Forms\Components\Section::make('Schedule Configuration')
+                Section::make('Schedule Configuration')
                     ->description('Define when the policy should execute')
                     ->visible(fn (Get $get): bool => $get('execution_cadence') === ExecutionCadence::Scheduled->value)
                     ->schema([
-                        Forms\Components\Select::make('schedule_frequency')
+                        Select::make('schedule_frequency')
                             ->label('Frequency')
                             ->options([
                                 'daily' => 'Daily',
@@ -1597,7 +1617,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->live()
                             ->helperText('How often should the policy execute?'),
 
-                        Forms\Components\Select::make('schedule_day_of_week')
+                        Select::make('schedule_day_of_week')
                             ->label('Day of Week')
                             ->options([
                                 'monday' => 'Monday',
@@ -1612,7 +1632,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('schedule_frequency') === 'weekly')
                             ->helperText('Which day of the week?'),
 
-                        Forms\Components\Select::make('schedule_day_of_month')
+                        Select::make('schedule_day_of_month')
                             ->label('Day of Month')
                             ->options(
                                 collect(range(1, 28))->mapWithKeys(fn ($day): array => [
@@ -1623,14 +1643,14 @@ class CreatePricingPolicy extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('schedule_frequency') === 'monthly')
                             ->helperText('Which day of the month? (1-28 to ensure execution in all months)'),
 
-                        Forms\Components\TimePicker::make('schedule_time')
+                        TimePicker::make('schedule_time')
                             ->label('Time of Day')
                             ->default('06:00')
                             ->seconds(false)
                             ->required()
                             ->helperText('At what time should the policy execute? (Server timezone)'),
 
-                        Forms\Components\Placeholder::make('schedule_preview')
+                        Placeholder::make('schedule_preview')
                             ->label('Schedule Preview')
                             ->content(function (Get $get): HtmlString {
                                 $frequency = $get('schedule_frequency') ?? 'daily';
@@ -1657,11 +1677,11 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Event Triggers section
-                Forms\Components\Section::make('Event Triggers')
+                Section::make('Event Triggers')
                     ->description('Select which events should trigger policy execution')
                     ->visible(fn (Get $get): bool => $get('execution_cadence') === ExecutionCadence::EventTriggered->value)
                     ->schema([
-                        Forms\Components\CheckboxList::make('event_triggers')
+                        CheckboxList::make('event_triggers')
                             ->label('')
                             ->options([
                                 'cost_change' => 'Cost Change',
@@ -1678,7 +1698,7 @@ class CreatePricingPolicy extends CreateRecord
                             ->required()
                             ->columnSpanFull(),
 
-                        Forms\Components\Placeholder::make('event_trigger_info')
+                        Placeholder::make('event_trigger_info')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $triggers = $get('event_triggers') ?? [];
@@ -1720,11 +1740,11 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Manual Mode Info section
-                Forms\Components\Section::make('Manual Execution')
+                Section::make('Manual Execution')
                     ->description('How manual execution works')
                     ->visible(fn (Get $get): bool => $get('execution_cadence') === ExecutionCadence::Manual->value)
                     ->schema([
-                        Forms\Components\Placeholder::make('manual_info')
+                        Placeholder::make('manual_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="space-y-4">
@@ -1767,16 +1787,16 @@ class CreatePricingPolicy extends CreateRecord
      * Step 6: Review & Create
      * Final summary and confirmation before creating the Pricing Policy.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->description('Review and create your policy')
             ->icon('heroicon-o-check-circle')
             ->schema([
                 // Summary Header
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('review_header')
+                        Placeholder::make('review_header')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 rounded-lg border bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
@@ -1795,14 +1815,14 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Policy Identity Section
-                Forms\Components\Section::make('Policy Identity')
+                Section::make('Policy Identity')
                     ->description('Basic information about the policy')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_name')
+                        Placeholder::make('review_name')
                             ->label('Name')
                             ->content(fn (Get $get): string => $get('name') ?? 'Not specified'),
 
-                        Forms\Components\Placeholder::make('review_type')
+                        Placeholder::make('review_type')
                             ->label('Policy Type')
                             ->content(function (Get $get): HtmlString {
                                 $type = $get('policy_type');
@@ -1822,10 +1842,10 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Formula Preview Section
-                Forms\Components\Section::make('Pricing Formula')
+                Section::make('Pricing Formula')
                     ->description('How prices will be calculated')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_formula')
+                        Placeholder::make('review_formula')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 return self::generateFormulaPreview($get);
@@ -1834,10 +1854,10 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Input Configuration Summary
-                Forms\Components\Section::make('Input Configuration')
+                Section::make('Input Configuration')
                     ->description('Data sources and inputs')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_inputs')
+                        Placeholder::make('review_inputs')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $policyTypeValue = $get('policy_type');
@@ -1862,7 +1882,7 @@ class CreatePricingPolicy extends CreateRecord
                                     case PricingPolicyType::ReferencePriceBook:
                                         $pbId = $get('source_price_book_id');
                                         if ($pbId) {
-                                            $pb = \App\Models\Commercial\PriceBook::find($pbId);
+                                            $pb = PriceBook::find($pbId);
                                             $items[] = ['label' => 'Reference Price Book', 'value' => $pb ? $pb->name : 'Unknown'];
                                         }
                                         break;
@@ -1938,10 +1958,10 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Target & Scope Section
-                Forms\Components\Section::make('Target & Scope')
+                Section::make('Target & Scope')
                     ->description('Where prices will be generated')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_target')
+                        Placeholder::make('review_target')
                             ->label('Target Price Book')
                             ->content(function (Get $get): HtmlString {
                                 $pbId = $get('target_price_book_id');
@@ -1949,14 +1969,14 @@ class CreatePricingPolicy extends CreateRecord
                                     return new HtmlString('<span class="text-gray-500">Not specified</span>');
                                 }
 
-                                $pb = \App\Models\Commercial\PriceBook::withCount('entries')->find($pbId);
+                                $pb = PriceBook::withCount('entries')->find($pbId);
                                 if (! $pb) {
                                     return new HtmlString('<span class="text-red-500">Price Book not found</span>');
                                 }
 
                                 $statusColor = match ($pb->status) {
-                                    \App\Enums\Commercial\PriceBookStatus::Active => 'green',
-                                    \App\Enums\Commercial\PriceBookStatus::Draft => 'yellow',
+                                    PriceBookStatus::Active => 'green',
+                                    PriceBookStatus::Draft => 'yellow',
                                     default => 'gray',
                                 };
 
@@ -1970,7 +1990,7 @@ class CreatePricingPolicy extends CreateRecord
                                 );
                             }),
 
-                        Forms\Components\Placeholder::make('review_scope')
+                        Placeholder::make('review_scope')
                             ->label('Scope')
                             ->content(function (Get $get): HtmlString {
                                 $scopeType = $get('scope_type') ?? 'all';
@@ -1982,7 +2002,7 @@ class CreatePricingPolicy extends CreateRecord
                                 };
 
                                 // Calculate SKU count
-                                $query = \App\Models\Pim\SellableSku::query()->where('lifecycle_status', 'active');
+                                $query = SellableSku::query()->where('lifecycle_status', 'active');
                                 if ($scopeType === 'product') {
                                     $product = $get('scope_product');
                                     if ($product) {
@@ -2019,10 +2039,10 @@ class CreatePricingPolicy extends CreateRecord
                     ->columns(2),
 
                 // Execution Configuration Section
-                Forms\Components\Section::make('Execution')
+                Section::make('Execution')
                     ->description('When and how the policy will execute')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_execution')
+                        Placeholder::make('review_execution')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $cadenceValue = $get('execution_cadence');
@@ -2075,9 +2095,9 @@ class CreatePricingPolicy extends CreateRecord
                     ]),
 
                 // Status and Next Steps
-                Forms\Components\Section::make('Status & Next Steps')
+                Section::make('Status & Next Steps')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_status_info')
+                        Placeholder::make('review_status_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="space-y-4">
@@ -2356,13 +2376,13 @@ class CreatePricingPolicy extends CreateRecord
      */
     protected function afterCreate(): void
     {
-        /** @var \App\Models\Commercial\PricingPolicy $pricingPolicy */
+        /** @var PricingPolicy $pricingPolicy */
         $pricingPolicy = $this->record;
 
         // Create the PricingPolicyScope from session data
         $scopeData = session('pricing_policy_scope_data');
         if ($scopeData) {
-            \App\Models\Commercial\PricingPolicyScope::create([
+            PricingPolicyScope::create([
                 'pricing_policy_id' => $pricingPolicy->id,
                 'scope_type' => $scopeData['scope_type'],
                 'scope_reference' => $scopeData['scope_reference'],

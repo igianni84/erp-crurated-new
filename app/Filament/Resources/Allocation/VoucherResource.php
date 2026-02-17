@@ -3,23 +3,32 @@
 namespace App\Filament\Resources\Allocation;
 
 use App\Enums\Allocation\VoucherLifecycleState;
-use App\Filament\Resources\Allocation\VoucherResource\Pages;
+use App\Filament\Resources\Allocation\VoucherResource\Pages\ListVouchers;
+use App\Filament\Resources\Allocation\VoucherResource\Pages\ViewVoucher;
+use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class VoucherResource extends Resource
 {
     protected static ?string $model = Voucher::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-ticket';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-ticket';
 
-    protected static ?string $navigationGroup = 'Vouchers';
+    protected static string|\UnitEnum|null $navigationGroup = 'Vouchers';
 
     protected static ?int $navigationSort = 1;
 
@@ -29,10 +38,10 @@ class VoucherResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Vouchers';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // No form schema - vouchers are created only from sale confirmation
             ]);
     }
@@ -41,14 +50,14 @@ class VoucherResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Voucher ID')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->copyMessage('Voucher ID copied'),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -62,7 +71,7 @@ class VoucherResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('bottle_sku')
+                TextColumn::make('bottle_sku')
                     ->label('Bottle SKU')
                     ->state(fn (Voucher $record): string => $record->getBottleSkuLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -75,12 +84,12 @@ class VoucherResource extends Resource
                     })
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('sellableSku.name')
+                TextColumn::make('sellableSku.name')
                     ->label('Sellable SKU')
                     ->placeholder('N/A')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('allocation_id')
+                TextColumn::make('allocation_id')
                     ->label('Allocation')
                     ->searchable()
                     ->sortable()
@@ -88,7 +97,7 @@ class VoucherResource extends Resource
                     ->openUrlInNewTab()
                     ->color('primary'),
 
-                Tables\Columns\TextColumn::make('lifecycle_state')
+                TextColumn::make('lifecycle_state')
                     ->label('State')
                     ->badge()
                     ->formatStateUsing(fn (VoucherLifecycleState $state): string => $state->label())
@@ -96,7 +105,7 @@ class VoucherResource extends Resource
                     ->icon(fn (VoucherLifecycleState $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('requires_attention')
+                IconColumn::make('requires_attention')
                     ->label('Anomaly')
                     ->boolean()
                     ->trueIcon('heroicon-o-exclamation-triangle')
@@ -107,7 +116,7 @@ class VoucherResource extends Resource
                         : null)
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('flags')
+                TextColumn::make('flags')
                     ->label('Flags')
                     ->state(function (Voucher $record): string {
                         $flags = [];
@@ -131,14 +140,14 @@ class VoucherResource extends Resource
                         ? 'warning'
                         : ($record->suspended ? 'danger' : 'gray')),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('lifecycle_state')
+                SelectFilter::make('lifecycle_state')
                     ->options(collect(VoucherLifecycleState::cases())
                         ->mapWithKeys(fn (VoucherLifecycleState $state) => [$state->value => $state->label()])
                         ->toArray())
@@ -149,12 +158,12 @@ class VoucherResource extends Resource
                     ->multiple()
                     ->label('Lifecycle State'),
 
-                Tables\Filters\Filter::make('allocation')
-                    ->form([
-                        Forms\Components\Select::make('allocation_id')
+                Filter::make('allocation')
+                    ->schema([
+                        Select::make('allocation_id')
                             ->label('Allocation')
                             ->relationship('allocation', 'id')
-                            ->getOptionLabelFromRecordUsing(function (\App\Models\Allocation\Allocation $record): string {
+                            ->getOptionLabelFromRecordUsing(function (Allocation $record): string {
                                 return "#{$record->id} - ".$record->getBottleSkuLabel();
                             })
                             ->searchable()
@@ -167,9 +176,9 @@ class VoucherResource extends Resource
                         );
                     }),
 
-                Tables\Filters\Filter::make('customer')
-                    ->form([
-                        Forms\Components\Select::make('customer_id')
+                Filter::make('customer')
+                    ->schema([
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->relationship('customer', 'name')
                             ->searchable()
@@ -182,24 +191,24 @@ class VoucherResource extends Resource
                         );
                     }),
 
-                Tables\Filters\TernaryFilter::make('suspended')
+                TernaryFilter::make('suspended')
                     ->label('Suspended')
                     ->placeholder('All vouchers')
                     ->trueLabel('Suspended only')
                     ->falseLabel('Not suspended'),
 
-                Tables\Filters\TernaryFilter::make('requires_attention')
+                TernaryFilter::make('requires_attention')
                     ->label('Anomalous')
                     ->placeholder('All vouchers')
                     ->trueLabel('Requires attention only')
                     ->falseLabel('Normal vouchers only'),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // No bulk actions - vouchers require careful individual handling
             ])
             ->defaultSort('created_at', 'desc')
@@ -253,8 +262,8 @@ class VoucherResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListVouchers::route('/'),
-            'view' => Pages\ViewVoucher::route('/{record}'),
+            'index' => ListVouchers::route('/'),
+            'view' => ViewVoucher::route('/{record}'),
         ];
     }
 
@@ -262,7 +271,7 @@ class VoucherResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 

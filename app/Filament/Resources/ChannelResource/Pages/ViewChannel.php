@@ -7,18 +7,20 @@ use App\Enums\Commercial\ChannelType;
 use App\Filament\Resources\ChannelResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\Channel;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 
 class ViewChannel extends ViewRecord
@@ -48,9 +50,9 @@ class ViewChannel extends ViewRecord
         return "Channel: {$record->name}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Channel Details')
                     ->tabs([
@@ -86,7 +88,7 @@ class ViewChannel extends ViewRecord
                                     TextEntry::make('name')
                                         ->label('Name')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('channel_type')
@@ -220,10 +222,10 @@ class ViewChannel extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -246,7 +248,7 @@ class ViewChannel extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -379,7 +381,7 @@ class ViewChannel extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
         ];
     }
 

@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 
 /**
  * Service for managing Voucher lifecycle and operations.
@@ -41,7 +42,7 @@ class VoucherService
      * @param  int  $quantity  Number of vouchers to issue (each voucher = 1 bottle)
      * @return Collection<int, Voucher> The created vouchers (or existing vouchers if duplicate)
      *
-     * @throws \InvalidArgumentException If allocation cannot be consumed or quantity is invalid
+     * @throws InvalidArgumentException If allocation cannot be consumed or quantity is invalid
      */
     public function issueVouchers(
         Allocation $allocation,
@@ -51,7 +52,7 @@ class VoucherService
         int $quantity
     ): Collection {
         if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Quantity must be greater than zero.'
             );
         }
@@ -84,7 +85,7 @@ class VoucherService
         }
 
         if (! $allocation->canBeConsumed()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot issue vouchers: allocation status '{$allocation->status->label()}' does not allow consumption "
                 .'or has no remaining quantity.'
             );
@@ -207,14 +208,14 @@ class VoucherService
      * When locked, the voucher cannot be traded, transferred, or modified
      * until it is either redeemed or unlocked.
      *
-     * @throws \InvalidArgumentException If transition is not allowed or voucher is suspended
+     * @throws InvalidArgumentException If transition is not allowed or voucher is suspended
      */
     public function lockForFulfillment(Voucher $voucher): Voucher
     {
         $this->validateNotSuspended($voucher, 'lock for fulfillment');
 
         if (! $voucher->canTransitionTo(VoucherLifecycleState::Locked)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot lock voucher: current state '{$voucher->lifecycle_state->label()}' does not allow transition to Locked. "
                 .'Only issued vouchers can be locked.'
             );
@@ -234,14 +235,14 @@ class VoucherService
      *
      * Releases the lock, allowing the voucher to be traded or transferred again.
      *
-     * @throws \InvalidArgumentException If transition is not allowed or voucher is suspended
+     * @throws InvalidArgumentException If transition is not allowed or voucher is suspended
      */
     public function unlock(Voucher $voucher): Voucher
     {
         $this->validateNotSuspended($voucher, 'unlock');
 
         if (! $voucher->canTransitionTo(VoucherLifecycleState::Issued)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot unlock voucher: current state '{$voucher->lifecycle_state->label()}' does not allow transition to Issued. "
                 .'Only locked vouchers can be unlocked.'
             );
@@ -265,14 +266,14 @@ class VoucherService
      * If the voucher is part of a CaseEntitlement, redeeming it singularly
      * will break the case (partial redemption).
      *
-     * @throws \InvalidArgumentException If transition is not allowed or voucher is suspended
+     * @throws InvalidArgumentException If transition is not allowed or voucher is suspended
      */
     public function redeem(Voucher $voucher): Voucher
     {
         $this->validateNotSuspended($voucher, 'redeem');
 
         if (! $voucher->canTransitionTo(VoucherLifecycleState::Redeemed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot redeem voucher: current state '{$voucher->lifecycle_state->label()}' does not allow transition to Redeemed. "
                 .'Only locked vouchers can be redeemed.'
             );
@@ -299,14 +300,14 @@ class VoucherService
      * This is a terminal state - the voucher cannot be modified after cancellation.
      * Note: Cancellation does NOT return quantity to the allocation.
      *
-     * @throws \InvalidArgumentException If transition is not allowed or voucher is suspended
+     * @throws InvalidArgumentException If transition is not allowed or voucher is suspended
      */
     public function cancel(Voucher $voucher): Voucher
     {
         $this->validateNotSuspended($voucher, 'cancel');
 
         if (! $voucher->canTransitionTo(VoucherLifecycleState::Cancelled)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot cancel voucher: current state '{$voucher->lifecycle_state->label()}' does not allow transition to Cancelled. "
                 .'Only issued vouchers can be cancelled.'
             );
@@ -329,18 +330,18 @@ class VoucherService
      *
      * @param  string|null  $reason  Optional reason for suspension (e.g., 'external_trading')
      *
-     * @throws \InvalidArgumentException If voucher is already suspended or in terminal state
+     * @throws InvalidArgumentException If voucher is already suspended or in terminal state
      */
     public function suspend(Voucher $voucher, ?string $reason = null): Voucher
     {
         if ($voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot suspend voucher: voucher is already suspended.'
             );
         }
 
         if ($voucher->isTerminal()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot suspend voucher: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
             );
         }
@@ -363,18 +364,18 @@ class VoucherService
      *
      * Removes the suspension flag, allowing normal operations to resume.
      *
-     * @throws \InvalidArgumentException If voucher is not suspended or in terminal state
+     * @throws InvalidArgumentException If voucher is not suspended or in terminal state
      */
     public function reactivate(Voucher $voucher): Voucher
     {
         if (! $voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot reactivate voucher: voucher is not suspended.'
             );
         }
 
         if ($voucher->isTerminal()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot reactivate voucher: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
             );
         }
@@ -402,43 +403,43 @@ class VoucherService
      *
      * @param  string  $tradingReference  The reference from the external trading platform
      *
-     * @throws \InvalidArgumentException If voucher cannot be suspended for trading
+     * @throws InvalidArgumentException If voucher cannot be suspended for trading
      */
     public function suspendForTrading(Voucher $voucher, string $tradingReference): Voucher
     {
         if (empty($tradingReference)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot suspend for trading: trading reference is required.'
             );
         }
 
         if ($voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot suspend for trading: voucher is already suspended.'
             );
         }
 
         if ($voucher->isTerminal()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot suspend for trading: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
             );
         }
 
         if (! $voucher->isIssued()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot suspend for trading: voucher must be in Issued state to be suspended for trading. '
                 ."Current state: '{$voucher->lifecycle_state->label()}'."
             );
         }
 
         if (! $voucher->tradable) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot suspend for trading: voucher is not tradable.'
             );
         }
 
         if ($voucher->hasPendingTransfer()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot suspend for trading: voucher has a pending transfer. Cancel the transfer first.'
             );
         }
@@ -479,37 +480,37 @@ class VoucherService
      * @param  string  $tradingReference  The reference from the external trading platform (must match)
      * @param  Customer  $newCustomer  The new owner of the voucher
      *
-     * @throws \InvalidArgumentException If trading cannot be completed
+     * @throws InvalidArgumentException If trading cannot be completed
      */
     public function completeTrading(Voucher $voucher, string $tradingReference, Customer $newCustomer): Voucher
     {
         if (empty($tradingReference)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot complete trading: trading reference is required.'
             );
         }
 
         if (! $voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot complete trading: voucher is not suspended.'
             );
         }
 
         if ($voucher->external_trading_reference === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot complete trading: voucher is not suspended for external trading.'
             );
         }
 
         if ($voucher->external_trading_reference !== $tradingReference) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot complete trading: trading reference does not match. '
                 ."Expected: '{$voucher->external_trading_reference}', got: '{$tradingReference}'."
             );
         }
 
         if ($voucher->isTerminal()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot complete trading: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
             );
         }
@@ -544,7 +545,7 @@ class VoucherService
     /**
      * Update the tradable flag on a voucher.
      *
-     * @throws \InvalidArgumentException If flag modification is not allowed
+     * @throws InvalidArgumentException If flag modification is not allowed
      */
     public function setTradable(Voucher $voucher, bool $tradable): Voucher
     {
@@ -566,7 +567,7 @@ class VoucherService
     /**
      * Update the giftable flag on a voucher.
      *
-     * @throws \InvalidArgumentException If flag modification is not allowed
+     * @throws InvalidArgumentException If flag modification is not allowed
      */
     public function setGiftable(Voucher $voucher, bool $giftable): Voucher
     {
@@ -588,7 +589,7 @@ class VoucherService
     /**
      * Perform a lifecycle state transition.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function transitionTo(Voucher $voucher, VoucherLifecycleState $targetState): Voucher
     {
@@ -612,12 +613,12 @@ class VoucherService
      * @param  Voucher  $voucher  The voucher to be fulfilled
      * @param  Allocation  $bottleAllocation  The allocation from which the physical bottle originates
      *
-     * @throws \InvalidArgumentException If lineage does not match
+     * @throws InvalidArgumentException If lineage does not match
      */
     public function validateFulfillmentLineage(Voucher $voucher, Allocation $bottleAllocation): void
     {
         if ($voucher->allocation_id !== $bottleAllocation->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot fulfill voucher with bottle from different allocation lineage. '
                 ."Voucher allocation: {$voucher->allocation_id}, "
                 ."Bottle allocation: {$bottleAllocation->id}. "
@@ -693,7 +694,7 @@ class VoucherService
      * @param  array<string, mixed>  $data  The voucher data to validate
      * @return array{valid: bool, errors: list<string>}
      *
-     * @throws \InvalidArgumentException If allocation_id is missing (hard failure for imports)
+     * @throws InvalidArgumentException If allocation_id is missing (hard failure for imports)
      */
     public function validateForImport(array $data): array
     {
@@ -711,7 +712,7 @@ class VoucherService
      * @param  bool  $quarantineOnAnomaly  If true, quarantine anomalous vouchers instead of rejecting
      * @return array{success: bool, voucher: Voucher|null, errors: list<string>}
      *
-     * @throws \InvalidArgumentException If validation fails and quarantine is not enabled
+     * @throws InvalidArgumentException If validation fails and quarantine is not enabled
      */
     public function createFromImport(array $data, bool $quarantineOnAnomaly = false): array
     {
@@ -732,7 +733,7 @@ class VoucherService
                     'data' => array_diff_key($data, array_flip(['customer_id', 'created_by'])),
                 ]);
 
-                throw new \InvalidArgumentException($errorMessage);
+                throw new InvalidArgumentException($errorMessage);
             }
         }
 
@@ -766,14 +767,14 @@ class VoucherService
      *
      * Quarantined vouchers are blocked from most operations until issues are resolved.
      *
-     * @throws \InvalidArgumentException If voucher is quarantined
+     * @throws InvalidArgumentException If voucher is quarantined
      */
     public function validateNotQuarantined(Voucher $voucher, string $action): void
     {
         if ($voucher->isQuarantined()) {
             $reason = $voucher->getAttentionReason() ?? 'Unknown anomaly';
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot {$action}: voucher is quarantined and requires manual attention. Reason: {$reason}"
             );
         }
@@ -782,12 +783,12 @@ class VoucherService
     /**
      * Validate that the voucher is not suspended.
      *
-     * @throws \InvalidArgumentException If voucher is suspended
+     * @throws InvalidArgumentException If voucher is suspended
      */
     protected function validateNotSuspended(Voucher $voucher, string $action): void
     {
         if ($voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot {$action}: voucher is suspended. Reactivate the voucher first."
             );
         }
@@ -796,25 +797,25 @@ class VoucherService
     /**
      * Validate that flags can be modified on the voucher.
      *
-     * @throws \InvalidArgumentException If flags cannot be modified
+     * @throws InvalidArgumentException If flags cannot be modified
      */
     protected function validateCanModifyFlags(Voucher $voucher, string $flagName): void
     {
         if ($voucher->suspended) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot modify {$flagName} flag: voucher is suspended. Reactivate the voucher first."
             );
         }
 
         if (! $voucher->lifecycle_state->allowsFlagModification()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot modify {$flagName} flag: voucher is in terminal state '{$voucher->lifecycle_state->label()}'."
             );
         }
 
         // Tradable and giftable flags can only be modified on issued vouchers
         if ($flagName !== 'suspended' && ! $voucher->isIssued()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot modify {$flagName} flag: only issued vouchers can have their trading flags modified."
             );
         }

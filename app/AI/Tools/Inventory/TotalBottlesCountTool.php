@@ -11,10 +11,11 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class TotalBottlesCountTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get total bottles count in inventory with breakdown by state and ownership type.';
     }
@@ -29,7 +30,7 @@ class TotalBottlesCountTool extends BaseTool implements Tool
         return ToolAccessLevel::Overview;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $total = SerializedBottle::count();
 

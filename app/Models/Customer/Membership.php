@@ -2,10 +2,15 @@
 
 namespace App\Models\Customer;
 
+use App\Enums\Customer\ChannelScope;
 use App\Enums\Customer\MembershipStatus;
 use App\Enums\Customer\MembershipTier;
+use App\Exceptions\InvalidMembershipTransitionException;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -20,13 +25,13 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property string $customer_id
  * @property MembershipTier $tier
  * @property MembershipStatus $status
- * @property \Carbon\Carbon|null $effective_from
- * @property \Carbon\Carbon|null $effective_to
+ * @property Carbon|null $effective_from
+ * @property Carbon|null $effective_to
  * @property string|null $decision_notes
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class Membership extends Model
 {
@@ -82,11 +87,11 @@ class Membership extends Model
     /**
      * Get the audit logs for this membership.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -254,8 +259,8 @@ class Membership extends Model
     /**
      * Scope query to only active memberships.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Membership>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Membership>
+     * @param  Builder<Membership>  $query
+     * @return Builder<Membership>
      */
     public function scopeActive($query)
     {
@@ -275,8 +280,8 @@ class Membership extends Model
     /**
      * Scope query to only current memberships (latest per customer).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Membership>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Membership>
+     * @param  Builder<Membership>  $query
+     * @return Builder<Membership>
      */
     public function scopeCurrent($query)
     {
@@ -291,7 +296,7 @@ class Membership extends Model
      * Get the channels this membership's tier is eligible for.
      * Note: This only returns tier-based eligibility. Membership status must also be active.
      *
-     * @return array<\App\Enums\Customer\ChannelScope>
+     * @return array<ChannelScope>
      */
     public function getEligibleChannels(): array
     {
@@ -302,7 +307,7 @@ class Membership extends Model
      * Check if this membership allows access to a specific channel.
      * Considers both tier eligibility and membership status.
      *
-     * @param  \App\Enums\Customer\ChannelScope  $channel
+     * @param  ChannelScope  $channel
      */
     public function isEligibleForChannel($channel): bool
     {
@@ -373,7 +378,7 @@ class Membership extends Model
      * @param  string|null  $notes  Decision notes for this transition
      * @param  bool  $autoSetEffectiveFrom  Auto-set effective_from on approval (default true)
      *
-     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     * @throws InvalidMembershipTransitionException
      */
     public function transitionTo(
         MembershipStatus $newStatus,
@@ -381,7 +386,7 @@ class Membership extends Model
         bool $autoSetEffectiveFrom = true
     ): void {
         if (! $this->canTransitionTo($newStatus)) {
-            throw new \App\Exceptions\InvalidMembershipTransitionException(
+            throw new InvalidMembershipTransitionException(
                 $this->status,
                 $newStatus
             );
@@ -407,7 +412,7 @@ class Membership extends Model
     /**
      * Submit the membership application for review.
      *
-     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     * @throws InvalidMembershipTransitionException
      */
     public function submitForReview(): void
     {
@@ -419,7 +424,7 @@ class Membership extends Model
      *
      * @param  string|null  $notes  Decision notes
      *
-     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     * @throws InvalidMembershipTransitionException
      */
     public function approve(?string $notes = null): void
     {
@@ -431,7 +436,7 @@ class Membership extends Model
      *
      * @param  string  $notes  Rejection reason (required)
      *
-     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     * @throws InvalidMembershipTransitionException
      */
     public function reject(string $notes): void
     {
@@ -443,7 +448,7 @@ class Membership extends Model
      *
      * @param  string  $notes  Suspension reason (required)
      *
-     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     * @throws InvalidMembershipTransitionException
      */
     public function suspend(string $notes): void
     {
@@ -455,7 +460,7 @@ class Membership extends Model
      *
      * @param  string|null  $notes  Reactivation notes
      *
-     * @throws \App\Exceptions\InvalidMembershipTransitionException
+     * @throws InvalidMembershipTransitionException
      */
     public function reactivate(?string $notes = null): void
     {

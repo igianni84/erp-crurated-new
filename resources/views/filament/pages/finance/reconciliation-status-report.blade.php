@@ -147,7 +147,7 @@
                 <button
                     wire:click="setTab('summary')"
                     type="button"
-                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors {{ $activeTab === 'summary' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors {{ $currentTab === 'summary' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                 >
                     <x-heroicon-o-chart-pie class="inline-block h-4 w-4 mr-2 -mt-0.5" />
                     Summary
@@ -155,7 +155,7 @@
                 <button
                     wire:click="setTab('pending')"
                     type="button"
-                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors {{ $activeTab === 'pending' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors {{ $currentTab === 'pending' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                 >
                     <x-heroicon-o-clock class="inline-block h-4 w-4 mr-2 -mt-0.5" />
                     Pending Reconciliations
@@ -168,7 +168,7 @@
                 <button
                     wire:click="setTab('mismatched')"
                     type="button"
-                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors {{ $activeTab === 'mismatched' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                    class="px-6 py-4 text-sm font-medium border-b-2 transition-colors {{ $currentTab === 'mismatched' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                 >
                     <x-heroicon-o-exclamation-triangle class="inline-block h-4 w-4 mr-2 -mt-0.5" />
                     Mismatches
@@ -184,7 +184,7 @@
         {{-- Tab Content --}}
         <div class="p-6">
             {{-- Summary Tab --}}
-            @if($activeTab === 'summary')
+            @if($currentTab === 'summary')
                 <div class="space-y-6">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white">Reconciliation Overview</h3>
 
@@ -277,7 +277,7 @@
             @endif
 
             {{-- Pending Reconciliations Tab --}}
-            @if($activeTab === 'pending')
+            @if($currentTab === 'pending')
                 @php $pendingPayments = $this->getPendingReconciliations(); @endphp
 
                 @if($pendingPayments->count() > 0)
@@ -366,7 +366,7 @@
             @endif
 
             {{-- Mismatches Tab --}}
-            @if($activeTab === 'mismatched')
+            @if($currentTab === 'mismatched')
                 @php $mismatchedPayments = $this->getMismatchedPayments(); @endphp
 
                 @if($mismatchedPayments->count() > 0)

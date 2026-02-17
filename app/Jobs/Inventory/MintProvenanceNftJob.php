@@ -3,9 +3,11 @@
 namespace App\Jobs\Inventory;
 
 use App\Models\Inventory\SerializedBottle;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to mint provenance NFT for a serialized bottle.
@@ -68,7 +70,7 @@ class MintProvenanceNftJob implements ShouldQueue
 
             Log::info("NFT minted for bottle {$this->bottle->serial_number}: {$nftReference}");
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::error("Failed to mint NFT for bottle {$this->bottle->serial_number}: {$e->getMessage()}");
 
             throw $e; // Re-throw to trigger retry
@@ -82,7 +84,7 @@ class MintProvenanceNftJob implements ShouldQueue
      *
      * @return string The NFT reference/token ID
      *
-     * @throws \Exception If minting fails
+     * @throws Exception If minting fails
      */
     protected function mintNft(): string
     {
@@ -111,7 +113,7 @@ class MintProvenanceNftJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(?\Throwable $exception): void
+    public function failed(?Throwable $exception): void
     {
         Log::error(
             "MintProvenanceNftJob failed permanently for bottle {$this->bottle->serial_number}",

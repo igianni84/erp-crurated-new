@@ -7,20 +7,31 @@ use App\Enums\Procurement\BottlingPreferenceStatus;
 use App\Enums\Procurement\ProcurementIntentStatus;
 use App\Filament\Resources\Procurement\BottlingInstructionResource;
 use App\Models\Pim\LiquidProduct;
+use App\Models\Procurement\BottlingInstruction;
 use App\Models\Procurement\ProcurementIntent;
 use App\Models\Procurement\ProducerSupplierConfig;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Carbon\Carbon;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateBottlingInstruction extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = BottlingInstructionResource::class;
 
@@ -28,10 +39,10 @@ class CreateBottlingInstruction extends CreateRecord
      * Get the form for creating a bottling instruction.
      * Implements a 4-step wizard for Bottling Instruction creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -48,7 +59,7 @@ class CreateBottlingInstruction extends CreateRecord
     protected function getWizardSubmitActions(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex gap-3">
                     <x-filament::button
                         type="submit"
@@ -72,7 +83,7 @@ class CreateBottlingInstruction extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -88,16 +99,16 @@ class CreateBottlingInstruction extends CreateRecord
      * Step 1: Liquid Product Selection (US-029)
      * Select the procurement intent with liquid product as prerequisite.
      */
-    protected function getLiquidProductStep(): Wizard\Step
+    protected function getLiquidProductStep(): Step
     {
-        return Wizard\Step::make('Liquid Product')
+        return Step::make('Liquid Product')
             ->description('Select the Procurement Intent')
             ->icon('heroicon-o-beaker')
             ->schema([
                 // Informational message about Bottling Instructions
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('bottling_info')
+                        Placeholder::make('bottling_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -110,10 +121,10 @@ class CreateBottlingInstruction extends CreateRecord
                     ]),
 
                 // Intent Selection
-                Forms\Components\Section::make('Select Procurement Intent')
+                Section::make('Select Procurement Intent')
                     ->description('Choose from approved or executed intents with liquid products')
                     ->schema([
-                        Forms\Components\Select::make('procurement_intent_id')
+                        Select::make('procurement_intent_id')
                             ->label('Procurement Intent')
                             ->placeholder('Search for an intent by ID or wine name...')
                             ->searchable()
@@ -211,10 +222,10 @@ class CreateBottlingInstruction extends CreateRecord
                     ]),
 
                 // Intent Preview
-                Forms\Components\Section::make('Intent Summary')
+                Section::make('Intent Summary')
                     ->description('Preview of the selected procurement intent')
                     ->schema([
-                        Forms\Components\Placeholder::make('intent_product')
+                        Placeholder::make('intent_product')
                             ->label('Liquid Product')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -225,7 +236,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return is_string($data['product_label']) ? $data['product_label'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('intent_wine')
+                        Placeholder::make('intent_wine')
                             ->label('Wine')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -236,7 +247,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return is_string($data['wine_name']) ? $data['wine_name'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('intent_vintage')
+                        Placeholder::make('intent_vintage')
                             ->label('Vintage')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -247,7 +258,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return is_string($data['vintage_year']) ? $data['vintage_year'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('intent_quantity')
+                        Placeholder::make('intent_quantity')
                             ->label('Bottle Equivalents')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -259,7 +270,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return "{$quantity} bottle-equivalents";
                             }),
 
-                        Forms\Components\Placeholder::make('intent_sourcing_model')
+                        Placeholder::make('intent_sourcing_model')
                             ->label('Sourcing Model')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -270,7 +281,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return is_string($data['sourcing_model']) ? $data['sourcing_model'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('intent_status')
+                        Placeholder::make('intent_status')
                             ->label('Intent Status')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -285,10 +296,10 @@ class CreateBottlingInstruction extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('procurement_intent_id') === null),
 
                 // Liquid Product Info
-                Forms\Components\Section::make('Liquid Product Information')
+                Section::make('Liquid Product Information')
                     ->description('Details of the liquid product from the intent')
                     ->schema([
-                        Forms\Components\Placeholder::make('auto_filled_note')
+                        Placeholder::make('auto_filled_note')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">'
@@ -299,7 +310,7 @@ class CreateBottlingInstruction extends CreateRecord
                             ))
                             ->columnSpanFull(),
 
-                        Forms\Components\Placeholder::make('liquid_product_display')
+                        Placeholder::make('liquid_product_display')
                             ->label('Liquid Product ID')
                             ->content(function (Get $get): string {
                                 $liquidProductId = $get('liquid_product_id');
@@ -310,7 +321,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return substr($liquidProductId, 0, 8).'...';
                             }),
 
-                        Forms\Components\Placeholder::make('bottle_equivalents_display')
+                        Placeholder::make('bottle_equivalents_display')
                             ->label('Bottle Equivalents')
                             ->content(function (Get $get): string {
                                 $bottleEquivalents = $get('bottle_equivalents');
@@ -325,9 +336,9 @@ class CreateBottlingInstruction extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('procurement_intent_id') === null),
 
                 // Hidden fields to store data
-                Forms\Components\Hidden::make('intent_preview_data'),
-                Forms\Components\Hidden::make('liquid_product_id'),
-                Forms\Components\Hidden::make('bottle_equivalents'),
+                Hidden::make('intent_preview_data'),
+                Hidden::make('liquid_product_id'),
+                Hidden::make('bottle_equivalents'),
             ]);
     }
 
@@ -335,16 +346,16 @@ class CreateBottlingInstruction extends CreateRecord
      * Step 2: Bottling Rules (US-030)
      * Define bottling rules (allowed formats, case configurations, default rule).
      */
-    protected function getRulesStep(): Wizard\Step
+    protected function getRulesStep(): Step
     {
-        return Wizard\Step::make('Bottling Rules')
+        return Step::make('Bottling Rules')
             ->description('Define allowed formats and default rules')
             ->icon('heroicon-o-cog-6-tooth')
             ->schema([
-                Forms\Components\Section::make('Allowed Formats')
+                Section::make('Allowed Formats')
                     ->description('Define which bottle formats are allowed for this bottling instruction')
                     ->schema([
-                        Forms\Components\Select::make('allowed_formats')
+                        Select::make('allowed_formats')
                             ->label('Allowed Bottle Formats')
                             ->multiple()
                             ->options([
@@ -359,7 +370,7 @@ class CreateBottlingInstruction extends CreateRecord
                             ->live(),
 
                         // Show suggestion from ProducerSupplierConfig if available
-                        Forms\Components\Placeholder::make('format_suggestion')
+                        Placeholder::make('format_suggestion')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 // In a full implementation, we would fetch the supplier config
@@ -375,10 +386,10 @@ class CreateBottlingInstruction extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Case Configurations')
+                Section::make('Case Configurations')
                     ->description('Define allowed case configurations')
                     ->schema([
-                        Forms\Components\Select::make('allowed_case_configurations')
+                        Select::make('allowed_case_configurations')
                             ->label('Allowed Case Configurations')
                             ->multiple()
                             ->options([
@@ -391,17 +402,17 @@ class CreateBottlingInstruction extends CreateRecord
                             ->helperText('Select all case configurations that customers can choose from'),
                     ]),
 
-                Forms\Components\Section::make('Default Bottling Rule')
+                Section::make('Default Bottling Rule')
                     ->description('Define the default rule applied if customer doesn\'t specify preferences by deadline')
                     ->schema([
-                        Forms\Components\Textarea::make('default_bottling_rule')
+                        Textarea::make('default_bottling_rule')
                             ->label('Default Bottling Rule')
                             ->placeholder('e.g., "If no preference received by deadline, bottle in 750ml format, 6 bottles per case, standard labels"')
                             ->rows(4)
                             ->helperText('This rule will be applied automatically if the customer doesn\'t specify preferences by the bottling deadline'),
 
                         // Preview of the rule in plain language
-                        Forms\Components\Placeholder::make('rule_preview')
+                        Placeholder::make('rule_preview')
                             ->label('Rule Preview')
                             ->content(function (Get $get): HtmlString {
                                 $formats = $get('allowed_formats');
@@ -437,16 +448,16 @@ class CreateBottlingInstruction extends CreateRecord
      * Step 3: Personalisation Flags (US-031)
      * Define personalisation flags and deadline.
      */
-    protected function getPersonalisationStep(): Wizard\Step
+    protected function getPersonalisationStep(): Step
     {
-        return Wizard\Step::make('Personalisation')
+        return Step::make('Personalisation')
             ->description('Define deadline and personalisation options')
             ->icon('heroicon-o-user-circle')
             ->schema([
-                Forms\Components\Section::make('Bottling Deadline')
+                Section::make('Bottling Deadline')
                     ->description('Set the deadline for customer preference collection')
                     ->schema([
-                        Forms\Components\DatePicker::make('bottling_deadline')
+                        DatePicker::make('bottling_deadline')
                             ->label('Bottling Deadline')
                             ->required()
                             ->native(false)
@@ -455,7 +466,7 @@ class CreateBottlingInstruction extends CreateRecord
                             ->helperText('Customers must submit their preferences by this date'),
 
                         // Warning for short deadline
-                        Forms\Components\Placeholder::make('deadline_warning')
+                        Placeholder::make('deadline_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">'
@@ -467,10 +478,10 @@ class CreateBottlingInstruction extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Delivery Location')
+                Section::make('Delivery Location')
                     ->description('Where should the bottled wine be delivered?')
                     ->schema([
-                        Forms\Components\Select::make('delivery_location')
+                        Select::make('delivery_location')
                             ->label('Delivery Location')
                             ->options([
                                 'main_warehouse' => 'Main Warehouse',
@@ -482,16 +493,16 @@ class CreateBottlingInstruction extends CreateRecord
                             ->helperText('Pre-filled from intent preferred location if available'),
                     ]),
 
-                Forms\Components\Section::make('Personalisation Options')
+                Section::make('Personalisation Options')
                     ->description('Advanced options for personalised bottling')
                     ->schema([
-                        Forms\Components\Toggle::make('personalised_bottling_required')
+                        Toggle::make('personalised_bottling_required')
                             ->label('Personalised Bottling Required')
                             ->helperText('Check if customers need personalised labels or special bottling requirements')
                             ->live()
                             ->default(false),
 
-                        Forms\Components\Placeholder::make('personalised_explanation')
+                        Placeholder::make('personalised_explanation')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">'
@@ -503,13 +514,13 @@ class CreateBottlingInstruction extends CreateRecord
                             ->hidden(fn (Get $get): bool => $get('personalised_bottling_required') !== true)
                             ->columnSpanFull(),
 
-                        Forms\Components\Toggle::make('early_binding_required')
+                        Toggle::make('early_binding_required')
                             ->label('Early Binding Required')
                             ->helperText('If true, voucher-bottle binding happens before bottling')
                             ->live()
                             ->default(false),
 
-                        Forms\Components\Placeholder::make('early_binding_explanation')
+                        Placeholder::make('early_binding_explanation')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-indigo-50 dark:bg-indigo-950 rounded-lg">'
@@ -528,16 +539,16 @@ class CreateBottlingInstruction extends CreateRecord
      * Step 4: Review (US-032)
      * Review all data before creating with deadline warning.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->description('Review and create the instruction')
             ->icon('heroicon-o-check-badge')
             ->schema([
                 // Draft status info
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('draft_info')
+                        Placeholder::make('draft_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -550,9 +561,9 @@ class CreateBottlingInstruction extends CreateRecord
                     ]),
 
                 // Deadline countdown
-                Forms\Components\Section::make('Deadline Status')
+                Section::make('Deadline Status')
                     ->schema([
-                        Forms\Components\Placeholder::make('deadline_countdown')
+                        Placeholder::make('deadline_countdown')
                             ->label('Bottling Deadline')
                             ->content(function (Get $get): HtmlString {
                                 $deadline = $get('bottling_deadline');
@@ -561,7 +572,7 @@ class CreateBottlingInstruction extends CreateRecord
                                     return new HtmlString('<span class="text-gray-500">Not set</span>');
                                 }
 
-                                $deadlineDate = \Carbon\Carbon::parse($deadline);
+                                $deadlineDate = Carbon::parse($deadline);
                                 $daysUntil = (int) now()->startOfDay()->diffInDays($deadlineDate, false);
 
                                 $colorClass = match (true) {
@@ -586,7 +597,7 @@ class CreateBottlingInstruction extends CreateRecord
                             }),
 
                         // Warning for deadline < 30 days
-                        Forms\Components\Placeholder::make('deadline_short_warning')
+                        Placeholder::make('deadline_short_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">'
@@ -600,7 +611,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 if ($deadline === null) {
                                     return true;
                                 }
-                                $daysUntil = (int) now()->startOfDay()->diffInDays(\Carbon\Carbon::parse($deadline), false);
+                                $daysUntil = (int) now()->startOfDay()->diffInDays(Carbon::parse($deadline), false);
 
                                 return $daysUntil >= 30;
                             })
@@ -608,10 +619,10 @@ class CreateBottlingInstruction extends CreateRecord
                     ]),
 
                 // Linked Intent Summary
-                Forms\Components\Section::make('Linked Procurement Intent')
+                Section::make('Linked Procurement Intent')
                     ->icon('heroicon-o-clipboard-document-list')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_intent')
+                        Placeholder::make('review_intent')
                             ->label('Intent')
                             ->content(function (Get $get): string {
                                 $intentId = $get('procurement_intent_id');
@@ -624,7 +635,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return $intent !== null ? self::formatIntentOption($intent) : 'Not found';
                             }),
 
-                        Forms\Components\Placeholder::make('review_intent_product')
+                        Placeholder::make('review_intent_product')
                             ->label('Liquid Product')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -635,7 +646,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return is_string($data['product_label']) ? $data['product_label'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('review_bottle_equivalents')
+                        Placeholder::make('review_bottle_equivalents')
                             ->label('Bottle Equivalents')
                             ->content(function (Get $get): string {
                                 $bottleEquivalents = $get('bottle_equivalents');
@@ -649,10 +660,10 @@ class CreateBottlingInstruction extends CreateRecord
                     ->columns(3),
 
                 // Bottling Rules Summary
-                Forms\Components\Section::make('Bottling Rules')
+                Section::make('Bottling Rules')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_formats')
+                        Placeholder::make('review_formats')
                             ->label('Allowed Formats')
                             ->content(function (Get $get): string {
                                 $formats = $get('allowed_formats');
@@ -663,7 +674,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return implode(', ', $formats);
                             }),
 
-                        Forms\Components\Placeholder::make('review_cases')
+                        Placeholder::make('review_cases')
                             ->label('Case Configurations')
                             ->content(function (Get $get): string {
                                 $cases = $get('allowed_case_configurations');
@@ -674,7 +685,7 @@ class CreateBottlingInstruction extends CreateRecord
                                 return implode(', ', array_map(fn ($c) => $c.' bottles/case', $cases));
                             }),
 
-                        Forms\Components\Placeholder::make('review_default_rule')
+                        Placeholder::make('review_default_rule')
                             ->label('Default Rule')
                             ->content(function (Get $get): string {
                                 $rule = $get('default_bottling_rule');
@@ -686,10 +697,10 @@ class CreateBottlingInstruction extends CreateRecord
                     ->columns(2),
 
                 // Personalisation Summary
-                Forms\Components\Section::make('Personalisation')
+                Section::make('Personalisation')
                     ->icon('heroicon-o-user-circle')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_delivery')
+                        Placeholder::make('review_delivery')
                             ->label('Delivery Location')
                             ->content(function (Get $get): string {
                                 $location = $get('delivery_location');
@@ -703,18 +714,18 @@ class CreateBottlingInstruction extends CreateRecord
                                 };
                             }),
 
-                        Forms\Components\Placeholder::make('review_personalised')
+                        Placeholder::make('review_personalised')
                             ->label('Personalised Bottling')
                             ->content(fn (Get $get): string => $get('personalised_bottling_required') === true ? 'Yes' : 'No'),
 
-                        Forms\Components\Placeholder::make('review_early_binding')
+                        Placeholder::make('review_early_binding')
                             ->label('Early Binding')
                             ->content(fn (Get $get): string => $get('early_binding_required') === true ? 'Yes' : 'No'),
                     ])
                     ->columns(3),
 
                 // Hidden field for create and activate
-                Forms\Components\Hidden::make('create_and_activate')
+                Hidden::make('create_and_activate')
                     ->default(false),
             ]);
     }
@@ -785,7 +796,7 @@ class CreateBottlingInstruction extends CreateRecord
     {
         $record = $this->record;
 
-        if ($record instanceof \App\Models\Procurement\BottlingInstruction && $record->isActive()) {
+        if ($record instanceof BottlingInstruction && $record->isActive()) {
             Notification::make()
                 ->success()
                 ->title('Bottling Instruction created and activated')

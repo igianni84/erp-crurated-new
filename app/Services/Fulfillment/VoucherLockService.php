@@ -11,6 +11,8 @@ use App\Models\Fulfillment\ShippingOrderLine;
 use App\Services\Allocation\VoucherService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use InvalidArgumentException;
+use Throwable;
 
 /**
  * Service for managing voucher locks during fulfillment.
@@ -58,13 +60,13 @@ class VoucherLockService
      * @param  ShippingOrder  $shippingOrder  The shipping order to lock for
      * @return Voucher The locked voucher
      *
-     * @throws \InvalidArgumentException If voucher cannot be locked
+     * @throws InvalidArgumentException If voucher cannot be locked
      */
     public function lockForShippingOrder(Voucher $voucher, ShippingOrder $shippingOrder): Voucher
     {
         // Validate the voucher is in this shipping order
         if (! $this->isVoucherInShippingOrder($voucher, $shippingOrder)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot lock voucher: voucher {$voucher->id} is not in Shipping Order {$shippingOrder->id}."
             );
         }
@@ -78,7 +80,7 @@ class VoucherLockService
 
             // Locked for a different SO - error
             $existingSO = $this->findShippingOrderForLockedVoucher($voucher);
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot lock voucher: voucher {$voucher->id} is already locked for "
                 .($existingSO !== null ? "Shipping Order {$existingSO->id}" : 'another process').'.'
             );
@@ -98,7 +100,7 @@ class VoucherLockService
             );
 
             return $voucher;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logEvent(
                 $shippingOrder,
                 self::EVENT_LOCK_FAILED,
@@ -107,7 +109,7 @@ class VoucherLockService
                 ['voucher_id' => $voucher->id, 'error' => $e->getMessage()]
             );
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Failed to lock voucher {$voucher->id}: {$e->getMessage()}"
             );
         }
@@ -122,7 +124,7 @@ class VoucherLockService
      * @param  ShippingOrder  $shippingOrder  The shipping order
      * @return Collection<int, Voucher> The locked vouchers
      *
-     * @throws \InvalidArgumentException If any voucher cannot be locked
+     * @throws InvalidArgumentException If any voucher cannot be locked
      */
     public function lockAllForShippingOrder(ShippingOrder $shippingOrder): Collection
     {
@@ -149,7 +151,7 @@ class VoucherLockService
             }
 
             return $lockedVouchers;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // Rollback: unlock any vouchers we already locked in this operation
             foreach ($lockedVouchers as $voucher) {
                 try {
@@ -157,12 +159,12 @@ class VoucherLockService
                     if ($voucher->isLocked()) {
                         $this->voucherService->unlock($voucher);
                     }
-                } catch (\Throwable) {
+                } catch (Throwable) {
                     // Best effort rollback - log but don't fail
                 }
             }
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Failed to lock vouchers for Shipping Order {$shippingOrder->id}: {$e->getMessage()}"
             );
         }
@@ -177,7 +179,7 @@ class VoucherLockService
      * @param  Voucher  $voucher  The voucher to unlock
      * @return Voucher The unlocked voucher
      *
-     * @throws \InvalidArgumentException If voucher cannot be unlocked
+     * @throws InvalidArgumentException If voucher cannot be unlocked
      */
     public function unlock(Voucher $voucher): Voucher
     {
@@ -227,7 +229,7 @@ class VoucherLockService
                     ['voucher_id' => $voucher->id, 'lifecycle_state' => 'locked'],
                     ['voucher_id' => $voucher->id, 'lifecycle_state' => 'issued']
                 );
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Log but continue - best effort unlock
                 $this->logEvent(
                     $shippingOrder,

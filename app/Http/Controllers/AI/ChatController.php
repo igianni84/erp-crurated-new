@@ -5,10 +5,14 @@ namespace App\Http\Controllers\AI;
 use App\AI\Agents\ErpAssistantAgent;
 use App\Http\Controllers\Controller;
 use App\Models\AI\AiAuditLog;
+use App\Models\User;
 use App\Services\AI\RateLimitService;
+use Error;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class ChatController extends Controller
 {
@@ -16,7 +20,7 @@ class ChatController extends Controller
     {
         set_time_limit(120);
 
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         $validated = $request->validate([
@@ -50,27 +54,45 @@ class ChatController extends Controller
 
         return response()->stream(function () use ($streamResponse, $user, $message, $startTime): void {
             $fullContent = '';
+            $error = null;
 
-            foreach ($streamResponse as $event) {
-                if (connection_aborted()) {
-                    break;
-                }
-
-                $data = $event->toArray();
-                $chunk = $data['delta'] ?? '';
-
-                if ($chunk !== '') {
-                    $fullContent .= $chunk;
-                    echo 'data: '.json_encode([
-                        'content' => $chunk,
-                        'conversation_id' => $streamResponse->conversationId,
-                    ])."\n\n";
-
-                    if (ob_get_level() > 0) {
-                        ob_flush();
+            try {
+                foreach ($streamResponse as $event) {
+                    if (connection_aborted()) {
+                        break;
                     }
-                    flush();
+
+                    $data = $event->toArray();
+                    $chunk = $data['delta'] ?? '';
+
+                    if ($chunk !== '') {
+                        $fullContent .= $chunk;
+                        echo 'data: '.json_encode([
+                            'content' => $chunk,
+                            'conversation_id' => $streamResponse->conversationId,
+                        ])."\n\n";
+
+                        if (ob_get_level() > 0) {
+                            ob_flush();
+                        }
+                        flush();
+                    }
                 }
+            } catch (Throwable $e) {
+                $error = $e->getMessage();
+                Log::error('AI stream error: '.$error, [
+                    'userId' => $user->id,
+                    'exception' => $e,
+                ]);
+
+                echo 'data: '.json_encode([
+                    'error' => 'Something went wrong. Please try again.',
+                ])."\n\n";
+
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
             }
 
             echo "data: [DONE]\n\n";
@@ -81,7 +103,11 @@ class ChatController extends Controller
 
             // Audit log
             $durationMs = (int) ((hrtime(true) - $startTime) / 1_000_000);
-            $usage = $streamResponse->usage;
+            try {
+                $usage = $streamResponse->usage;
+            } catch (Error) {
+                $usage = null;
+            }
             $tokensInput = $usage !== null ? $usage->promptTokens : null;
             $tokensOutput = $usage !== null ? $usage->completionTokens : null;
 
@@ -96,6 +122,9 @@ class ChatController extends Controller
             if ($tokensInput !== null && $tokensInput > 100_000) {
                 $metadata['warning'] = 'High token usage: '.$tokensInput.' input tokens';
             }
+            if ($error !== null) {
+                $metadata['error'] = $error;
+            }
 
             AiAuditLog::create([
                 'user_id' => $user->id,
@@ -106,6 +135,7 @@ class ChatController extends Controller
                 'tokens_output' => $tokensOutput,
                 'estimated_cost_eur' => $estimatedCost,
                 'duration_ms' => $durationMs,
+                'error' => $error,
                 'metadata' => ! empty($metadata) ? $metadata : null,
                 'created_at' => now(),
             ]);

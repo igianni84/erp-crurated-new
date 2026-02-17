@@ -7,6 +7,7 @@ use App\Enums\Customer\AccountUserRole;
 use App\Enums\UserRole;
 use App\Models\Customer\Account;
 use App\Models\Customer\AccountUser;
+use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +21,7 @@ use Illuminate\Notifications\Notifiable;
  */
 class User extends Authenticatable implements FilamentUser
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
+    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**

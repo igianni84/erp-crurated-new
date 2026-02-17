@@ -8,6 +8,8 @@ use App\Models\Customer\Customer;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -32,11 +34,11 @@ use InvalidArgumentException;
  * @property CustomerCreditStatus $status
  * @property string $reason
  * @property string|null $notes
- * @property \Carbon\Carbon|null $expires_at
+ * @property Carbon|null $expires_at
  * @property int|null $created_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class CustomerCredit extends Model
 {
@@ -379,12 +381,11 @@ class CustomerCredit extends Model
     // =========================================================================
     // Query Scopes
     // =========================================================================
-
     /**
      * Scope to only include available credits.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CustomerCredit>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CustomerCredit>
+     * @param  Builder<CustomerCredit>  $query
+     * @return Builder<CustomerCredit>
      */
     public function scopeAvailable($query)
     {
@@ -394,8 +395,8 @@ class CustomerCredit extends Model
     /**
      * Scope to only include usable credits (available or partially used).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CustomerCredit>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CustomerCredit>
+     * @param  Builder<CustomerCredit>  $query
+     * @return Builder<CustomerCredit>
      */
     public function scopeUsable($query)
     {
@@ -411,8 +412,8 @@ class CustomerCredit extends Model
     /**
      * Scope to only include credits for a specific customer.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CustomerCredit>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CustomerCredit>
+     * @param  Builder<CustomerCredit>  $query
+     * @return Builder<CustomerCredit>
      */
     public function scopeForCustomer($query, Customer $customer)
     {
@@ -422,8 +423,8 @@ class CustomerCredit extends Model
     /**
      * Scope to only include expired credits that need status update.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CustomerCredit>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CustomerCredit>
+     * @param  Builder<CustomerCredit>  $query
+     * @return Builder<CustomerCredit>
      */
     public function scopeExpiredButNotMarked($query)
     {

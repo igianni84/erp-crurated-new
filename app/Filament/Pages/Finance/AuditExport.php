@@ -6,7 +6,9 @@ use App\Models\AuditLog;
 use App\Models\User;
 use Carbon\Carbon;
 use Filament\Pages\Page;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Audit Export page for Finance module.
@@ -18,11 +20,11 @@ use Illuminate\Support\Collection;
  */
 class AuditExport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-document-arrow-down';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-arrow-down';
 
     protected static ?string $navigationLabel = 'Audit Export';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -30,7 +32,7 @@ class AuditExport extends Page
 
     protected static ?string $title = 'Audit Export';
 
-    protected static string $view = 'filament.pages.finance.audit-export';
+    protected string $view = 'filament.pages.finance.audit-export';
 
     /**
      * Filter by entity type (auditable_type).
@@ -226,9 +228,9 @@ class AuditExport extends Page
     /**
      * Build the base query with filters applied.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<AuditLog>
+     * @return Builder<AuditLog>
      */
-    protected function buildQuery(): \Illuminate\Database\Eloquent\Builder
+    protected function buildQuery(): Builder
     {
         $query = AuditLog::query()->with('user');
 
@@ -365,7 +367,7 @@ class AuditExport extends Page
     /**
      * Export audit logs to CSV.
      */
-    public function exportToCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToCsv(): StreamedResponse
     {
         $query = $this->buildQuery();
         $filterStartDate = $this->filterStartDate;
@@ -430,7 +432,7 @@ class AuditExport extends Page
     /**
      * Export audit logs to JSON.
      */
-    public function exportToJson(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToJson(): StreamedResponse
     {
         $query = $this->buildQuery();
         $filterStartDate = $this->filterStartDate;
@@ -502,7 +504,7 @@ class AuditExport extends Page
     /**
      * Export based on selected format.
      */
-    public function export(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function export(): StreamedResponse
     {
         if ($this->exportFormat === 'json') {
             return $this->exportToJson();

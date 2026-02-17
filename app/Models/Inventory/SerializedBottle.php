@@ -5,16 +5,21 @@ namespace App\Models\Inventory;
 use App\Enums\Inventory\BottleState;
 use App\Enums\Inventory\OwnershipType;
 use App\Models\Allocation\Allocation;
+use App\Models\AuditLog;
 use App\Models\Pim\Format;
 use App\Models\Pim\WineVariant;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * SerializedBottle Model
@@ -38,10 +43,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property OwnershipType $ownership_type
  * @property string|null $custody_holder
  * @property BottleState $state
- * @property \Carbon\Carbon $serialized_at
+ * @property Carbon $serialized_at
  * @property int|null $serialized_by
  * @property string|null $nft_reference
- * @property \Carbon\Carbon|null $nft_minted_at
+ * @property Carbon|null $nft_minted_at
  * @property string|null $correction_reference
  */
 class SerializedBottle extends Model
@@ -121,13 +126,13 @@ class SerializedBottle extends Model
      *
      * Enforces immutability: serial_number cannot be changed after creation.
      *
-     * @throws \InvalidArgumentException If attempting to modify an existing serial_number
+     * @throws InvalidArgumentException If attempting to modify an existing serial_number
      */
     public function setSerialNumberAttribute(string $value): void
     {
         // If the model exists (not new) and serial_number is already set, block modification
         if ($this->exists && $this->getOriginal('serial_number') !== null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Serial number is immutable and cannot be changed after creation. Use the mis-serialization correction flow (US-B029) instead.'
             );
         }
@@ -141,13 +146,13 @@ class SerializedBottle extends Model
      * Enforces immutability: allocation_id (allocation lineage) cannot be changed after creation.
      * The allocation lineage is propagated from InboundBatch at serialization time and is permanent.
      *
-     * @throws \InvalidArgumentException If attempting to modify an existing allocation_id
+     * @throws InvalidArgumentException If attempting to modify an existing allocation_id
      */
     public function setAllocationIdAttribute(string $value): void
     {
         // If the model exists (not new) and allocation_id is already set, block modification
         if ($this->exists && $this->getOriginal('allocation_id') !== null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Allocation lineage is immutable and cannot be changed after creation. Bottles are permanently bound to their original allocation.'
             );
         }
@@ -181,7 +186,7 @@ class SerializedBottle extends Model
         static::updating(function (SerializedBottle $bottle): void {
             foreach (self::$immutableFields as $field) {
                 if ($bottle->isDirty($field)) {
-                    throw new \InvalidArgumentException(
+                    throw new InvalidArgumentException(
                         "Cannot modify immutable field '{$field}' on SerializedBottle"
                     );
                 }
@@ -262,19 +267,19 @@ class SerializedBottle extends Model
     /**
      * Get the audit logs for this bottle.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
      * Get the movement items associated with this bottle.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<MovementItem, $this>
+     * @return HasMany<MovementItem, $this>
      */
-    public function movementItems(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function movementItems(): HasMany
     {
         return $this->hasMany(MovementItem::class, 'serialized_bottle_id');
     }
@@ -282,9 +287,9 @@ class SerializedBottle extends Model
     /**
      * Get the inventory movements that involve this bottle.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasManyThrough<InventoryMovement, MovementItem, $this>
+     * @return HasManyThrough<InventoryMovement, MovementItem, $this>
      */
-    public function movements(): \Illuminate\Database\Eloquent\Relations\HasManyThrough
+    public function movements(): HasManyThrough
     {
         return $this->hasManyThrough(
             InventoryMovement::class,

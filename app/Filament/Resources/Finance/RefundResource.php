@@ -4,22 +4,32 @@ namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\RefundMethod;
 use App\Enums\Finance\RefundStatus;
-use App\Filament\Resources\Finance\RefundResource\Pages;
+use App\Filament\Resources\Finance\RefundResource\Pages\ListRefunds;
+use App\Filament\Resources\Finance\RefundResource\Pages\ViewRefund;
 use App\Models\Finance\Refund;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class RefundResource extends Resource
 {
     protected static ?string $model = Refund::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-uturn-left';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-uturn-left';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 40;
 
@@ -29,10 +39,10 @@ class RefundResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Refunds';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in US-E070
             ]);
     }
@@ -41,13 +51,13 @@ class RefundResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Refund ID')
                     ->sortable()
                     ->searchable(isIndividual: false)
                     ->prefix('#'),
 
-                Tables\Columns\TextColumn::make('invoice.invoice_number')
+                TextColumn::make('invoice.invoice_number')
                     ->label('Invoice #')
                     ->searchable()
                     ->sortable()
@@ -57,13 +67,13 @@ class RefundResource extends Resource
                     ->openUrlInNewTab()
                     ->placeholder('N/A'),
 
-                Tables\Columns\TextColumn::make('amount')
+                TextColumn::make('amount')
                     ->label('Amount')
                     ->money(fn (Refund $record): string => $record->currency)
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('method')
+                TextColumn::make('method')
                     ->label('Method')
                     ->badge()
                     ->formatStateUsing(fn (RefundMethod $state): string => $state->label())
@@ -71,7 +81,7 @@ class RefundResource extends Resource
                     ->icon(fn (RefundMethod $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (RefundStatus $state): string => $state->label())
@@ -79,13 +89,13 @@ class RefundResource extends Resource
                     ->icon(fn (RefundStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('processed_at')
+                TextColumn::make('processed_at')
                     ->label('Processed At')
                     ->dateTime('M j, Y H:i')
                     ->sortable()
                     ->placeholder('Not processed'),
 
-                Tables\Columns\TextColumn::make('stripe_refund_id')
+                TextColumn::make('stripe_refund_id')
                     ->label('Stripe Refund ID')
                     ->searchable()
                     ->toggleable()
@@ -93,7 +103,7 @@ class RefundResource extends Resource
                     ->copyMessage('Stripe refund ID copied')
                     ->placeholder('N/A'),
 
-                Tables\Columns\TextColumn::make('refund_type')
+                TextColumn::make('refund_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn ($state): string => $state->label())
@@ -102,32 +112,32 @@ class RefundResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime('M j, Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('method')
+                SelectFilter::make('method')
                     ->options(collect(RefundMethod::cases())
                         ->mapWithKeys(fn (RefundMethod $method) => [$method->value => $method->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Method'),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(RefundStatus::cases())
                         ->mapWithKeys(fn (RefundStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\Filter::make('processed_at')
-                    ->form([
-                        Forms\Components\DatePicker::make('processed_from')
+                Filter::make('processed_at')
+                    ->schema([
+                        DatePicker::make('processed_from')
                             ->label('Processed From'),
-                        Forms\Components\DatePicker::make('processed_until')
+                        DatePicker::make('processed_until')
                             ->label('Processed Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -153,11 +163,11 @@ class RefundResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\Filter::make('created_at')
-                    ->form([
-                        Forms\Components\DatePicker::make('created_from')
+                Filter::make('created_at')
+                    ->schema([
+                        DatePicker::make('created_from')
                             ->label('Created From'),
-                        Forms\Components\DatePicker::make('created_until')
+                        DatePicker::make('created_until')
                             ->label('Created Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -183,16 +193,16 @@ class RefundResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('export_csv')
+            ->toolbarActions([
+                BulkAction::make('export_csv')
                     ->label('Export to CSV')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                    ->action(function (Collection $records): StreamedResponse {
                         return response()->streamDownload(function () use ($records): void {
                             $handle = fopen('php://output', 'w');
                             if ($handle !== false) {
@@ -252,8 +262,8 @@ class RefundResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListRefunds::route('/'),
-            'view' => Pages\ViewRefund::route('/{record}'),
+            'index' => ListRefunds::route('/'),
+            'view' => ViewRefund::route('/{record}'),
         ];
     }
 
@@ -261,7 +271,7 @@ class RefundResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -275,13 +285,13 @@ class RefundResource extends Resource
         return parent::getGlobalSearchEloquentQuery()->with(['invoice', 'payment']);
     }
 
-    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string
+    public static function getGlobalSearchResultTitle(Model $record): string
     {
         /** @var Refund $record */
         return 'Refund #'.$record->id;
     }
 
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var Refund $record */
         return [
@@ -292,7 +302,7 @@ class RefundResource extends Resource
         ];
     }
 
-    public static function getGlobalSearchResultUrl(\Illuminate\Database\Eloquent\Model $record): ?string
+    public static function getGlobalSearchResultUrl(Model $record): ?string
     {
         return static::getUrl('view', ['record' => $record]);
     }

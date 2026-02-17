@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Tools\Request;
+use Stringable;
+use Throwable;
 
 abstract class BaseTool
 {
@@ -65,7 +67,7 @@ abstract class BaseTool
                 'error' => 'No record found matching the given criteria.',
                 'tool' => class_basename(static::class),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return (string) json_encode([
                 'error' => 'An error occurred while executing '.class_basename(static::class).': '.$e->getMessage(),
                 'tool' => class_basename(static::class),
@@ -120,5 +122,5 @@ abstract class BaseTool
     /**
      * Execute the tool. Must be implemented by subclasses that implement Tool.
      */
-    abstract public function handle(Request $request): \Stringable|string;
+    abstract public function handle(Request $request): Stringable|string;
 }

@@ -3,7 +3,8 @@
 namespace App\Filament\Resources\Pim\RegionResource\Pages;
 
 use App\Filament\Resources\Pim\RegionResource;
-use Filament\Actions;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditRegion extends EditRecord
@@ -13,8 +14,8 @@ class EditRegion extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
-            Actions\RestoreAction::make(),
+            DeleteAction::make(),
+            RestoreAction::make(),
         ];
     }
 }

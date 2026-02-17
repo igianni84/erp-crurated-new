@@ -9,19 +9,31 @@ use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Services\Finance\InvoiceService;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Carbon\Carbon;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateInvoice extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = InvoiceResource::class;
 
@@ -39,10 +51,10 @@ class CreateInvoice extends CreateRecord
      * Get the form for creating an invoice.
      * Implements a multi-step wizard for invoice creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -59,7 +71,7 @@ class CreateInvoice extends CreateRecord
     protected function getWizardSubmitAction(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <x-filament::button
                     type="submit"
                     size="sm"
@@ -74,7 +86,7 @@ class CreateInvoice extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -89,14 +101,14 @@ class CreateInvoice extends CreateRecord
      * Step 1: Invoice Details
      * Customer selection, invoice type, currency, due date, notes.
      */
-    protected function getInvoiceDetailsStep(): Wizard\Step
+    protected function getInvoiceDetailsStep(): Step
     {
-        return Wizard\Step::make('Invoice Details')
+        return Step::make('Invoice Details')
             ->description('Basic invoice information')
             ->icon('heroicon-o-document-text')
             ->schema([
                 // Warning banner about manual invoices
-                Forms\Components\Placeholder::make('manual_invoice_warning')
+                Placeholder::make('manual_invoice_warning')
                     ->label('')
                     ->content(new HtmlString(<<<'HTML'
                         <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
@@ -119,10 +131,10 @@ class CreateInvoice extends CreateRecord
                     HTML))
                     ->columnSpanFull(),
 
-                Forms\Components\Section::make('Customer Selection')
+                Section::make('Customer Selection')
                     ->description('Select the customer for this invoice')
                     ->schema([
-                        Forms\Components\Select::make('customer_id')
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->placeholder('Search for a customer by name or email...')
                             ->searchable()
@@ -150,7 +162,7 @@ class CreateInvoice extends CreateRecord
                             ->helperText('Type at least 2 characters to search. Only active customers are shown.'),
 
                         // Customer info (shown when customer is selected)
-                        Forms\Components\Placeholder::make('customer_info')
+                        Placeholder::make('customer_info')
                             ->label('Customer Details')
                             ->visible(fn (Get $get): bool => $get('customer_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -178,12 +190,12 @@ class CreateInvoice extends CreateRecord
                     ])
                     ->columns(1),
 
-                Forms\Components\Section::make('Invoice Configuration')
+                Section::make('Invoice Configuration')
                     ->description('Define the invoice type and billing details')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('invoice_type')
+                                Select::make('invoice_type')
                                     ->label('Invoice Type')
                                     ->placeholder('Select invoice type...')
                                     ->options(
@@ -229,7 +241,7 @@ class CreateInvoice extends CreateRecord
                                         return implode('. ', $info);
                                     }),
 
-                                Forms\Components\Select::make('currency')
+                                Select::make('currency')
                                     ->label('Currency')
                                     ->options(Invoice::getSupportedCurrencies())
                                     ->default('EUR')
@@ -245,9 +257,9 @@ class CreateInvoice extends CreateRecord
                                     }),
                             ]),
 
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\DatePicker::make('due_date')
+                                DatePicker::make('due_date')
                                     ->label('Due Date')
                                     ->placeholder('Select due date...')
                                     ->displayFormat('d M Y')
@@ -267,7 +279,7 @@ class CreateInvoice extends CreateRecord
                                         return 'Optional for this invoice type';
                                     }),
 
-                                Forms\Components\Placeholder::make('due_date_info')
+                                Placeholder::make('due_date_info')
                                     ->label('')
                                     ->visible(fn (Get $get): bool => $get('invoice_type') !== null)
                                     ->content(function (Get $get): HtmlString {
@@ -299,7 +311,7 @@ class CreateInvoice extends CreateRecord
                             ]),
 
                         // INV4 ad-hoc service warning
-                        Forms\Components\Placeholder::make('inv4_adhoc_warning')
+                        Placeholder::make('inv4_adhoc_warning')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('invoice_type') === InvoiceType::ServiceEvents->value)
                             ->content(new HtmlString(<<<'HTML'
@@ -324,7 +336,7 @@ class CreateInvoice extends CreateRecord
                             HTML))
                             ->columnSpanFull(),
 
-                        Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label(fn (Get $get): string => $get('invoice_type') === InvoiceType::ServiceEvents->value
                                 ? 'Description / Reason (Required for ad-hoc INV4)'
                                 : 'Notes')
@@ -352,7 +364,7 @@ class CreateInvoice extends CreateRecord
                             ->danger()
                             ->send();
 
-                        throw new \Filament\Support\Exceptions\Halt;
+                        throw new Halt;
                     }
                 }
 
@@ -369,7 +381,7 @@ class CreateInvoice extends CreateRecord
                             ->danger()
                             ->send();
 
-                        throw new \Filament\Support\Exceptions\Halt;
+                        throw new Halt;
                     }
 
                     // Validate INV4 requires notes/description for ad-hoc services
@@ -380,7 +392,7 @@ class CreateInvoice extends CreateRecord
                             ->danger()
                             ->send();
 
-                        throw new \Filament\Support\Exceptions\Halt;
+                        throw new Halt;
                     }
                 }
             });
@@ -390,28 +402,28 @@ class CreateInvoice extends CreateRecord
      * Step 2: Invoice Lines
      * Add line items with description, quantity, unit price, and tax.
      */
-    protected function getInvoiceLinesStep(): Wizard\Step
+    protected function getInvoiceLinesStep(): Step
     {
-        return Wizard\Step::make('Invoice Lines')
+        return Step::make('Invoice Lines')
             ->description('Add line items to the invoice')
             ->icon('heroicon-o-list-bullet')
             ->schema([
-                Forms\Components\Section::make('Line Items')
+                Section::make('Line Items')
                     ->description('Add at least one line item. Tax amount is calculated automatically based on tax rate.')
                     ->schema([
-                        Forms\Components\Repeater::make('invoice_lines')
+                        Repeater::make('invoice_lines')
                             ->label('')
                             ->schema([
-                                Forms\Components\Grid::make(12)
+                                Grid::make(12)
                                     ->schema([
-                                        Forms\Components\TextInput::make('description')
+                                        TextInput::make('description')
                                             ->label('Description')
                                             ->placeholder('Item description...')
                                             ->required()
                                             ->maxLength(255)
                                             ->columnSpan(5),
 
-                                        Forms\Components\TextInput::make('quantity')
+                                        TextInput::make('quantity')
                                             ->label('Qty')
                                             ->numeric()
                                             ->default(1)
@@ -421,7 +433,7 @@ class CreateInvoice extends CreateRecord
                                             ->live(onBlur: true)
                                             ->columnSpan(1),
 
-                                        Forms\Components\TextInput::make('unit_price')
+                                        TextInput::make('unit_price')
                                             ->label('Unit Price')
                                             ->numeric()
                                             ->prefix(fn (Get $get): string => $this->getCurrency($get))
@@ -431,7 +443,7 @@ class CreateInvoice extends CreateRecord
                                             ->live(onBlur: true)
                                             ->columnSpan(2),
 
-                                        Forms\Components\TextInput::make('tax_rate')
+                                        TextInput::make('tax_rate')
                                             ->label('Tax %')
                                             ->numeric()
                                             ->suffix('%')
@@ -442,7 +454,7 @@ class CreateInvoice extends CreateRecord
                                             ->live(onBlur: true)
                                             ->columnSpan(1),
 
-                                        Forms\Components\Placeholder::make('line_total_display')
+                                        Placeholder::make('line_total_display')
                                             ->label('Line Total')
                                             ->content(function (Get $get): HtmlString {
                                                 $quantity = (float) ($get('quantity') ?? 0);
@@ -474,10 +486,10 @@ class CreateInvoice extends CreateRecord
                     ->columns(1),
 
                 // Real-time totals section
-                Forms\Components\Section::make('Invoice Totals')
+                Section::make('Invoice Totals')
                     ->description('Calculated automatically from line items')
                     ->schema([
-                        Forms\Components\Placeholder::make('totals_display')
+                        Placeholder::make('totals_display')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $lines = $get('invoice_lines') ?? [];
@@ -541,7 +553,7 @@ class CreateInvoice extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
 
                 // Validate total is positive
@@ -563,7 +575,7 @@ class CreateInvoice extends CreateRecord
                         ->danger()
                         ->send();
 
-                    throw new \Filament\Support\Exceptions\Halt;
+                    throw new Halt;
                 }
             });
     }
@@ -572,14 +584,14 @@ class CreateInvoice extends CreateRecord
      * Step 3: Review
      * Summary of all invoice details before saving.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review & Save')
+        return Step::make('Review & Save')
             ->description('Review invoice details before saving')
             ->icon('heroicon-o-clipboard-document-check')
             ->schema([
                 // Draft info banner
-                Forms\Components\Placeholder::make('draft_info_banner')
+                Placeholder::make('draft_info_banner')
                     ->label('')
                     ->content(new HtmlString(<<<'HTML'
                         <div class="p-4 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800">
@@ -601,10 +613,10 @@ class CreateInvoice extends CreateRecord
                     ->columnSpanFull(),
 
                 // Customer & Invoice Details
-                Forms\Components\Section::make('Invoice Details')
+                Section::make('Invoice Details')
                     ->icon('heroicon-o-document-text')
                     ->schema([
-                        Forms\Components\Placeholder::make('details_summary')
+                        Placeholder::make('details_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $customerId = $get('customer_id');
@@ -637,7 +649,7 @@ class CreateInvoice extends CreateRecord
                                 // Due date
                                 $dueDateHtml = '<span class="text-gray-400">Not specified</span>';
                                 if ($dueDate) {
-                                    $formattedDate = \Carbon\Carbon::parse($dueDate)->format('d M Y');
+                                    $formattedDate = Carbon::parse($dueDate)->format('d M Y');
                                     $dueDateHtml = '<span class="font-medium text-gray-900 dark:text-gray-100">'.$formattedDate.'</span>';
                                 }
 
@@ -680,10 +692,10 @@ class CreateInvoice extends CreateRecord
                     ->columns(1),
 
                 // Line Items Summary
-                Forms\Components\Section::make('Line Items')
+                Section::make('Line Items')
                     ->icon('heroicon-o-list-bullet')
                     ->schema([
-                        Forms\Components\Placeholder::make('lines_summary')
+                        Placeholder::make('lines_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $lines = $get('invoice_lines') ?? [];
@@ -772,7 +784,7 @@ class CreateInvoice extends CreateRecord
                     ->columns(1),
 
                 // Final confirmation
-                Forms\Components\Placeholder::make('final_confirmation')
+                Placeholder::make('final_confirmation')
                     ->label('')
                     ->content(new HtmlString(<<<'HTML'
                         <div class="p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">

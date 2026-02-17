@@ -16,20 +16,25 @@ use App\Models\Procurement\ProcurementIntent;
 use App\Models\Procurement\PurchaseOrder;
 use App\Services\Procurement\ProcurementIntentService;
 use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewProcurementIntent extends ViewRecord
 {
@@ -66,9 +71,9 @@ class ViewProcurementIntent extends ViewRecord
         return $record->getProductLabel().' - '.$record->status->label();
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Procurement Intent Details')
                     ->tabs([
@@ -265,7 +270,7 @@ class ViewProcurementIntent extends ViewRecord
                         : 'No Purchase Orders linked yet')
                     ->icon('heroicon-o-document-text')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('create_po')
+                        Action::make('create_po')
                             ->label('Create PO')
                             ->icon('heroicon-o-plus')
                             ->color('primary')
@@ -324,7 +329,7 @@ class ViewProcurementIntent extends ViewRecord
                     ->icon('heroicon-o-beaker')
                     ->visible(fn (ProcurementIntent $record): bool => $record->isForLiquidProduct() || $record->bottlingInstructions()->count() > 0)
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('create_bottling_instruction')
+                        Action::make('create_bottling_instruction')
                             ->label('Create Bottling Instruction')
                             ->icon('heroicon-o-plus')
                             ->color('primary')
@@ -381,7 +386,7 @@ class ViewProcurementIntent extends ViewRecord
                         : 'No Inbound batches linked yet')
                     ->icon('heroicon-o-truck')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('link_inbound')
+                        Action::make('link_inbound')
                             ->label('Link Inbound')
                             ->icon('heroicon-o-link')
                             ->color('primary')
@@ -595,10 +600,10 @@ class ViewProcurementIntent extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -620,7 +625,7 @@ class ViewProcurementIntent extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -761,7 +766,7 @@ class ViewProcurementIntent extends ViewRecord
 
         return [
             // Approve action (Draft → Approved)
-            Actions\Action::make('approve')
+            Action::make('approve')
                 ->label('Approve')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -781,7 +786,7 @@ class ViewProcurementIntent extends ViewRecord
                             ->send();
 
                         $this->redirect(ProcurementIntentResource::getUrl('view', ['record' => $record]));
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->title('Approval Failed')
                             ->body($e->getMessage())
@@ -791,7 +796,7 @@ class ViewProcurementIntent extends ViewRecord
                 }),
 
             // Mark Executed action (Approved → Executed)
-            Actions\Action::make('mark_executed')
+            Action::make('mark_executed')
                 ->label('Mark Executed')
                 ->icon('heroicon-o-play')
                 ->color('warning')
@@ -811,7 +816,7 @@ class ViewProcurementIntent extends ViewRecord
                             ->send();
 
                         $this->redirect(ProcurementIntentResource::getUrl('view', ['record' => $record]));
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->title('Execution Failed')
                             ->body($e->getMessage())
@@ -821,7 +826,7 @@ class ViewProcurementIntent extends ViewRecord
                 }),
 
             // Close action (Executed → Closed)
-            Actions\Action::make('close')
+            Action::make('close')
                 ->label('Close')
                 ->icon('heroicon-o-lock-closed')
                 ->color('danger')
@@ -856,7 +861,7 @@ class ViewProcurementIntent extends ViewRecord
                             ->send();
 
                         $this->redirect(ProcurementIntentResource::getUrl('view', ['record' => $record]));
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->title('Close Failed')
                             ->body($e->getMessage())
@@ -866,22 +871,22 @@ class ViewProcurementIntent extends ViewRecord
                 }),
 
             // Action group for secondary actions
-            Actions\ActionGroup::make([
-                Actions\Action::make('create_po')
+            ActionGroup::make([
+                Action::make('create_po')
                     ->label('Create Purchase Order')
                     ->icon('heroicon-o-document-plus')
                     ->visible(fn (): bool => $record->canCreateLinkedObjects())
                     ->url(fn (): string => route('filament.admin.resources.procurement/purchase-orders.create', [
                         'procurement_intent_id' => $record->id,
                     ])),
-                Actions\Action::make('create_bottling_instruction')
+                Action::make('create_bottling_instruction')
                     ->label('Create Bottling Instruction')
                     ->icon('heroicon-o-beaker')
                     ->visible(fn (): bool => $record->canCreateLinkedObjects() && $record->isForLiquidProduct())
                     ->url(fn (): string => route('filament.admin.resources.procurement/bottling-instructions.create', [
                         'procurement_intent_id' => $record->id,
                     ])),
-                Actions\Action::make('link_inbound')
+                Action::make('link_inbound')
                     ->label('Link Inbound')
                     ->icon('heroicon-o-truck')
                     ->visible(fn (): bool => $record->canCreateLinkedObjects())
@@ -894,9 +899,9 @@ class ViewProcurementIntent extends ViewRecord
                 ->visible(fn (): bool => $record->canCreateLinkedObjects()),
 
             // More actions (delete, restore)
-            Actions\ActionGroup::make([
-                Actions\DeleteAction::make(),
-                Actions\RestoreAction::make(),
+            ActionGroup::make([
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])->label('More')
                 ->icon('heroicon-o-ellipsis-vertical')
                 ->button(),

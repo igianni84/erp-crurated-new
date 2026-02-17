@@ -4,9 +4,11 @@ namespace App\Models\Fulfillment;
 
 use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
 use App\Enums\Fulfillment\ShippingOrderExceptionType;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,7 +28,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $description
  * @property string|null $resolution_path
  * @property ShippingOrderExceptionStatus $status
- * @property \Carbon\Carbon|null $resolved_at
+ * @property Carbon|null $resolved_at
  * @property int|null $resolved_by
  * @property int|null $created_by
  * @property int|null $updated_by
@@ -129,11 +131,11 @@ class ShippingOrderException extends Model
     /**
      * Get the audit logs for this exception.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

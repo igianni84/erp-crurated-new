@@ -8,31 +8,38 @@ use App\Filament\Resources\Inventory\InboundBatchResource;
 use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\Location;
 use App\Services\Inventory\SerializationService;
-use Filament\Forms;
+use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use InvalidArgumentException;
 
 class SerializationQueue extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon = 'heroicon-o-queue-list';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-queue-list';
 
     protected static ?string $navigationLabel = 'Serialization Queue';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 3;
 
     protected static ?string $title = 'Serialization Queue';
 
-    protected static string $view = 'filament.pages.serialization-queue';
+    protected string $view = 'filament.pages.serialization-queue';
 
     /**
      * Get the page heading.
@@ -58,7 +65,7 @@ class SerializationQueue extends Page implements HasTable
         return $table
             ->query($this->getTableQuery())
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Batch ID')
                     ->searchable()
                     ->sortable()
@@ -68,7 +75,7 @@ class SerializationQueue extends Page implements HasTable
                     ->limit(8)
                     ->tooltip(fn (InboundBatch $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('product_reference_display')
+                TextColumn::make('product_reference_display')
                     ->label('Product')
                     ->getStateUsing(function (InboundBatch $record): string {
                         $type = class_basename($record->product_reference_type);
@@ -83,7 +90,7 @@ class SerializationQueue extends Page implements HasTable
                     })
                     ->icon('heroicon-o-cube'),
 
-                Tables\Columns\TextColumn::make('remaining_unserialized')
+                TextColumn::make('remaining_unserialized')
                     ->label('Qty Remaining')
                     ->getStateUsing(fn (InboundBatch $record): int => $record->remaining_unserialized)
                     ->numeric()
@@ -96,13 +103,13 @@ class SerializationQueue extends Page implements HasTable
                         return $query->orderByRaw('quantity_received '.$direction);
                     }),
 
-                Tables\Columns\TextColumn::make('receivingLocation.name')
+                TextColumn::make('receivingLocation.name')
                     ->label('Location')
                     ->searchable()
                     ->sortable()
                     ->icon('heroicon-o-map-pin'),
 
-                Tables\Columns\TextColumn::make('allocation_lineage')
+                TextColumn::make('allocation_lineage')
                     ->label('Allocation Lineage')
                     ->getStateUsing(function (InboundBatch $record): string {
                         if ($record->allocation_id) {
@@ -118,7 +125,7 @@ class SerializationQueue extends Page implements HasTable
                     ->copyMessage('Allocation ID copied')
                     ->tooltip(fn (InboundBatch $record): ?string => $record->allocation_id),
 
-                Tables\Columns\TextColumn::make('serialization_status')
+                TextColumn::make('serialization_status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (InboundBatchStatus $state): string => $state->label())
@@ -126,20 +133,20 @@ class SerializationQueue extends Page implements HasTable
                     ->icon(fn (InboundBatchStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('ownership_type')
+                TextColumn::make('ownership_type')
                     ->label('Ownership')
                     ->badge()
                     ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
                     ->color(fn (OwnershipType $state): string => $state->color())
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('received_date')
+                TextColumn::make('received_date')
                     ->label('Received')
                     ->date()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('receiving_location_id')
+                SelectFilter::make('receiving_location_id')
                     ->label('Location')
                     ->options(function (): array {
                         // Only show locations that are authorized for serialization
@@ -152,11 +159,11 @@ class SerializationQueue extends Page implements HasTable
                     })
                     ->searchable(),
 
-                Tables\Filters\Filter::make('received_date_range')
-                    ->form([
-                        Forms\Components\DatePicker::make('received_from')
+                Filter::make('received_date_range')
+                    ->schema([
+                        DatePicker::make('received_from')
                             ->label('Received From'),
-                        Forms\Components\DatePicker::make('received_until')
+                        DatePicker::make('received_until')
                             ->label('Received Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -174,17 +181,17 @@ class SerializationQueue extends Page implements HasTable
                         $indicators = [];
 
                         if ($data['received_from'] ?? null) {
-                            $indicators['received_from'] = 'From '.\Carbon\Carbon::parse($data['received_from'])->toFormattedDateString();
+                            $indicators['received_from'] = 'From '.Carbon::parse($data['received_from'])->toFormattedDateString();
                         }
 
                         if ($data['received_until'] ?? null) {
-                            $indicators['received_until'] = 'Until '.\Carbon\Carbon::parse($data['received_until'])->toFormattedDateString();
+                            $indicators['received_until'] = 'Until '.Carbon::parse($data['received_until'])->toFormattedDateString();
                         }
 
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('serialization_status')
+                SelectFilter::make('serialization_status')
                     ->label('Serialization Status')
                     ->options([
                         InboundBatchStatus::PendingSerialization->value => InboundBatchStatus::PendingSerialization->label(),
@@ -192,8 +199,8 @@ class SerializationQueue extends Page implements HasTable
                     ])
                     ->default(null),
             ])
-            ->actions([
-                Tables\Actions\Action::make('startSerialization')
+            ->recordActions([
+                Action::make('startSerialization')
                     ->label('Serialize')
                     ->icon('heroicon-o-qr-code')
                     ->color('success')
@@ -206,8 +213,8 @@ class SerializationQueue extends Page implements HasTable
 
                         return "You are about to serialize bottles from this inbound batch. {$remaining} bottles are available for serialization.";
                     })
-                    ->form([
-                        Forms\Components\TextInput::make('quantity')
+                    ->schema([
+                        TextInput::make('quantity')
                             ->label('Quantity to Serialize')
                             ->helperText(fn (InboundBatch $record): string => "Maximum: {$record->remaining_unserialized} bottles")
                             ->required()
@@ -238,7 +245,7 @@ class SerializationQueue extends Page implements HasTable
                                 ->body("{$bottles->count()} bottles have been serialized successfully.")
                                 ->success()
                                 ->send();
-                        } catch (\InvalidArgumentException $e) {
+                        } catch (InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Serialization Failed')
                                 ->body($e->getMessage())
@@ -247,13 +254,13 @@ class SerializationQueue extends Page implements HasTable
                         }
                     }),
 
-                Tables\Actions\Action::make('viewDetails')
+                Action::make('viewDetails')
                     ->label('View')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (InboundBatch $record): string => InboundBatchResource::getUrl('view', ['record' => $record])),
             ])
-            ->bulkActions([])
+            ->toolbarActions([])
             ->defaultSort('received_date', 'desc')
             ->emptyStateHeading('No batches in queue')
             ->emptyStateDescription('All batches have been fully serialized or no batches exist at authorized locations.')
@@ -305,7 +312,7 @@ class SerializationQueue extends Page implements HasTable
 
         // Calculate total bottles remaining
         // We need to compute remaining_unserialized for each batch
-        /** @var \Illuminate\Database\Eloquent\Collection<int, InboundBatch> $batches */
+        /** @var Collection<int, InboundBatch> $batches */
         $batches = (clone $baseQuery)->get();
         $totalBottlesRemaining = 0;
         foreach ($batches as $batch) {

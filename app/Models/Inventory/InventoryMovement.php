@@ -6,6 +6,7 @@ use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
 use App\Models\User;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,7 +41,7 @@ use InvalidArgumentException;
  * @property bool $custody_changed
  * @property string|null $reason
  * @property string|null $wms_event_id
- * @property \Carbon\Carbon $executed_at
+ * @property Carbon $executed_at
  * @property int|null $executed_by
  */
 class InventoryMovement extends Model

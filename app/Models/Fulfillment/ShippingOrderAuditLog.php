@@ -4,9 +4,11 @@ namespace App\Models\Fulfillment;
 
 use App\Models\User;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use InvalidArgumentException;
 
 /**
  * ShippingOrderAuditLog Model
@@ -23,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array<string, mixed>|null $old_values
  * @property array<string, mixed>|null $new_values
  * @property int|null $user_id
- * @property \Carbon\Carbon $created_at
+ * @property Carbon $created_at
  */
 class ShippingOrderAuditLog extends Model
 {
@@ -82,14 +84,14 @@ class ShippingOrderAuditLog extends Model
 
         // Prevent updates - audit logs are immutable
         static::updating(function (): void {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Audit logs are immutable and cannot be updated.'
             );
         });
 
         // Prevent deletes - audit logs are immutable
         static::deleting(function (): void {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Audit logs are immutable and cannot be deleted.'
             );
         });

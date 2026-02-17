@@ -10,10 +10,11 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class TopCustomersByRevenueTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get top customers ranked by revenue for a given period.';
     }
@@ -36,7 +37,7 @@ class TopCustomersByRevenueTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         [$from, $to] = $this->parsePeriod($request['period'] ?? 'this_month');
         $limit = (int) ($request['limit'] ?? 10);

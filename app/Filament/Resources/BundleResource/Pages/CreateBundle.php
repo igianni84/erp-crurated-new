@@ -8,18 +8,26 @@ use App\Filament\Resources\BundleResource;
 use App\Models\Commercial\Bundle;
 use App\Models\Commercial\BundleComponent;
 use App\Models\Pim\SellableSku;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class CreateBundle extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = BundleResource::class;
 
@@ -28,10 +36,10 @@ class CreateBundle extends CreateRecord
      */
     public bool $activateAfterCreate = false;
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Wizard::make($this->getSteps())
                     ->submitAction(new HtmlString(
                         '<div class="flex gap-2">'.
@@ -50,7 +58,7 @@ class CreateBundle extends CreateRecord
     }
 
     /**
-     * @return array<int, Wizard\Step>
+     * @return array<int, \Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -65,21 +73,21 @@ class CreateBundle extends CreateRecord
     /**
      * Step 1: Bundle Information
      */
-    protected function getBundleInfoStep(): Wizard\Step
+    protected function getBundleInfoStep(): Step
     {
-        return Wizard\Step::make('Bundle Information')
+        return Step::make('Bundle Information')
             ->icon('heroicon-o-gift')
             ->description('Define basic bundle details')
             ->schema([
-                Forms\Components\Section::make('Bundle Identity')
+                Section::make('Bundle Identity')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->label('Bundle Name')
                             ->required()
                             ->maxLength(255)
                             ->placeholder('e.g., Premium Wine Collection, Holiday Gift Set')
                             ->helperText('A descriptive name for this bundle'),
-                        Forms\Components\TextInput::make('bundle_sku')
+                        TextInput::make('bundle_sku')
                             ->label('Bundle SKU')
                             ->maxLength(255)
                             ->unique(ignoreRecord: true)
@@ -88,7 +96,7 @@ class CreateBundle extends CreateRecord
                     ])
                     ->columns(2),
 
-                Forms\Components\Placeholder::make('bundle_info')
+                Placeholder::make('bundle_info')
                     ->content(new HtmlString(
                         '<div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">'.
                         '<div class="flex items-start gap-3">'.
@@ -113,13 +121,13 @@ class CreateBundle extends CreateRecord
     /**
      * Step 2: Components Selection
      */
-    protected function getComponentsStep(): Wizard\Step
+    protected function getComponentsStep(): Step
     {
-        return Wizard\Step::make('Components')
+        return Step::make('Components')
             ->icon('heroicon-o-cube')
             ->description('Select SKUs to include in the bundle')
             ->schema([
-                Forms\Components\Placeholder::make('components_info')
+                Placeholder::make('components_info')
                     ->content(new HtmlString(
                         '<div class="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-700 mb-4">'.
                         '<div class="flex items-start gap-3">'.
@@ -140,10 +148,10 @@ class CreateBundle extends CreateRecord
                         '</div>'
                     )),
 
-                Forms\Components\Repeater::make('bundle_components')
+                Repeater::make('bundle_components')
                     ->label('Bundle Components')
                     ->schema([
-                        Forms\Components\Select::make('sellable_sku_id')
+                        Select::make('sellable_sku_id')
                             ->label('Sellable SKU')
                             ->required()
                             ->searchable()
@@ -173,7 +181,7 @@ class CreateBundle extends CreateRecord
                                     ->toArray();
                             })
                             ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set): void {
+                            ->afterStateUpdated(function ($state, Set $set): void {
                                 if ($state === null) {
                                     $set('sku_preview', null);
 
@@ -198,7 +206,7 @@ class CreateBundle extends CreateRecord
                                 }
                             })
                             ->columnSpan(2),
-                        Forms\Components\TextInput::make('quantity')
+                        TextInput::make('quantity')
                             ->label('Qty')
                             ->numeric()
                             ->required()
@@ -207,7 +215,7 @@ class CreateBundle extends CreateRecord
                             ->maxValue(100)
                             ->step(1)
                             ->columnSpan(1),
-                        Forms\Components\Placeholder::make('sku_preview')
+                        Placeholder::make('sku_preview')
                             ->label('SKU Details')
                             ->content(function (Get $get): string {
                                 $preview = $get('sku_preview');
@@ -234,7 +242,7 @@ class CreateBundle extends CreateRecord
                     ->addActionLabel('Add Component')
                     ->helperText('Add at least one component to the bundle'),
 
-                Forms\Components\Placeholder::make('components_summary')
+                Placeholder::make('components_summary')
                     ->label('Components Summary')
                     ->content(function (Get $get): HtmlString {
                         $components = $get('bundle_components') ?? [];
@@ -278,15 +286,15 @@ class CreateBundle extends CreateRecord
     /**
      * Step 3: Pricing Configuration
      */
-    protected function getPricingStep(): Wizard\Step
+    protected function getPricingStep(): Step
     {
-        return Wizard\Step::make('Pricing')
+        return Step::make('Pricing')
             ->icon('heroicon-o-currency-euro')
             ->description('Define bundle pricing strategy')
             ->schema([
-                Forms\Components\Section::make('Pricing Logic')
+                Section::make('Pricing Logic')
                     ->schema([
-                        Forms\Components\Radio::make('pricing_logic')
+                        Radio::make('pricing_logic')
                             ->label('Pricing Strategy')
                             ->options([
                                 BundlePricingLogic::SumComponents->value => BundlePricingLogic::SumComponents->label(),
@@ -304,9 +312,9 @@ class CreateBundle extends CreateRecord
                             ->columns(1),
                     ]),
 
-                Forms\Components\Section::make('Pricing Configuration')
+                Section::make('Pricing Configuration')
                     ->schema([
-                        Forms\Components\TextInput::make('fixed_price')
+                        TextInput::make('fixed_price')
                             ->label('Fixed Price')
                             ->numeric()
                             ->prefix('€')
@@ -316,7 +324,7 @@ class CreateBundle extends CreateRecord
                             ->visible(fn (Get $get): bool => $get('pricing_logic') === BundlePricingLogic::FixedPrice->value)
                             ->required(fn (Get $get): bool => $get('pricing_logic') === BundlePricingLogic::FixedPrice->value)
                             ->helperText('The fixed selling price for this bundle'),
-                        Forms\Components\TextInput::make('percentage_off')
+                        TextInput::make('percentage_off')
                             ->label('Percentage Off')
                             ->numeric()
                             ->suffix('%')
@@ -333,7 +341,7 @@ class CreateBundle extends CreateRecord
                         BundlePricingLogic::PercentageOffSum->value,
                     ])),
 
-                Forms\Components\Placeholder::make('pricing_preview')
+                Placeholder::make('pricing_preview')
                     ->label('Pricing Preview')
                     ->content(function (Get $get): HtmlString {
                         $pricingLogic = $get('pricing_logic');
@@ -407,13 +415,13 @@ class CreateBundle extends CreateRecord
     /**
      * Step 4: Review & Create
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->icon('heroicon-o-clipboard-document-check')
             ->description('Review and create the bundle')
             ->schema([
-                Forms\Components\Placeholder::make('review_header')
+                Placeholder::make('review_header')
                     ->content(new HtmlString(
                         '<div class="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg border border-green-200 dark:border-green-700 mb-4">'.
                         '<div class="flex items-center gap-3">'.
@@ -430,9 +438,9 @@ class CreateBundle extends CreateRecord
                         '</div>'
                     )),
 
-                Forms\Components\Section::make('Bundle Summary')
+                Section::make('Bundle Summary')
                     ->schema([
-                        Forms\Components\Placeholder::make('bundle_summary')
+                        Placeholder::make('bundle_summary')
                             ->content(function (Get $get): HtmlString {
                                 $name = $get('name') ?? 'Unnamed Bundle';
                                 $bundleSku = $get('bundle_sku') ?: '[Auto-generated]';
@@ -454,9 +462,9 @@ class CreateBundle extends CreateRecord
                     ])
                     ->collapsible(),
 
-                Forms\Components\Section::make('Components')
+                Section::make('Components')
                     ->schema([
-                        Forms\Components\Placeholder::make('components_review')
+                        Placeholder::make('components_review')
                             ->content(function (Get $get): HtmlString {
                                 /** @var array<int, mixed> $components */
                                 $components = $get('bundle_components') ?? [];
@@ -526,9 +534,9 @@ class CreateBundle extends CreateRecord
                     ])
                     ->collapsible(),
 
-                Forms\Components\Section::make('Pricing')
+                Section::make('Pricing')
                     ->schema([
-                        Forms\Components\Placeholder::make('pricing_review')
+                        Placeholder::make('pricing_review')
                             ->content(function (Get $get): HtmlString {
                                 $pricingLogic = $get('pricing_logic');
                                 $logic = BundlePricingLogic::tryFrom($pricingLogic ?? '');
@@ -566,9 +574,9 @@ class CreateBundle extends CreateRecord
                     ])
                     ->collapsible(),
 
-                Forms\Components\Section::make('Status & Next Steps')
+                Section::make('Status & Next Steps')
                     ->schema([
-                        Forms\Components\Placeholder::make('status_info')
+                        Placeholder::make('status_info')
                             ->content(new HtmlString(
                                 '<div class="space-y-3">'.
                                 '<div class="flex items-center gap-2">'.

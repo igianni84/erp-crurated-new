@@ -5,10 +5,13 @@ namespace App\Filament\Resources\Procurement\ProcurementIntentResource\Pages;
 use App\Filament\Resources\Procurement\ProcurementIntentResource;
 use App\Models\Procurement\ProcurementIntent;
 use Filament\Actions;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\Page;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,11 +31,11 @@ class AggregatedProcurementIntents extends Page implements HasTable
 
     protected static string $resource = ProcurementIntentResource::class;
 
-    protected static string $view = 'filament.resources.procurement.procurement-intent-resource.pages.aggregated-procurement-intents';
+    protected string $view = 'filament.resources.procurement.procurement-intent-resource.pages.aggregated-procurement-intents';
 
     protected static ?string $title = 'Procurement Intents - Aggregated by Product';
 
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
 
     /**
      * Get the header actions for this page.
@@ -42,12 +45,12 @@ class AggregatedProcurementIntents extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
-            Actions\Action::make('back_to_list')
+            Action::make('back_to_list')
                 ->label('Back to Standard List')
                 ->icon('heroicon-o-list-bullet')
                 ->color('gray')
                 ->url(fn (): string => static::getResource()::getUrl('index')),
-            Actions\Action::make('create')
+            Action::make('create')
                 ->label('Create Intent')
                 ->icon('heroicon-o-plus')
                 ->url(fn (): string => static::getResource()::getUrl('create')),
@@ -62,7 +65,7 @@ class AggregatedProcurementIntents extends Page implements HasTable
         return $table
             ->query($this->getAggregatedQuery())
             ->columns([
-                Tables\Columns\TextColumn::make('product_label')
+                TextColumn::make('product_label')
                     ->label('Product')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         // Search is handled at the aggregate level
@@ -71,64 +74,64 @@ class AggregatedProcurementIntents extends Page implements HasTable
                     ->wrap()
                     ->weight('bold'),
 
-                Tables\Columns\TextColumn::make('total_quantity')
+                TextColumn::make('total_quantity')
                     ->label('Total Quantity')
                     ->numeric()
                     ->sortable()
                     ->badge()
                     ->color('primary'),
 
-                Tables\Columns\TextColumn::make('intents_count')
+                TextColumn::make('intents_count')
                     ->label('Intents')
                     ->numeric()
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\TextColumn::make('draft_count')
+                TextColumn::make('draft_count')
                     ->label('Draft')
                     ->numeric()
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'warning' : 'gray'),
 
-                Tables\Columns\TextColumn::make('approved_count')
+                TextColumn::make('approved_count')
                     ->label('Approved')
                     ->numeric()
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'success' : 'gray'),
 
-                Tables\Columns\TextColumn::make('executed_count')
+                TextColumn::make('executed_count')
                     ->label('Executed')
                     ->numeric()
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'info' : 'gray'),
 
-                Tables\Columns\TextColumn::make('closed_count')
+                TextColumn::make('closed_count')
                     ->label('Closed')
                     ->numeric()
                     ->badge()
                     ->color('gray'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('product_reference_type')
+                SelectFilter::make('product_reference_type')
                     ->label('Product Type')
                     ->options([
                         'sellable_skus' => 'Bottle SKU',
                         'liquid_products' => 'Liquid Product',
                     ]),
 
-                Tables\Filters\Filter::make('has_draft')
+                Filter::make('has_draft')
                     ->label('Has Draft Intents')
                     ->query(fn (Builder $query): Builder => $query->having('draft_count', '>', 0))
                     ->toggle(),
 
-                Tables\Filters\Filter::make('high_volume')
+                Filter::make('high_volume')
                     ->label('High Volume (>100)')
                     ->query(fn (Builder $query): Builder => $query->having('total_quantity', '>', 100))
                     ->toggle(),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_intents')
+            ->recordActions([
+                Action::make('view_intents')
                     ->label('View Intents')
                     ->icon('heroicon-o-eye')
                     ->modalHeading(fn (Model $record): string => 'Intents for: '.$this->getRecordAttribute($record, 'product_label'))

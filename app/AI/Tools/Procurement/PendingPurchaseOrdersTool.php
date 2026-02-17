@@ -9,12 +9,15 @@ use App\Models\Procurement\PurchaseOrder;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class PendingPurchaseOrdersTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
-        return 'Get the list of open (non-closed) purchase orders for procurement monitoring.';
+        return 'Get the list of open (non-closed) purchase orders for procurement monitoring. '
+            .'PO statuses: Draft = not yet sent; Sent = communicated TO the supplier (awaiting confirmation); '
+            .'Confirmed = supplier confirmed the order.';
     }
 
     public function schema(JsonSchema $schema): array
@@ -31,7 +34,7 @@ class PendingPurchaseOrdersTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $limit = (int) ($request['limit'] ?? 20);
 
@@ -63,6 +66,7 @@ class PendingPurchaseOrdersTool extends BaseTool implements Tool
                 'unit_cost' => $this->formatCurrency((string) $order->unit_cost, $order->currency ?? 'EUR'),
                 'currency' => $order->currency,
                 'expected_delivery_start' => $order->expected_delivery_start !== null ? $this->formatDate($order->expected_delivery_start) : null,
+                'destination_warehouse' => $order->destination_warehouse ?? 'Not specified',
             ];
         }
 

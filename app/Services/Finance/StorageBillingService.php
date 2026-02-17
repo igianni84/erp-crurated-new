@@ -17,6 +17,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Service for storage billing operations.
@@ -548,7 +549,7 @@ class StorageBillingService
                     'bottle_days' => $usageData['bottle_days'],
                     'calculated_amount' => $usageData['calculated_amount'],
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to generate storage billing period', [
                     'customer_id' => $customerId,
                     'error' => $e->getMessage(),
@@ -582,7 +583,7 @@ class StorageBillingService
                 if ($invoice !== null) {
                     $invoices->push($invoice);
                 }
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to generate invoice for storage billing period', [
                     'period_id' => $period->id,
                     'error' => $e->getMessage(),

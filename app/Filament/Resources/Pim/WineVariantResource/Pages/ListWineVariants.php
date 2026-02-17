@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Pim\WineVariantResource\Pages;
 
 use App\Filament\Resources\Pim\WineVariantResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListWineVariants extends ListRecords
@@ -13,7 +13,7 @@ class ListWineVariants extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 }

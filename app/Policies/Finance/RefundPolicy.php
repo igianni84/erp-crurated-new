@@ -2,6 +2,7 @@
 
 namespace App\Policies\Finance;
 
+use App\Enums\Finance\RefundStatus;
 use App\Models\Finance\Refund;
 use App\Models\User;
 
@@ -42,7 +43,7 @@ class RefundPolicy
     public function update(User $user, Refund $refund): bool
     {
         // Only pending refunds can be updated
-        return $refund->status === \App\Enums\Finance\RefundStatus::Pending;
+        return $refund->status === RefundStatus::Pending;
     }
 
     /**

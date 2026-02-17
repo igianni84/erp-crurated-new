@@ -9,9 +9,13 @@ use App\Models\Finance\Payment;
 use App\Models\Finance\StripeWebhook;
 use App\Services\Finance\PaymentService;
 use App\Services\Finance\RefundService;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
 
 /**
  * Job to process Stripe webhook events asynchronously.
@@ -79,7 +83,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
                 'event_id' => $this->stripeWebhook->event_id,
                 'event_type' => $this->stripeWebhook->event_type,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Mark as failed with error message
             $this->stripeWebhook->markFailed($e->getMessage());
 
@@ -128,7 +132,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
         ]);
 
         if ($paymentIntentId === null) {
-            throw new \RuntimeException('Payment intent ID not found in webhook payload');
+            throw new RuntimeException('Payment intent ID not found in webhook payload');
         }
 
         // Extract payment intent data from payload
@@ -160,7 +164,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
         ]);
 
         if ($paymentIntentId === null) {
-            throw new \RuntimeException('Payment intent ID not found in webhook payload');
+            throw new RuntimeException('Payment intent ID not found in webhook payload');
         }
 
         // Check if payment already exists
@@ -231,7 +235,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
         ]);
 
         if ($chargeId === null) {
-            throw new \RuntimeException('Charge ID not found in webhook payload');
+            throw new RuntimeException('Charge ID not found in webhook payload');
         }
 
         // Find the payment by charge ID
@@ -308,7 +312,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
                     'stripe_refund_id' => $stripeRefundId,
                     'amount' => $refund->amount,
                 ]);
-            } catch (\InvalidArgumentException $e) {
+            } catch (InvalidArgumentException $e) {
                 // Log but don't fail - payment may not be applied to invoice yet
                 Log::channel('finance')->warning('Could not create refund record', [
                     'webhook_id' => $this->stripeWebhook->id,
@@ -340,7 +344,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
         ]);
 
         if ($chargeId === null) {
-            throw new \RuntimeException('Charge ID not found in dispute webhook payload');
+            throw new RuntimeException('Charge ID not found in dispute webhook payload');
         }
 
         // Find the payment by charge ID
@@ -468,7 +472,7 @@ class ProcessStripeWebhookJob implements ShouldQueue
     /**
      * Handle a job failure after all retries are exhausted.
      */
-    public function failed(?\Throwable $exception): void
+    public function failed(?Throwable $exception): void
     {
         Log::channel('finance')->error('Stripe webhook job failed permanently', [
             'webhook_id' => $this->stripeWebhook->id,

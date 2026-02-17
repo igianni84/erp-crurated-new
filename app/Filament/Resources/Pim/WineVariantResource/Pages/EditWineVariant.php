@@ -9,7 +9,10 @@ use App\Models\Pim\AttributeSet;
 use App\Models\Pim\AttributeValue;
 use App\Models\Pim\ProductMedia;
 use App\Models\Pim\WineVariant;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Storage;
@@ -289,8 +292,8 @@ class EditWineVariant extends EditRecord
         $record = $this->record;
 
         return [
-            Actions\ActionGroup::make([
-                Actions\Action::make('submit_for_review')
+            ActionGroup::make([
+                Action::make('submit_for_review')
                     ->label('Submit for Review')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
@@ -305,7 +308,7 @@ class EditWineVariant extends EditRecord
                             ->success()
                             ->send();
                     }),
-                Actions\Action::make('approve')
+                Action::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check')
                     ->color('info')
@@ -320,7 +323,7 @@ class EditWineVariant extends EditRecord
                             ->success()
                             ->send();
                     }),
-                Actions\Action::make('reject')
+                Action::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
@@ -335,7 +338,7 @@ class EditWineVariant extends EditRecord
                             ->warning()
                             ->send();
                     }),
-                Actions\Action::make('publish')
+                Action::make('publish')
                     ->label('Publish')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -362,7 +365,7 @@ class EditWineVariant extends EditRecord
                             ->success()
                             ->send();
                     }),
-                Actions\Action::make('archive')
+                Action::make('archive')
                     ->label('Archive')
                     ->icon('heroicon-o-archive-box')
                     ->color('danger')
@@ -380,8 +383,8 @@ class EditWineVariant extends EditRecord
             ])->label('Lifecycle')
                 ->icon('heroicon-o-arrow-path')
                 ->button(),
-            Actions\DeleteAction::make(),
-            Actions\RestoreAction::make(),
+            DeleteAction::make(),
+            RestoreAction::make(),
         ];
     }
 }

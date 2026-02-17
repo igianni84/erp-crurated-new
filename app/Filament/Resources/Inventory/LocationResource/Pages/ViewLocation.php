@@ -15,17 +15,18 @@ use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
-use Filament\Actions;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
+use Filament\Actions\EditAction;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 
 class ViewLocation extends ViewRecord
@@ -40,9 +41,9 @@ class ViewLocation extends ViewRecord
         return "Location: {$record->name}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getSerializationWarningSection(),
                 Tabs::make('Location Details')
@@ -71,7 +72,7 @@ class ViewLocation extends ViewRecord
                     ->iconColor('danger')
                     ->weight(FontWeight::Bold)
                     ->color('danger')
-                    ->size(TextEntry\TextEntrySize::Large),
+                    ->size(TextSize::Large),
             ])
             ->visible(fn (Location $record): bool => ! $record->serialization_authorized)
             ->extraAttributes(['class' => 'bg-danger-50 dark:bg-danger-900/20 border-danger-200 dark:border-danger-800'])
@@ -146,14 +147,14 @@ class ViewLocation extends ViewRecord
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('success'),
                                 TextEntry::make('total_cases')
                                     ->label('Cases')
                                     ->getStateUsing(fn (Location $record): int => $record->cases()->count())
                                     ->numeric()
                                     ->suffix(' cases')
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('info'),
                                 TextEntry::make('unserialized_inbound')
                                     ->label('Unserialized (Inbound)')
@@ -168,7 +169,7 @@ class ViewLocation extends ViewRecord
                                     })
                                     ->numeric()
                                     ->suffix(' bottles')
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('warning'),
                                 TextEntry::make('pending_batches')
                                     ->label('Batches Pending')
@@ -582,7 +583,7 @@ class ViewLocation extends ViewRecord
                                     ->getStateUsing(fn (Location $record): string => $record->hasWmsLink() ? 'Connected' : 'Not Connected')
                                     ->color(fn (Location $record): string => $record->hasWmsLink() ? 'success' : 'gray')
                                     ->icon(fn (Location $record): string => $record->hasWmsLink() ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('linked_wms_id')
                                     ->label('WMS ID')
                                     ->default('Not linked')
@@ -663,7 +664,7 @@ class ViewLocation extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
         ];
     }
 }

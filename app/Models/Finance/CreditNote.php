@@ -9,12 +9,15 @@ use App\Models\Customer\Customer;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * CreditNote Model
@@ -31,16 +34,16 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $currency
  * @property string $reason
  * @property CreditNoteStatus $status
- * @property \Carbon\Carbon|null $issued_at
- * @property \Carbon\Carbon|null $applied_at
+ * @property Carbon|null $issued_at
+ * @property Carbon|null $applied_at
  * @property int|null $issued_by
  * @property string|null $xero_credit_note_id
- * @property \Carbon\Carbon|null $xero_synced_at
+ * @property Carbon|null $xero_synced_at
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class CreditNote extends Model
 {
@@ -116,7 +119,7 @@ class CreditNote extends Model
         // Enforce immutability of original_invoice_type
         static::updating(function (CreditNote $creditNote): void {
             if ($creditNote->isDirty('original_invoice_type')) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'original_invoice_type cannot be modified once set. Credit notes preserve the original invoice type.'
                 );
             }
@@ -293,14 +296,13 @@ class CreditNote extends Model
     // =========================================================================
     // Query Scopes for Reporting
     // =========================================================================
-
     /**
      * Scope to filter by original invoice type.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CreditNote>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CreditNote>
+     * @param  Builder<CreditNote>  $query
+     * @return Builder<CreditNote>
      */
-    public function scopeOfOriginalInvoiceType(\Illuminate\Database\Eloquent\Builder $query, InvoiceType|string $type): \Illuminate\Database\Eloquent\Builder
+    public function scopeOfOriginalInvoiceType(Builder $query, InvoiceType|string $type): Builder
     {
         $value = $type instanceof InvoiceType ? $type->value : $type;
 
@@ -310,10 +312,10 @@ class CreditNote extends Model
     /**
      * Scope to filter by original invoice type code (INV0-INV4).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<CreditNote>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<CreditNote>
+     * @param  Builder<CreditNote>  $query
+     * @return Builder<CreditNote>
      */
-    public function scopeOfOriginalInvoiceTypeCode(\Illuminate\Database\Eloquent\Builder $query, string $code): \Illuminate\Database\Eloquent\Builder
+    public function scopeOfOriginalInvoiceTypeCode(Builder $query, string $code): Builder
     {
         $type = collect(InvoiceType::cases())->first(fn (InvoiceType $t) => $t->code() === $code);
 

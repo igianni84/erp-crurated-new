@@ -5,9 +5,13 @@ namespace App\Models\Commercial;
 use App\Enums\Commercial\OfferStatus;
 use App\Enums\Commercial\OfferType;
 use App\Enums\Commercial\OfferVisibility;
+use App\Models\Allocation\AllocationConstraint;
+use App\Models\AuditLog;
 use App\Models\Pim\SellableSku;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -40,8 +44,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $price_book_id
  * @property OfferType $offer_type
  * @property OfferVisibility $visibility
- * @property \Carbon\Carbon $valid_from
- * @property \Carbon\Carbon|null $valid_to
+ * @property Carbon $valid_from
+ * @property Carbon|null $valid_to
  * @property OfferStatus $status
  * @property string|null $campaign_tag
  */
@@ -146,11 +150,11 @@ class Offer extends Model
     /**
      * Get the audit logs for this offer.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     // =========================================================================
@@ -478,7 +482,7 @@ class Offer extends Model
             return [];
         }
 
-        $allocationConstraint = \App\Models\Allocation\AllocationConstraint::find($constraintId);
+        $allocationConstraint = AllocationConstraint::find($constraintId);
         if ($allocationConstraint === null) {
             $errors['allocation_constraint'] = 'Referenced allocation constraint not found';
 
@@ -566,12 +570,11 @@ class Offer extends Model
     // =========================================================================
     // Scopes
     // =========================================================================
-
     /**
      * Scope a query to only include active offers for a specific SKU and channel.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Offer>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Offer>
+     * @param  Builder<Offer>  $query
+     * @return Builder<Offer>
      */
     public function scopeActiveForContext($query, string $sellableSkuId, string $channelId)
     {
@@ -589,8 +592,8 @@ class Offer extends Model
     /**
      * Scope a query to only include offers expiring soon (within N days).
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Offer>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Offer>
+     * @param  Builder<Offer>  $query
+     * @return Builder<Offer>
      */
     public function scopeExpiringSoon($query, int $days = 7)
     {
@@ -603,8 +606,8 @@ class Offer extends Model
     /**
      * Scope a query to only include offers by campaign tag.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Offer>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Offer>
+     * @param  Builder<Offer>  $query
+     * @return Builder<Offer>
      */
     public function scopeByCampaign($query, string $campaignTag)
     {

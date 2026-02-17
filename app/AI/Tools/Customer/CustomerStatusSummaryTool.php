@@ -11,10 +11,11 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class CustomerStatusSummaryTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get a summary of customers by status and type.';
     }
@@ -29,7 +30,7 @@ class CustomerStatusSummaryTool extends BaseTool implements Tool
         return ToolAccessLevel::Overview;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $total = Customer::count();
 

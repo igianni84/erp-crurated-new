@@ -4,10 +4,14 @@ namespace App\Models\Customer;
 
 use App\Enums\Customer\AccountStatus;
 use App\Enums\Customer\AccountUserRole;
+use App\Enums\Customer\BlockStatus;
+use App\Enums\Customer\BlockType;
 use App\Enums\Customer\ChannelScope;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -29,9 +33,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property AccountStatus $status
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Account extends Model
 {
@@ -84,11 +88,11 @@ class Account extends Model
     /**
      * Get the audit logs for this account.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -181,7 +185,7 @@ class Account extends Model
     public function activeOperationalBlocks(): MorphMany
     {
         return $this->morphMany(OperationalBlock::class, 'blockable')
-            ->where('status', \App\Enums\Customer\BlockStatus::Active);
+            ->where('status', BlockStatus::Active);
     }
 
     /**
@@ -195,7 +199,7 @@ class Account extends Model
     /**
      * Check if the account has an active block of a specific type.
      */
-    public function hasActiveBlockOfType(\App\Enums\Customer\BlockType $type): bool
+    public function hasActiveBlockOfType(BlockType $type): bool
     {
         return $this->activeOperationalBlocks()
             ->where('block_type', $type)
@@ -209,8 +213,8 @@ class Account extends Model
     {
         return $this->activeOperationalBlocks()
             ->whereIn('block_type', [
-                \App\Enums\Customer\BlockType::Payment,
-                \App\Enums\Customer\BlockType::Compliance,
+                BlockType::Payment,
+                BlockType::Compliance,
             ])
             ->exists();
     }
@@ -251,8 +255,8 @@ class Account extends Model
      */
     public function hasPaymentOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Payment)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+        return $this->hasActiveBlockOfType(BlockType::Payment)
+            || $this->hasActiveBlockOfType(BlockType::Compliance)
             || $this->customer->hasPaymentOperationBlocked();
     }
 
@@ -262,8 +266,8 @@ class Account extends Model
      */
     public function hasShipmentOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Shipment)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+        return $this->hasActiveBlockOfType(BlockType::Shipment)
+            || $this->hasActiveBlockOfType(BlockType::Compliance)
             || $this->customer->hasShipmentOperationBlocked();
     }
 
@@ -273,8 +277,8 @@ class Account extends Model
      */
     public function hasRedemptionOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Redemption)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+        return $this->hasActiveBlockOfType(BlockType::Redemption)
+            || $this->hasActiveBlockOfType(BlockType::Compliance)
             || $this->customer->hasRedemptionOperationBlocked();
     }
 
@@ -284,8 +288,8 @@ class Account extends Model
      */
     public function hasTradingOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Trading)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance)
+        return $this->hasActiveBlockOfType(BlockType::Trading)
+            || $this->hasActiveBlockOfType(BlockType::Compliance)
             || $this->customer->hasTradingOperationBlocked();
     }
 

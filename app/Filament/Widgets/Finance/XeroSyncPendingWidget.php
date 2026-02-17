@@ -4,8 +4,12 @@ namespace App\Filament\Widgets\Finance;
 
 use App\Models\Finance\Invoice;
 use App\Services\Finance\XeroIntegrationService;
+use Exception;
+use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
 use Filament\Notifications\Notification;
-use Filament\Tables;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 
@@ -53,33 +57,33 @@ class XeroSyncPendingWidget extends BaseWidget
                     ->orderBy('issued_at', 'asc')
             )
             ->columns([
-                Tables\Columns\TextColumn::make('invoice_number')
+                TextColumn::make('invoice_number')
                     ->label('Invoice #')
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('invoice_type')
+                TextColumn::make('invoice_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn ($state) => $state?->code())
                     ->color(fn ($state) => $state?->color()),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable()
                     ->limit(30),
 
-                Tables\Columns\TextColumn::make('total_amount')
+                TextColumn::make('total_amount')
                     ->label('Amount')
                     ->money(fn ($record) => $record->currency)
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('issued_at')
+                TextColumn::make('issued_at')
                     ->label('Issued')
                     ->dateTime('M j, Y H:i')
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('xero_sync_status')
+                IconColumn::make('xero_sync_status')
                     ->label('Sync Status')
                     ->state(function (Invoice $record): string {
                         $status = $record->getXeroSyncStatusDisplay();
@@ -98,8 +102,8 @@ class XeroSyncPendingWidget extends BaseWidget
                     })
                     ->tooltip(fn (Invoice $record): string => $record->getXeroSyncStatusDisplay()['message']),
             ])
-            ->actions([
-                Tables\Actions\Action::make('retry_sync')
+            ->recordActions([
+                Action::make('retry_sync')
                     ->label('Retry Sync')
                     ->icon('heroicon-o-arrow-path')
                     ->color('primary')
@@ -124,7 +128,7 @@ class XeroSyncPendingWidget extends BaseWidget
                                     ->warning()
                                     ->send();
                             }
-                        } catch (\Exception $e) {
+                        } catch (Exception $e) {
                             Notification::make()
                                 ->title('Sync failed')
                                 ->body($e->getMessage())
@@ -133,14 +137,14 @@ class XeroSyncPendingWidget extends BaseWidget
                         }
                     }),
 
-                Tables\Actions\Action::make('view')
+                Action::make('view')
                     ->label('View')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (Invoice $record) => route('filament.admin.resources.finance.invoices.view', $record)),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('retry_all_syncs')
+            ->toolbarActions([
+                BulkAction::make('retry_all_syncs')
                     ->label('Retry Selected')
                     ->icon('heroicon-o-arrow-path')
                     ->color('primary')
@@ -160,7 +164,7 @@ class XeroSyncPendingWidget extends BaseWidget
                                 } else {
                                     $failCount++;
                                 }
-                            } catch (\Exception $e) {
+                            } catch (Exception $e) {
                                 $failCount++;
                             }
                         }
@@ -174,7 +178,7 @@ class XeroSyncPendingWidget extends BaseWidget
                     ->deselectRecordsAfterCompletion(),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('retry_all')
+                Action::make('retry_all')
                     ->label('Retry All Pending')
                     ->icon('heroicon-o-arrow-path')
                     ->color('primary')

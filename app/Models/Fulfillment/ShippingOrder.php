@@ -4,17 +4,20 @@ namespace App\Models\Fulfillment;
 
 use App\Enums\Fulfillment\PackagingPreference;
 use App\Enums\Fulfillment\ShippingOrderStatus;
+use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Models\Inventory\Location;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * ShippingOrder Model
@@ -39,11 +42,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $shipping_method
  * @property string|null $carrier
  * @property string|null $incoterms
- * @property \Carbon\Carbon|null $requested_ship_date
+ * @property Carbon|null $requested_ship_date
  * @property string|null $special_instructions
  * @property int|null $created_by
  * @property int|null $approved_by
- * @property \Carbon\Carbon|null $approved_at
+ * @property Carbon|null $approved_at
  * @property ShippingOrderStatus|null $previous_status
  */
 class ShippingOrder extends Model
@@ -129,7 +132,7 @@ class ShippingOrder extends Model
                 $newStatus = $order->status;
 
                 if (! $oldStatus->canTransitionTo($newStatus)) {
-                    throw new \InvalidArgumentException(
+                    throw new InvalidArgumentException(
                         "Invalid status transition from {$oldStatus->value} to {$newStatus->value}"
                     );
                 }
@@ -190,11 +193,11 @@ class ShippingOrder extends Model
     /**
      * Get the audit logs for this shipping order.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

@@ -10,19 +10,24 @@ use Carbon\Carbon;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class InboundScheduleTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
-        return 'Check expected inbound deliveries and incoming stock schedule.';
+        return 'Check expected inbound deliveries for goods NOT yet received. '
+            .'Returns only purchase orders where goods are still pending arrival '
+            .'(no inbound records yet). Includes destination warehouse. '
+            .'PO status meanings: Sent = PO communicated to supplier, awaiting confirmation; '
+            .'Confirmed = supplier confirmed the order, goods expected.';
     }
 
     public function schema(JsonSchema $schema): array
     {
         return [
             'days_ahead' => $schema->integer()->min(1)->max(90)->default(30),
-            'include_draft' => $schema->string()
+            'include_confirmed_with_inbounds' => $schema->string()
                 ->enum(['true', 'false'])
                 ->default('false'),
         ];
@@ -33,27 +38,30 @@ class InboundScheduleTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $daysAhead = (int) ($request['days_ahead'] ?? 30);
-        $includeDraft = ($request['include_draft'] ?? 'false') === 'true';
+        $includeAlreadyReceived = ($request['include_confirmed_with_inbounds'] ?? 'false') === 'true';
 
         $now = Carbon::now();
         $endDate = $now->copy()->addDays($daysAhead);
 
         $statuses = [PurchaseOrderStatus::Sent, PurchaseOrderStatus::Confirmed];
-        if ($includeDraft) {
-            $statuses[] = PurchaseOrderStatus::Draft;
-        }
 
-        $orders = PurchaseOrder::query()
+        $query = PurchaseOrder::query()
             ->whereIn('status', $statuses)
             ->whereNotNull('expected_delivery_start')
             ->whereBetween('expected_delivery_start', [$now->toDateString(), $endDate->toDateString()])
-            ->with(['supplier', 'procurementIntent'])
+            ->with(['supplier'])
             ->withCount('inbounds')
-            ->orderBy('expected_delivery_start', 'asc')
-            ->get();
+            ->orderBy('expected_delivery_start', 'asc');
+
+        // By default, exclude POs that already have inbound records (goods already received)
+        if (! $includeAlreadyReceived) {
+            $query->whereDoesntHave('inbounds');
+        }
+
+        $orders = $query->get();
 
         $orderList = [];
         foreach ($orders as $order) {
@@ -66,12 +74,29 @@ class InboundScheduleTool extends BaseTool implements Tool
                 'unit_cost' => $this->formatCurrency((string) $order->unit_cost, $order->currency ?? 'EUR'),
                 'currency' => $order->currency,
                 'status' => $order->status->label(),
-                'inbound_count' => (int) $order->getAttribute('inbounds_count'),
+                'destination_warehouse' => $order->destination_warehouse ?? 'Not specified',
+                'has_inbound' => ((int) $order->getAttribute('inbounds_count')) > 0,
             ];
         }
 
+        // Group summary by warehouse
+        $byWarehouse = [];
+        foreach ($orders as $order) {
+            $wh = $order->destination_warehouse ?? 'Not specified';
+            if (! isset($byWarehouse[$wh])) {
+                $byWarehouse[$wh] = ['count' => 0, 'total_bottles' => 0];
+            }
+            $byWarehouse[$wh]['count']++;
+            $byWarehouse[$wh]['total_bottles'] += $order->quantity;
+        }
+
         return (string) json_encode([
-            'total_expected' => $orders->count(),
+            'total_pending_arrival' => $orders->count(),
+            'total_bottles' => $orders->sum('quantity'),
+            'note' => 'Only shows POs where goods have NOT yet been received (no inbound records). '
+                .'Sent = PO sent TO the supplier (awaiting their confirmation). '
+                .'Confirmed = supplier confirmed, goods expected to arrive.',
+            'by_warehouse' => $byWarehouse,
             'purchase_orders' => $orderList,
         ]);
     }

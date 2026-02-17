@@ -7,17 +7,20 @@ use App\Enums\Commercial\DiscountRuleType;
 use App\Filament\Resources\DiscountRuleResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\DiscountRule;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Support\HtmlString;
 
 class ViewDiscountRule extends ViewRecord
@@ -45,9 +48,9 @@ class ViewDiscountRule extends ViewRecord
         $record = $this->getRecord();
 
         return [
-            Actions\EditAction::make()
+            EditAction::make()
                 ->visible(fn (): bool => $record->canBeEdited()),
-            Actions\Action::make('activate')
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -66,7 +69,7 @@ class ViewDiscountRule extends ViewRecord
 
                     $this->refreshFormData(['status']);
                 }),
-            Actions\Action::make('deactivate')
+            Action::make('deactivate')
                 ->label('Deactivate')
                 ->icon('heroicon-o-pause-circle')
                 ->color('warning')
@@ -87,9 +90,9 @@ class ViewDiscountRule extends ViewRecord
 
                     $this->refreshFormData(['status']);
                 }),
-            Actions\DeleteAction::make()
+            DeleteAction::make()
                 ->visible(fn (): bool => $record->canBeDeleted())
-                ->before(function (Actions\DeleteAction $action) use ($record): void {
+                ->before(function (DeleteAction $action) use ($record): void {
                     if ($record->isReferencedByAnyOffer()) {
                         Notification::make()
                             ->title('Cannot delete')
@@ -102,9 +105,9 @@ class ViewDiscountRule extends ViewRecord
         ];
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Discount Rule Details')
                     ->tabs([
@@ -133,7 +136,7 @@ class ViewDiscountRule extends ViewRecord
                                 TextEntry::make('name')
                                     ->label('Name')
                                     ->weight('bold')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('rule_type')
                                     ->label('Rule Type')
                                     ->badge()
@@ -204,7 +207,7 @@ class ViewDiscountRule extends ViewRecord
                             })
                             ->visible(fn (DiscountRule $record): bool => $record->isPercentage() || $record->isFixedAmount())
                             ->weight('bold')
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->color('success'),
 
                         // Tiered logic display
@@ -286,10 +289,10 @@ class ViewDiscountRule extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -312,7 +315,7 @@ class ViewDiscountRule extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')

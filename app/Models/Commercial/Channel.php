@@ -4,6 +4,7 @@ namespace App\Models\Commercial;
 
 use App\Enums\Commercial\ChannelStatus;
 use App\Enums\Commercial\ChannelType;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -70,11 +71,11 @@ class Channel extends Model
     /**
      * Get the audit logs for this channel.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

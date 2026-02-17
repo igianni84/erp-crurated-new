@@ -8,6 +8,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
@@ -21,19 +22,19 @@ class AiAuditViewer extends Page implements HasForms, HasTable
     use InteractsWithForms;
     use InteractsWithTable;
 
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-eye';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-eye';
 
     protected static ?string $navigationLabel = 'AI Audit Log';
 
-    protected static ?string $navigationGroup = 'System';
+    protected static string|\UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 100;
 
     protected static ?string $title = 'AI Audit Log';
 
-    protected static string $view = 'filament.pages.ai-audit-viewer';
+    protected string $view = 'filament.pages.ai-audit-viewer';
 
     public static function canAccess(): bool
     {
@@ -92,7 +93,7 @@ class AiAuditViewer extends Page implements HasForms, HasTable
                         ->pluck('name', 'id')
                         ->toArray()),
                 Filter::make('date_range')
-                    ->form([
+                    ->schema([
                         DatePicker::make('from')->label('From'),
                         DatePicker::make('until')->label('Until'),
                     ])
@@ -109,6 +110,6 @@ class AiAuditViewer extends Page implements HasForms, HasTable
                     }),
             ])
             ->paginated([10, 25, 50])
-            ->bulkActions([]);
+            ->toolbarActions([]);
     }
 }

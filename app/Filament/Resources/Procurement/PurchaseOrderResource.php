@@ -3,23 +3,37 @@
 namespace App\Filament\Resources\Procurement;
 
 use App\Enums\Procurement\PurchaseOrderStatus;
-use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages;
+use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\CreatePurchaseOrder;
+use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\ListPurchaseOrders;
+use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\ViewPurchaseOrder;
 use App\Models\Customer\Party;
 use App\Models\Procurement\PurchaseOrder;
-use Filament\Forms\Form;
+use Carbon\Carbon;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PurchaseOrderResource extends Resource
 {
     protected static ?string $model = PurchaseOrder::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
 
-    protected static ?string $navigationGroup = 'Procurement';
+    protected static string|\UnitEnum|null $navigationGroup = 'Procurement';
 
     protected static ?int $navigationSort = 2;
 
@@ -31,10 +45,10 @@ class PurchaseOrderResource extends Resource
 
     protected static ?string $slug = 'procurement/purchase-orders';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in wizard stories (US-020 to US-024)
             ]);
     }
@@ -43,7 +57,7 @@ class PurchaseOrderResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('PO ID')
                     ->searchable()
                     ->sortable()
@@ -52,14 +66,14 @@ class PurchaseOrderResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (PurchaseOrder $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('supplier.legal_name')
+                TextColumn::make('supplier.legal_name')
                     ->label('Supplier')
                     ->searchable()
                     ->sortable()
                     ->wrap()
                     ->placeholder('No supplier'),
 
-                Tables\Columns\TextColumn::make('product')
+                TextColumn::make('product')
                     ->label('Product')
                     ->state(fn (PurchaseOrder $record): string => $record->getProductLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -96,26 +110,26 @@ class PurchaseOrderResource extends Resource
                     })
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('quantity')
+                TextColumn::make('quantity')
                     ->label('Quantity')
                     ->numeric()
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\TextColumn::make('unit_cost')
+                TextColumn::make('unit_cost')
                     ->label('Unit Cost')
                     ->money(fn (PurchaseOrder $record): string => $record->currency ?? 'EUR')
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('currency')
+                TextColumn::make('currency')
                     ->label('Currency')
                     ->badge()
                     ->color('gray')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\IconColumn::make('ownership_transfer')
+                IconColumn::make('ownership_transfer')
                     ->label('Ownership')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
@@ -126,13 +140,13 @@ class PurchaseOrderResource extends Resource
                         ? 'Ownership transfers on delivery'
                         : 'No ownership transfer'),
 
-                Tables\Columns\TextColumn::make('delivery_window')
+                TextColumn::make('delivery_window')
                     ->label('Delivery Window')
                     ->state(fn (PurchaseOrder $record): string => $record->getDeliveryWindowLabel())
                     ->wrap()
                     ->toggleable(),
 
-                Tables\Columns\IconColumn::make('is_overdue')
+                IconColumn::make('is_overdue')
                     ->label('Overdue')
                     ->boolean()
                     ->state(fn (PurchaseOrder $record): bool => $record->isDeliveryOverdue())
@@ -143,7 +157,7 @@ class PurchaseOrderResource extends Resource
                         ? 'Delivery window has passed'
                         : null),
 
-                Tables\Columns\TextColumn::make('variance_status')
+                TextColumn::make('variance_status')
                     ->label('Variance')
                     ->state(function (PurchaseOrder $record): string {
                         if (! $record->hasInbounds()) {
@@ -212,7 +226,7 @@ class PurchaseOrderResource extends Resource
                             ->orderByRaw("(COALESCE(inbounds_sum_quantity, 0) - quantity) {$direction}");
                     }),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (PurchaseOrderStatus $state): string => $state->label())
@@ -220,14 +234,14 @@ class PurchaseOrderResource extends Resource
                     ->icon(fn (PurchaseOrderStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(PurchaseOrderStatus::cases())
                         ->mapWithKeys(fn (PurchaseOrderStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -239,7 +253,7 @@ class PurchaseOrderResource extends Resource
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('supplier_party_id')
+                SelectFilter::make('supplier_party_id')
                     ->label('Supplier')
                     ->options(function (): array {
                         return Party::query()
@@ -250,17 +264,17 @@ class PurchaseOrderResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                Tables\Filters\TernaryFilter::make('ownership_transfer')
+                TernaryFilter::make('ownership_transfer')
                     ->label('Ownership Transfer')
                     ->placeholder('All')
                     ->trueLabel('With Ownership Transfer')
                     ->falseLabel('Without Ownership Transfer'),
 
-                Tables\Filters\Filter::make('delivery_period')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('delivery_from')
+                Filter::make('delivery_period')
+                    ->schema([
+                        DatePicker::make('delivery_from')
                             ->label('Delivery From'),
-                        \Filament\Forms\Components\DatePicker::make('delivery_to')
+                        DatePicker::make('delivery_to')
                             ->label('Delivery To'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -278,19 +292,19 @@ class PurchaseOrderResource extends Resource
                         $indicators = [];
 
                         if ($data['delivery_from'] ?? null) {
-                            $indicators[] = \Filament\Tables\Filters\Indicator::make('Delivery from '.\Carbon\Carbon::parse($data['delivery_from'])->format('M j, Y'))
+                            $indicators[] = Indicator::make('Delivery from '.Carbon::parse($data['delivery_from'])->format('M j, Y'))
                                 ->removeField('delivery_from');
                         }
 
                         if ($data['delivery_to'] ?? null) {
-                            $indicators[] = \Filament\Tables\Filters\Indicator::make('Delivery to '.\Carbon\Carbon::parse($data['delivery_to'])->format('M j, Y'))
+                            $indicators[] = Indicator::make('Delivery to '.Carbon::parse($data['delivery_to'])->format('M j, Y'))
                                 ->removeField('delivery_to');
                         }
 
                         return $indicators;
                     }),
 
-                Tables\Filters\Filter::make('overdue')
+                Filter::make('overdue')
                     ->label('Overdue Deliveries')
                     ->query(fn (Builder $query): Builder => $query
                         ->whereNotNull('expected_delivery_end')
@@ -298,7 +312,7 @@ class PurchaseOrderResource extends Resource
                         ->where('status', '!=', PurchaseOrderStatus::Closed->value))
                     ->toggle(),
 
-                Tables\Filters\SelectFilter::make('variance')
+                SelectFilter::make('variance')
                     ->label('Delivery Variance')
                     ->options([
                         'exact_match' => 'Exact Match',
@@ -333,14 +347,14 @@ class PurchaseOrderResource extends Resource
                         };
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc')
@@ -389,9 +403,9 @@ class PurchaseOrderResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPurchaseOrders::route('/'),
-            'create' => Pages\CreatePurchaseOrder::route('/create'),
-            'view' => Pages\ViewPurchaseOrder::route('/{record}'),
+            'index' => ListPurchaseOrders::route('/'),
+            'create' => CreatePurchaseOrder::route('/create'),
+            'view' => ViewPurchaseOrder::route('/{record}'),
         ];
     }
 
@@ -399,7 +413,7 @@ class PurchaseOrderResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

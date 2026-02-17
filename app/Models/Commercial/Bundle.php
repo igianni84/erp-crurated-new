@@ -4,6 +4,7 @@ namespace App\Models\Commercial;
 
 use App\Enums\Commercial\BundlePricingLogic;
 use App\Enums\Commercial\BundleStatus;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * Bundle Model
@@ -35,9 +37,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $fixed_price
  * @property float|null $percentage_off
  * @property BundleStatus $status
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Bundle extends Model
 {
@@ -99,11 +101,11 @@ class Bundle extends Model
     /**
      * Get the audit logs for this bundle.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     // =========================================================================

@@ -9,10 +9,11 @@ use App\Models\Commercial\Offer;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class ActiveOffersTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get the list of currently active offers, optionally filtered by channel.';
     }
@@ -30,7 +31,7 @@ class ActiveOffersTool extends BaseTool implements Tool
         return ToolAccessLevel::Basic;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $limit = (int) ($request['limit'] ?? 20);
 

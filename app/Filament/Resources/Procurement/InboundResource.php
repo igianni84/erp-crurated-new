@@ -5,21 +5,31 @@ namespace App\Filament\Resources\Procurement;
 use App\Enums\Procurement\InboundPackaging;
 use App\Enums\Procurement\InboundStatus;
 use App\Enums\Procurement\OwnershipFlag;
-use App\Filament\Resources\Procurement\InboundResource\Pages;
+use App\Filament\Resources\Procurement\InboundResource\Pages\CreateInbound;
+use App\Filament\Resources\Procurement\InboundResource\Pages\ListInbounds;
+use App\Filament\Resources\Procurement\InboundResource\Pages\ViewInbound;
 use App\Models\Procurement\Inbound;
-use Filament\Forms\Form;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class InboundResource extends Resource
 {
     protected static ?string $model = Inbound::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-inbox-arrow-down';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-inbox-arrow-down';
 
-    protected static ?string $navigationGroup = 'Procurement';
+    protected static string|\UnitEnum|null $navigationGroup = 'Procurement';
 
     protected static ?int $navigationSort = 4;
 
@@ -31,10 +41,10 @@ class InboundResource extends Resource
 
     protected static ?string $slug = 'procurement/inbounds';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in wizard stories (US-038 to US-041)
             ]);
     }
@@ -43,7 +53,7 @@ class InboundResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Inbound ID')
                     ->searchable()
                     ->sortable()
@@ -52,13 +62,13 @@ class InboundResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (Inbound $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('warehouse')
+                TextColumn::make('warehouse')
                     ->label('Warehouse')
                     ->sortable()
                     ->badge()
                     ->color('gray'),
 
-                Tables\Columns\TextColumn::make('product')
+                TextColumn::make('product')
                     ->label('Product')
                     ->state(fn (Inbound $record): string => $record->getProductLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -97,14 +107,14 @@ class InboundResource extends Resource
                     })
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('quantity')
+                TextColumn::make('quantity')
                     ->label('Quantity')
                     ->numeric()
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\TextColumn::make('packaging')
+                TextColumn::make('packaging')
                     ->label('Packaging')
                     ->badge()
                     ->formatStateUsing(fn (InboundPackaging $state): string => $state->label())
@@ -113,7 +123,7 @@ class InboundResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('ownership_flag')
+                TextColumn::make('ownership_flag')
                     ->label('Ownership')
                     ->badge()
                     ->formatStateUsing(fn (OwnershipFlag $state): string => $state->label())
@@ -121,7 +131,7 @@ class InboundResource extends Resource
                     ->icon(fn (OwnershipFlag $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('ownership_pending')
+                IconColumn::make('ownership_pending')
                     ->label('Attention')
                     ->boolean()
                     ->state(fn (Inbound $record): bool => $record->ownership_flag === OwnershipFlag::Pending)
@@ -132,12 +142,12 @@ class InboundResource extends Resource
                         ? 'Ownership requires clarification'
                         : null),
 
-                Tables\Columns\TextColumn::make('received_date')
+                TextColumn::make('received_date')
                     ->label('Received Date')
                     ->date()
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('serialization_required')
+                IconColumn::make('serialization_required')
                     ->label('Serialization')
                     ->boolean()
                     ->trueIcon('heroicon-o-qr-code')
@@ -148,7 +158,7 @@ class InboundResource extends Resource
                         ? 'Serialization required'
                         : 'Serialization not required'),
 
-                Tables\Columns\IconColumn::make('is_unlinked')
+                IconColumn::make('is_unlinked')
                     ->label('Unlinked')
                     ->boolean()
                     ->state(fn (Inbound $record): bool => $record->isUnlinked())
@@ -160,7 +170,7 @@ class InboundResource extends Resource
                         : null)
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (InboundStatus $state): string => $state->label())
@@ -168,14 +178,14 @@ class InboundResource extends Resource
                     ->icon(fn (InboundStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(InboundStatus::cases())
                         ->mapWithKeys(fn (InboundStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -186,7 +196,7 @@ class InboundResource extends Resource
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('warehouse')
+                SelectFilter::make('warehouse')
                     ->options([
                         'main_warehouse' => 'Main Warehouse',
                         'secondary_warehouse' => 'Secondary Warehouse',
@@ -196,48 +206,48 @@ class InboundResource extends Resource
                     ->multiple()
                     ->label('Warehouse'),
 
-                Tables\Filters\SelectFilter::make('ownership_flag')
+                SelectFilter::make('ownership_flag')
                     ->options(collect(OwnershipFlag::cases())
                         ->mapWithKeys(fn (OwnershipFlag $flag) => [$flag->value => $flag->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Ownership'),
 
-                Tables\Filters\SelectFilter::make('packaging')
+                SelectFilter::make('packaging')
                     ->options(collect(InboundPackaging::cases())
                         ->mapWithKeys(fn (InboundPackaging $packaging) => [$packaging->value => $packaging->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Packaging'),
 
-                Tables\Filters\Filter::make('ownership_pending')
+                Filter::make('ownership_pending')
                     ->label('Ownership Pending')
                     ->query(fn (Builder $query): Builder => $query->where('ownership_flag', OwnershipFlag::Pending->value))
                     ->toggle(),
 
-                Tables\Filters\Filter::make('unlinked')
+                Filter::make('unlinked')
                     ->label('Unlinked (No Intent)')
                     ->query(fn (Builder $query): Builder => $query->whereNull('procurement_intent_id'))
                     ->toggle(),
 
-                Tables\Filters\Filter::make('serialization_required')
+                Filter::make('serialization_required')
                     ->label('Serialization Required')
                     ->query(fn (Builder $query): Builder => $query->where('serialization_required', true))
                     ->toggle(),
 
-                Tables\Filters\Filter::make('handed_to_module_b')
+                Filter::make('handed_to_module_b')
                     ->label('Handed to Module B')
                     ->query(fn (Builder $query): Builder => $query->where('handed_to_module_b', true))
                     ->toggle(),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('received_date', 'desc')
@@ -255,9 +265,9 @@ class InboundResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListInbounds::route('/'),
-            'create' => Pages\CreateInbound::route('/create'),
-            'view' => Pages\ViewInbound::route('/{record}'),
+            'index' => ListInbounds::route('/'),
+            'create' => CreateInbound::route('/create'),
+            'view' => ViewInbound::route('/{record}'),
         ];
     }
 
@@ -265,7 +275,7 @@ class InboundResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

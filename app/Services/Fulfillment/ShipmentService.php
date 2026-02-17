@@ -7,6 +7,7 @@ use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Enums\Inventory\BottleState;
 use App\Enums\Inventory\CaseIntegrityStatus;
+use App\Jobs\Fulfillment\UpdateProvenanceOnShipmentJob;
 use App\Models\Fulfillment\Shipment;
 use App\Models\Fulfillment\ShippingOrder;
 use App\Models\Fulfillment\ShippingOrderAuditLog;
@@ -15,6 +16,8 @@ use App\Models\Inventory\SerializedBottle;
 use App\Services\Allocation\VoucherService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+use Throwable;
 
 /**
  * Service for managing Shipments in the fulfillment process.
@@ -63,13 +66,13 @@ class ShipmentService
      * @param  ShippingOrder  $so  The shipping order to create a shipment from
      * @return Shipment The created shipment
      *
-     * @throws \InvalidArgumentException If the SO is not ready for shipment
+     * @throws InvalidArgumentException If the SO is not ready for shipment
      */
     public function createFromOrder(ShippingOrder $so): Shipment
     {
         // Validate SO status (must be in Picking)
         if ($so->status !== ShippingOrderStatus::Picking) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create shipment: Shipping Order must be in Picking status. '
                 ."Current status: {$so->status->label()}."
             );
@@ -81,7 +84,7 @@ class ShipmentService
         // Validate all lines are bound
         $bindingCheck = $this->lateBindingService->checkAllLinesBinding($so);
         if (! $bindingCheck['all_bound']) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create shipment: not all lines are bound to bottles. '
                 ."Bound: {$bindingCheck['bound_count']}, Unbound: {$bindingCheck['unbound_count']}. "
                 .'Complete the picking process before creating a shipment.'
@@ -95,7 +98,7 @@ class ShipmentService
                 ->map(fn ($e) => "Line {$e['line_id']}: ".implode(', ', $e['errors']))
                 ->implode('; ');
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot create shipment: binding validation failed. {$errorSummary}"
             );
         }
@@ -161,20 +164,20 @@ class ShipmentService
      * @param  bool  $caseBreakConfirmed  Whether operator has confirmed case breaking (required if cases will be broken)
      * @return Shipment The confirmed shipment
      *
-     * @throws \InvalidArgumentException If confirmation fails
+     * @throws InvalidArgumentException If confirmation fails
      */
     public function confirmShipment(Shipment $shipment, string $trackingNumber, bool $caseBreakConfirmed = false): Shipment
     {
         // Validate shipment status
         if (! $shipment->isPreparing()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: shipment is not in Preparing status. '
                 ."Current status: {$shipment->status->label()}."
             );
         }
 
         if (empty($trackingNumber)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: tracking number is required.'
             );
         }
@@ -184,7 +187,7 @@ class ShipmentService
         $so = $shipment->shippingOrder;
 
         if ($so === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: associated Shipping Order not found.'
             );
         }
@@ -192,7 +195,7 @@ class ShipmentService
         // Validate case break confirmation if needed
         $caseBreakValidation = $this->validateCaseBreakConfirmation($so, $caseBreakConfirmed);
         if (! $caseBreakValidation['valid']) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot confirm shipment: '.$caseBreakValidation['error']
             );
         }
@@ -247,7 +250,7 @@ class ShipmentService
      *
      * @param  Shipment  $shipment  The shipment containing vouchers to redeem
      *
-     * @throws \InvalidArgumentException If redemption fails for any voucher
+     * @throws InvalidArgumentException If redemption fails for any voucher
      */
     public function triggerRedemption(Shipment $shipment): void
     {
@@ -255,7 +258,7 @@ class ShipmentService
         $so = $shipment->shippingOrder;
 
         if ($so === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot trigger redemption: Shipping Order not found for shipment.'
             );
         }
@@ -279,14 +282,14 @@ class ShipmentService
                     'voucher_id' => $voucher->id,
                     'line_id' => $line->id,
                 ];
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 $errors[] = "Failed to redeem voucher {$voucher->id}: {$e->getMessage()}";
             }
         }
 
         // If any redemption failed, we need to handle it as a critical error
         if ($errors !== []) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Voucher redemption failed: '.implode('; ', $errors)
             );
         }
@@ -318,14 +321,14 @@ class ShipmentService
         $so = $shipment->shippingOrder;
 
         if ($so === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot trigger ownership transfer: Shipping Order not found for shipment.'
             );
         }
 
         $customer = $so->customer;
         if ($customer === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot trigger ownership transfer: Customer not found for Shipping Order.'
             );
         }
@@ -367,7 +370,7 @@ class ShipmentService
         );
 
         // Dispatch job to update on-chain provenance records for all bottles
-        dispatch(new \App\Jobs\Fulfillment\UpdateProvenanceOnShipmentJob($shipment));
+        dispatch(new UpdateProvenanceOnShipmentJob($shipment));
     }
 
     /**
@@ -377,21 +380,21 @@ class ShipmentService
      * @param  string  $status  The new tracking status (maps to ShipmentStatus)
      * @return Shipment The updated shipment
      *
-     * @throws \InvalidArgumentException If status update is not allowed
+     * @throws InvalidArgumentException If status update is not allowed
      */
     public function updateTracking(Shipment $shipment, string $status): Shipment
     {
         $newStatus = ShipmentStatus::tryFrom($status);
 
         if ($newStatus === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Invalid tracking status: '{$status}'. "
                 .'Valid statuses: '.implode(', ', array_map(fn ($s) => $s->value, ShipmentStatus::cases()))
             );
         }
 
         if (! $shipment->canTransitionTo($newStatus)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot update tracking: transition from {$shipment->status->value} to {$newStatus->value} is not allowed."
             );
         }
@@ -420,12 +423,12 @@ class ShipmentService
      * @param  Shipment  $shipment  The shipment to mark as delivered
      * @return Shipment The delivered shipment
      *
-     * @throws \InvalidArgumentException If delivery status update is not allowed
+     * @throws InvalidArgumentException If delivery status update is not allowed
      */
     public function markDelivered(Shipment $shipment): Shipment
     {
         if (! $shipment->canTransitionTo(ShipmentStatus::Delivered)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot mark as delivered: transition from {$shipment->status->value} to delivered is not allowed."
             );
         }
@@ -466,12 +469,12 @@ class ShipmentService
      * @param  string  $reason  The reason for failure
      * @return Shipment The failed shipment
      *
-     * @throws \InvalidArgumentException If failure status update is not allowed
+     * @throws InvalidArgumentException If failure status update is not allowed
      */
     public function markFailed(Shipment $shipment, string $reason): Shipment
     {
         if (! $shipment->canTransitionTo(ShipmentStatus::Failed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot mark as failed: transition from {$shipment->status->value} to failed is not allowed."
             );
         }

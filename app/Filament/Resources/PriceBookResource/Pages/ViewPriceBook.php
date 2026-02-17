@@ -8,21 +8,24 @@ use App\Filament\Resources\PriceBookResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\PriceBook;
 use App\Services\Commercial\PriceBookService;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewPriceBook extends ViewRecord
 {
@@ -51,9 +54,9 @@ class ViewPriceBook extends ViewRecord
         return "Price Book: {$record->name}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Price Book Details')
                     ->tabs([
@@ -93,7 +96,7 @@ class ViewPriceBook extends ViewRecord
                                     TextEntry::make('name')
                                         ->label('Name')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('market')
@@ -250,7 +253,7 @@ class ViewPriceBook extends ViewRecord
                                 TextEntry::make('sellableSku.id')
                                     ->label('SKU ID')
                                     ->copyable()
-                                    ->size(TextEntry\TextEntrySize::Small),
+                                    ->size(TextSize::Small),
                                 TextEntry::make('base_price')
                                     ->label('Base Price')
                                     ->money(fn (): string => $this->getRecord() instanceof PriceBook ? $this->getRecord()->currency : 'EUR')
@@ -297,12 +300,12 @@ class ViewPriceBook extends ViewRecord
                                     ->label('Market')
                                     ->badge()
                                     ->color('info')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('currency')
                                     ->label('Currency')
                                     ->badge()
                                     ->color('gray')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                             ]),
                     ]),
 
@@ -369,7 +372,7 @@ class ViewPriceBook extends ViewRecord
                                     ->formatStateUsing(fn (PriceBookStatus $state): string => $state->label())
                                     ->color(fn (PriceBookStatus $state): string => $state->color())
                                     ->icon(fn (PriceBookStatus $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('status_description')
                                     ->label('Status Description')
                                     ->getStateUsing(function (PriceBook $record): string {
@@ -459,10 +462,10 @@ class ViewPriceBook extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -485,7 +488,7 @@ class ViewPriceBook extends ViewRecord
                                 $this->auditDateFrom = isset($data['date_from']) && is_string($data['date_from']) ? $data['date_from'] : null;
                                 $this->auditDateUntil = isset($data['date_until']) && is_string($data['date_until']) ? $data['date_until'] : null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -616,10 +619,10 @@ class ViewPriceBook extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make()
+            EditAction::make()
                 ->visible(fn (PriceBook $record): bool => $record->isEditable()),
 
-            Actions\Action::make('activate')
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -679,7 +682,7 @@ class ViewPriceBook extends ViewRecord
                             ->title('Price Book activated')
                             ->body($message)
                             ->send();
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Activation failed')
@@ -688,7 +691,7 @@ class ViewPriceBook extends ViewRecord
                     }
                 }),
 
-            Actions\Action::make('activate_disabled')
+            Action::make('activate_disabled')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('gray')
@@ -696,7 +699,7 @@ class ViewPriceBook extends ViewRecord
                 ->visible(fn (PriceBook $record): bool => $record->canBeActivated() && ! auth()->user()?->canApprovePriceBooks())
                 ->tooltip('You need Manager role or higher to approve price books'),
 
-            Actions\Action::make('archive')
+            Action::make('archive')
                 ->label('Archive')
                 ->icon('heroicon-o-archive-box')
                 ->color('danger')
@@ -714,7 +717,7 @@ class ViewPriceBook extends ViewRecord
                             ->title('Price Book archived')
                             ->body("The price book \"{$record->name}\" has been archived.")
                             ->send();
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Archive failed')

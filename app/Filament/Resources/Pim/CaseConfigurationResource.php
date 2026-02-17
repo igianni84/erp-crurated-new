@@ -2,22 +2,37 @@
 
 namespace App\Filament\Resources\Pim;
 
-use App\Filament\Resources\Pim\CaseConfigurationResource\Pages;
+use App\Filament\Resources\Pim\CaseConfigurationResource\Pages\CreateCaseConfiguration;
+use App\Filament\Resources\Pim\CaseConfigurationResource\Pages\EditCaseConfiguration;
+use App\Filament\Resources\Pim\CaseConfigurationResource\Pages\ListCaseConfigurations;
 use App\Models\Pim\CaseConfiguration;
 use App\Models\Pim\Format;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class CaseConfigurationResource extends Resource
 {
     protected static ?string $model = CaseConfiguration::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 4;
 
@@ -27,30 +42,30 @@ class CaseConfigurationResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Case Configurations';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Configuration Details')
+        return $schema
+            ->components([
+                Section::make('Configuration Details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255)
                             ->placeholder('e.g., 6x750ml OWC'),
-                        Forms\Components\Select::make('format_id')
+                        Select::make('format_id')
                             ->label('Format')
                             ->relationship('format', 'name')
                             ->getOptionLabelFromRecordUsing(fn (Format $record): string => "{$record->name} ({$record->volume_ml} ml)")
                             ->required()
                             ->searchable()
                             ->preload(),
-                        Forms\Components\TextInput::make('bottles_per_case')
+                        TextInput::make('bottles_per_case')
                             ->label('Bottles per Case')
                             ->required()
                             ->numeric()
                             ->minValue(1)
                             ->placeholder('e.g., 6, 12'),
-                        Forms\Components\Select::make('case_type')
+                        Select::make('case_type')
                             ->label('Case Type')
                             ->options([
                                 'owc' => 'OWC (Original Wooden Case)',
@@ -61,12 +76,12 @@ class CaseConfigurationResource extends Resource
                             ->native(false),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Packaging Flags')
+                Section::make('Packaging Flags')
                     ->schema([
-                        Forms\Components\Toggle::make('is_original_from_producer')
+                        Toggle::make('is_original_from_producer')
                             ->label('Original from Producer')
                             ->helperText('This case configuration comes directly from the producer'),
-                        Forms\Components\Toggle::make('is_breakable')
+                        Toggle::make('is_breakable')
                             ->label('Breakable')
                             ->helperText('The case can be broken apart for individual bottle sales')
                             ->default(true),
@@ -79,10 +94,10 @@ class CaseConfigurationResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('format.name')
+                TextColumn::make('format.name')
                     ->label('Format')
                     ->sortable()
                     ->description(function (CaseConfiguration $record): string {
@@ -91,11 +106,11 @@ class CaseConfigurationResource extends Resource
 
                         return $format->volume_ml.' ml';
                     }),
-                Tables\Columns\TextColumn::make('bottles_per_case')
+                TextColumn::make('bottles_per_case')
                     ->label('Bottles')
                     ->sortable()
                     ->alignCenter(),
-                Tables\Columns\TextColumn::make('case_type')
+                TextColumn::make('case_type')
                     ->label('Case Type')
                     ->badge()
                     ->formatStateUsing(fn (string $state): string => match ($state) {
@@ -111,51 +126,51 @@ class CaseConfigurationResource extends Resource
                         default => 'gray',
                     })
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_original_from_producer')
+                IconColumn::make('is_original_from_producer')
                     ->label('Original')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_breakable')
+                IconColumn::make('is_breakable')
                     ->label('Breakable')
                     ->boolean()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('format_id')
+                SelectFilter::make('format_id')
                     ->label('Format')
                     ->relationship('format', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('case_type')
+                SelectFilter::make('case_type')
                     ->label('Case Type')
                     ->options([
                         'owc' => 'OWC (Original Wooden Case)',
                         'oc' => 'OC (Original Carton)',
                         'none' => 'None (Loose)',
                     ]),
-                Tables\Filters\TernaryFilter::make('is_original_from_producer')
+                TernaryFilter::make('is_original_from_producer')
                     ->label('Original from Producer'),
-                Tables\Filters\TernaryFilter::make('is_breakable')
+                TernaryFilter::make('is_breakable')
                     ->label('Breakable'),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('name');
@@ -171,9 +186,9 @@ class CaseConfigurationResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCaseConfigurations::route('/'),
-            'create' => Pages\CreateCaseConfiguration::route('/create'),
-            'edit' => Pages\EditCaseConfiguration::route('/{record}/edit'),
+            'index' => ListCaseConfigurations::route('/'),
+            'create' => CreateCaseConfiguration::route('/create'),
+            'edit' => EditCaseConfiguration::route('/{record}/edit'),
         ];
     }
 }

@@ -5,11 +5,21 @@ namespace App\Filament\Resources\BundleResource\RelationManagers;
 use App\Models\Commercial\Bundle;
 use App\Models\Commercial\BundleComponent;
 use App\Models\Pim\SellableSku;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\TextInputColumn;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 
 class ComponentsRelationManager extends RelationManager
@@ -22,11 +32,11 @@ class ComponentsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'Components';
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('sellable_sku_id')
+        return $schema
+            ->components([
+                Select::make('sellable_sku_id')
                     ->label('Sellable SKU')
                     ->required()
                     ->searchable()
@@ -63,7 +73,7 @@ class ComponentsRelationManager extends RelationManager
                     })
                     ->helperText('Only active SKUs not already in this bundle are shown')
                     ->columnSpanFull(),
-                Forms\Components\TextInput::make('quantity')
+                TextInput::make('quantity')
                     ->label('Quantity')
                     ->numeric()
                     ->required()
@@ -80,14 +90,14 @@ class ComponentsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('id')
             ->columns([
-                Tables\Columns\TextColumn::make('sellableSku.sku_code')
+                TextColumn::make('sellableSku.sku_code')
                     ->label('SKU Code')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->weight('medium')
                     ->fontFamily('mono'),
-                Tables\Columns\TextColumn::make('wine_name')
+                TextColumn::make('wine_name')
                     ->label('Wine')
                     ->getStateUsing(function (BundleComponent $record): string {
                         $sku = $record->sellableSku;
@@ -112,7 +122,7 @@ class ComponentsRelationManager extends RelationManager
                         });
                     })
                     ->wrap(),
-                Tables\Columns\TextColumn::make('format')
+                TextColumn::make('format')
                     ->label('Format')
                     ->getStateUsing(function (BundleComponent $record): string {
                         $format = $record->sellableSku?->format;
@@ -120,7 +130,7 @@ class ComponentsRelationManager extends RelationManager
                         return $format !== null ? $format->volume_ml.'ml' : 'N/A';
                     })
                     ->alignCenter(),
-                Tables\Columns\TextColumn::make('packaging')
+                TextColumn::make('packaging')
                     ->label('Packaging')
                     ->getStateUsing(function (BundleComponent $record): string {
                         $caseConfig = $record->sellableSku?->caseConfiguration;
@@ -130,7 +140,7 @@ class ComponentsRelationManager extends RelationManager
 
                         return $caseConfig->bottles_per_case.' btl/'.$caseConfig->case_type;
                     }),
-                Tables\Columns\TextInputColumn::make('quantity')
+                TextInputColumn::make('quantity')
                     ->label('Qty')
                     ->rules(['required', 'integer', 'min:1', 'max:100'])
                     ->disabled(function (): bool {
@@ -147,7 +157,7 @@ class ComponentsRelationManager extends RelationManager
                             ->success()
                             ->send();
                     }),
-                Tables\Columns\IconColumn::make('sku_active')
+                IconColumn::make('sku_active')
                     ->label('SKU Status')
                     ->getStateUsing(fn (BundleComponent $record): bool => $record->hasActiveSku())
                     ->boolean()
@@ -156,7 +166,7 @@ class ComponentsRelationManager extends RelationManager
                     ->trueColor('success')
                     ->falseColor('danger')
                     ->tooltip(fn (BundleComponent $record): string => $record->hasActiveSku() ? 'SKU is active' : 'SKU is not active - may affect bundle activation'),
-                Tables\Columns\IconColumn::make('has_allocation')
+                IconColumn::make('has_allocation')
                     ->label('Allocation')
                     ->getStateUsing(fn (BundleComponent $record): bool => $record->hasAllocation())
                     ->boolean()
@@ -167,7 +177,7 @@ class ComponentsRelationManager extends RelationManager
                     ->tooltip(fn (BundleComponent $record): string => $record->hasAllocation() ? 'Has active allocation' : 'No active allocation'),
             ])
             ->filters([
-                Tables\Filters\TernaryFilter::make('sku_active')
+                TernaryFilter::make('sku_active')
                     ->label('SKU Status')
                     ->queries(
                         true: fn ($query) => $query->whereHas('sellableSku', fn ($q) => $q->where('lifecycle_status', 'active')),
@@ -175,7 +185,7 @@ class ComponentsRelationManager extends RelationManager
                     ),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->visible(function (): bool {
                         $record = $this->getOwnerRecord();
 
@@ -184,14 +194,14 @@ class ComponentsRelationManager extends RelationManager
                     ->modalHeading('Add Component')
                     ->modalDescription('Add a Sellable SKU to this bundle'),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                EditAction::make()
                     ->visible(function (): bool {
                         $record = $this->getOwnerRecord();
 
                         return $record instanceof Bundle && $record->isEditable();
                     }),
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->visible(function (): bool {
                         $record = $this->getOwnerRecord();
 
@@ -210,9 +220,9 @@ class ComponentsRelationManager extends RelationManager
                         }
                     }),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
                         ->visible(function (): bool {
                             $record = $this->getOwnerRecord();
 
@@ -248,7 +258,7 @@ class ComponentsRelationManager extends RelationManager
             })
             ->emptyStateIcon('heroicon-o-cube')
             ->emptyStateActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Add First Component')
                     ->visible(function (): bool {
                         $record = $this->getOwnerRecord();
@@ -264,6 +274,6 @@ class ComponentsRelationManager extends RelationManager
      */
     protected function halt(): void
     {
-        throw new \Filament\Support\Exceptions\Halt;
+        throw new Halt;
     }
 }

@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 
 /**
  * Service for managing anomalous vouchers and quarantine processes.
@@ -37,12 +38,12 @@ class VoucherAnomalyService
      *
      * @param  string  $reason  The reason for quarantine
      *
-     * @throws \InvalidArgumentException If voucher is already quarantined
+     * @throws InvalidArgumentException If voucher is already quarantined
      */
     public function quarantine(Voucher $voucher, string $reason): Voucher
     {
         if ($voucher->requires_attention) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Voucher {$voucher->id} is already quarantined. Reason: {$voucher->attention_reason}"
             );
         }
@@ -67,12 +68,12 @@ class VoucherAnomalyService
      *
      * Should only be called after anomalies have been resolved.
      *
-     * @throws \InvalidArgumentException If voucher is not quarantined or still has anomalies
+     * @throws InvalidArgumentException If voucher is not quarantined or still has anomalies
      */
     public function unquarantine(Voucher $voucher): Voucher
     {
         if (! $voucher->requires_attention) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Voucher {$voucher->id} is not quarantined."
             );
         }
@@ -82,7 +83,7 @@ class VoucherAnomalyService
         $remainingAnomalies = array_filter($anomalies, fn (string $a) => $a !== $voucher->attention_reason);
 
         if (! empty($remainingAnomalies)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot unquarantine voucher {$voucher->id}: remaining anomalies detected - "
                 .implode(', ', $remainingAnomalies)
             );
@@ -108,12 +109,12 @@ class VoucherAnomalyService
     /**
      * Update the quarantine reason for an already quarantined voucher.
      *
-     * @throws \InvalidArgumentException If voucher is not quarantined
+     * @throws InvalidArgumentException If voucher is not quarantined
      */
     public function updateReason(Voucher $voucher, string $newReason): Voucher
     {
         if (! $voucher->requires_attention) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Voucher {$voucher->id} is not quarantined. Use quarantine() instead."
             );
         }

@@ -5,6 +5,9 @@ namespace App\Observers\Customer;
 use App\Enums\Customer\CustomerStatus;
 use App\Models\Customer\Customer;
 use App\Models\Customer\PaymentPermission;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Observer for Customer model.
@@ -31,9 +34,9 @@ class CustomerObserver
         // If becoming active, require at least one billing address
         if ($newStatus === CustomerStatus::Active) {
             if (! $customer->hasBillingAddress()) {
-                throw new \Illuminate\Validation\ValidationException(
-                    \Illuminate\Support\Facades\Validator::make([], []),
-                    new \Illuminate\Http\JsonResponse([
+                throw new ValidationException(
+                    Validator::make([], []),
+                    new JsonResponse([
                         'message' => 'A billing address is required to activate a customer.',
                         'errors' => [
                             'status' => ['A billing address is required to activate a customer.'],

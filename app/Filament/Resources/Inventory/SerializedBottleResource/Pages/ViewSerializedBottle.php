@@ -7,28 +7,37 @@ use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
 use App\Enums\Inventory\OwnershipType;
 use App\Filament\Resources\Inventory\SerializedBottleResource;
+use App\Models\AuditLog;
 use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\MovementItem;
 use App\Models\Inventory\SerializedBottle;
 use App\Models\Pim\Format;
 use App\Models\Pim\WineVariant;
+use App\Models\User;
 use App\Services\Inventory\MovementService;
 use App\Services\Inventory\SerializationService;
-use Filament\Actions;
-use Filament\Forms;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
+use Exception;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
 
 class ViewSerializedBottle extends ViewRecord
 {
@@ -42,9 +51,9 @@ class ViewSerializedBottle extends ViewRecord
         return "Bottle: {$record->serial_number}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getImmutabilityNoticeSection(),
                 Tabs::make('Bottle Details')
@@ -121,7 +130,7 @@ class ViewSerializedBottle extends ViewRecord
                                         ->copyable()
                                         ->copyMessage('Serial number copied')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large)
+                                        ->size(TextSize::Large)
                                         ->icon('heroicon-o-qr-code'),
                                     TextEntry::make('id')
                                         ->label('Internal ID')
@@ -157,7 +166,7 @@ class ViewSerializedBottle extends ViewRecord
                                         ->formatStateUsing(fn (BottleState $state): string => $state->label())
                                         ->color(fn (BottleState $state): string => $state->color())
                                         ->icon(fn (BottleState $state): string => $state->icon())
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                     TextEntry::make('ownership_type')
                                         ->label('Ownership')
                                         ->badge()
@@ -185,7 +194,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->badge()
                                     ->color('primary')
                                     ->icon('heroicon-o-link')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('allocation_id')
                                     ->label('Allocation ID')
                                     ->copyable()
@@ -292,7 +301,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->label('Location Name')
                                     ->icon('heroicon-o-map-pin')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('currentLocation.location_type')
                                     ->label('Location Type')
                                     ->badge()
@@ -355,7 +364,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->formatStateUsing(fn (OwnershipType $state): string => $state->label())
                                     ->color(fn (OwnershipType $state): string => $state->color())
                                     ->icon(fn (OwnershipType $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('ownership_info')
                                     ->label('')
                                     ->getStateUsing(function (SerializedBottle $record): string {
@@ -435,7 +444,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->icon(fn (SerializedBottle $record): string => $record->hasNft()
                                         ? 'heroicon-o-check-badge'
                                         : 'heroicon-o-clock')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('nft_minted_at')
                                     ->label('Minted At')
                                     ->dateTime()
@@ -790,7 +799,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->icon(fn (SerializedBottle $record): string => $record->isAvailableForFulfillment()
                                         ? 'heroicon-o-check-circle'
                                         : 'heroicon-o-x-circle')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('state')
                                     ->label('Current State')
                                     ->badge()
@@ -908,7 +917,7 @@ class ViewSerializedBottle extends ViewRecord
                                 $html = '<div class="space-y-3">';
 
                                 foreach ($auditLogs as $log) {
-                                    /** @var \App\Models\AuditLog $log */
+                                    /** @var AuditLog $log */
                                     $eventLabel = $log->getEventLabel();
                                     $eventIcon = $log->getEventIcon();
                                     $eventColor = $log->getEventColor();
@@ -1034,9 +1043,9 @@ class ViewSerializedBottle extends ViewRecord
      * - Bottle remains visible for audit (never deleted)
      * - Destroyed bottles cannot be selected by Module C
      */
-    protected function getMarkAsDamagedAction(): Actions\Action
+    protected function getMarkAsDamagedAction(): Action
     {
-        return Actions\Action::make('markAsDamaged')
+        return Action::make('markAsDamaged')
             ->label('Mark as Damaged')
             ->icon('heroicon-o-x-circle')
             ->color('danger')
@@ -1046,11 +1055,11 @@ class ViewSerializedBottle extends ViewRecord
             ->modalIcon('heroicon-o-exclamation-triangle')
             ->modalIconColor('danger')
             ->visible(fn (SerializedBottle $record): bool => ! $record->isInTerminalState())
-            ->form([
-                Forms\Components\Section::make('Destruction Confirmation')
+            ->schema([
+                Section::make('Destruction Confirmation')
                     ->description('This action permanently changes the bottle state to DESTROYED')
                     ->schema([
-                        Forms\Components\Placeholder::make('warning')
+                        Placeholder::make('warning')
                             ->label('')
                             ->content(new HtmlString('
                                 <div class="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
@@ -1073,7 +1082,7 @@ class ViewSerializedBottle extends ViewRecord
                                     </div>
                                 </div>
                             ')),
-                        Forms\Components\Checkbox::make('confirm_destruction')
+                        Checkbox::make('confirm_destruction')
                             ->label('I confirm that this bottle has been physically destroyed or is no longer usable')
                             ->required()
                             ->accepted()
@@ -1082,10 +1091,10 @@ class ViewSerializedBottle extends ViewRecord
                             ]),
                     ])
                     ->extraAttributes(['class' => 'bg-danger-50/50 dark:bg-danger-900/10']),
-                Forms\Components\Section::make('Destruction Details')
+                Section::make('Destruction Details')
                     ->description('Provide details about the damage/destruction')
                     ->schema([
-                        Forms\Components\Select::make('reason')
+                        Select::make('reason')
                             ->label('Reason for Destruction')
                             ->options([
                                 'breakage' => 'Breakage - Physical damage to the bottle',
@@ -1096,7 +1105,7 @@ class ViewSerializedBottle extends ViewRecord
                             ->required()
                             ->native(false)
                             ->helperText('Select the primary reason for destruction'),
-                        Forms\Components\Textarea::make('evidence')
+                        Textarea::make('evidence')
                             ->label('Evidence / Additional Notes')
                             ->placeholder('Describe the damage, circumstances, or any relevant details...')
                             ->rows(3)
@@ -1151,7 +1160,7 @@ class ViewSerializedBottle extends ViewRecord
                     // Refresh the record to show updated state
                     $this->refreshFormData(['state']);
 
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->danger()
                         ->title('Error')
@@ -1175,9 +1184,9 @@ class ViewSerializedBottle extends ViewRecord
      * - Missing bottles remain visible forever
      * - Used in loss & compliance reporting
      */
-    protected function getMarkAsMissingAction(): Actions\Action
+    protected function getMarkAsMissingAction(): Action
     {
-        return Actions\Action::make('markAsMissing')
+        return Action::make('markAsMissing')
             ->label('Mark as Missing')
             ->icon('heroicon-o-question-mark-circle')
             ->color('warning')
@@ -1187,11 +1196,11 @@ class ViewSerializedBottle extends ViewRecord
             ->modalIcon('heroicon-o-question-mark-circle')
             ->modalIconColor('warning')
             ->visible(fn (SerializedBottle $record): bool => ! $record->isInTerminalState())
-            ->form([
-                Forms\Components\Section::make('Missing Bottle Confirmation')
+            ->schema([
+                Section::make('Missing Bottle Confirmation')
                     ->description('Mark this bottle as missing when it cannot be located')
                     ->schema([
-                        Forms\Components\Placeholder::make('warning')
+                        Placeholder::make('warning')
                             ->label('')
                             ->content(new HtmlString('
                                 <div class="p-4 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800">
@@ -1214,7 +1223,7 @@ class ViewSerializedBottle extends ViewRecord
                                     </div>
                                 </div>
                             ')),
-                        Forms\Components\Checkbox::make('confirm_missing')
+                        Checkbox::make('confirm_missing')
                             ->label('I confirm that this bottle cannot be located and should be marked as missing')
                             ->required()
                             ->accepted()
@@ -1223,22 +1232,22 @@ class ViewSerializedBottle extends ViewRecord
                             ]),
                     ])
                     ->extraAttributes(['class' => 'bg-warning-50/50 dark:bg-warning-900/10']),
-                Forms\Components\Section::make('Missing Details')
+                Section::make('Missing Details')
                     ->description('Provide details about the missing bottle')
                     ->schema([
-                        Forms\Components\Textarea::make('reason')
+                        Textarea::make('reason')
                             ->label('Reason')
                             ->placeholder('Describe why this bottle is being marked as missing...')
                             ->rows(2)
                             ->required()
                             ->maxLength(500)
                             ->helperText('Explain the circumstances (e.g., consignment lost, inventory discrepancy, etc.)'),
-                        Forms\Components\TextInput::make('last_known_custody')
+                        TextInput::make('last_known_custody')
                             ->label('Last Known Custody')
                             ->placeholder('e.g., Consignee name, warehouse section, etc.')
                             ->maxLength(255)
                             ->helperText('Who or where was the bottle last known to be?'),
-                        Forms\Components\TextInput::make('agreement_reference')
+                        TextInput::make('agreement_reference')
                             ->label('Agreement Reference')
                             ->placeholder('e.g., Consignment agreement number')
                             ->maxLength(255)
@@ -1294,7 +1303,7 @@ class ViewSerializedBottle extends ViewRecord
                     // Refresh the record to show updated state
                     $this->refreshFormData(['state']);
 
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->danger()
                         ->title('Error')
@@ -1318,9 +1327,9 @@ class ViewSerializedBottle extends ViewRecord
      * - Provenance integrity preserved (additive corrections)
      * - Full audit trail
      */
-    protected function getFlagAsMisSerializedAction(): Actions\Action
+    protected function getFlagAsMisSerializedAction(): Action
     {
-        return Actions\Action::make('flagAsMisSerialized')
+        return Action::make('flagAsMisSerialized')
             ->label('Flag as Mis-serialized')
             ->icon('heroicon-o-exclamation-triangle')
             ->color('danger')
@@ -1331,7 +1340,7 @@ class ViewSerializedBottle extends ViewRecord
             ->modalIconColor('danger')
             ->visible(function (SerializedBottle $record): bool {
                 // Admin-only action
-                /** @var \App\Models\User|null $user */
+                /** @var User|null $user */
                 $user = auth()->user();
                 if ($user === null || ! $user->isAdmin()) {
                     return false;
@@ -1340,11 +1349,11 @@ class ViewSerializedBottle extends ViewRecord
                 // Cannot flag if already in terminal state
                 return $record->canFlagAsMisSerialized();
             })
-            ->form([
-                Forms\Components\Section::make('Mis-serialization Confirmation')
+            ->schema([
+                Section::make('Mis-serialization Confirmation')
                     ->description('This action is for correcting bottles serialized with incorrect data')
                     ->schema([
-                        Forms\Components\Placeholder::make('warning')
+                        Placeholder::make('warning')
                             ->label('')
                             ->content(new HtmlString('
                                 <div class="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
@@ -1368,7 +1377,7 @@ class ViewSerializedBottle extends ViewRecord
                                     </div>
                                 </div>
                             ')),
-                        Forms\Components\Checkbox::make('confirm_mis_serialization')
+                        Checkbox::make('confirm_mis_serialization')
                             ->label('I confirm this bottle was serialized with incorrect data and requires correction')
                             ->required()
                             ->accepted()
@@ -1377,10 +1386,10 @@ class ViewSerializedBottle extends ViewRecord
                             ]),
                     ])
                     ->extraAttributes(['class' => 'bg-danger-50/50 dark:bg-danger-900/10']),
-                Forms\Components\Section::make('Correction Reason')
+                Section::make('Correction Reason')
                     ->description('Document why this bottle was mis-serialized')
                     ->schema([
-                        Forms\Components\Textarea::make('reason')
+                        Textarea::make('reason')
                             ->label('Mis-serialization Reason')
                             ->placeholder('Explain what was incorrect about the original serialization (e.g., wrong wine variant, wrong format, etc.)...')
                             ->rows(3)
@@ -1389,12 +1398,12 @@ class ViewSerializedBottle extends ViewRecord
                             ->maxLength(1000)
                             ->helperText('Minimum 20 characters. This will be recorded in the audit trail.'),
                     ]),
-                Forms\Components\Section::make('Corrective Record Data')
+                Section::make('Corrective Record Data')
                     ->description('Provide the CORRECT data for the new bottle record')
                     ->schema([
-                        Forms\Components\Grid::make(2)
+                        Grid::make(2)
                             ->schema([
-                                Forms\Components\Select::make('correct_wine_variant_id')
+                                Select::make('correct_wine_variant_id')
                                     ->label('Correct Wine Variant')
                                     ->options(fn () => WineVariant::query()
                                         ->with('wineMaster')
@@ -1406,7 +1415,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->required()
                                     ->native(false)
                                     ->helperText('Select the correct wine variant for this bottle'),
-                                Forms\Components\Select::make('correct_format_id')
+                                Select::make('correct_format_id')
                                     ->label('Correct Format')
                                     ->options(fn () => Format::query()
                                         ->get()
@@ -1418,7 +1427,7 @@ class ViewSerializedBottle extends ViewRecord
                                     ->native(false)
                                     ->helperText('Select the correct format for this bottle'),
                             ]),
-                        Forms\Components\Placeholder::make('note')
+                        Placeholder::make('note')
                             ->label('')
                             ->content(new HtmlString('
                                 <div class="p-3 bg-info-50 dark:bg-info-900/20 rounded-lg border border-info-200 dark:border-info-800 text-info-700 dark:text-info-300 text-sm">
@@ -1483,7 +1492,7 @@ class ViewSerializedBottle extends ViewRecord
                             ->body("Original bottle {$record->serial_number} has been flagged as mis-serialized. Corrective record created with serial number: {$newSerialNumber}")
                             ->persistent()
                             ->actions([
-                                \Filament\Notifications\Actions\Action::make('view_corrective')
+                                Action::make('view_corrective')
                                     ->label('View Corrective Record')
                                     ->url(SerializedBottleResource::getUrl('view', ['record' => $correctiveBottle->id]))
                                     ->openUrlInNewTab(),
@@ -1496,13 +1505,13 @@ class ViewSerializedBottle extends ViewRecord
                     $currentRecord = $this->record;
                     $this->redirect(SerializedBottleResource::getUrl('view', ['record' => $currentRecord->id]));
 
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->danger()
                         ->title('Error')
                         ->body($e->getMessage())
                         ->send();
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->danger()
                         ->title('Error')

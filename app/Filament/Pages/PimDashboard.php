@@ -6,24 +6,25 @@ use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource;
 use App\Models\Pim\WineVariant;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Collection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PimDashboard extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar';
 
     protected static ?string $navigationLabel = 'Data Quality';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = -1;
 
     protected static ?string $title = 'Data Quality Dashboard';
 
-    protected static string $view = 'filament.pages.pim-dashboard';
+    protected string $view = 'filament.pages.pim-dashboard';
 
     public string $dateFrom = '';
 
@@ -180,7 +181,7 @@ class PimDashboard extends Page
     {
         $url = WineVariantResource::getUrl('edit', ['record' => $product]);
         if ($tab !== '') {
-            $url .= '?activeTab='.$tab;
+            $url .= '?tab='.$tab;
         }
 
         return $url;

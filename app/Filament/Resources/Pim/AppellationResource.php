@@ -3,24 +3,38 @@
 namespace App\Filament\Resources\Pim;
 
 use App\Enums\Pim\AppellationSystem;
-use App\Filament\Resources\Pim\AppellationResource\Pages;
+use App\Filament\Resources\Pim\AppellationResource\Pages\CreateAppellation;
+use App\Filament\Resources\Pim\AppellationResource\Pages\EditAppellation;
+use App\Filament\Resources\Pim\AppellationResource\Pages\ListAppellations;
 use App\Models\Pim\Appellation;
 use App\Models\Pim\Region;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class AppellationResource extends Resource
 {
     protected static ?string $model = Appellation::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-shield-check';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shield-check';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 7;
 
@@ -30,16 +44,16 @@ class AppellationResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Appellations';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Appellation Details')
+        return $schema
+            ->components([
+                Section::make('Appellation Details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('country_id')
+                        Select::make('country_id')
                             ->relationship('country', 'name')
                             ->required()
                             ->searchable()
@@ -48,7 +62,7 @@ class AppellationResource extends Resource
                             ->afterStateUpdated(function (Set $set): void {
                                 $set('region_id', null);
                             }),
-                        Forms\Components\Select::make('region_id')
+                        Select::make('region_id')
                             ->label('Region')
                             ->options(function (Get $get): array {
                                 $countryId = $get('country_id');
@@ -64,15 +78,15 @@ class AppellationResource extends Resource
                                     ->toArray();
                             })
                             ->searchable(),
-                        Forms\Components\Select::make('system')
+                        Select::make('system')
                             ->options(
                                 collect(AppellationSystem::cases())
                                     ->mapWithKeys(fn (AppellationSystem $s) => [$s->value => $s->label()])
                             )
                             ->required(),
-                        Forms\Components\Toggle::make('is_active')
+                        Toggle::make('is_active')
                             ->default(true),
-                        Forms\Components\TextInput::make('sort_order')
+                        TextInput::make('sort_order')
                             ->numeric(),
                     ])
                     ->columns(2),
@@ -83,48 +97,48 @@ class AppellationResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('country.name')
+                TextColumn::make('country.name')
                     ->label('Country')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('region.name')
+                TextColumn::make('region.name')
                     ->label('Region')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('system')
+                TextColumn::make('system')
                     ->badge()
                     ->formatStateUsing(fn (AppellationSystem $state): string => $state->label())
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->boolean(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\TrashedFilter::make(),
-                Tables\Filters\SelectFilter::make('country_id')
+                TrashedFilter::make(),
+                SelectFilter::make('country_id')
                     ->relationship('country', 'name')
                     ->label('Country')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('system')
+                SelectFilter::make('system')
                     ->options(
                         collect(AppellationSystem::cases())
                             ->mapWithKeys(fn (AppellationSystem $s) => [$s->value => $s->label()])
                     ),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('name');
@@ -140,9 +154,9 @@ class AppellationResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListAppellations::route('/'),
-            'create' => Pages\CreateAppellation::route('/create'),
-            'edit' => Pages\EditAppellation::route('/{record}/edit'),
+            'index' => ListAppellations::route('/'),
+            'create' => CreateAppellation::route('/create'),
+            'edit' => EditAppellation::route('/{record}/edit'),
         ];
     }
 }

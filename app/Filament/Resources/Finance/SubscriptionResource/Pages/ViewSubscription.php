@@ -11,17 +11,18 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\Subscription;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 
 class ViewSubscription extends ViewRecord
@@ -36,9 +37,9 @@ class ViewSubscription extends ViewRecord
         return 'Subscription: '.$record->plan_name;
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getHeaderSection(),
                 Tabs::make('Subscription Details')
@@ -66,13 +67,13 @@ class ViewSubscription extends ViewRecord
                             TextEntry::make('id')
                                 ->label('Subscription ID')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->copyable()
                                 ->copyMessage('Subscription ID copied'),
                             TextEntry::make('plan_name')
                                 ->label('Plan Name')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                         ])->columnSpan(1),
 
                         Group::make([
@@ -108,7 +109,7 @@ class ViewSubscription extends ViewRecord
                                 ->label('Amount')
                                 ->money(fn (Subscription $record): string => $record->currency)
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                             TextEntry::make('billing_cycle')
                                 ->label('Billing Cycle')
                                 ->badge()
@@ -197,7 +198,7 @@ class ViewSubscription extends ViewRecord
                                         ->label('Next Billing Date')
                                         ->date()
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large)
+                                        ->size(TextSize::Large)
                                         ->color(fn (Subscription $record): ?string => $record->isOverdueForBilling() ? 'danger' : ($record->isDueForBilling() ? 'warning' : null))
                                         ->helperText(fn (Subscription $record): string => $record->isOverdueForBilling()
                                             ? 'Overdue - billing should have occurred'
@@ -365,7 +366,7 @@ class ViewSubscription extends ViewRecord
     /**
      * Get header actions for subscription management.
      *
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
@@ -392,7 +393,7 @@ class ViewSubscription extends ViewRecord
             ->requiresConfirmation()
             ->modalHeading('Suspend Subscription')
             ->modalDescription('Suspending this subscription will stop billing and block customer access. The subscription can be resumed later.')
-            ->form([
+            ->schema([
                 Textarea::make('reason')
                     ->label('Suspension Reason')
                     ->required()
@@ -469,7 +470,7 @@ class ViewSubscription extends ViewRecord
             ->modalHeading('Cancel Subscription')
             ->modalDescription('WARNING: Cancelling this subscription is permanent and cannot be undone. The customer will lose access and no further billing will occur.')
             ->modalSubmitActionLabel('Yes, Cancel Subscription')
-            ->form([
+            ->schema([
                 Textarea::make('reason')
                     ->label('Cancellation Reason')
                     ->required()

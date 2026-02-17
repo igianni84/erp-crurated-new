@@ -14,6 +14,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Storage Billing Preview page for Finance module.
@@ -25,17 +26,17 @@ use Illuminate\Support\Collection;
  */
 class StorageBillingPreview extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-calculator';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calculator';
 
     protected static ?string $navigationLabel = 'Storage Billing Preview';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 71;
 
     protected static ?string $title = 'Storage Billing Preview';
 
-    protected static string $view = 'filament.pages.finance.storage-billing-preview';
+    protected string $view = 'filament.pages.finance.storage-billing-preview';
 
     /**
      * Period start date for preview.
@@ -99,7 +100,7 @@ class StorageBillingPreview extends Page
             ->modalHeading('Generate Storage Billing Invoices')
             ->modalDescription(fn (): string => $this->getGenerateConfirmationMessage())
             ->modalSubmitActionLabel('Generate Invoices')
-            ->form([
+            ->schema([
                 DatePicker::make('period_start')
                     ->label('Period Start')
                     ->default(fn (): string => $this->periodStart)
@@ -351,7 +352,7 @@ class StorageBillingPreview extends Page
     /**
      * Export preview data to CSV.
      */
-    public function exportPreview(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportPreview(): StreamedResponse
     {
         $previewData = $this->getPreviewData();
         $summary = $this->getPreviewSummary();

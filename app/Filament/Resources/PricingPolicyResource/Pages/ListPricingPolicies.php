@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\PricingPolicyResource\Pages;
 
 use App\Filament\Resources\PricingPolicyResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListPricingPolicies extends ListRecords
@@ -13,7 +13,7 @@ class ListPricingPolicies extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Create Pricing Policy'),
         ];
     }

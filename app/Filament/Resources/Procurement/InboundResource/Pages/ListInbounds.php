@@ -6,9 +6,9 @@ use App\Enums\Procurement\InboundStatus;
 use App\Enums\Procurement\OwnershipFlag;
 use App\Filament\Resources\Procurement\InboundResource;
 use App\Models\Procurement\Inbound;
-use Filament\Actions;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListInbounds extends ListRecords
@@ -18,7 +18,7 @@ class ListInbounds extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Record Inbound')
                 ->icon('heroicon-o-plus'),
         ];

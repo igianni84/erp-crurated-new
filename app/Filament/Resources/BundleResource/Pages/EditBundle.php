@@ -3,7 +3,11 @@
 namespace App\Filament\Resources\BundleResource\Pages;
 
 use App\Filament\Resources\BundleResource;
-use Filament\Actions;
+use App\Models\Commercial\Bundle;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditBundle extends EditRecord
@@ -13,10 +17,10 @@ class EditBundle extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make(),
-            Actions\ForceDeleteAction::make(),
-            Actions\RestoreAction::make(),
+            ViewAction::make(),
+            DeleteAction::make(),
+            ForceDeleteAction::make(),
+            RestoreAction::make(),
         ];
     }
 
@@ -24,7 +28,7 @@ class EditBundle extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var \App\Models\Commercial\Bundle $record */
+        /** @var Bundle $record */
         $record = $this->getRecord();
 
         // Redirect to view page if bundle is not editable

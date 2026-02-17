@@ -11,19 +11,29 @@ use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Inventory\MovementService;
-use Filament\Forms;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Wizard;
+use Exception;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
 
 /**
  * Page for creating consignment placement movements.
@@ -31,23 +41,23 @@ use Illuminate\Support\HtmlString;
  * Places Crurated-owned inventory at consignee locations where ownership
  * remains with Crurated but custody changes to the consignee.
  *
- * @property Form $form
+ * @property \Filament\Schemas\Schema $form
  */
 class CreateConsignmentPlacement extends Page implements HasForms
 {
     use InteractsWithForms;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-up-tray';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-up-tray';
 
     protected static ?string $navigationLabel = 'Consignment Placement';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 8;
 
     protected static ?string $title = 'Create Consignment Placement';
 
-    protected static string $view = 'filament.pages.create-consignment-placement';
+    protected string $view = 'filament.pages.create-consignment-placement';
 
     /**
      * @var array<string, mixed>
@@ -75,20 +85,20 @@ class CreateConsignmentPlacement extends Page implements HasForms
         return 'Place Crurated-owned inventory at a consignee location';
     }
 
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 Wizard::make([
                     // Step 1: Select Source Location (warehouse where items are)
-                    Wizard\Step::make('Source Location')
+                    Step::make('Source Location')
                         ->description('Select the source warehouse')
                         ->icon('heroicon-o-building-office-2')
                         ->schema([
                             Section::make('Select Source Location')
                                 ->description('Choose the warehouse where the items are currently stored. Only Crurated-owned items can be placed in consignment.')
                                 ->schema([
-                                    Forms\Components\Select::make('source_location_id')
+                                    Select::make('source_location_id')
                                         ->label('Source Location')
                                         ->options(function (): array {
                                             // Only show warehouse locations (main/satellite) that are active
@@ -109,14 +119,14 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                         ->preload()
                                         ->required()
                                         ->live()
-                                        ->afterStateUpdated(function (Forms\Set $set): void {
+                                        ->afterStateUpdated(function (Set $set): void {
                                             // Reset selected items when source changes
                                             $set('selected_bottles', []);
                                             $set('selected_cases', []);
                                         })
                                         ->helperText('Only warehouse locations with Crurated-owned inventory are shown.'),
 
-                                    Forms\Components\Placeholder::make('source_location_info')
+                                    Placeholder::make('source_location_info')
                                         ->label('Location Details')
                                         ->visible(fn (Get $get): bool => $get('source_location_id') !== null)
                                         ->content(function (Get $get): HtmlString {
@@ -164,13 +174,13 @@ class CreateConsignmentPlacement extends Page implements HasForms
                         ]),
 
                     // Step 2: Select Items (only Crurated-owned)
-                    Wizard\Step::make('Select Items')
+                    Step::make('Select Items')
                         ->description('Choose Crurated-owned items')
                         ->icon('heroicon-o-squares-2x2')
                         ->schema([
                             Section::make()
                                 ->schema([
-                                    Forms\Components\Placeholder::make('ownership_notice')
+                                    Placeholder::make('ownership_notice')
                                         ->label('')
                                         ->content(new HtmlString(<<<'HTML'
                                             <div class="p-4 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-800">
@@ -195,7 +205,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                 ->description('Choose Crurated-owned bottles to place in consignment.')
                                 ->collapsible()
                                 ->schema([
-                                    Forms\Components\CheckboxList::make('selected_bottles')
+                                    CheckboxList::make('selected_bottles')
                                         ->label('')
                                         ->options(function (Get $get): array {
                                             $locationId = $get('source_location_id');
@@ -245,7 +255,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                 ->description('Choose intact cases to place in consignment. All bottles in selected cases will be included.')
                                 ->collapsible()
                                 ->schema([
-                                    Forms\Components\CheckboxList::make('selected_cases')
+                                    CheckboxList::make('selected_cases')
                                         ->label('')
                                         ->options(function (Get $get): array {
                                             $locationId = $get('source_location_id');
@@ -277,7 +287,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                         ->helperText('Showing up to 100 intact cases at this location.'),
                                 ]),
 
-                            Forms\Components\Placeholder::make('selection_summary')
+                            Placeholder::make('selection_summary')
                                 ->label('Selection Summary')
                                 ->content(function (Get $get): HtmlString {
                                     /** @var array<int, string> $bottles */
@@ -316,19 +326,19 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                     ->danger()
                                     ->send();
 
-                                throw new \Filament\Support\Exceptions\Halt;
+                                throw new Halt;
                             }
                         }),
 
                     // Step 3: Select Consignee Location
-                    Wizard\Step::make('Consignee')
+                    Step::make('Consignee')
                         ->description('Select the consignee location')
                         ->icon('heroicon-o-user-group')
                         ->schema([
                             Section::make('Select Consignee Location')
                                 ->description('Choose the consignee where the items will be placed.')
                                 ->schema([
-                                    Forms\Components\Select::make('consignee_location_id')
+                                    Select::make('consignee_location_id')
                                         ->label('Consignee Location')
                                         ->options(function (Get $get): array {
                                             $sourceId = $get('source_location_id');
@@ -350,7 +360,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                         ->live()
                                         ->helperText('Only active consignee locations are shown.'),
 
-                                    Forms\Components\Placeholder::make('consignee_location_info')
+                                    Placeholder::make('consignee_location_info')
                                         ->label('Consignee Details')
                                         ->visible(fn (Get $get): bool => $get('consignee_location_id') !== null)
                                         ->content(function (Get $get): HtmlString {
@@ -386,7 +396,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                             HTML);
                                         }),
 
-                                    Forms\Components\Textarea::make('reason')
+                                    Textarea::make('reason')
                                         ->label('Consignment Reason (Optional)')
                                         ->placeholder('Enter a reason for this consignment placement...')
                                         ->rows(2),
@@ -394,13 +404,13 @@ class CreateConsignmentPlacement extends Page implements HasForms
                         ]),
 
                     // Step 4: Review and Confirm
-                    Wizard\Step::make('Review & Confirm')
+                    Step::make('Review & Confirm')
                         ->description('Review and execute placement')
                         ->icon('heroicon-o-check-circle')
                         ->schema([
                             Section::make('Consignment Summary')
                                 ->schema([
-                                    Forms\Components\Placeholder::make('consignment_summary')
+                                    Placeholder::make('consignment_summary')
                                         ->label('')
                                         ->content(function (Get $get): HtmlString {
                                             $sourceId = $get('source_location_id');
@@ -459,7 +469,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
 
                             Section::make('Confirmation')
                                 ->schema([
-                                    Forms\Components\Placeholder::make('warning')
+                                    Placeholder::make('warning')
                                         ->label('')
                                         ->content(new HtmlString(<<<'HTML'
                                             <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
@@ -484,7 +494,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                             </div>
                                         HTML)),
 
-                                    Forms\Components\Checkbox::make('confirm_placement')
+                                    Checkbox::make('confirm_placement')
                                         ->label('I confirm that I want to place these items in consignment')
                                         ->required()
                                         ->accepted(),
@@ -590,7 +600,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                             $movements->push($movement);
                             $placedBottles++;
                         }
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         $errors[] = "Bottle {$bottleId}: {$e->getMessage()}";
                     }
                 }
@@ -604,17 +614,17 @@ class CreateConsignmentPlacement extends Page implements HasForms
                             $movements->push($movement);
                             $placedCases++;
                         }
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         $errors[] = "Case {$caseId}: {$e->getMessage()}";
                     }
                 }
 
                 // If all placements failed, throw exception to rollback
                 if ($placedBottles === 0 && $placedCases === 0) {
-                    throw new \Exception('No items were placed in consignment.');
+                    throw new Exception('No items were placed in consignment.');
                 }
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->title('Consignment Placement Failed')
                 ->body($e->getMessage())
@@ -644,7 +654,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                 ->success()
                 ->persistent()
                 ->actions([
-                    \Filament\Notifications\Actions\Action::make('view_movements')
+                    Action::make('view_movements')
                         ->label('View Movements')
                         ->url(InventoryMovementResource::getUrl('index'))
                         ->button(),

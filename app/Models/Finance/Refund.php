@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,13 +36,13 @@ use InvalidArgumentException;
  * @property string $reason
  * @property string|null $stripe_refund_id
  * @property string|null $bank_reference
- * @property \Carbon\Carbon|null $processed_at
+ * @property Carbon|null $processed_at
  * @property int|null $processed_by
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Refund extends Model
 {

@@ -8,6 +8,7 @@ use App\Models\Finance\Invoice;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Invoice Aging Report page for Finance module.
@@ -20,11 +21,11 @@ use Illuminate\Support\Collection;
  */
 class InvoiceAgingReport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar';
 
     protected static ?string $navigationLabel = 'Invoice Aging';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -32,7 +33,7 @@ class InvoiceAgingReport extends Page
 
     protected static ?string $title = 'Invoice Aging Report';
 
-    protected static string $view = 'filament.pages.finance.invoice-aging-report';
+    protected string $view = 'filament.pages.finance.invoice-aging-report';
 
     /**
      * Filter by customer ID.
@@ -335,7 +336,7 @@ class InvoiceAgingReport extends Page
     /**
      * Export aging report to CSV.
      */
-    public function exportToCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToCsv(): StreamedResponse
     {
         $agingData = $this->getAgingData();
         $summary = $this->getAgingSummary();

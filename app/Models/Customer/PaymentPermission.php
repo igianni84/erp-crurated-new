@@ -2,11 +2,16 @@
 
 namespace App\Models\Customer;
 
+use App\Models\AuditLog;
+use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * PaymentPermission Model
@@ -34,8 +39,8 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property string|null $credit_limit
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class PaymentPermission extends Model
 {
@@ -88,11 +93,11 @@ class PaymentPermission extends Model
     /**
      * Get the audit logs for this payment permission.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -224,7 +229,7 @@ class PaymentPermission extends Model
      * Check if a user can modify payment permissions.
      * Requires Finance role (Manager or higher).
      */
-    public static function canBeModifiedBy(?\App\Models\User $user): bool
+    public static function canBeModifiedBy(?User $user): bool
     {
         return $user?->canManagePaymentPermissions() ?? false;
     }
@@ -235,14 +240,14 @@ class PaymentPermission extends Model
      *
      * @param  array<string, mixed>  $attributes
      *
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function updateWithAuthorization(array $attributes, ?\App\Models\User $user = null): bool
+    public function updateWithAuthorization(array $attributes, ?User $user = null): bool
     {
-        $user = $user ?? \Illuminate\Support\Facades\Auth::user();
+        $user = $user ?? Auth::user();
 
         if (! self::canBeModifiedBy($user)) {
-            throw new \Illuminate\Auth\Access\AuthorizationException(
+            throw new AuthorizationException(
                 'Only Finance roles (Manager or higher) can modify payment permissions.'
             );
         }
@@ -254,9 +259,9 @@ class PaymentPermission extends Model
      * Enable bank transfer payments with authorization check.
      * Bank transfers require Finance approval.
      *
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function authorizeBankTransfer(?\App\Models\User $user = null): void
+    public function authorizeBankTransfer(?User $user = null): void
     {
         $this->updateWithAuthorization(['bank_transfer_allowed' => true], $user);
     }
@@ -264,9 +269,9 @@ class PaymentPermission extends Model
     /**
      * Revoke bank transfer authorization.
      *
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function revokeBankTransfer(?\App\Models\User $user = null): void
+    public function revokeBankTransfer(?User $user = null): void
     {
         $this->updateWithAuthorization(['bank_transfer_allowed' => false], $user);
     }
@@ -276,9 +281,9 @@ class PaymentPermission extends Model
      *
      * @param  float|string|null  $limit  The credit limit (null to remove credit)
      *
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function setCreditLimitWithAuthorization(float|string|null $limit, ?\App\Models\User $user = null): void
+    public function setCreditLimitWithAuthorization(float|string|null $limit, ?User $user = null): void
     {
         $this->updateWithAuthorization(['credit_limit' => $limit], $user);
     }

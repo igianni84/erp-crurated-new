@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Inventory\InboundBatchResource\Pages;
 
 use App\Filament\Resources\Inventory\InboundBatchResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListInboundBatches extends ListRecords
@@ -13,7 +13,7 @@ class ListInboundBatches extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Manual Creation')
                 ->icon('heroicon-o-plus')
                 ->color('warning')

@@ -15,23 +15,24 @@ use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
 use Carbon\Carbon;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Collection;
 
 class AllocationVoucherDashboard extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationLabel = 'A&V Dashboard';
 
-    protected static ?string $navigationGroup = 'Allocations';
+    protected static string|\UnitEnum|null $navigationGroup = 'Allocations';
 
     protected static ?int $navigationSort = 0;
 
     protected static ?string $title = 'Allocation & Voucher Dashboard';
 
-    protected static string $view = 'filament.pages.allocation-voucher-dashboard';
+    protected string $view = 'filament.pages.allocation-voucher-dashboard';
 
     // ========================================
     // Allocation Widgets Data
@@ -226,7 +227,7 @@ class AllocationVoucherDashboard extends Page
     public function getNearExhaustionAllocationsUrl(): string
     {
         return AllocationResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'near_exhaustion' => true,
             ],
         ]);
@@ -238,7 +239,7 @@ class AllocationVoucherDashboard extends Page
     public function getActiveAllocationsUrl(): string
     {
         return AllocationResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [AllocationStatus::Active->value],
                 ],
@@ -252,7 +253,7 @@ class AllocationVoucherDashboard extends Page
     public function getClosedAllocationsUrl(): string
     {
         return AllocationResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [AllocationStatus::Closed->value],
                 ],
@@ -274,7 +275,7 @@ class AllocationVoucherDashboard extends Page
     public function getIssuedVouchersUrl(): string
     {
         return VoucherResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'lifecycle_state' => [
                     'values' => [VoucherLifecycleState::Issued->value],
                 ],
@@ -288,7 +289,7 @@ class AllocationVoucherDashboard extends Page
     public function getPendingRedemptionVouchersUrl(): string
     {
         return VoucherResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'lifecycle_state' => [
                     'values' => [VoucherLifecycleState::Locked->value],
                 ],
@@ -302,7 +303,7 @@ class AllocationVoucherDashboard extends Page
     public function getRedeemedVouchersUrl(): string
     {
         return VoucherResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'lifecycle_state' => [
                     'values' => [VoucherLifecycleState::Redeemed->value],
                 ],
@@ -316,7 +317,7 @@ class AllocationVoucherDashboard extends Page
     public function getPendingTransfersUrl(): string
     {
         return VoucherTransferResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [VoucherTransferStatus::Pending->value],
                 ],
@@ -330,7 +331,7 @@ class AllocationVoucherDashboard extends Page
     public function getExpiredTransfersUrl(): string
     {
         return VoucherTransferResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [VoucherTransferStatus::Expired->value],
                 ],

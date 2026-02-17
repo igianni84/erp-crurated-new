@@ -9,21 +9,31 @@ use App\Filament\Resources\Procurement\InboundResource;
 use App\Models\AuditLog;
 use App\Models\Procurement\Inbound;
 use App\Services\Procurement\InboundService;
+use Carbon\Carbon;
 use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
 
 class ViewInbound extends ViewRecord
 {
@@ -60,9 +70,9 @@ class ViewInbound extends ViewRecord
         return $record->getProductLabel().' - '.$record->status->label();
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Inbound Details')
                     ->tabs([
@@ -209,7 +219,7 @@ class ViewInbound extends ViewRecord
                                 TextEntry::make('ownership_flag')
                                     ->label('Ownership Flag')
                                     ->badge()
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->formatStateUsing(fn (OwnershipFlag $state): string => $state->label())
                                     ->color(fn (OwnershipFlag $state): string => $state->color())
                                     ->icon(fn (OwnershipFlag $state): string => $state->icon()),
@@ -232,10 +242,10 @@ class ViewInbound extends ViewRecord
                             ->visible(fn (Inbound $record): bool => $record->hasOwnershipPending()),
                     ])
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('update_ownership')
+                        Action::make('update_ownership')
                             ->label('Update Ownership')
                             ->icon('heroicon-o-pencil-square')
-                            ->form([
+                            ->schema([
                                 Select::make('ownership_flag')
                                     ->label('Ownership Flag')
                                     ->options(collect(OwnershipFlag::cases())
@@ -254,7 +264,7 @@ class ViewInbound extends ViewRecord
                                         ->title('Ownership updated')
                                         ->body("Ownership flag changed to {$newFlag->label()}")
                                         ->send();
-                                } catch (\InvalidArgumentException $e) {
+                                } catch (InvalidArgumentException $e) {
                                     Notification::make()
                                         ->danger()
                                         ->title('Failed to update ownership')
@@ -526,10 +536,10 @@ class ViewInbound extends ViewRecord
                 Section::make('Audit Trail')
                     ->description('Immutable record of all changes')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->options([
@@ -550,7 +560,7 @@ class ViewInbound extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filter')
+                        Action::make('clear_filter')
                             ->label('Clear')
                             ->icon('heroicon-o-x-mark')
                             ->action(function (): void {
@@ -587,7 +597,7 @@ class ViewInbound extends ViewRecord
                                     ->schema([
                                         TextEntry::make('created_at')
                                             ->label('Date/Time')
-                                            ->formatStateUsing(fn ($state): string => $state instanceof \Carbon\Carbon
+                                            ->formatStateUsing(fn ($state): string => $state instanceof Carbon
                                                 ? $state->format('Y-m-d H:i:s')
                                                 : (is_string($state) ? $state : 'Unknown')),
                                         TextEntry::make('event')
@@ -696,7 +706,7 @@ class ViewInbound extends ViewRecord
     {
         return [
             // Route (Recorded → Routed)
-            Actions\Action::make('route')
+            Action::make('route')
                 ->label('Route')
                 ->icon('heroicon-o-arrow-path')
                 ->color('primary')
@@ -716,7 +726,7 @@ class ViewInbound extends ViewRecord
                     return 'Assign a serialization location and route this inbound for processing.';
                 })
                 ->modalSubmitActionLabel('Route Inbound')
-                ->form([
+                ->schema([
                     Select::make('serialization_location')
                         ->label('Serialization Location')
                         ->options(function (Inbound $record): array {
@@ -763,7 +773,7 @@ class ViewInbound extends ViewRecord
                             return 'Where serialization will be performed';
                         })
                         ->live()
-                        ->afterStateUpdated(function (string $state, callable $set, Inbound $record): void {
+                        ->afterStateUpdated(function (string $state, Set $set, Inbound $record): void {
                             $inboundService = app(InboundService::class);
                             $checkResult = $inboundService->checkSerializationLocationAuthorization($record, $state);
 
@@ -773,10 +783,10 @@ class ViewInbound extends ViewRecord
                                 $set('location_warning', null);
                             }
                         }),
-                    \Filament\Forms\Components\Placeholder::make('location_warning_display')
+                    Placeholder::make('location_warning_display')
                         ->label('')
-                        ->content(fn ($get): ?\Illuminate\Support\HtmlString => $get('location_warning') !== null
-                            ? new \Illuminate\Support\HtmlString(
+                        ->content(fn ($get): ?HtmlString => $get('location_warning') !== null
+                            ? new HtmlString(
                                 '<div class="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">'
                                 .'<p class="text-red-700 dark:text-red-300 font-medium text-sm">'
                                 .'🚫 '.$get('location_warning')
@@ -785,7 +795,7 @@ class ViewInbound extends ViewRecord
                             : null
                         )
                         ->hidden(fn ($get): bool => $get('location_warning') === null),
-                    \Filament\Forms\Components\Hidden::make('location_warning'),
+                    Hidden::make('location_warning'),
                 ])
                 ->visible(fn (Inbound $record): bool => $record->isRecorded())
                 ->action(function (Inbound $record, array $data): void {
@@ -797,7 +807,7 @@ class ViewInbound extends ViewRecord
                             ->title('Inbound routed')
                             ->body('The inbound has been routed to '.$data['serialization_location'])
                             ->send();
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Failed to route inbound')
@@ -807,7 +817,7 @@ class ViewInbound extends ViewRecord
                 }),
 
             // Complete (Routed → Completed)
-            Actions\Action::make('complete')
+            Action::make('complete')
                 ->label('Complete')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -832,7 +842,7 @@ class ViewInbound extends ViewRecord
                             ->title('Inbound completed')
                             ->body('The inbound has been marked as completed.')
                             ->send();
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Failed to complete inbound')
@@ -842,7 +852,7 @@ class ViewInbound extends ViewRecord
                 }),
 
             // Hand-off to Module B
-            Actions\Action::make('handoff')
+            Action::make('handoff')
                 ->label('Hand-off to Module B')
                 ->icon('heroicon-o-arrow-right-circle')
                 ->color('warning')
@@ -875,7 +885,7 @@ class ViewInbound extends ViewRecord
                             ->title('Hand-off successful')
                             ->body('The inbound has been handed off to Module B.')
                             ->send();
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Failed to hand off inbound')
@@ -885,7 +895,7 @@ class ViewInbound extends ViewRecord
                 }),
 
             // View linked Intent
-            Actions\Action::make('view_intent')
+            Action::make('view_intent')
                 ->label('View Intent')
                 ->icon('heroicon-o-clipboard-document-list')
                 ->color('gray')
@@ -896,7 +906,7 @@ class ViewInbound extends ViewRecord
                 ->visible(fn (Inbound $record): bool => $record->procurement_intent_id !== null),
 
             // View linked PO
-            Actions\Action::make('view_po')
+            Action::make('view_po')
                 ->label('View PO')
                 ->icon('heroicon-o-document-text')
                 ->color('gray')
@@ -907,11 +917,11 @@ class ViewInbound extends ViewRecord
                 ->visible(fn (Inbound $record): bool => $record->purchase_order_id !== null),
 
             // Delete action
-            Actions\DeleteAction::make()
+            DeleteAction::make()
                 ->visible(fn (Inbound $record): bool => ! $record->handed_to_module_b),
 
             // Restore action (for soft deleted)
-            Actions\RestoreAction::make(),
+            RestoreAction::make(),
         ];
     }
 }

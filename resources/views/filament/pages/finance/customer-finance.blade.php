@@ -146,38 +146,38 @@
                     <button
                         wire:click="setTab('open-invoices')"
                         type="button"
-                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'open-invoices' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->currentTab === 'open-invoices' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                     >
                         Open Invoices
-                        <span class="ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium {{ $this->activeTab === 'open-invoices' ? 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-400' : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-300' }}">
+                        <span class="ml-2 py-0.5 px-2.5 rounded-full text-xs font-medium {{ $this->currentTab === 'open-invoices' ? 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-400' : 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-300' }}">
                             {{ $balanceSummary['open_invoices_count'] }}
                         </span>
                     </button>
                     <button
                         wire:click="setTab('payment-history')"
                         type="button"
-                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'payment-history' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->currentTab === 'payment-history' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                     >
                         Payment History
                     </button>
                     <button
                         wire:click="setTab('credits-refunds')"
                         type="button"
-                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'credits-refunds' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->currentTab === 'credits-refunds' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                     >
                         Credits & Refunds
                     </button>
                     <button
                         wire:click="setTab('exposure-limits')"
                         type="button"
-                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'exposure-limits' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->currentTab === 'exposure-limits' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                     >
                         Exposure & Limits
                     </button>
                     <button
                         wire:click="setTab('eligibility-signals')"
                         type="button"
-                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->activeTab === 'eligibility-signals' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm {{ $this->currentTab === 'eligibility-signals' ? 'border-primary-500 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300' }}"
                     >
                         Eligibility Signals
                         @if($this->hasActiveBlocks())
@@ -192,7 +192,7 @@
             {{-- Tab Content --}}
             <div class="p-6">
                 {{-- Open Invoices Tab --}}
-                @if($this->activeTab === 'open-invoices')
+                @if($this->currentTab === 'open-invoices')
                     @php $openInvoices = $this->getOpenInvoices(); @endphp
                     @if($openInvoices->isEmpty())
                         <div class="text-center py-8">
@@ -263,7 +263,7 @@
                 @endif
 
                 {{-- Payment History Tab --}}
-                @if($this->activeTab === 'payment-history')
+                @if($this->currentTab === 'payment-history')
                     {{-- Date Filters --}}
                     <div class="flex flex-col sm:flex-row gap-4 mb-6">
                         <div class="flex-1">
@@ -340,7 +340,7 @@
                 @endif
 
                 {{-- Credits & Refunds Tab --}}
-                @if($this->activeTab === 'credits-refunds')
+                @if($this->currentTab === 'credits-refunds')
                     @php
                         $creditNotes = $this->getCreditNotes();
                         $refunds = $this->getRefunds();
@@ -467,7 +467,7 @@
                 @endif
 
                 {{-- Exposure & Limits Tab --}}
-                @if($this->activeTab === 'exposure-limits')
+                @if($this->currentTab === 'exposure-limits')
                     @php
                         $exposureMetrics = $this->getExposureMetrics();
                         $trendData = $this->getExposureTrendData();
@@ -649,7 +649,7 @@
                 @endif
 
                 {{-- Eligibility Signals Tab --}}
-                @if($this->activeTab === 'eligibility-signals')
+                @if($this->currentTab === 'eligibility-signals')
                     @php $signals = $this->getEligibilitySignals(); @endphp
 
                     {{-- Important Notice --}}

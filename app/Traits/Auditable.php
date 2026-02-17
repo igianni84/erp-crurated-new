@@ -3,8 +3,12 @@
 namespace App\Traits;
 
 use App\Models\AuditLog;
+use App\Models\User;
+use BackedEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
+use UnitEnum;
 
 /**
  * Trait Auditable
@@ -140,9 +144,9 @@ trait Auditable
     {
         $result = [];
         foreach ($values as $key => $value) {
-            if ($value instanceof \BackedEnum) {
+            if ($value instanceof BackedEnum) {
                 $result[$key] = $value->value;
-            } elseif ($value instanceof \UnitEnum) {
+            } elseif ($value instanceof UnitEnum) {
                 $result[$key] = $value->name;
             } else {
                 $result[$key] = $value;
@@ -155,20 +159,20 @@ trait Auditable
     /**
      * Get the user who created this model.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this>
+     * @return BelongsTo<User, $this>
      */
-    public function creator(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function creator(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**
      * Get the user who last updated this model.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo<\App\Models\User, $this>
+     * @return BelongsTo<User, $this>
      */
-    public function updater(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function updater(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'updated_by');
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

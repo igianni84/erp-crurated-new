@@ -14,6 +14,7 @@ use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -908,7 +909,7 @@ class InvoiceService
                 $invoice->xero_sync_pending = false;
                 $invoice->save();
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Log the error but don't fail the invoice issuance
             // The sync can be retried later via the Integrations Health page
             // Invoice remains flagged as xero_sync_pending

@@ -5,9 +5,9 @@ namespace App\Filament\Resources\Procurement\PurchaseOrderResource\Pages;
 use App\Enums\Procurement\PurchaseOrderStatus;
 use App\Filament\Resources\Procurement\PurchaseOrderResource;
 use App\Models\Procurement\PurchaseOrder;
-use Filament\Actions;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListPurchaseOrders extends ListRecords
@@ -17,7 +17,7 @@ class ListPurchaseOrders extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Create Purchase Order')
                 ->icon('heroicon-o-plus'),
         ];

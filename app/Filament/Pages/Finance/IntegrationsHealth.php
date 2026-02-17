@@ -10,6 +10,7 @@ use App\Models\Finance\StripeWebhook;
 use App\Models\Finance\XeroSyncLog;
 use App\Services\Finance\XeroIntegrationService;
 use Carbon\Carbon;
+use Exception;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -27,17 +28,17 @@ use Illuminate\Support\Facades\Log;
  */
 class IntegrationsHealth extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-signal';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-signal';
 
     protected static ?string $navigationLabel = 'Integrations Health';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 80;
 
     protected static ?string $title = 'Integrations Health';
 
-    protected static string $view = 'filament.pages.finance.integrations-health';
+    protected string $view = 'filament.pages.finance.integrations-health';
 
     // =========================================================================
     // Header Actions
@@ -572,7 +573,7 @@ class IntegrationsHealth extends Page
                     ->warning()
                     ->send();
             }
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Notification::make()
                 ->title('Sync failed')
                 ->body($e->getMessage())

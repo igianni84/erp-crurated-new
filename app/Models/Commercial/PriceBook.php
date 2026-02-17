@@ -3,9 +3,13 @@
 namespace App\Models\Commercial;
 
 use App\Enums\Commercial\PriceBookStatus;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -30,10 +34,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $market
  * @property string|null $channel_id
  * @property string $currency
- * @property \Carbon\Carbon $valid_from
- * @property \Carbon\Carbon|null $valid_to
+ * @property Carbon $valid_from
+ * @property Carbon|null $valid_to
  * @property PriceBookStatus $status
- * @property \Carbon\Carbon|null $approved_at
+ * @property Carbon|null $approved_at
  * @property int|null $approved_by
  */
 class PriceBook extends Model
@@ -105,11 +109,11 @@ class PriceBook extends Model
     /**
      * Get the audit logs for this price book.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -210,9 +214,9 @@ class PriceBook extends Model
     /**
      * Find overlapping active price books for the same market/channel/currency.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, PriceBook>
+     * @return Collection<int, PriceBook>
      */
-    public function findOverlappingActivePriceBooks(): \Illuminate\Database\Eloquent\Collection
+    public function findOverlappingActivePriceBooks(): Collection
     {
         return self::query()
             ->where('id', '!=', $this->id)
@@ -316,8 +320,8 @@ class PriceBook extends Model
     /**
      * Scope a query to only include active price books for a specific context.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<PriceBook>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<PriceBook>
+     * @param  Builder<PriceBook>  $query
+     * @return Builder<PriceBook>
      */
     public function scopeActiveForContext($query, string $market, ?string $channelId, string $currency)
     {

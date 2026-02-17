@@ -8,6 +8,7 @@ use App\Models\Finance\Invoice;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Revenue by Invoice Type Report page for Finance module.
@@ -21,11 +22,11 @@ use Illuminate\Support\Collection;
  */
 class RevenueByTypeReport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-chart-pie';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-pie';
 
     protected static ?string $navigationLabel = 'Revenue by Type';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -33,7 +34,7 @@ class RevenueByTypeReport extends Page
 
     protected static ?string $title = 'Revenue by Invoice Type';
 
-    protected static string $view = 'filament.pages.finance.revenue-by-type-report';
+    protected string $view = 'filament.pages.finance.revenue-by-type-report';
 
     /**
      * Selected period type: monthly, quarterly, yearly.
@@ -420,7 +421,7 @@ class RevenueByTypeReport extends Page
     /**
      * Export report to CSV.
      */
-    public function exportToCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToCsv(): StreamedResponse
     {
         $data = $this->getRevenueData();
         $summary = $this->getSummary();

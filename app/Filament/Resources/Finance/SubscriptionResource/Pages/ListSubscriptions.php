@@ -5,8 +5,9 @@ namespace App\Filament\Resources\Finance\SubscriptionResource\Pages;
 use App\Enums\Finance\SubscriptionStatus;
 use App\Filament\Resources\Finance\SubscriptionResource;
 use App\Models\Finance\Subscription;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListSubscriptions extends ListRecords
@@ -14,7 +15,7 @@ class ListSubscriptions extends ListRecords
     protected static string $resource = SubscriptionResource::class;
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
@@ -24,7 +25,7 @@ class ListSubscriptions extends ListRecords
     }
 
     /**
-     * @return array<string, Tab>
+     * @return array<string, \Filament\Schemas\Components\Tabs\Tab>
      */
     public function getTabs(): array
     {

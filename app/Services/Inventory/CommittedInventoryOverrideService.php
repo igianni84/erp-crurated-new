@@ -5,10 +5,13 @@ namespace App\Services\Inventory;
 use App\Enums\Inventory\ConsumptionReason;
 use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\InventoryMovement;
+use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use App\Models\User;
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for handling exceptional committed inventory consumption.
@@ -51,10 +54,10 @@ class CommittedInventoryOverrideService
     /**
      * Get committed bottles at a location that could be overridden.
      *
-     * @param  \App\Models\Inventory\Location  $location  The location to check
+     * @param  Location  $location  The location to check
      * @return Collection<int, SerializedBottle> Committed bottles at the location
      */
-    public function getCommittedBottlesForOverride(\App\Models\Inventory\Location $location): Collection
+    public function getCommittedBottlesForOverride(Location $location): Collection
     {
         return $this->inventoryService->getCommittedBottlesAtLocation($location);
     }
@@ -127,7 +130,7 @@ class CommittedInventoryOverrideService
      *     errors: array<int, string>
      * }
      *
-     * @throws \InvalidArgumentException If validation fails
+     * @throws InvalidArgumentException If validation fails
      */
     public function executeOverride(
         User $user,
@@ -139,7 +142,7 @@ class CommittedInventoryOverrideService
         // Validate the request first
         $validation = $this->validateOverrideRequest($user, $justification, $bottles);
         if (! $validation['valid']) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Override validation failed: '.implode(' ', $validation['errors'])
             );
         }
@@ -188,17 +191,17 @@ class CommittedInventoryOverrideService
                         $movements->push($movement);
 
                         $consumedCount++;
-                    } catch (\Exception $e) {
+                    } catch (Exception $e) {
                         $errors[] = "Bottle {$bottle->serial_number}: {$e->getMessage()}";
                     }
                 }
 
                 // If no bottles were consumed, throw exception to rollback
                 if ($consumedCount === 0) {
-                    throw new \Exception('No bottles were consumed successfully.');
+                    throw new Exception('No bottles were consumed successfully.');
                 }
             });
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return [
                 'success' => false,
                 'consumed_count' => 0,

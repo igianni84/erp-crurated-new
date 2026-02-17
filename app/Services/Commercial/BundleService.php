@@ -2,6 +2,7 @@
 
 namespace App\Services\Commercial;
 
+use App\Enums\Commercial\BundlePricingLogic;
 use App\Enums\Commercial\BundleStatus;
 use App\Models\AuditLog;
 use App\Models\Commercial\Bundle;
@@ -10,6 +11,8 @@ use App\Models\Commercial\PriceBook;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use InvalidArgumentException;
 
 /**
  * Service for managing Bundle lifecycle and operations.
@@ -22,26 +25,25 @@ class BundleService
     // =========================================================================
     // Status Transitions
     // =========================================================================
-
     /**
      * Activate a Bundle (draft → active).
      *
      * Validates all components and synchronizes with PIM to create/update
      * the composite Sellable SKU. Only bundles with valid components can be activated.
      *
-     * @throws \InvalidArgumentException If activation is not allowed
+     * @throws InvalidArgumentException If activation is not allowed
      */
     public function activate(Bundle $bundle): Bundle
     {
         if (! $bundle->isDraft()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot activate Bundle: current status '{$bundle->status->label()}' is not Draft. "
                 .'Only Draft Bundles can be activated.'
             );
         }
 
         if (! $bundle->hasComponents()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot activate Bundle: it must have at least one component. '
                 .'Add components before activating.'
             );
@@ -54,7 +56,7 @@ class BundleService
                 fn (array $errors) => implode(', ', $errors),
                 $validation['errors']
             );
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot activate Bundle: component validation failed. '
                 .implode('; ', $errorMessages)
             );
@@ -82,12 +84,12 @@ class BundleService
      *
      * Inactive bundles are not available for sale but components remain linked.
      *
-     * @throws \InvalidArgumentException If deactivation is not allowed
+     * @throws InvalidArgumentException If deactivation is not allowed
      */
     public function deactivate(Bundle $bundle): Bundle
     {
         if (! $bundle->isActive()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot deactivate Bundle: current status '{$bundle->status->label()}' is not Active. "
                 .'Only Active Bundles can be deactivated.'
             );
@@ -107,12 +109,12 @@ class BundleService
      *
      * Reactivates a previously deactivated bundle after validating components.
      *
-     * @throws \InvalidArgumentException If reactivation is not allowed
+     * @throws InvalidArgumentException If reactivation is not allowed
      */
     public function reactivate(Bundle $bundle): Bundle
     {
         if (! $bundle->isInactive()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot reactivate Bundle: current status '{$bundle->status->label()}' is not Inactive. "
                 .'Only Inactive Bundles can be reactivated.'
             );
@@ -125,7 +127,7 @@ class BundleService
                 fn (array $errors) => implode(', ', $errors),
                 $validation['errors']
             );
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot reactivate Bundle: component validation failed. '
                 .implode('; ', $errorMessages)
             );
@@ -143,20 +145,19 @@ class BundleService
     // =========================================================================
     // Price Calculation
     // =========================================================================
-
     /**
      * Calculate the bundle price based on its pricing logic and a Price Book.
      *
      * @return BundlePriceCalculation Result containing price breakdown
      *
-     * @throws \InvalidArgumentException If price cannot be calculated
+     * @throws InvalidArgumentException If price cannot be calculated
      */
     public function calculatePrice(Bundle $bundle, PriceBook $priceBook): BundlePriceCalculation
     {
         $componentsPrice = $this->getComponentsPrice($bundle, $priceBook);
 
         if ($componentsPrice === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot calculate bundle price: one or more components are missing prices in the Price Book.'
             );
         }
@@ -192,7 +193,7 @@ class BundleService
             $calculation = $this->calculatePrice($bundle, $priceBook);
 
             return $calculation->finalPrice;
-        } catch (\InvalidArgumentException) {
+        } catch (InvalidArgumentException) {
             return null;
         }
     }
@@ -477,7 +478,7 @@ class BundleService
         // Create audit log if bundle has auditable trait
         // For now, we'll use a manual approach since Bundle uses SoftDeletes but not Auditable
         DB::table('audit_logs')->insert([
-            'id' => (string) \Illuminate\Support\Str::uuid(),
+            'id' => (string) Str::uuid(),
             'auditable_type' => Bundle::class,
             'auditable_id' => $bundle->id,
             'event' => AuditLog::EVENT_STATUS_CHANGE,
@@ -543,7 +544,7 @@ readonly class BundlePriceCalculation
         public float $discountPercentage,
         public string $currency,
         public array $componentPrices,
-        public \App\Enums\Commercial\BundlePricingLogic $pricingLogic,
+        public BundlePricingLogic $pricingLogic,
         public ?float $fixedPrice,
         public ?float $percentageOff
     ) {}

@@ -6,9 +6,9 @@ use App\Enums\Procurement\BottlingInstructionStatus;
 use App\Enums\Procurement\BottlingPreferenceStatus;
 use App\Filament\Resources\Procurement\BottlingInstructionResource;
 use App\Models\Procurement\BottlingInstruction;
-use Filament\Actions;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListBottlingInstructions extends ListRecords
@@ -18,7 +18,7 @@ class ListBottlingInstructions extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Create Bottling Instruction')
                 ->icon('heroicon-o-plus'),
         ];

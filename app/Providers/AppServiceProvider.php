@@ -16,6 +16,8 @@ use App\Models\Finance\Payment;
 use App\Models\Finance\Refund;
 use App\Models\Finance\StorageBillingPeriod;
 use App\Models\Finance\Subscription;
+use App\Models\Pim\LiquidProduct;
+use App\Models\Pim\SellableSku;
 use App\Observers\Customer\CustomerObserver;
 use App\Observers\Customer\PartyRoleObserver;
 use App\Policies\AccountPolicy;
@@ -29,6 +31,9 @@ use App\Policies\Finance\StorageBillingPeriodPolicy;
 use App\Policies\Finance\SubscriptionPolicy;
 use App\Policies\VoucherPolicy;
 use App\Policies\VoucherTransferPolicy;
+use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
@@ -52,8 +57,8 @@ class AppServiceProvider extends ServiceProvider
         // Register morph map for polymorphic relationships
         // This maps the short alias stored in DB to the full class names
         Relation::morphMap([
-            'sellable_skus' => \App\Models\Pim\SellableSku::class,
-            'liquid_products' => \App\Models\Pim\LiquidProduct::class,
+            'sellable_skus' => SellableSku::class,
+            'liquid_products' => LiquidProduct::class,
         ]);
 
         // Register policies for models in subdirectories
@@ -78,5 +83,10 @@ class AppServiceProvider extends ServiceProvider
         // Register event listeners for Module D (Procurement)
         // VoucherIssued event triggers auto-creation of ProcurementIntent
         Event::listen(VoucherIssued::class, CreateProcurementIntentOnVoucherIssued::class);
+
+        // Filament v4 global configuration
+        FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('public'));
+        ImageColumn::configureUsing(fn (ImageColumn $ic) => $ic->visibility('public'));
+        Table::configureUsing(fn (Table $table) => $table->deferFilters(false));
     }
 }

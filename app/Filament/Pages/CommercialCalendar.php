@@ -18,17 +18,17 @@ use Filament\Pages\Page;
 
 class CommercialCalendar extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calendar-days';
 
     protected static ?string $navigationLabel = 'Calendar';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 2;
 
     protected static ?string $title = 'Commercial Calendar';
 
-    protected static string $view = 'filament.pages.commercial-calendar';
+    protected string $view = 'filament.pages.commercial-calendar';
 
     public string $calendarView = 'month';
 

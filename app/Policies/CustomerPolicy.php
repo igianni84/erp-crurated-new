@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\Customer\Customer;
 use App\Models\User;
 
@@ -60,7 +61,7 @@ class CustomerPolicy
      */
     public function delete(User $user, Customer $customer): bool
     {
-        return $user->role?->hasAtLeast(\App\Enums\UserRole::Manager) ?? false;
+        return $user->role?->hasAtLeast(UserRole::Manager) ?? false;
     }
 
     /**
@@ -70,7 +71,7 @@ class CustomerPolicy
      */
     public function restore(User $user, Customer $customer): bool
     {
-        return $user->role?->hasAtLeast(\App\Enums\UserRole::Manager) ?? false;
+        return $user->role?->hasAtLeast(UserRole::Manager) ?? false;
     }
 
     /**

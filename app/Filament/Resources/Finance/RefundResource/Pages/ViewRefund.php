@@ -12,18 +12,20 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Support\HtmlString;
 
 class ViewRefund extends ViewRecord
 {
@@ -37,9 +39,9 @@ class ViewRefund extends ViewRecord
         return 'Refund #'.$record->id;
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getHeaderSection(),
                 Tabs::make('Refund Details')
@@ -69,7 +71,7 @@ class ViewRefund extends ViewRecord
                             TextEntry::make('id')
                                 ->label('Refund ID')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->prefix('#'),
                             TextEntry::make('uuid')
                                 ->label('UUID')
@@ -83,7 +85,7 @@ class ViewRefund extends ViewRecord
                                 ->label('Refund Amount')
                                 ->money(fn (Refund $record): string => $record->currency)
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->color('danger'),
                             TextEntry::make('currency')
                                 ->label('Currency')
@@ -851,10 +853,10 @@ class ViewRefund extends ViewRecord
             ->icon('heroicon-o-check-circle')
             ->color('success')
             ->visible(fn (): bool => $this->getRefund()->canMarkBankRefundProcessed())
-            ->form([
+            ->schema([
                 Placeholder::make('info')
                     ->label('')
-                    ->content(new \Illuminate\Support\HtmlString(
+                    ->content(new HtmlString(
                         '<div class="p-4 rounded-lg bg-info-50 dark:bg-info-900/20 border border-info-200 dark:border-info-700">'.
                         '<div class="flex items-start gap-3">'.
                         '<svg class="w-6 h-6 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">'.

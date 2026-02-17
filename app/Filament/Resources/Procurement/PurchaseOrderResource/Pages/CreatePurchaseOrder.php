@@ -9,18 +9,29 @@ use App\Enums\Procurement\SourcingModel;
 use App\Filament\Resources\Procurement\PurchaseOrderResource;
 use App\Models\Customer\Party;
 use App\Models\Procurement\ProcurementIntent;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Carbon\Carbon;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreatePurchaseOrder extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = PurchaseOrderResource::class;
 
@@ -28,10 +39,10 @@ class CreatePurchaseOrder extends CreateRecord
      * Get the form for creating a purchase order.
      * Implements a 5-step wizard for PO creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -48,7 +59,7 @@ class CreatePurchaseOrder extends CreateRecord
     protected function getWizardSubmitActions(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex gap-3">
                     <x-filament::button
                         type="submit"
@@ -64,7 +75,7 @@ class CreatePurchaseOrder extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -81,16 +92,16 @@ class CreatePurchaseOrder extends CreateRecord
      * Step 1: Intent Selection
      * Select the procurement intent as prerequisite.
      */
-    protected function getIntentStep(): Wizard\Step
+    protected function getIntentStep(): Step
     {
-        return Wizard\Step::make('Intent')
+        return Step::make('Intent')
             ->description('Select the Procurement Intent')
             ->icon('heroicon-o-clipboard-document-list')
             ->schema([
                 // Prominent message about PO-Intent requirement
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('po_intent_requirement')
+                        Placeholder::make('po_intent_requirement')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">'
@@ -103,10 +114,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ]),
 
                 // Intent Selection
-                Forms\Components\Section::make('Select Procurement Intent')
+                Section::make('Select Procurement Intent')
                     ->description('Choose from approved or executed intents')
                     ->schema([
-                        Forms\Components\Select::make('procurement_intent_id')
+                        Select::make('procurement_intent_id')
                             ->label('Procurement Intent')
                             ->placeholder('Search for an intent by ID or product...')
                             ->searchable()
@@ -173,10 +184,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ]),
 
                 // Intent Preview
-                Forms\Components\Section::make('Intent Summary')
+                Section::make('Intent Summary')
                     ->description('Preview of the selected procurement intent')
                     ->schema([
-                        Forms\Components\Placeholder::make('intent_product')
+                        Placeholder::make('intent_product')
                             ->label('Product')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -187,7 +198,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_string($data['product_label']) ? $data['product_label'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('intent_quantity')
+                        Placeholder::make('intent_quantity')
                             ->label('Quantity')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -201,7 +212,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return "{$quantity} {$unit}";
                             }),
 
-                        Forms\Components\Placeholder::make('intent_sourcing_model')
+                        Placeholder::make('intent_sourcing_model')
                             ->label('Sourcing Model')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -212,7 +223,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_string($data['sourcing_model']) ? $data['sourcing_model'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('intent_status')
+                        Placeholder::make('intent_status')
                             ->label('Intent Status')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -224,7 +235,7 @@ class CreatePurchaseOrder extends CreateRecord
                             }),
 
                         // Warning for ownership transfer and sourcing model mismatch
-                        Forms\Components\Placeholder::make('ownership_warning')
+                        Placeholder::make('ownership_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -243,7 +254,7 @@ class CreatePurchaseOrder extends CreateRecord
                             })
                             ->columnSpanFull(),
 
-                        Forms\Components\Placeholder::make('non_purchase_warning')
+                        Placeholder::make('non_purchase_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">'
@@ -266,7 +277,7 @@ class CreatePurchaseOrder extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('procurement_intent_id') === null),
 
                 // Hidden field to store preview data
-                Forms\Components\Hidden::make('intent_preview_data'),
+                Hidden::make('intent_preview_data'),
             ]);
     }
 
@@ -274,16 +285,16 @@ class CreatePurchaseOrder extends CreateRecord
      * Step 2: Supplier Selection
      * Select the supplier for the PO.
      */
-    protected function getSupplierStep(): Wizard\Step
+    protected function getSupplierStep(): Step
     {
-        return Wizard\Step::make('Supplier')
+        return Step::make('Supplier')
             ->description('Select the supplier')
             ->icon('heroicon-o-building-storefront')
             ->schema([
-                Forms\Components\Section::make('Select Supplier')
+                Section::make('Select Supplier')
                     ->description('Choose a supplier or producer party')
                     ->schema([
-                        Forms\Components\Select::make('supplier_party_id')
+                        Select::make('supplier_party_id')
                             ->label('Supplier')
                             ->placeholder('Search for a supplier by name...')
                             ->searchable()
@@ -350,10 +361,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ]),
 
                 // Supplier Preview
-                Forms\Components\Section::make('Supplier Information')
+                Section::make('Supplier Information')
                     ->description('Details of the selected supplier')
                     ->schema([
-                        Forms\Components\Placeholder::make('supplier_name')
+                        Placeholder::make('supplier_name')
                             ->label('Legal Name')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_preview_data');
@@ -364,7 +375,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_string($data['legal_name']) ? $data['legal_name'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('supplier_party_type')
+                        Placeholder::make('supplier_party_type')
                             ->label('Party Type')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_preview_data');
@@ -375,7 +386,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_string($data['party_type']) ? $data['party_type'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('supplier_roles')
+                        Placeholder::make('supplier_roles')
                             ->label('Roles')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_preview_data');
@@ -390,10 +401,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('supplier_party_id') === null),
 
                 // Supplier Config Preview (if exists)
-                Forms\Components\Section::make('Supplier Configuration')
+                Section::make('Supplier Configuration')
                     ->description('Default settings from ProducerSupplierConfig')
                     ->schema([
-                        Forms\Components\Placeholder::make('config_deadline')
+                        Placeholder::make('config_deadline')
                             ->label('Default Bottling Deadline')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_config_data');
@@ -405,7 +416,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_numeric($days) ? "{$days} days" : 'Not specified';
                             }),
 
-                        Forms\Components\Placeholder::make('config_formats')
+                        Placeholder::make('config_formats')
                             ->label('Allowed Formats')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_config_data');
@@ -420,7 +431,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return 'Not specified';
                             }),
 
-                        Forms\Components\Placeholder::make('config_notes')
+                        Placeholder::make('config_notes')
                             ->label('Notes')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_config_data');
@@ -437,9 +448,9 @@ class CreatePurchaseOrder extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('supplier_config_data') === null),
 
                 // No config message
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('no_config_message')
+                        Placeholder::make('no_config_message')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">'
@@ -451,8 +462,8 @@ class CreatePurchaseOrder extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('supplier_party_id') === null || $get('supplier_config_data') !== null),
 
                 // Hidden fields for preview data
-                Forms\Components\Hidden::make('supplier_preview_data'),
-                Forms\Components\Hidden::make('supplier_config_data'),
+                Hidden::make('supplier_preview_data'),
+                Hidden::make('supplier_config_data'),
             ]);
     }
 
@@ -460,16 +471,16 @@ class CreatePurchaseOrder extends CreateRecord
      * Step 3: Commercial Terms
      * Define the commercial terms of the PO.
      */
-    protected function getCommercialTermsStep(): Wizard\Step
+    protected function getCommercialTermsStep(): Step
     {
-        return Wizard\Step::make('Commercial Terms')
+        return Step::make('Commercial Terms')
             ->description('Define pricing and terms')
             ->icon('heroicon-o-currency-euro')
             ->schema([
-                Forms\Components\Section::make('Quantity')
+                Section::make('Quantity')
                     ->description('Specify the quantity to order')
                     ->schema([
-                        Forms\Components\TextInput::make('quantity')
+                        TextInput::make('quantity')
                             ->label('Quantity')
                             ->numeric()
                             ->required()
@@ -487,7 +498,7 @@ class CreatePurchaseOrder extends CreateRecord
                             ->helperText('Pre-filled from intent quantity'),
 
                         // Warning if quantity > intent quantity
-                        Forms\Components\Placeholder::make('quantity_warning')
+                        Placeholder::make('quantity_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">'
@@ -508,10 +519,10 @@ class CreatePurchaseOrder extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Pricing')
+                Section::make('Pricing')
                     ->description('Define unit cost and currency')
                     ->schema([
-                        Forms\Components\TextInput::make('unit_cost')
+                        TextInput::make('unit_cost')
                             ->label('Unit Cost')
                             ->numeric()
                             ->required()
@@ -520,7 +531,7 @@ class CreatePurchaseOrder extends CreateRecord
                             ->prefix('€')
                             ->helperText('Cost per bottle or bottle-equivalent'),
 
-                        Forms\Components\Select::make('currency')
+                        Select::make('currency')
                             ->label('Currency')
                             ->options([
                                 'EUR' => 'EUR - Euro',
@@ -532,7 +543,7 @@ class CreatePurchaseOrder extends CreateRecord
                             ->required()
                             ->native(false),
 
-                        Forms\Components\Select::make('incoterms')
+                        Select::make('incoterms')
                             ->label('Incoterms')
                             ->options([
                                 'EXW' => 'EXW - Ex Works',
@@ -553,16 +564,16 @@ class CreatePurchaseOrder extends CreateRecord
                     ])
                     ->columns(3),
 
-                Forms\Components\Section::make('Ownership Transfer')
+                Section::make('Ownership Transfer')
                     ->description('Define ownership transfer terms')
                     ->schema([
-                        Forms\Components\Toggle::make('ownership_transfer')
+                        Toggle::make('ownership_transfer')
                             ->label('Ownership Transfer')
                             ->helperText('Check if ownership transfers to us on delivery')
                             ->live()
                             ->default(false),
 
-                        Forms\Components\Placeholder::make('ownership_explanation')
+                        Placeholder::make('ownership_explanation')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $ownershipTransfer = $get('ownership_transfer') === true;
@@ -588,7 +599,7 @@ class CreatePurchaseOrder extends CreateRecord
                             ->columnSpanFull(),
 
                         // Warning for ownership mismatch with sourcing model
-                        Forms\Components\Placeholder::make('ownership_mismatch_warning')
+                        Placeholder::make('ownership_mismatch_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">'
@@ -616,23 +627,23 @@ class CreatePurchaseOrder extends CreateRecord
      * Step 4: Delivery
      * Define delivery expectations.
      */
-    protected function getDeliveryStep(): Wizard\Step
+    protected function getDeliveryStep(): Step
     {
-        return Wizard\Step::make('Delivery')
+        return Step::make('Delivery')
             ->description('Define delivery expectations')
             ->icon('heroicon-o-truck')
             ->schema([
-                Forms\Components\Section::make('Delivery Window')
+                Section::make('Delivery Window')
                     ->description('Expected delivery dates')
                     ->schema([
-                        Forms\Components\DatePicker::make('expected_delivery_start')
+                        DatePicker::make('expected_delivery_start')
                             ->label('Expected Delivery Start')
                             ->placeholder('Select start date...')
                             ->native(false)
                             ->live()
                             ->helperText('Earliest expected delivery date'),
 
-                        Forms\Components\DatePicker::make('expected_delivery_end')
+                        DatePicker::make('expected_delivery_end')
                             ->label('Expected Delivery End')
                             ->placeholder('Select end date...')
                             ->native(false)
@@ -641,10 +652,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Destination')
+                Section::make('Destination')
                     ->description('Where should the goods be delivered?')
                     ->schema([
-                        Forms\Components\Select::make('destination_warehouse')
+                        Select::make('destination_warehouse')
                             ->label('Destination Warehouse')
                             ->options([
                                 'main_warehouse' => 'Main Warehouse',
@@ -655,7 +666,7 @@ class CreatePurchaseOrder extends CreateRecord
                             ->placeholder('Select warehouse...')
                             ->helperText('Pre-filled from intent preferred location'),
 
-                        Forms\Components\Placeholder::make('destination_note')
+                        Placeholder::make('destination_note')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">'
@@ -667,10 +678,10 @@ class CreatePurchaseOrder extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Serialization Routing')
+                Section::make('Serialization Routing')
                     ->description('Special instructions for serialization')
                     ->schema([
-                        Forms\Components\Textarea::make('serialization_routing_note')
+                        Textarea::make('serialization_routing_note')
                             ->label('Serialization Routing Note')
                             ->placeholder('Enter special routing instructions (e.g., "France required for serialization")')
                             ->rows(3)
@@ -683,16 +694,16 @@ class CreatePurchaseOrder extends CreateRecord
      * Step 5: Review
      * Review all data before creating.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->description('Review and create the PO')
             ->icon('heroicon-o-check-badge')
             ->schema([
                 // Draft status info
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('draft_info')
+                        Placeholder::make('draft_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -705,10 +716,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ]),
 
                 // Linked Intent Summary
-                Forms\Components\Section::make('Linked Procurement Intent')
+                Section::make('Linked Procurement Intent')
                     ->icon('heroicon-o-clipboard-document-list')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_intent')
+                        Placeholder::make('review_intent')
                             ->label('Intent')
                             ->content(function (Get $get): string {
                                 $intentId = $get('procurement_intent_id');
@@ -721,7 +732,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return $intent !== null ? self::formatIntentOption($intent) : 'Not found';
                             }),
 
-                        Forms\Components\Placeholder::make('review_intent_product')
+                        Placeholder::make('review_intent_product')
                             ->label('Product')
                             ->content(function (Get $get): string {
                                 $data = $get('intent_preview_data');
@@ -735,10 +746,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ->columns(2),
 
                 // Supplier Summary
-                Forms\Components\Section::make('Supplier')
+                Section::make('Supplier')
                     ->icon('heroicon-o-building-storefront')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_supplier')
+                        Placeholder::make('review_supplier')
                             ->label('Supplier')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_preview_data');
@@ -749,7 +760,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_string($data['legal_name']) ? $data['legal_name'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('review_supplier_roles')
+                        Placeholder::make('review_supplier_roles')
                             ->label('Roles')
                             ->content(function (Get $get): string {
                                 $data = $get('supplier_preview_data');
@@ -763,10 +774,10 @@ class CreatePurchaseOrder extends CreateRecord
                     ->columns(2),
 
                 // Commercial Terms Summary
-                Forms\Components\Section::make('Commercial Terms')
+                Section::make('Commercial Terms')
                     ->icon('heroicon-o-currency-euro')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_quantity')
+                        Placeholder::make('review_quantity')
                             ->label('Quantity')
                             ->content(function (Get $get): string {
                                 $quantity = is_numeric($get('quantity')) ? (int) $get('quantity') : 0;
@@ -777,7 +788,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return "{$quantity} {$unit}";
                             }),
 
-                        Forms\Components\Placeholder::make('review_unit_cost')
+                        Placeholder::make('review_unit_cost')
                             ->label('Unit Cost')
                             ->content(function (Get $get): string {
                                 $unitCost = is_numeric($get('unit_cost')) ? number_format((float) $get('unit_cost'), 2) : '0.00';
@@ -786,7 +797,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return "{$currency} {$unitCost}";
                             }),
 
-                        Forms\Components\Placeholder::make('review_total_cost')
+                        Placeholder::make('review_total_cost')
                             ->label('Total Cost')
                             ->content(function (Get $get): string {
                                 $quantity = is_numeric($get('quantity')) ? (int) $get('quantity') : 0;
@@ -797,7 +808,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 return "{$currency} ".number_format($total, 2);
                             }),
 
-                        Forms\Components\Placeholder::make('review_incoterms')
+                        Placeholder::make('review_incoterms')
                             ->label('Incoterms')
                             ->content(function (Get $get): string {
                                 $incoterms = $get('incoterms');
@@ -805,17 +816,17 @@ class CreatePurchaseOrder extends CreateRecord
                                 return is_string($incoterms) && $incoterms !== '' ? $incoterms : 'Not specified';
                             }),
 
-                        Forms\Components\Placeholder::make('review_ownership')
+                        Placeholder::make('review_ownership')
                             ->label('Ownership Transfer')
                             ->content(fn (Get $get): string => $get('ownership_transfer') === true ? 'Yes' : 'No'),
                     ])
                     ->columns(3),
 
                 // Delivery Summary
-                Forms\Components\Section::make('Delivery')
+                Section::make('Delivery')
                     ->icon('heroicon-o-truck')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_delivery_window')
+                        Placeholder::make('review_delivery_window')
                             ->label('Delivery Window')
                             ->content(function (Get $get): string {
                                 $start = $get('expected_delivery_start');
@@ -833,21 +844,21 @@ class CreatePurchaseOrder extends CreateRecord
                                 }
 
                                 if ($start !== null) {
-                                    $startFormatted = $start instanceof \Carbon\Carbon
+                                    $startFormatted = $start instanceof Carbon
                                         ? $start->format('Y-m-d')
                                         : (is_scalar($start) ? (string) $start : '');
 
                                     return "From {$startFormatted}";
                                 }
 
-                                $endFormatted = $end instanceof \Carbon\Carbon
+                                $endFormatted = $end instanceof Carbon
                                     ? $end->format('Y-m-d')
                                     : (is_scalar($end) ? (string) $end : '');
 
                                 return "Until {$endFormatted}";
                             }),
 
-                        Forms\Components\Placeholder::make('review_destination')
+                        Placeholder::make('review_destination')
                             ->label('Destination Warehouse')
                             ->content(function (Get $get): string {
                                 $warehouse = $get('destination_warehouse');
@@ -861,7 +872,7 @@ class CreatePurchaseOrder extends CreateRecord
                                 };
                             }),
 
-                        Forms\Components\Placeholder::make('review_routing_note')
+                        Placeholder::make('review_routing_note')
                             ->label('Serialization Routing Note')
                             ->content(function (Get $get): string {
                                 $note = $get('serialization_routing_note');

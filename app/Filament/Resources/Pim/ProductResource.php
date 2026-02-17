@@ -4,13 +4,27 @@ namespace App\Filament\Resources\Pim;
 
 use App\Enums\DataSource;
 use App\Enums\ProductLifecycleStatus;
-use App\Filament\Resources\Pim\ProductResource\Pages;
+use App\Filament\Resources\Pim\ProductResource\Pages\ChooseProductCategory;
+use App\Filament\Resources\Pim\ProductResource\Pages\CreateBottleProduct;
+use App\Filament\Resources\Pim\ProductResource\Pages\CreateManualBottle;
+use App\Filament\Resources\Pim\ProductResource\Pages\ImportLivex;
+use App\Filament\Resources\Pim\ProductResource\Pages\ListProducts;
 use App\Models\Pim\WineVariant;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,9 +33,9 @@ class ProductResource extends Resource
 {
     protected static ?string $model = WineVariant::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cube';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 0;
 
@@ -33,17 +47,17 @@ class ProductResource extends Resource
 
     protected static ?string $slug = 'pim/products';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
         // Products should be edited via Wine Variant or Liquid Product resources
-        return $form->schema([]);
+        return $schema->components([]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\ImageColumn::make('thumbnail_url')
+                ImageColumn::make('thumbnail_url')
                     ->label('Thumbnail')
                     ->disk('public')
                     ->checkFileExistence(false)
@@ -54,7 +68,7 @@ class ProductResource extends Resource
 
                         return 'https://ui-avatars.com/api/?name='.urlencode($name).'&color=7F9CF5&background=EBF4FF';
                     }),
-                Tables\Columns\TextColumn::make('name_vintage')
+                TextColumn::make('name_vintage')
                     ->label('Name + Vintage')
                     ->getStateUsing(function (WineVariant $record): string {
                         $wineMaster = $record->wineMaster;
@@ -70,21 +84,21 @@ class ProductResource extends Resource
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->join('wine_masters', 'wine_variants.wine_master_id', '=', 'wine_masters.id')
                         ->orderBy('wine_masters.name', $direction)
                         ->select('wine_variants.*')),
-                Tables\Columns\TextColumn::make('category')
+                TextColumn::make('category')
                     ->label('Category')
                     ->badge()
                     ->getStateUsing(fn (WineVariant $record): string => $record->liquidProduct !== null ? 'liquid' : 'bottle')
                     ->formatStateUsing(fn (string $state): string => $state === 'liquid' ? 'Liquid' : 'Bottle')
                     ->color(fn (string $state): string => $state === 'liquid' ? 'info' : 'success')
                     ->icon(fn (string $state): string => $state === 'liquid' ? 'heroicon-o-beaker' : 'heroicon-o-cube'),
-                Tables\Columns\TextColumn::make('lifecycle_status')
+                TextColumn::make('lifecycle_status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (ProductLifecycleStatus $state): string => $state->label())
                     ->color(fn (ProductLifecycleStatus $state): string => $state->color())
                     ->icon(fn (ProductLifecycleStatus $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('completeness')
+                TextColumn::make('completeness')
                     ->label('Completeness')
                     ->badge()
                     ->getStateUsing(fn (WineVariant $record): string => $record->getCompletenessPercentage().'%')
@@ -99,28 +113,28 @@ class ProductResource extends Resource
                             '.$direction
                         );
                     }),
-                Tables\Columns\TextColumn::make('data_source')
+                TextColumn::make('data_source')
                     ->label('Source')
                     ->badge()
                     ->formatStateUsing(fn (DataSource $state): string => $state->label())
                     ->color(fn (DataSource $state): string => $state->color())
                     ->icon(fn (DataSource $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('internal_code')
+                TextColumn::make('internal_code')
                     ->label('Internal Code')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('lwin_code')
+                TextColumn::make('lwin_code')
                     ->label('LWIN')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('lifecycle_status')
+                SelectFilter::make('lifecycle_status')
                     ->label('Status')
                     ->options(
                         collect(ProductLifecycleStatus::cases())
@@ -129,7 +143,7 @@ class ProductResource extends Resource
                             ])
                             ->toArray()
                     ),
-                Tables\Filters\SelectFilter::make('category')
+                SelectFilter::make('category')
                     ->label('Category')
                     ->options([
                         'bottle' => 'Bottle',
@@ -148,8 +162,8 @@ class ProductResource extends Resource
                         return $query;
                     }),
                 Filter::make('completeness_range')
-                    ->form([
-                        \Filament\Forms\Components\Select::make('completeness')
+                    ->schema([
+                        Select::make('completeness')
                             ->label('Completeness')
                             ->options([
                                 'low' => 'Low (< 50%)',
@@ -192,7 +206,7 @@ class ProductResource extends Resource
 
                         return $subQuery;
                     }),
-                Tables\Filters\SelectFilter::make('data_source')
+                SelectFilter::make('data_source')
                     ->label('Source')
                     ->options(
                         collect(DataSource::cases())
@@ -201,17 +215,17 @@ class ProductResource extends Resource
                             ])
                             ->toArray()
                     ),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make()
+            ->recordActions([
+                ViewAction::make()
                     ->url(fn (WineVariant $record): string => WineVariantResource::getUrl('view', ['record' => $record])),
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->url(fn (WineVariant $record): string => WineVariantResource::getUrl('edit', ['record' => $record])),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('submit_for_review')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('submit_for_review')
                         ->label('Submit for Review')
                         ->icon('heroicon-o-paper-airplane')
                         ->color('warning')
@@ -247,8 +261,8 @@ class ProductResource extends Resource
                                     ->send();
                             }
                         }),
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -264,11 +278,11 @@ class ProductResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListProducts::route('/'),
-            'choose-category' => Pages\ChooseProductCategory::route('/create'),
-            'create-bottle' => Pages\CreateBottleProduct::route('/create/bottle'),
-            'import-livex' => Pages\ImportLivex::route('/create/bottle/livex'),
-            'create-manual' => Pages\CreateManualBottle::route('/create/bottle/manual'),
+            'index' => ListProducts::route('/'),
+            'choose-category' => ChooseProductCategory::route('/create'),
+            'create-bottle' => CreateBottleProduct::route('/create/bottle'),
+            'import-livex' => ImportLivex::route('/create/bottle/livex'),
+            'create-manual' => CreateManualBottle::route('/create/bottle/manual'),
         ];
     }
 }

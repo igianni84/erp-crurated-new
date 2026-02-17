@@ -4,22 +4,33 @@ namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceType;
-use App\Filament\Resources\Finance\CreditNoteResource\Pages;
+use App\Filament\Resources\Finance\CreditNoteResource\Pages\ListCreditNotes;
+use App\Filament\Resources\Finance\CreditNoteResource\Pages\ViewCreditNote;
 use App\Models\Finance\CreditNote;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CreditNoteResource extends Resource
 {
     protected static ?string $model = CreditNote::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-receipt-refund';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-receipt-refund';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 30;
 
@@ -29,10 +40,10 @@ class CreditNoteResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Credit Notes';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in US-E065
             ]);
     }
@@ -41,7 +52,7 @@ class CreditNoteResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('credit_note_number')
+                TextColumn::make('credit_note_number')
                     ->label('Credit Note #')
                     ->searchable()
                     ->sortable()
@@ -49,7 +60,7 @@ class CreditNoteResource extends Resource
                     ->copyMessage('Credit note number copied')
                     ->placeholder('Draft'),
 
-                Tables\Columns\TextColumn::make('invoice.invoice_number')
+                TextColumn::make('invoice.invoice_number')
                     ->label('Invoice #')
                     ->searchable()
                     ->sortable()
@@ -59,7 +70,7 @@ class CreditNoteResource extends Resource
                     ->openUrlInNewTab()
                     ->placeholder('N/A'),
 
-                Tables\Columns\TextColumn::make('original_invoice_type')
+                TextColumn::make('original_invoice_type')
                     ->label('Invoice Type')
                     ->badge()
                     ->formatStateUsing(fn (?InvoiceType $state): string => $state !== null ? $state->code().' - '.$state->label() : 'N/A')
@@ -68,7 +79,7 @@ class CreditNoteResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -82,13 +93,13 @@ class CreditNoteResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('amount')
+                TextColumn::make('amount')
                     ->label('Amount')
                     ->money(fn (CreditNote $record): string => $record->currency)
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (CreditNoteStatus $state): string => $state->label())
@@ -96,13 +107,13 @@ class CreditNoteResource extends Resource
                     ->icon(fn (CreditNoteStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('issued_at')
+                TextColumn::make('issued_at')
                     ->label('Issued At')
                     ->dateTime('M j, Y H:i')
                     ->sortable()
                     ->placeholder('Not issued'),
 
-                Tables\Columns\TextColumn::make('reason')
+                TextColumn::make('reason')
                     ->label('Reason')
                     ->limit(50)
                     ->tooltip(fn (CreditNote $record): string => $record->reason)
@@ -110,25 +121,25 @@ class CreditNoteResource extends Resource
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(CreditNoteStatus::cases())
                         ->mapWithKeys(fn (CreditNoteStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('original_invoice_type')
+                SelectFilter::make('original_invoice_type')
                     ->options(collect(InvoiceType::cases())
                         ->mapWithKeys(fn (InvoiceType $type) => [$type->value => $type->code().' - '.$type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Original Invoice Type'),
 
-                Tables\Filters\Filter::make('issued_at')
-                    ->form([
-                        Forms\Components\DatePicker::make('issued_from')
+                Filter::make('issued_at')
+                    ->schema([
+                        DatePicker::make('issued_from')
                             ->label('Issued From'),
-                        Forms\Components\DatePicker::make('issued_until')
+                        DatePicker::make('issued_until')
                             ->label('Issued Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -154,9 +165,9 @@ class CreditNoteResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\Filter::make('customer')
-                    ->form([
-                        Forms\Components\Select::make('customer_id')
+                Filter::make('customer')
+                    ->schema([
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->relationship('customer', 'name')
                             ->searchable()
@@ -169,16 +180,16 @@ class CreditNoteResource extends Resource
                         );
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('export_csv')
+            ->toolbarActions([
+                BulkAction::make('export_csv')
                     ->label('Export to CSV')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                    ->action(function (Collection $records): StreamedResponse {
                         return response()->streamDownload(function () use ($records): void {
                             $handle = fopen('php://output', 'w');
                             if ($handle !== false) {
@@ -235,8 +246,8 @@ class CreditNoteResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCreditNotes::route('/'),
-            'view' => Pages\ViewCreditNote::route('/{record}'),
+            'index' => ListCreditNotes::route('/'),
+            'view' => ViewCreditNote::route('/{record}'),
         ];
     }
 
@@ -244,7 +255,7 @@ class CreditNoteResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -258,13 +269,13 @@ class CreditNoteResource extends Resource
         return parent::getGlobalSearchEloquentQuery()->with(['customer', 'invoice']);
     }
 
-    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string
+    public static function getGlobalSearchResultTitle(Model $record): string
     {
         /** @var CreditNote $record */
         return $record->credit_note_number ?? 'Draft Credit Note #'.$record->id;
     }
 
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var CreditNote $record */
         return [
@@ -275,7 +286,7 @@ class CreditNoteResource extends Resource
         ];
     }
 
-    public static function getGlobalSearchResultUrl(\Illuminate\Database\Eloquent\Model $record): ?string
+    public static function getGlobalSearchResultUrl(Model $record): ?string
     {
         return static::getUrl('view', ['record' => $record]);
     }

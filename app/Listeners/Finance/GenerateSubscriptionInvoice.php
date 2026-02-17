@@ -9,6 +9,7 @@ use App\Services\Finance\InvoiceService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Listener: GenerateSubscriptionInvoice
@@ -99,7 +100,7 @@ class GenerateSubscriptionInvoice implements ShouldQueue
                     'invoice_id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to auto-issue INV0 invoice', [
                     'invoice_id' => $invoice->id,
                     'error' => $e->getMessage(),

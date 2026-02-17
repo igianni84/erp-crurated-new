@@ -5,8 +5,9 @@ namespace App\Filament\Resources\Finance\InvoiceResource\Pages;
 use App\Enums\Finance\InvoiceStatus;
 use App\Filament\Resources\Finance\InvoiceResource;
 use App\Models\Finance\Invoice;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListInvoices extends ListRecords
@@ -14,7 +15,7 @@ class ListInvoices extends ListRecords
     protected static string $resource = InvoiceResource::class;
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
@@ -24,7 +25,7 @@ class ListInvoices extends ListRecords
     }
 
     /**
-     * @return array<string, Tab>
+     * @return array<string, \Filament\Schemas\Components\Tabs\Tab>
      */
     public function getTabs(): array
     {

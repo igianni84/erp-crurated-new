@@ -2,21 +2,57 @@
 
 namespace App\Filament\Resources\Pim;
 
+use App\Enums\DataSource;
 use App\Enums\ProductLifecycleStatus;
 use App\Enums\UserRole;
-use App\Filament\Resources\Pim\WineVariantResource\Pages;
-use App\Filament\Resources\Pim\WineVariantResource\RelationManagers;
+use App\Filament\Resources\Pim\WineVariantResource\Pages\CreateWineVariant;
+use App\Filament\Resources\Pim\WineVariantResource\Pages\EditWineVariant;
+use App\Filament\Resources\Pim\WineVariantResource\Pages\ListWineVariants;
+use App\Filament\Resources\Pim\WineVariantResource\Pages\ViewWineVariant;
+use App\Filament\Resources\Pim\WineVariantResource\RelationManagers\SellableSkusRelationManager;
+use App\Models\AuditLog;
+use App\Models\Pim\AttributeDefinition;
+use App\Models\Pim\AttributeGroup;
+use App\Models\Pim\AttributeSet;
 use App\Models\Pim\ProductMedia;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use App\Models\User;
 use App\Services\LivExService;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Auth;
 
@@ -24,9 +60,9 @@ class WineVariantResource extends Resource
 {
     protected static ?string $model = WineVariant::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-calendar';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calendar';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 2;
 
@@ -36,38 +72,38 @@ class WineVariantResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Wine Variants';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Tabs::make('Product Details')
+        return $schema
+            ->components([
+                Tabs::make('Product Details')
                     ->tabs([
-                        Forms\Components\Tabs\Tab::make('Core Info')
+                        Tab::make('Core Info')
                             ->icon('heroicon-o-information-circle')
                             ->schema([
                                 self::getCoreInfoSchema(),
                             ]),
-                        Forms\Components\Tabs\Tab::make('Attributes')
+                        Tab::make('Attributes')
                             ->icon('heroicon-o-tag')
                             ->schema([
                                 self::getAttributesSchema(),
                             ]),
-                        Forms\Components\Tabs\Tab::make('Media')
+                        Tab::make('Media')
                             ->icon('heroicon-o-photo')
                             ->schema([
                                 self::getMediaSchema(),
                             ]),
-                        Forms\Components\Tabs\Tab::make('Sellable SKUs')
+                        Tab::make('Sellable SKUs')
                             ->icon('heroicon-o-cube')
                             ->schema([
                                 self::getSellableSkusSchema(),
                             ]),
-                        Forms\Components\Tabs\Tab::make('Lifecycle')
+                        Tab::make('Lifecycle')
                             ->icon('heroicon-o-arrow-path')
                             ->schema([
                                 self::getLifecycleSchema(),
                             ]),
-                        Forms\Components\Tabs\Tab::make('Audit')
+                        Tab::make('Audit')
                             ->icon('heroicon-o-clock')
                             ->schema([
                                 self::getAuditSchema(),
@@ -81,11 +117,11 @@ class WineVariantResource extends Resource
     /**
      * Get the Core Info tab schema.
      */
-    protected static function getCoreInfoSchema(): Forms\Components\Component
+    protected static function getCoreInfoSchema(): Component
     {
-        return Forms\Components\Group::make([
+        return Group::make([
             // Liv-ex Status Banner
-            Forms\Components\Placeholder::make('livex_status_banner')
+            Placeholder::make('livex_status_banner')
                 ->label('')
                 ->content(function (?WineVariant $record): string {
                     if ($record === null || ! $record->isFromLivEx()) {
@@ -107,11 +143,11 @@ class WineVariantResource extends Resource
                 ->dehydrated(false),
 
             // Identity Section
-            Forms\Components\Section::make('Wine Identity')
+            Section::make('Wine Identity')
                 ->description('Core identity information for this wine')
                 ->icon('heroicon-o-identification')
                 ->schema([
-                    Forms\Components\Select::make('wine_master_id')
+                    Select::make('wine_master_id')
                         ->label('Wine Master')
                         ->relationship('wineMaster', 'name')
                         ->getOptionLabelFromRecordUsing(fn (WineMaster $record): string => "{$record->name} ({$record->producer})")
@@ -123,9 +159,9 @@ class WineVariantResource extends Resource
                         ->hintIcon(fn (?WineVariant $record): ?string => self::isFieldLocked($record, 'wine_master_id') ? 'heroicon-o-lock-closed' : null)
                         ->hintColor('info'),
 
-                    Forms\Components\Grid::make(2)
+                    Grid::make(2)
                         ->schema([
-                            Forms\Components\Placeholder::make('wine_name_display')
+                            Placeholder::make('wine_name_display')
                                 ->label('Wine Name')
                                 ->content(function (?WineVariant $record): string {
                                     $wineMaster = $record?->wineMaster;
@@ -134,7 +170,7 @@ class WineVariantResource extends Resource
                                 })
                                 ->visible(fn (string $operation): bool => $operation === 'edit'),
 
-                            Forms\Components\Placeholder::make('producer_display')
+                            Placeholder::make('producer_display')
                                 ->label('Producer')
                                 ->content(function (?WineVariant $record): string {
                                     $wineMaster = $record?->wineMaster;
@@ -143,7 +179,7 @@ class WineVariantResource extends Resource
                                 })
                                 ->visible(fn (string $operation): bool => $operation === 'edit'),
 
-                            Forms\Components\Placeholder::make('appellation_display')
+                            Placeholder::make('appellation_display')
                                 ->label('Appellation')
                                 ->content(function (?WineVariant $record): string {
                                     $wineMaster = $record?->wineMaster;
@@ -152,7 +188,7 @@ class WineVariantResource extends Resource
                                 })
                                 ->visible(fn (string $operation): bool => $operation === 'edit'),
 
-                            Forms\Components\Placeholder::make('region_display')
+                            Placeholder::make('region_display')
                                 ->label('Region / Country')
                                 ->content(function (?WineVariant $record): string {
                                     if ($record?->wineMaster === null) {
@@ -166,7 +202,7 @@ class WineVariantResource extends Resource
                                 ->visible(fn (string $operation): bool => $operation === 'edit'),
                         ]),
 
-                    Forms\Components\TextInput::make('vintage_year')
+                    TextInput::make('vintage_year')
                         ->label('Vintage Year')
                         ->required()
                         ->numeric()
@@ -180,13 +216,13 @@ class WineVariantResource extends Resource
                 ->columns(1),
 
             // Internal References Section
-            Forms\Components\Section::make('Internal References')
+            Section::make('Internal References')
                 ->description('Internal codes and identifiers')
                 ->icon('heroicon-o-document-text')
                 ->schema([
-                    Forms\Components\Grid::make(2)
+                    Grid::make(2)
                         ->schema([
-                            Forms\Components\TextInput::make('lwin_code')
+                            TextInput::make('lwin_code')
                                 ->label('LWIN Code')
                                 ->disabled(fn (?WineVariant $record): bool => self::isFieldLocked($record, 'lwin_code'))
                                 ->hint(fn (?WineVariant $record): ?string => self::getFieldHint($record, 'lwin_code'))
@@ -194,7 +230,7 @@ class WineVariantResource extends Resource
                                 ->hintColor('info')
                                 ->placeholder('e.g., LWIN1100001'),
 
-                            Forms\Components\TextInput::make('internal_code')
+                            TextInput::make('internal_code')
                                 ->label('Internal Code')
                                 ->placeholder('e.g., CRU-001'),
                         ]),
@@ -202,17 +238,17 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Descriptions Section
-            Forms\Components\Section::make('Descriptions')
+            Section::make('Descriptions')
                 ->description('Marketing and tasting descriptions')
                 ->icon('heroicon-o-pencil-square')
                 ->schema([
-                    Forms\Components\Textarea::make('description')
+                    Textarea::make('description')
                         ->label('Wine Description')
                         ->rows(4)
                         ->placeholder('Enter a description for this vintage...')
                         ->columnSpanFull(),
 
-                    Forms\Components\Placeholder::make('wine_master_description')
+                    Placeholder::make('wine_master_description')
                         ->label('Master Description (from Wine Master)')
                         ->content(function (?WineVariant $record): string {
                             $wineMaster = $record?->wineMaster;
@@ -230,18 +266,18 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Override Locked Fields Section (Manager/Admin only)
-            Forms\Components\Section::make('Override Locked Fields')
+            Section::make('Override Locked Fields')
                 ->description('As a Manager or Admin, you can override Liv-ex locked fields. This action is audited.')
                 ->icon('heroicon-o-lock-open')
                 ->schema([
-                    Forms\Components\Placeholder::make('override_warning')
+                    Placeholder::make('override_warning')
                         ->label('')
                         ->content('<div class="p-3 rounded bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 text-warning-800 dark:text-warning-200">
                             <strong>Warning:</strong> Overriding Liv-ex data may cause data inconsistencies. Use with caution.
                         </div>')
                         ->dehydrated(false),
 
-                    Forms\Components\CheckboxList::make('fields_to_unlock')
+                    CheckboxList::make('fields_to_unlock')
                         ->label('Select fields to unlock for editing')
                         ->options(fn (?WineVariant $record): array => self::getUnlockableFieldsOptions($record))
                         ->descriptions(fn (?WineVariant $record): array => self::getUnlockableFieldsDescriptions($record))
@@ -270,18 +306,18 @@ class WineVariantResource extends Resource
     /**
      * Get the Attributes tab schema.
      */
-    protected static function getAttributesSchema(): Forms\Components\Component
+    protected static function getAttributesSchema(): Component
     {
         $sections = [];
 
         // Static sections for core wine variant fields
-        $sections[] = Forms\Components\Section::make('Vintage Information')
+        $sections[] = Section::make('Vintage Information')
             ->description('Technical details specific to this vintage')
             ->icon('heroicon-o-beaker')
             ->schema([
-                Forms\Components\Grid::make(2)
+                Grid::make(2)
                     ->schema([
-                        Forms\Components\TextInput::make('alcohol_percentage')
+                        TextInput::make('alcohol_percentage')
                             ->label('Alcohol %')
                             ->numeric()
                             ->minValue(0)
@@ -293,19 +329,19 @@ class WineVariantResource extends Resource
             ])
             ->collapsible();
 
-        $sections[] = Forms\Components\Section::make('Drinking Window')
+        $sections[] = Section::make('Drinking Window')
             ->description('Recommended drinking period')
             ->icon('heroicon-o-calendar')
             ->schema([
-                Forms\Components\Grid::make(2)
+                Grid::make(2)
                     ->schema([
-                        Forms\Components\TextInput::make('drinking_window_start')
+                        TextInput::make('drinking_window_start')
                             ->label('Start Year')
                             ->numeric()
                             ->minValue(1800)
                             ->maxValue(2200)
                             ->helperText('Optional · Manual'),
-                        Forms\Components\TextInput::make('drinking_window_end')
+                        TextInput::make('drinking_window_end')
                             ->label('End Year')
                             ->numeric()
                             ->minValue(1800)
@@ -316,11 +352,11 @@ class WineVariantResource extends Resource
             ])
             ->collapsible();
 
-        $sections[] = Forms\Components\Section::make('Critic Scores')
+        $sections[] = Section::make('Critic Scores')
             ->description('Professional ratings and scores')
             ->icon('heroicon-o-star')
             ->schema([
-                Forms\Components\KeyValue::make('critic_scores')
+                KeyValue::make('critic_scores')
                     ->label('')
                     ->keyLabel('Critic')
                     ->valueLabel('Score')
@@ -331,11 +367,11 @@ class WineVariantResource extends Resource
             ->collapsible()
             ->collapsed();
 
-        $sections[] = Forms\Components\Section::make('Production Notes')
+        $sections[] = Section::make('Production Notes')
             ->description('Winemaking and production details (legacy)')
             ->icon('heroicon-o-document-text')
             ->schema([
-                Forms\Components\KeyValue::make('production_notes')
+                KeyValue::make('production_notes')
                     ->label('')
                     ->keyLabel('Note Type')
                     ->valueLabel('Value')
@@ -347,12 +383,12 @@ class WineVariantResource extends Resource
             ->collapsed();
 
         // Dynamic sections from attribute set
-        $attributeSet = \App\Models\Pim\AttributeSet::getDefault();
+        $attributeSet = AttributeSet::getDefault();
         if ($attributeSet !== null) {
             foreach ($attributeSet->attributeGroups as $group) {
                 $fields = self::buildAttributeFieldsForGroup($group);
                 if (count($fields) > 0) {
-                    $section = Forms\Components\Section::make($group->name)
+                    $section = Section::make($group->name)
                         ->description($group->description ?? '')
                         ->icon($group->icon)
                         ->schema($fields)
@@ -368,11 +404,11 @@ class WineVariantResource extends Resource
         }
 
         // Completeness indicator at the bottom
-        $sections[] = Forms\Components\Section::make('Completeness')
+        $sections[] = Section::make('Completeness')
             ->description('Track attribute completion progress')
             ->icon('heroicon-o-chart-pie')
             ->schema([
-                Forms\Components\Placeholder::make('completeness_indicator')
+                Placeholder::make('completeness_indicator')
                     ->label('')
                     ->content(function (?WineVariant $record): string {
                         if ($record === null) {
@@ -411,15 +447,15 @@ class WineVariantResource extends Resource
             ->collapsible()
             ->collapsed();
 
-        return Forms\Components\Group::make($sections);
+        return Group::make($sections);
     }
 
     /**
      * Build form fields for a specific attribute group.
      *
-     * @return list<Forms\Components\Component>
+     * @return list<\Filament\Schemas\Components\Component>
      */
-    protected static function buildAttributeFieldsForGroup(\App\Models\Pim\AttributeGroup $group): array
+    protected static function buildAttributeFieldsForGroup(AttributeGroup $group): array
     {
         $fields = [];
 
@@ -436,7 +472,7 @@ class WineVariantResource extends Resource
     /**
      * Build a single form field for an attribute definition.
      */
-    protected static function buildAttributeField(\App\Models\Pim\AttributeDefinition $definition): ?Forms\Components\Component
+    protected static function buildAttributeField(AttributeDefinition $definition): ?Component
     {
         $fieldName = "attributes.{$definition->code}";
         $label = $definition->name;
@@ -453,7 +489,7 @@ class WineVariantResource extends Resource
         $type = $definition->type;
 
         return match ($type) {
-            'text' => Forms\Components\TextInput::make($fieldName)
+            'text' => TextInput::make($fieldName)
                 ->label($label)
                 ->placeholder($definition->placeholder)
                 ->required($definition->is_required)
@@ -463,7 +499,7 @@ class WineVariantResource extends Resource
                 ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
                 ->hintColor('info'),
 
-            'textarea' => Forms\Components\Textarea::make($fieldName)
+            'textarea' => Textarea::make($fieldName)
                 ->label($label)
                 ->placeholder($definition->placeholder)
                 ->rows(3)
@@ -476,7 +512,7 @@ class WineVariantResource extends Resource
 
             'number' => self::buildNumberField($definition, $fieldName, $label, $baseHelperText),
 
-            'select' => Forms\Components\Select::make($fieldName)
+            'select' => Select::make($fieldName)
                 ->label($label)
                 ->options(array_combine($definition->options ?? [], $definition->options ?? []))
                 ->required($definition->is_required)
@@ -487,7 +523,7 @@ class WineVariantResource extends Resource
                 ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
                 ->hintColor('info'),
 
-            'multiselect' => Forms\Components\Select::make($fieldName)
+            'multiselect' => Select::make($fieldName)
                 ->label($label)
                 ->options(array_combine($definition->options ?? [], $definition->options ?? []))
                 ->multiple()
@@ -499,7 +535,7 @@ class WineVariantResource extends Resource
                 ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
                 ->hintColor('info'),
 
-            'boolean' => Forms\Components\Toggle::make($fieldName)
+            'boolean' => Toggle::make($fieldName)
                 ->label($label)
                 ->required($definition->is_required)
                 ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
@@ -508,7 +544,7 @@ class WineVariantResource extends Resource
                 ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
                 ->hintColor('info'),
 
-            'date' => Forms\Components\DatePicker::make($fieldName)
+            'date' => DatePicker::make($fieldName)
                 ->label($label)
                 ->required($definition->is_required)
                 ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
@@ -517,7 +553,7 @@ class WineVariantResource extends Resource
                 ->hintIcon(fn (?WineVariant $record) => self::isAttributeLocked($record, $definition) ? 'heroicon-o-lock-closed' : null)
                 ->hintColor('info'),
 
-            'json' => Forms\Components\KeyValue::make($fieldName)
+            'json' => KeyValue::make($fieldName)
                 ->label($label)
                 ->required($definition->is_required)
                 ->reorderable()
@@ -533,12 +569,12 @@ class WineVariantResource extends Resource
      * Build a number field with validation rules.
      */
     protected static function buildNumberField(
-        \App\Models\Pim\AttributeDefinition $definition,
+        AttributeDefinition $definition,
         string $fieldName,
         string $label,
         string $baseHelperText
-    ): Forms\Components\TextInput {
-        $field = Forms\Components\TextInput::make($fieldName)
+    ): TextInput {
+        $field = TextInput::make($fieldName)
             ->label($label)
             ->numeric()
             ->required($definition->is_required)
@@ -572,15 +608,15 @@ class WineVariantResource extends Resource
     /**
      * Get the Media tab schema.
      */
-    protected static function getMediaSchema(): Forms\Components\Component
+    protected static function getMediaSchema(): Component
     {
-        return Forms\Components\Group::make([
+        return Group::make([
             // Liv-ex Media Section (Read-only)
-            Forms\Components\Section::make('Liv-ex Media')
+            Section::make('Liv-ex Media')
                 ->description('Images and documents from Liv-ex (read-only)')
                 ->icon('heroicon-o-cloud-arrow-down')
                 ->schema([
-                    Forms\Components\Placeholder::make('livex_media_info')
+                    Placeholder::make('livex_media_info')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null || ! $record->isFromLivEx()) {
@@ -628,8 +664,8 @@ class WineVariantResource extends Resource
                         })
                         ->dehydrated(false),
 
-                    Forms\Components\Actions::make([
-                        Forms\Components\Actions\Action::make('refresh_livex_media')
+                    Actions::make([
+                        Action::make('refresh_livex_media')
                             ->label('Refresh Liv-ex Assets')
                             ->icon('heroicon-o-arrow-path')
                             ->color('info')
@@ -696,11 +732,11 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // No Liv-ex placeholder
-            Forms\Components\Section::make('Liv-ex Media')
+            Section::make('Liv-ex Media')
                 ->description('This product was not imported from Liv-ex')
                 ->icon('heroicon-o-cloud-arrow-down')
                 ->schema([
-                    Forms\Components\Placeholder::make('no_livex_info')
+                    Placeholder::make('no_livex_info')
                         ->label('')
                         ->content('<div class="text-gray-500 dark:text-gray-400">This product was created manually and has no Liv-ex media.</div>')
                         ->dehydrated(false),
@@ -710,12 +746,12 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Manual Uploads Section
-            Forms\Components\Section::make('Manual Uploads')
+            Section::make('Manual Uploads')
                 ->description('Upload your own images and documents')
                 ->icon('heroicon-o-cloud-arrow-up')
                 ->schema([
                     // Primary Image Indicator
-                    Forms\Components\Placeholder::make('primary_image_status')
+                    Placeholder::make('primary_image_status')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -744,7 +780,7 @@ class WineVariantResource extends Resource
                         ->dehydrated(false),
 
                     // Image Upload
-                    Forms\Components\FileUpload::make('media_images')
+                    FileUpload::make('media_images')
                         ->label('Upload Images')
                         ->disk('public')
                         ->directory('pim/product-media/images')
@@ -761,7 +797,7 @@ class WineVariantResource extends Resource
                         ->dehydrated(false),
 
                     // Document Upload
-                    Forms\Components\FileUpload::make('media_documents')
+                    FileUpload::make('media_documents')
                         ->label('Upload Documents')
                         ->disk('public')
                         ->directory('pim/product-media/documents')
@@ -775,7 +811,7 @@ class WineVariantResource extends Resource
                         ->dehydrated(false),
 
                     // Current Manual Images Display
-                    Forms\Components\Placeholder::make('current_manual_images')
+                    Placeholder::make('current_manual_images')
                         ->label('Current Images')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -823,23 +859,23 @@ class WineVariantResource extends Resource
                         ->dehydrated(false),
 
                     // Media Management Actions
-                    Forms\Components\Repeater::make('manual_media_management')
+                    Repeater::make('manual_media_management')
                         ->label('Manage Images')
                         ->schema([
-                            Forms\Components\Hidden::make('id'),
-                            Forms\Components\Grid::make(4)
+                            Hidden::make('id'),
+                            Grid::make(4)
                                 ->schema([
-                                    Forms\Components\Placeholder::make('preview')
+                                    Placeholder::make('preview')
                                         ->label('')
                                         ->content(fn (array $state): string => isset($state['url'])
                                             ? '<img src="'.htmlspecialchars($state['url']).'" class="w-16 h-16 object-cover rounded" />'
                                             : '')
                                         ->columnSpan(1),
-                                    Forms\Components\TextInput::make('alt_text')
+                                    TextInput::make('alt_text')
                                         ->label('Alt Text')
                                         ->placeholder('Image description')
                                         ->columnSpan(2),
-                                    Forms\Components\Toggle::make('is_primary')
+                                    Toggle::make('is_primary')
                                         ->label('Primary')
                                         ->columnSpan(1),
                                 ]),
@@ -849,7 +885,7 @@ class WineVariantResource extends Resource
                         ->addable(false)
                         ->deletable(true)
                         ->deleteAction(
-                            fn (Forms\Components\Actions\Action $action) => $action
+                            fn (Action $action) => $action
                                 ->requiresConfirmation()
                                 ->modalHeading('Delete Image')
                                 ->modalDescription('Are you sure you want to delete this image? This cannot be undone.')
@@ -859,7 +895,7 @@ class WineVariantResource extends Resource
                         ->columnSpanFull(),
 
                     // Current Manual Documents Display
-                    Forms\Components\Placeholder::make('current_manual_documents')
+                    Placeholder::make('current_manual_documents')
                         ->label('Current Documents')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -892,11 +928,11 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Media Summary
-            Forms\Components\Section::make('Media Summary')
+            Section::make('Media Summary')
                 ->description('Overview of all media for this product')
                 ->icon('heroicon-o-chart-bar')
                 ->schema([
-                    Forms\Components\Placeholder::make('media_summary')
+                    Placeholder::make('media_summary')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -954,15 +990,15 @@ class WineVariantResource extends Resource
     /**
      * Get the Sellable SKUs tab schema.
      */
-    protected static function getSellableSkusSchema(): Forms\Components\Component
+    protected static function getSellableSkusSchema(): Component
     {
-        return Forms\Components\Group::make([
+        return Group::make([
             // SKU Summary Section
-            Forms\Components\Section::make('SKU Overview')
+            Section::make('SKU Overview')
                 ->description('Summary of sellable SKUs for this product')
                 ->icon('heroicon-o-cube')
                 ->schema([
-                    Forms\Components\Placeholder::make('sku_summary')
+                    Placeholder::make('sku_summary')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -1048,11 +1084,11 @@ class WineVariantResource extends Resource
                 ]),
 
             // SKU List Section
-            Forms\Components\Section::make('SKU List')
+            Section::make('SKU List')
                 ->description('Current sellable SKUs for this product. Use the relation manager below for full management.')
                 ->icon('heroicon-o-list-bullet')
                 ->schema([
-                    Forms\Components\Placeholder::make('sku_list')
+                    Placeholder::make('sku_list')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -1136,11 +1172,11 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Info about RelationManager
-            Forms\Components\Section::make('Full SKU Management')
+            Section::make('Full SKU Management')
                 ->description('Scroll down to the "Sellable SKUs" relation manager for full SKU management including create, edit, delete, activate, retire, and generate intrinsic SKUs.')
                 ->icon('heroicon-o-arrow-down')
                 ->schema([
-                    Forms\Components\Placeholder::make('relation_manager_hint')
+                    Placeholder::make('relation_manager_hint')
                         ->label('')
                         ->content('<div class="text-gray-600 dark:text-gray-400">
                             <p>The full SKU management panel is available below this form. Features include:</p>
@@ -1162,15 +1198,15 @@ class WineVariantResource extends Resource
     /**
      * Get the Lifecycle tab schema.
      */
-    protected static function getLifecycleSchema(): Forms\Components\Component
+    protected static function getLifecycleSchema(): Component
     {
-        return Forms\Components\Group::make([
+        return Group::make([
             // Current Status Section
-            Forms\Components\Section::make('Current Status')
+            Section::make('Current Status')
                 ->description('View and manage the lifecycle status of this product')
                 ->icon('heroicon-o-arrow-path')
                 ->schema([
-                    Forms\Components\Placeholder::make('status_display')
+                    Placeholder::make('status_display')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -1257,11 +1293,11 @@ class WineVariantResource extends Resource
                 ]),
 
             // Publish Readiness Section
-            Forms\Components\Section::make('Publish Readiness Checklist')
+            Section::make('Publish Readiness Checklist')
                 ->description('Requirements that must be met before publishing')
                 ->icon('heroicon-o-clipboard-document-check')
                 ->schema([
-                    Forms\Components\Placeholder::make('readiness_checklist')
+                    Placeholder::make('readiness_checklist')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -1368,11 +1404,11 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Lifecycle Actions Section
-            Forms\Components\Section::make('Lifecycle Actions')
+            Section::make('Lifecycle Actions')
                 ->description('Transition the product through the approval workflow')
                 ->icon('heroicon-o-play')
                 ->schema([
-                    Forms\Components\Placeholder::make('available_actions_info')
+                    Placeholder::make('available_actions_info')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
@@ -1446,8 +1482,8 @@ class WineVariantResource extends Resource
                         ->dehydrated(false),
 
                     // Lifecycle actions
-                    Forms\Components\Actions::make([
-                        Forms\Components\Actions\Action::make('lifecycle_submit_for_review')
+                    Actions::make([
+                        Action::make('lifecycle_submit_for_review')
                             ->label('Submit for Review')
                             ->icon('heroicon-o-paper-airplane')
                             ->color('warning')
@@ -1465,7 +1501,7 @@ class WineVariantResource extends Resource
                                     ->send();
                             }),
 
-                        Forms\Components\Actions\Action::make('lifecycle_approve')
+                        Action::make('lifecycle_approve')
                             ->label('Approve')
                             ->icon('heroicon-o-check')
                             ->color('info')
@@ -1483,12 +1519,12 @@ class WineVariantResource extends Resource
                                     ->send();
                             }),
 
-                        Forms\Components\Actions\Action::make('lifecycle_reject')
+                        Action::make('lifecycle_reject')
                             ->label('Reject')
                             ->icon('heroicon-o-x-mark')
                             ->color('danger')
-                            ->form([
-                                Forms\Components\Textarea::make('rejection_reason')
+                            ->schema([
+                                Textarea::make('rejection_reason')
                                     ->label('Rejection Reason')
                                     ->helperText('Please provide a reason for rejecting this product. This will be recorded in the audit log.')
                                     ->required()
@@ -1501,7 +1537,7 @@ class WineVariantResource extends Resource
                             ->visible(fn (?WineVariant $record): bool => $record !== null && $record->canTransitionTo(ProductLifecycleStatus::Draft) && $record->isInReview() && self::canApproveOrReject())
                             ->action(function (WineVariant $record, array $data): void {
                                 // Store rejection reason in audit log
-                                \App\Models\AuditLog::create([
+                                AuditLog::create([
                                     'auditable_type' => WineVariant::class,
                                     'auditable_id' => $record->id,
                                     'event' => 'status_change',
@@ -1523,7 +1559,7 @@ class WineVariantResource extends Resource
                                     ->send();
                             }),
 
-                        Forms\Components\Actions\Action::make('lifecycle_publish')
+                        Action::make('lifecycle_publish')
                             ->label('Publish')
                             ->icon('heroicon-o-check-circle')
                             ->color('success')
@@ -1554,7 +1590,7 @@ class WineVariantResource extends Resource
                                     ->send();
                             }),
 
-                        Forms\Components\Actions\Action::make('lifecycle_archive')
+                        Action::make('lifecycle_archive')
                             ->label('Archive')
                             ->icon('heroicon-o-archive-box')
                             ->color('danger')
@@ -1578,18 +1614,18 @@ class WineVariantResource extends Resource
                 ->collapsible(),
 
             // Recent Status History
-            Forms\Components\Section::make('Recent Status Changes')
+            Section::make('Recent Status Changes')
                 ->description('Recent lifecycle status changes for this product')
                 ->icon('heroicon-o-clock')
                 ->schema([
-                    Forms\Components\Placeholder::make('recent_status_history')
+                    Placeholder::make('recent_status_history')
                         ->label('')
                         ->content(function (?WineVariant $record): string {
                             if ($record === null) {
                                 return '<div class="text-gray-500 dark:text-gray-400">Save the product first to see status history.</div>';
                             }
 
-                            $statusChanges = \App\Models\AuditLog::where('auditable_type', WineVariant::class)
+                            $statusChanges = AuditLog::where('auditable_type', WineVariant::class)
                                 ->where('auditable_id', $record->id)
                                 ->where('event', 'status_change')
                                 ->with('user')
@@ -1680,43 +1716,43 @@ class WineVariantResource extends Resource
     /**
      * Get the Audit tab schema.
      */
-    protected static function getAuditSchema(): Forms\Components\Component
+    protected static function getAuditSchema(): Component
     {
-        return Forms\Components\Group::make([
+        return Group::make([
             // Audit Log Header
-            Forms\Components\Section::make('Audit History')
+            Section::make('Audit History')
                 ->description('Complete timeline of all changes made to this product')
                 ->icon('heroicon-o-clock')
                 ->schema([
                     // Filter Controls
-                    Forms\Components\Grid::make(3)
+                    Grid::make(3)
                         ->schema([
-                            Forms\Components\Select::make('audit_event_filter')
+                            Select::make('audit_event_filter')
                                 ->label('Event Type')
                                 ->options([
                                     '' => 'All Events',
-                                    \App\Models\AuditLog::EVENT_CREATED => 'Created',
-                                    \App\Models\AuditLog::EVENT_UPDATED => 'Updated',
-                                    \App\Models\AuditLog::EVENT_DELETED => 'Deleted',
-                                    \App\Models\AuditLog::EVENT_STATUS_CHANGE => 'Status Changed',
+                                    AuditLog::EVENT_CREATED => 'Created',
+                                    AuditLog::EVENT_UPDATED => 'Updated',
+                                    AuditLog::EVENT_DELETED => 'Deleted',
+                                    AuditLog::EVENT_STATUS_CHANGE => 'Status Changed',
                                 ])
                                 ->default('')
                                 ->live()
                                 ->dehydrated(false),
-                            Forms\Components\DatePicker::make('audit_date_from')
+                            DatePicker::make('audit_date_from')
                                 ->label('From Date')
                                 ->live()
                                 ->dehydrated(false),
-                            Forms\Components\DatePicker::make('audit_date_to')
+                            DatePicker::make('audit_date_to')
                                 ->label('To Date')
                                 ->live()
                                 ->dehydrated(false),
                         ]),
 
                     // Timeline Display
-                    Forms\Components\Placeholder::make('audit_timeline')
+                    Placeholder::make('audit_timeline')
                         ->label('')
-                        ->content(function (?WineVariant $record, Forms\Get $get): string {
+                        ->content(function (?WineVariant $record, Get $get): string {
                             if ($record === null) {
                                 return '<div class="text-center py-12 text-gray-500 dark:text-gray-400">
                                     <svg class="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -1725,7 +1761,7 @@ class WineVariantResource extends Resource
                             }
 
                             // Build query with filters
-                            $query = \App\Models\AuditLog::where('auditable_type', WineVariant::class)
+                            $query = AuditLog::where('auditable_type', WineVariant::class)
                                 ->where('auditable_id', $record->id)
                                 ->with('user')
                                 ->orderByDesc('created_at');
@@ -1769,7 +1805,7 @@ class WineVariantResource extends Resource
                             $html .= '<div class="space-y-6">';
 
                             foreach ($auditLogs as $log) {
-                                /** @var \App\Models\AuditLog $log */
+                                /** @var AuditLog $log */
                                 $eventLabel = $log->getEventLabel();
                                 $eventIcon = $log->getEventIcon();
                                 $eventColor = $log->getEventColor();
@@ -1848,7 +1884,7 @@ class WineVariantResource extends Resource
     /**
      * Format audit log changes for detailed display in the Audit tab.
      */
-    protected static function formatAuditLogChanges(\App\Models\AuditLog $log): string
+    protected static function formatAuditLogChanges(AuditLog $log): string
     {
         /** @var array<string, mixed>|null $rawOldValues */
         $rawOldValues = $log->old_values;
@@ -1860,7 +1896,7 @@ class WineVariantResource extends Resource
         /** @var array<string, mixed> $newValues */
         $newValues = $rawNewValues ?? [];
 
-        if ($log->event === \App\Models\AuditLog::EVENT_CREATED) {
+        if ($log->event === AuditLog::EVENT_CREATED) {
             $fieldCount = count($newValues);
             $html = '<div class="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3">';
             $html .= '<p class="text-gray-600 dark:text-gray-400 mb-2">Record created with '.$fieldCount.' field(s) set:</p>';
@@ -1882,13 +1918,13 @@ class WineVariantResource extends Resource
             return $html;
         }
 
-        if ($log->event === \App\Models\AuditLog::EVENT_DELETED) {
+        if ($log->event === AuditLog::EVENT_DELETED) {
             return '<div class="bg-red-50 dark:bg-red-900/20 rounded-lg p-3">
                 <p class="text-red-700 dark:text-red-300">Record was permanently deleted.</p>
             </div>';
         }
 
-        if ($log->event === \App\Models\AuditLog::EVENT_STATUS_CHANGE) {
+        if ($log->event === AuditLog::EVENT_STATUS_CHANGE) {
             $oldStatusValue = isset($oldValues['lifecycle_status']) && is_string($oldValues['lifecycle_status'])
                 ? $oldValues['lifecycle_status']
                 : null;
@@ -2099,7 +2135,7 @@ class WineVariantResource extends Resource
     /**
      * Get helper text for an attribute, including source info.
      */
-    protected static function getAttributeHelperText(?WineVariant $record, \App\Models\Pim\AttributeDefinition $definition, string $baseText): string
+    protected static function getAttributeHelperText(?WineVariant $record, AttributeDefinition $definition, string $baseText): string
     {
         if ($record === null) {
             return $baseText.' · Manual';
@@ -2111,7 +2147,7 @@ class WineVariantResource extends Resource
 
         $source = 'Manual';
         if ($attrValue !== null) {
-            $source = $attrValue->source === \App\Enums\DataSource::LivEx ? 'Liv-ex' : 'Manual';
+            $source = $attrValue->source === DataSource::LivEx ? 'Liv-ex' : 'Manual';
         }
 
         $helpText = $definition->help_text;
@@ -2126,7 +2162,7 @@ class WineVariantResource extends Resource
     /**
      * Check if an attribute is locked (from Liv-ex).
      */
-    protected static function isAttributeLocked(?WineVariant $record, \App\Models\Pim\AttributeDefinition $definition): bool
+    protected static function isAttributeLocked(?WineVariant $record, AttributeDefinition $definition): bool
     {
         if ($record === null) {
             return false;
@@ -2147,7 +2183,7 @@ class WineVariantResource extends Resource
     /**
      * Get lock hint for an attribute.
      */
-    protected static function getAttributeLockHint(?WineVariant $record, \App\Models\Pim\AttributeDefinition $definition): ?string
+    protected static function getAttributeLockHint(?WineVariant $record, AttributeDefinition $definition): ?string
     {
         if ($record === null) {
             return null;
@@ -2275,32 +2311,32 @@ class WineVariantResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('wineMaster.name')
+                TextColumn::make('wineMaster.name')
                     ->label('Wine Master')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('wineMaster.producer')
+                TextColumn::make('wineMaster.producer')
                     ->label('Producer')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('vintage_year')
+                TextColumn::make('vintage_year')
                     ->label('Vintage')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('alcohol_percentage')
+                TextColumn::make('alcohol_percentage')
                     ->label('Alcohol %')
                     ->suffix('%')
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('lifecycle_status')
+                TextColumn::make('lifecycle_status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (ProductLifecycleStatus $state): string => $state->label())
                     ->color(fn (ProductLifecycleStatus $state): string => $state->color())
                     ->icon(fn (ProductLifecycleStatus $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('completeness')
+                TextColumn::make('completeness')
                     ->label('Completeness')
                     ->badge()
                     ->getStateUsing(fn (WineVariant $record): string => $record->getCompletenessPercentage().'%')
@@ -2317,30 +2353,30 @@ class WineVariantResource extends Resource
                             '.$direction
                         );
                     }),
-                Tables\Columns\TextColumn::make('drinking_window_start')
+                TextColumn::make('drinking_window_start')
                     ->label('Drink From')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('drinking_window_end')
+                TextColumn::make('drinking_window_end')
                     ->label('Drink To')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('wine_master_id')
+                SelectFilter::make('wine_master_id')
                     ->label('Wine Master')
                     ->relationship('wineMaster', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('lifecycle_status')
+                SelectFilter::make('lifecycle_status')
                     ->label('Status')
                     ->options(
                         collect(ProductLifecycleStatus::cases())
@@ -2349,12 +2385,12 @@ class WineVariantResource extends Resource
                             ])
                             ->toArray()
                     ),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\ActionGroup::make([
-                    Tables\Actions\Action::make('submit_for_review')
+            ->recordActions([
+                ViewAction::make(),
+                ActionGroup::make([
+                    Action::make('submit_for_review')
                         ->label('Submit for Review')
                         ->icon('heroicon-o-paper-airplane')
                         ->color('warning')
@@ -2369,7 +2405,7 @@ class WineVariantResource extends Resource
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\Action::make('approve')
+                    Action::make('approve')
                         ->label('Approve')
                         ->icon('heroicon-o-check')
                         ->color('info')
@@ -2384,7 +2420,7 @@ class WineVariantResource extends Resource
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\Action::make('reject')
+                    Action::make('reject')
                         ->label('Reject')
                         ->icon('heroicon-o-x-mark')
                         ->color('danger')
@@ -2399,7 +2435,7 @@ class WineVariantResource extends Resource
                                 ->warning()
                                 ->send();
                         }),
-                    Tables\Actions\Action::make('publish')
+                    Action::make('publish')
                         ->label('Publish')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
@@ -2426,7 +2462,7 @@ class WineVariantResource extends Resource
                                 ->success()
                                 ->send();
                         }),
-                    Tables\Actions\Action::make('archive')
+                    Action::make('archive')
                         ->label('Archive')
                         ->icon('heroicon-o-archive-box')
                         ->color('danger')
@@ -2444,14 +2480,14 @@ class WineVariantResource extends Resource
                 ])->label('Lifecycle')
                     ->icon('heroicon-o-arrow-path')
                     ->button(),
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('vintage_year', 'desc');
@@ -2460,17 +2496,17 @@ class WineVariantResource extends Resource
     public static function getRelations(): array
     {
         return [
-            RelationManagers\SellableSkusRelationManager::class,
+            SellableSkusRelationManager::class,
         ];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListWineVariants::route('/'),
-            'create' => Pages\CreateWineVariant::route('/create'),
-            'view' => Pages\ViewWineVariant::route('/{record}'),
-            'edit' => Pages\EditWineVariant::route('/{record}/edit'),
+            'index' => ListWineVariants::route('/'),
+            'create' => CreateWineVariant::route('/create'),
+            'view' => ViewWineVariant::route('/{record}'),
+            'edit' => EditWineVariant::route('/{record}/edit'),
         ];
     }
 }

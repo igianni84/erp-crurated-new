@@ -14,21 +14,27 @@ use App\Models\Allocation\TemporaryReservation;
 use App\Models\Allocation\Voucher;
 use App\Models\AuditLog;
 use App\Services\Allocation\AllocationService;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewAllocation extends ViewRecord
 {
@@ -57,9 +63,9 @@ class ViewAllocation extends ViewRecord
         return "Allocation #{$record->id} - {$record->getBottleSkuLabel()}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Allocation Details')
                     ->tabs([
@@ -242,7 +248,7 @@ class ViewAllocation extends ViewRecord
                         ? 'These constraints are editable while in Draft status'
                         : 'Constraints are locked after activation')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('edit_constraints')
+                        Action::make('edit_constraints')
                             ->label('Edit Constraints')
                             ->icon('heroicon-o-pencil')
                             ->url(fn (Allocation $record): string => AllocationResource::getUrl('edit', ['record' => $record]))
@@ -403,20 +409,20 @@ class ViewAllocation extends ViewRecord
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('sold_quantity')
                                     ->label('Consumed')
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->color('warning')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('remaining_quantity')
                                     ->label('Remaining')
                                     ->getStateUsing(fn (Allocation $record): int => $record->remaining_quantity)
                                     ->numeric()
                                     ->suffix(' bottles')
                                     ->color(fn (Allocation $record): string => $record->isNearExhaustion() ? 'danger' : 'success')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('consumption_percentage')
                                     ->label('Utilization')
                                     ->getStateUsing(function (Allocation $record): string {
@@ -441,7 +447,7 @@ class ViewAllocation extends ViewRecord
 
                                         return 'success';
                                     })
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                             ]),
                     ]),
                 Section::make('Active Reservations Impact')
@@ -587,7 +593,7 @@ class ViewAllocation extends ViewRecord
                                     ->numeric()
                                     ->suffix(' vouchers')
                                     ->weight(FontWeight::Bold)
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->color('primary'),
                                 TextEntry::make('vouchers_issued_state')
                                     ->label('Issued')
@@ -634,11 +640,11 @@ class ViewAllocation extends ViewRecord
                     ->description('Read-only list of vouchers issued from this allocation')
                     ->icon('heroicon-o-ticket')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('view_all_vouchers')
+                        Action::make('view_all_vouchers')
                             ->label('View All in Vouchers List')
                             ->icon('heroicon-o-arrow-top-right-on-square')
                             ->url(fn (Allocation $record): string => VoucherResource::getUrl('index', [
-                                'tableFilters' => [
+                                'filters' => [
                                     'allocation' => [
                                         'allocation_id' => $record->id,
                                     ],
@@ -726,10 +732,10 @@ class ViewAllocation extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -752,7 +758,7 @@ class ViewAllocation extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -888,8 +894,8 @@ class ViewAllocation extends ViewRecord
         $record = $this->record;
 
         return [
-            Actions\EditAction::make(),
-            Actions\Action::make('activate')
+            EditAction::make(),
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-play')
                 ->color('success')
@@ -910,7 +916,7 @@ class ViewAllocation extends ViewRecord
                             ->send();
 
                         $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->title('Activation Failed')
                             ->body($e->getMessage())
@@ -918,7 +924,7 @@ class ViewAllocation extends ViewRecord
                             ->send();
                     }
                 }),
-            Actions\Action::make('close')
+            Action::make('close')
                 ->label('Close')
                 ->icon('heroicon-o-lock-closed')
                 ->color('danger')
@@ -939,7 +945,7 @@ class ViewAllocation extends ViewRecord
                             ->send();
 
                         $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->title('Close Failed')
                             ->body($e->getMessage())
@@ -947,9 +953,9 @@ class ViewAllocation extends ViewRecord
                             ->send();
                     }
                 }),
-            Actions\ActionGroup::make([
-                Actions\DeleteAction::make(),
-                Actions\RestoreAction::make(),
+            ActionGroup::make([
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])->label('More')
                 ->icon('heroicon-o-ellipsis-vertical')
                 ->button(),

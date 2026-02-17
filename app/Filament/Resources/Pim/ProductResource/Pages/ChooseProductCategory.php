@@ -11,7 +11,7 @@ class ChooseProductCategory extends Page
 {
     protected static string $resource = ProductResource::class;
 
-    protected static string $view = 'filament.resources.pim.product-resource.pages.choose-product-category';
+    protected string $view = 'filament.resources.pim.product-resource.pages.choose-product-category';
 
     protected static ?string $title = 'Create Product';
 

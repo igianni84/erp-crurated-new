@@ -12,6 +12,8 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Models\Finance\StripeWebhook;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -146,7 +148,7 @@ class PaymentService
      * @param  string  $bankReference  The bank reference number
      * @param  Customer|null  $customer  The customer (optional for unreconciled)
      * @param  string  $currency  Currency code (default: EUR)
-     * @param  \Carbon\Carbon|null  $receivedAt  When the payment was received
+     * @param  Carbon|null  $receivedAt  When the payment was received
      *
      * @throws InvalidArgumentException If amount is not positive
      */
@@ -155,7 +157,7 @@ class PaymentService
         string $bankReference,
         ?Customer $customer = null,
         string $currency = 'EUR',
-        ?\Carbon\Carbon $receivedAt = null
+        ?Carbon $receivedAt = null
     ): Payment {
         if (bccomp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
@@ -434,12 +436,12 @@ class PaymentService
      * - Outstanding amount equals payment amount
      * - Status is issued or partially_paid
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Invoice>
+     * @return Collection<int, Invoice>
      */
-    protected function findMatchingInvoices(Payment $payment): \Illuminate\Database\Eloquent\Collection
+    protected function findMatchingInvoices(Payment $payment): Collection
     {
         if ($payment->customer_id === null) {
-            return new \Illuminate\Database\Eloquent\Collection;
+            return new Collection;
         }
 
         // Get all open invoices for this customer with matching currency
@@ -455,7 +457,7 @@ class PaymentService
             return bccomp($outstanding, $payment->amount, 2) === 0;
         });
 
-        return new \Illuminate\Database\Eloquent\Collection($matching->values()->all());
+        return new Collection($matching->values()->all());
     }
 
     /**
@@ -528,9 +530,9 @@ class PaymentService
     /**
      * Get payments pending reconciliation.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Payment>
+     * @return Collection<int, Payment>
      */
-    public function getPendingReconciliation(): \Illuminate\Database\Eloquent\Collection
+    public function getPendingReconciliation(): Collection
     {
         return Payment::where('reconciliation_status', ReconciliationStatus::Pending)
             ->where('status', PaymentStatus::Confirmed)
@@ -541,9 +543,9 @@ class PaymentService
     /**
      * Get mismatched payments requiring attention.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Payment>
+     * @return Collection<int, Payment>
      */
-    public function getMismatchedPayments(): \Illuminate\Database\Eloquent\Collection
+    public function getMismatchedPayments(): Collection
     {
         return Payment::where('reconciliation_status', ReconciliationStatus::Mismatched)
             ->orderBy('received_at', 'desc')
@@ -1160,18 +1162,18 @@ class PaymentService
      * Returns potential duplicates only if the payment hasn't been
      * confirmed as unique.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Payment>
+     * @return Collection<int, Payment>
      */
-    public function checkForDuplicates(Payment $payment): \Illuminate\Database\Eloquent\Collection
+    public function checkForDuplicates(Payment $payment): Collection
     {
         // If already confirmed as unique, return empty collection
         if ($this->isConfirmedNotDuplicate($payment)) {
-            return new \Illuminate\Database\Eloquent\Collection;
+            return new Collection;
         }
 
         // If already marked as duplicate, return empty collection
         if ($this->isMarkedAsDuplicate($payment)) {
-            return new \Illuminate\Database\Eloquent\Collection;
+            return new Collection;
         }
 
         $query = Payment::where('id', '!=', $payment->id)

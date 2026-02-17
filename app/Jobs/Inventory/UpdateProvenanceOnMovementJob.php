@@ -4,9 +4,11 @@ namespace App\Jobs\Inventory;
 
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\SerializedBottle;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to update on-chain provenance after an inventory movement.
@@ -110,7 +112,7 @@ class UpdateProvenanceOnMovementJob implements ShouldQueue
 
             Log::debug("Provenance updated for bottle {$bottle->serial_number}");
 
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::warning("Failed to update provenance for bottle {$bottle->serial_number}: {$e->getMessage()}");
             // Don't re-throw - we want to continue processing other bottles
             // Individual bottle failures are logged but don't fail the whole job
@@ -124,7 +126,7 @@ class UpdateProvenanceOnMovementJob implements ShouldQueue
      *
      * @param  SerializedBottle  $bottle  The bottle to update
      *
-     * @throws \Exception If the update fails
+     * @throws Exception If the update fails
      */
     protected function callBlockchainService(SerializedBottle $bottle): void
     {
@@ -165,7 +167,7 @@ class UpdateProvenanceOnMovementJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(?\Throwable $exception): void
+    public function failed(?Throwable $exception): void
     {
         Log::error(
             "UpdateProvenanceOnMovementJob failed permanently for movement {$this->movement->id}",

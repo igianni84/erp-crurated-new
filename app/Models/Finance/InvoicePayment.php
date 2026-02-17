@@ -5,6 +5,7 @@ namespace App\Models\Finance;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,12 +26,12 @@ use InvalidArgumentException;
  * @property string $invoice_id
  * @property string $payment_id
  * @property string $amount_applied
- * @property \Carbon\Carbon $applied_at
+ * @property Carbon $applied_at
  * @property int|null $applied_by
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class InvoicePayment extends Model
 {

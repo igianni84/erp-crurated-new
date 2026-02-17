@@ -2,11 +2,13 @@
 
 namespace App\Models\Commercial;
 
+use App\Models\Allocation\Allocation;
 use App\Models\Pim\SellableSku;
 use App\Traits\HasUuid;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * BundleComponent Model
@@ -21,8 +23,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $bundle_id
  * @property string $sellable_sku_id
  * @property int $quantity
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
  */
 class BundleComponent extends Model
 {
@@ -125,7 +127,7 @@ class BundleComponent extends Model
         }
 
         // Check for active allocations matching this SKU's wine_variant_id and format_id
-        return \App\Models\Allocation\Allocation::query()
+        return Allocation::query()
             ->where('wine_variant_id', $sku->wine_variant_id)
             ->where('format_id', $sku->format_id)
             ->where('lifecycle_status', 'active')

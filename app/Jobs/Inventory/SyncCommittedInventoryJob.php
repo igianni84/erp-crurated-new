@@ -6,10 +6,13 @@ use App\Enums\Allocation\AllocationStatus;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
+use Carbon\Carbon;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to sync committed inventory quantities from Module A (Allocations/Vouchers).
@@ -82,7 +85,7 @@ class SyncCommittedInventoryJob implements ShouldQueue
             try {
                 $this->syncAllocationCommittedQuantity($allocation);
                 $processedCount++;
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errorCount++;
                 Log::error(
                     "Failed to sync committed quantity for allocation {$allocation->id}",
@@ -169,10 +172,10 @@ class SyncCommittedInventoryJob implements ShouldQueue
         }
 
         try {
-            $lastSyncTime = \Carbon\Carbon::parse($lastSync);
+            $lastSyncTime = Carbon::parse($lastSync);
 
             return $lastSyncTime->diffInSeconds(now()) < self::CACHE_TTL;
-        } catch (\Exception) {
+        } catch (Exception) {
             return false;
         }
     }
@@ -180,7 +183,7 @@ class SyncCommittedInventoryJob implements ShouldQueue
     /**
      * Handle a job failure.
      */
-    public function failed(?\Throwable $exception): void
+    public function failed(?Throwable $exception): void
     {
         Log::error(
             'SyncCommittedInventoryJob failed permanently',

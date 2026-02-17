@@ -6,20 +6,22 @@ use App\Enums\Customer\ClubStatus;
 use App\Filament\Resources\Customer\ClubResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Club;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\KeyValueEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 
 class ViewClub extends ViewRecord
@@ -60,7 +62,7 @@ class ViewClub extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
             $this->getActivateAction(),
             $this->getSuspendAction(),
             $this->getEndAction(),
@@ -70,12 +72,12 @@ class ViewClub extends ViewRecord
     /**
      * Activate club action.
      */
-    protected function getActivateAction(): Actions\Action
+    protected function getActivateAction(): Action
     {
         /** @var Club $record */
         $record = $this->record;
 
-        return Actions\Action::make('activate')
+        return Action::make('activate')
             ->label('Activate')
             ->icon('heroicon-o-check-circle')
             ->color('success')
@@ -100,12 +102,12 @@ class ViewClub extends ViewRecord
     /**
      * Suspend club action.
      */
-    protected function getSuspendAction(): Actions\Action
+    protected function getSuspendAction(): Action
     {
         /** @var Club $record */
         $record = $this->record;
 
-        return Actions\Action::make('suspend')
+        return Action::make('suspend')
             ->label('Suspend')
             ->icon('heroicon-o-pause-circle')
             ->color('warning')
@@ -130,12 +132,12 @@ class ViewClub extends ViewRecord
     /**
      * End club action.
      */
-    protected function getEndAction(): Actions\Action
+    protected function getEndAction(): Action
     {
         /** @var Club $record */
         $record = $this->record;
 
-        return Actions\Action::make('end')
+        return Action::make('end')
             ->label('End Club')
             ->icon('heroicon-o-x-circle')
             ->color('danger')
@@ -157,9 +159,9 @@ class ViewClub extends ViewRecord
             ->visible(fn (): bool => $record->status !== ClubStatus::Ended);
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Club Details')
                     ->tabs([
@@ -194,7 +196,7 @@ class ViewClub extends ViewRecord
                                     TextEntry::make('partner_name')
                                         ->label('Partner Name')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('status')
@@ -307,10 +309,10 @@ class ViewClub extends ViewRecord
                 Section::make('Audit Trail')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -333,7 +335,7 @@ class ViewClub extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')

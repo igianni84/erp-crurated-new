@@ -14,21 +14,24 @@ use App\Models\AuditLog;
 use App\Models\Commercial\PricingPolicy;
 use App\Models\Commercial\PricingPolicyExecution;
 use App\Services\Commercial\PricingPolicyService;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use InvalidArgumentException;
 
 class ViewPricingPolicy extends ViewRecord
 {
@@ -57,9 +60,9 @@ class ViewPricingPolicy extends ViewRecord
         return "Pricing Policy: {$record->name}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Pricing Policy Details')
                     ->tabs([
@@ -103,7 +106,7 @@ class ViewPricingPolicy extends ViewRecord
                                     TextEntry::make('name')
                                         ->label('Name')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('policy_type')
@@ -167,7 +170,7 @@ class ViewPricingPolicy extends ViewRecord
                         TextEntry::make('logic_description')
                             ->label('')
                             ->getStateUsing(fn (PricingPolicy $record): string => $record->getLogicDescription())
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->weight(FontWeight::Bold)
                             ->color('primary'),
                     ]),
@@ -259,13 +262,13 @@ class ViewPricingPolicy extends ViewRecord
                                     ->formatStateUsing(fn (PricingPolicyType $state): string => $state->label())
                                     ->color(fn (PricingPolicyType $state): string => $state->color())
                                     ->icon(fn (PricingPolicyType $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('input_source')
                                     ->label('Input Source')
                                     ->badge()
                                     ->formatStateUsing(fn (PricingPolicyInputSource $state): string => $state->label())
                                     ->color(fn (PricingPolicyInputSource $state): string => $state->color())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                             ]),
                         TextEntry::make('policy_type_description')
                             ->label('')
@@ -351,7 +354,7 @@ class ViewPricingPolicy extends ViewRecord
                         TextEntry::make('formula_preview')
                             ->label('')
                             ->getStateUsing(fn (PricingPolicy $record): string => $record->getLogicDescription())
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->weight(FontWeight::Bold)
                             ->color('primary')
                             ->columnSpanFull(),
@@ -383,7 +386,7 @@ class ViewPricingPolicy extends ViewRecord
                                     ->color(fn (): string => $scope?->scope_type?->color() ?? 'gray')
                                     ->icon(fn (): string => $scope?->scope_type?->icon() ?? 'heroicon-o-minus')
                                     ->placeholder('No scope defined')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('scope_reference')
                                     ->label('Scope Reference')
                                     ->getStateUsing(fn (): ?string => $scope?->scope_reference)
@@ -520,7 +523,7 @@ class ViewPricingPolicy extends ViewRecord
                                     ->formatStateUsing(fn (ExecutionCadence $state): string => $state->label())
                                     ->color(fn (ExecutionCadence $state): string => $state->color())
                                     ->icon(fn (ExecutionCadence $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('cadence_description')
                                     ->label('Description')
                                     ->getStateUsing(fn (PricingPolicy $record): string => self::getCadenceDescription($record))
@@ -637,7 +640,7 @@ class ViewPricingPolicy extends ViewRecord
                                 TextEntry::make('executed_at')
                                     ->label('Executed')
                                     ->dateTime()
-                                    ->size(TextEntry\TextEntrySize::Small),
+                                    ->size(TextSize::Small),
                                 TextEntry::make('execution_type')
                                     ->label('Type')
                                     ->badge()
@@ -689,7 +692,7 @@ class ViewPricingPolicy extends ViewRecord
                                         TextEntry::make('executed_at')
                                             ->label('Date/Time')
                                             ->dateTime('M j, Y H:i:s')
-                                            ->size(TextEntry\TextEntrySize::Small),
+                                            ->size(TextSize::Small),
                                         TextEntry::make('execution_type')
                                             ->label('Type')
                                             ->badge()
@@ -929,7 +932,7 @@ class ViewPricingPolicy extends ViewRecord
                                     ->formatStateUsing(fn (PricingPolicyStatus $state): string => $state->label())
                                     ->color(fn (PricingPolicyStatus $state): string => $state->color())
                                     ->icon(fn (PricingPolicyStatus $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('status_description')
                                     ->label('Status Description')
                                     ->getStateUsing(function (PricingPolicy $record): string {
@@ -1041,10 +1044,10 @@ class ViewPricingPolicy extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -1067,7 +1070,7 @@ class ViewPricingPolicy extends ViewRecord
                                 $this->auditDateFrom = isset($data['date_from']) && is_string($data['date_from']) ? $data['date_from'] : null;
                                 $this->auditDateUntil = isset($data['date_until']) && is_string($data['date_until']) ? $data['date_until'] : null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -1237,10 +1240,10 @@ class ViewPricingPolicy extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make()
+            EditAction::make()
                 ->visible(fn (PricingPolicy $record): bool => $record->isEditable()),
 
-            Actions\Action::make('dry_run')
+            Action::make('dry_run')
                 ->label('Dry Run')
                 ->icon('heroicon-o-magnifying-glass')
                 ->color('info')
@@ -1330,7 +1333,7 @@ class ViewPricingPolicy extends ViewRecord
                                 ->persistent()
                                 ->send();
                         }
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Dry Run Failed')
@@ -1340,7 +1343,7 @@ class ViewPricingPolicy extends ViewRecord
                     }
                 }),
 
-            Actions\Action::make('execute')
+            Action::make('execute')
                 ->label('Execute Now')
                 ->icon('heroicon-o-play')
                 ->color('success')
@@ -1412,7 +1415,7 @@ class ViewPricingPolicy extends ViewRecord
                                 ->persistent()
                                 ->send();
                         }
-                    } catch (\InvalidArgumentException $e) {
+                    } catch (InvalidArgumentException $e) {
                         Notification::make()
                             ->danger()
                             ->title('Execution Failed')
@@ -1422,7 +1425,7 @@ class ViewPricingPolicy extends ViewRecord
                     }
                 }),
 
-            Actions\Action::make('activate')
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -1446,7 +1449,7 @@ class ViewPricingPolicy extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('pause')
+            Action::make('pause')
                 ->label('Pause')
                 ->icon('heroicon-o-pause')
                 ->color('warning')
@@ -1470,7 +1473,7 @@ class ViewPricingPolicy extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('resume')
+            Action::make('resume')
                 ->label('Resume')
                 ->icon('heroicon-o-play')
                 ->color('success')
@@ -1494,7 +1497,7 @@ class ViewPricingPolicy extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('archive')
+            Action::make('archive')
                 ->label('Archive')
                 ->icon('heroicon-o-archive-box')
                 ->color('danger')

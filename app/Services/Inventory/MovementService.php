@@ -3,6 +3,7 @@
 namespace App\Services\Inventory;
 
 use App\Enums\Inventory\BottleState;
+use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Enums\Inventory\ConsumptionReason;
 use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
@@ -15,6 +16,7 @@ use App\Models\Inventory\SerializedBottle;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 
 /**
  * Service for managing inventory movement logic.
@@ -30,24 +32,24 @@ class MovementService
      * @param  array<string, mixed>  $data  Movement data including optional items
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If validation fails
+     * @throws InvalidArgumentException If validation fails
      */
     public function createMovement(array $data): InventoryMovement
     {
         // Validate required fields
         if (! isset($data['movement_type'])) {
-            throw new \InvalidArgumentException('Movement type is required');
+            throw new InvalidArgumentException('Movement type is required');
         }
 
         if (! isset($data['trigger'])) {
-            throw new \InvalidArgumentException('Movement trigger is required');
+            throw new InvalidArgumentException('Movement trigger is required');
         }
 
         // Check for duplicate WMS event if provided
         $wmsEventId = $data['wms_event_id'] ?? null;
         if ($wmsEventId !== null) {
             if ($this->isDuplicateWmsEvent($wmsEventId)) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Duplicate WMS event: {$wmsEventId} has already been processed"
                 );
             }
@@ -150,7 +152,7 @@ class MovementService
      *
      * @return User The system user
      *
-     * @throws \InvalidArgumentException If no user exists in the system
+     * @throws InvalidArgumentException If no user exists in the system
      */
     protected function getSystemUser(): User
     {
@@ -172,7 +174,7 @@ class MovementService
             return $firstUser;
         }
 
-        throw new \InvalidArgumentException('No user exists in the system to attribute WMS event audit log');
+        throw new InvalidArgumentException('No user exists in the system to attribute WMS event audit log');
     }
 
     /**
@@ -187,7 +189,7 @@ class MovementService
      * @param  string|null  $wmsEventId  Optional WMS event ID for deduplication
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If transfer is not allowed
+     * @throws InvalidArgumentException If transfer is not allowed
      */
     public function transferBottle(
         SerializedBottle $bottle,
@@ -198,7 +200,7 @@ class MovementService
     ): InventoryMovement {
         // Validate bottle can be transferred
         if ($bottle->isInTerminalState()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot transfer bottle in terminal state: '.$bottle->state->label()
             );
         }
@@ -206,14 +208,14 @@ class MovementService
         // Get source location
         $sourceLocation = $bottle->currentLocation;
         if (! $sourceLocation) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Bottle has no current location'
             );
         }
 
         // Don't allow transfer to same location
         if ($sourceLocation->id === $destination->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot transfer bottle to its current location'
             );
         }
@@ -262,7 +264,7 @@ class MovementService
      * @param  string|null  $wmsEventId  Optional WMS event ID for deduplication
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If transfer is not allowed
+     * @throws InvalidArgumentException If transfer is not allowed
      */
     public function transferCase(
         InventoryCase $case,
@@ -273,7 +275,7 @@ class MovementService
     ): InventoryMovement {
         // Validate case can be transferred as unit
         if (! $case->canHandleAsUnit()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot transfer broken case as a unit. Transfer individual bottles instead.'
             );
         }
@@ -281,14 +283,14 @@ class MovementService
         // Get source location
         $sourceLocation = $case->currentLocation;
         if (! $sourceLocation) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Case has no current location'
             );
         }
 
         // Don't allow transfer to same location
         if ($sourceLocation->id === $destination->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot transfer case to its current location'
             );
         }
@@ -339,7 +341,7 @@ class MovementService
      * @param  string|null  $evidence  Optional evidence notes
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If destruction is not allowed
+     * @throws InvalidArgumentException If destruction is not allowed
      */
     public function recordDestruction(
         SerializedBottle $bottle,
@@ -349,7 +351,7 @@ class MovementService
     ): InventoryMovement {
         // Validate bottle can be destroyed
         if ($bottle->isInTerminalState()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot destroy bottle already in terminal state: '.$bottle->state->label()
             );
         }
@@ -401,7 +403,7 @@ class MovementService
      * @param  string|null  $agreementReference  Agreement reference (for consignment)
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If marking as missing is not allowed
+     * @throws InvalidArgumentException If marking as missing is not allowed
      */
     public function recordMissing(
         SerializedBottle $bottle,
@@ -412,7 +414,7 @@ class MovementService
     ): InventoryMovement {
         // Validate bottle can be marked as missing
         if ($bottle->isInTerminalState()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot mark bottle as missing when already in terminal state: '.$bottle->state->label()
             );
         }
@@ -468,7 +470,7 @@ class MovementService
      * @param  User  $executor  The user breaking the case
      * @return InventoryCase The broken case
      *
-     * @throws \InvalidArgumentException If breaking is not allowed
+     * @throws InvalidArgumentException If breaking is not allowed
      */
     public function breakCase(
         InventoryCase $case,
@@ -478,16 +480,16 @@ class MovementService
         // Validate case can be broken
         if (! $case->canBreak()) {
             if ($case->isBroken()) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Case is already broken. Breaking is irreversible.'
                 );
             }
             if (! $case->is_breakable) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'This case is not breakable. It must remain sealed.'
                 );
             }
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Case cannot be broken in its current state.'
             );
         }
@@ -495,7 +497,7 @@ class MovementService
         return DB::transaction(function () use ($case, $reason, $executor) {
             // Update case integrity status and breaking details
             $case->update([
-                'integrity_status' => \App\Enums\Inventory\CaseIntegrityStatus::Broken,
+                'integrity_status' => CaseIntegrityStatus::Broken,
                 'broken_at' => now(),
                 'broken_by' => $executor->id,
                 'broken_reason' => $reason,
@@ -535,7 +537,7 @@ class MovementService
      * @param  string|null  $notes  Optional additional notes
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If consumption is not allowed
+     * @throws InvalidArgumentException If consumption is not allowed
      */
     public function recordConsumption(
         SerializedBottle $bottle,
@@ -545,14 +547,14 @@ class MovementService
     ): InventoryMovement {
         // Validate bottle can be consumed
         if (! $bottle->isStored()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot consume bottle not in stored state. Current state: '.$bottle->state->label()
             );
         }
 
         // Check ownership type for event consumption
         if ($reason === ConsumptionReason::EventConsumption && ! $bottle->ownership_type->canConsumeForEvents()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot consume bottle for events: ownership type '.$bottle->ownership_type->label().' not allowed'
             );
         }
@@ -609,7 +611,7 @@ class MovementService
      * @param  string|null  $reason  Optional reason for the consignment
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If placement is not allowed
+     * @throws InvalidArgumentException If placement is not allowed
      */
     public function placeBottleInConsignment(
         SerializedBottle $bottle,
@@ -619,14 +621,14 @@ class MovementService
     ): InventoryMovement {
         // Validate bottle can be transferred
         if ($bottle->isInTerminalState()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot place bottle in consignment: bottle is in terminal state '.$bottle->state->label()
             );
         }
 
         // Validate bottle is Crurated-owned
         if (! $bottle->ownership_type->hasFullOwnership()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot place bottle in consignment: only Crurated-owned bottles can be placed in consignment. Current ownership: '.$bottle->ownership_type->label()
             );
         }
@@ -634,14 +636,14 @@ class MovementService
         // Get source location
         $sourceLocation = $bottle->currentLocation;
         if (! $sourceLocation) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Bottle has no current location'
             );
         }
 
         // Don't allow placement to same location
         if ($sourceLocation->id === $consigneeLocation->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot place bottle in consignment at its current location'
             );
         }
@@ -687,7 +689,7 @@ class MovementService
      * @param  string|null  $reason  Optional reason for the consignment
      * @return InventoryMovement The created movement
      *
-     * @throws \InvalidArgumentException If placement is not allowed
+     * @throws InvalidArgumentException If placement is not allowed
      */
     public function placeCaseInConsignment(
         InventoryCase $case,
@@ -697,7 +699,7 @@ class MovementService
     ): InventoryMovement {
         // Validate case can be transferred as unit
         if (! $case->canHandleAsUnit()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot place broken case in consignment. Place individual bottles instead.'
             );
         }
@@ -705,14 +707,14 @@ class MovementService
         // Get source location
         $sourceLocation = $case->currentLocation;
         if (! $sourceLocation) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Case has no current location'
             );
         }
 
         // Don't allow placement to same location
         if ($sourceLocation->id === $consigneeLocation->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot place case in consignment at its current location'
             );
         }

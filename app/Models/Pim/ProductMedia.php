@@ -6,6 +6,7 @@ use App\Enums\DataSource;
 use App\Traits\Auditable;
 use App\Traits\AuditLoggable;
 use App\Traits\HasUuid;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -144,8 +145,8 @@ class ProductMedia extends Model
     /**
      * Scope to get primary images.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ProductMedia>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ProductMedia>
+     * @param  Builder<ProductMedia>  $query
+     * @return Builder<ProductMedia>
      */
     public function scopePrimary($query)
     {
@@ -155,8 +156,8 @@ class ProductMedia extends Model
     /**
      * Scope to get images only.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ProductMedia>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ProductMedia>
+     * @param  Builder<ProductMedia>  $query
+     * @return Builder<ProductMedia>
      */
     public function scopeImages($query)
     {
@@ -166,8 +167,8 @@ class ProductMedia extends Model
     /**
      * Scope to get documents only.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ProductMedia>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ProductMedia>
+     * @param  Builder<ProductMedia>  $query
+     * @return Builder<ProductMedia>
      */
     public function scopeDocuments($query)
     {
@@ -177,8 +178,8 @@ class ProductMedia extends Model
     /**
      * Scope to get Liv-ex media.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ProductMedia>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ProductMedia>
+     * @param  Builder<ProductMedia>  $query
+     * @return Builder<ProductMedia>
      */
     public function scopeLivEx($query)
     {
@@ -188,8 +189,8 @@ class ProductMedia extends Model
     /**
      * Scope to get manual uploads.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ProductMedia>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ProductMedia>
+     * @param  Builder<ProductMedia>  $query
+     * @return Builder<ProductMedia>
      */
     public function scopeManual($query)
     {
@@ -199,8 +200,8 @@ class ProductMedia extends Model
     /**
      * Scope to order by sort order.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<ProductMedia>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<ProductMedia>
+     * @param  Builder<ProductMedia>  $query
+     * @return Builder<ProductMedia>
      */
     public function scopeOrdered($query)
     {

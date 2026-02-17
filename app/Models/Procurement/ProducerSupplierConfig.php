@@ -2,9 +2,11 @@
 
 namespace App\Models\Procurement;
 
+use App\Models\AuditLog;
 use App\Models\Customer\Party;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,9 +27,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $notes General notes
  * @property int|null $created_by FK to User
  * @property int|null $updated_by FK to User
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class ProducerSupplierConfig extends Model
 {
@@ -83,11 +85,11 @@ class ProducerSupplierConfig extends Model
     /**
      * Get the audit logs for this config.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -101,7 +103,7 @@ class ProducerSupplierConfig extends Model
     /**
      * Get the default bottling deadline date from today.
      */
-    public function getDefaultBottlingDeadlineDate(): ?\Carbon\Carbon
+    public function getDefaultBottlingDeadlineDate(): ?Carbon
     {
         if ($this->default_bottling_deadline_days === null) {
             return null;

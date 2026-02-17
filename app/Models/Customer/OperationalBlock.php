@@ -4,9 +4,12 @@ namespace App\Models\Customer;
 
 use App\Enums\Customer\BlockStatus;
 use App\Enums\Customer\BlockType;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -26,13 +29,13 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property string $reason
  * @property int|null $applied_by
  * @property BlockStatus $status
- * @property \Carbon\Carbon|null $removed_at
+ * @property Carbon|null $removed_at
  * @property int|null $removed_by
  * @property string|null $removal_reason
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class OperationalBlock extends Model
 {
@@ -110,11 +113,11 @@ class OperationalBlock extends Model
     /**
      * Get the audit logs for this block.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -213,8 +216,8 @@ class OperationalBlock extends Model
     /**
      * Scope a query to only include active blocks.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeActive($query)
     {
@@ -224,8 +227,8 @@ class OperationalBlock extends Model
     /**
      * Scope a query to only include removed blocks.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeRemoved($query)
     {
@@ -235,8 +238,8 @@ class OperationalBlock extends Model
     /**
      * Scope a query to only include blocks of a specific type.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeOfType($query, BlockType $type)
     {
@@ -246,8 +249,8 @@ class OperationalBlock extends Model
     /**
      * Scope a query to only include critical blocks.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<static>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $query
+     * @return Builder<static>
      */
     public function scopeCritical($query)
     {

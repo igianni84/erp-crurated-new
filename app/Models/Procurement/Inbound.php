@@ -5,8 +5,12 @@ namespace App\Models\Procurement;
 use App\Enums\Procurement\InboundPackaging;
 use App\Enums\Procurement\InboundStatus;
 use App\Enums\Procurement\OwnershipFlag;
+use App\Models\AuditLog;
+use App\Models\Pim\LiquidProduct;
+use App\Models\Pim\SellableSku;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -29,14 +33,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $quantity Number of bottles
  * @property InboundPackaging $packaging Packaging type (cases, loose, mixed)
  * @property OwnershipFlag $ownership_flag Explicit ownership status
- * @property \Carbon\Carbon $received_date When goods were received
+ * @property Carbon $received_date When goods were received
  * @property string|null $condition_notes Notes on condition (damage, etc.)
  * @property bool $serialization_required Whether serialization is required
  * @property string|null $serialization_location_authorized Authorized location for serialization
  * @property string|null $serialization_routing_rule Special routing rules
  * @property InboundStatus $status Current lifecycle status
  * @property bool $handed_to_module_b Whether handed off to Module B
- * @property \Carbon\Carbon|null $handed_to_module_b_at When handed off to Module B
+ * @property Carbon|null $handed_to_module_b_at When handed off to Module B
  */
 class Inbound extends Model
 {
@@ -129,11 +133,11 @@ class Inbound extends Model
     /**
      * Get the audit logs for this inbound.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -298,12 +302,12 @@ class Inbound extends Model
         }
 
         // Handle SellableSku
-        if ($this->isForBottleSku() && $product instanceof \App\Models\Pim\SellableSku) {
+        if ($this->isForBottleSku() && $product instanceof SellableSku) {
             return $product->sku_code ?? 'Unknown SKU';
         }
 
         // Handle LiquidProduct
-        if ($this->isForLiquidProduct() && $product instanceof \App\Models\Pim\LiquidProduct) {
+        if ($this->isForLiquidProduct() && $product instanceof LiquidProduct) {
             $wineVariant = $product->wineVariant;
             if ($wineVariant && $wineVariant->wineMaster) {
                 return $wineVariant->wineMaster->name.' '.$wineVariant->vintage_year.' (Liquid)';

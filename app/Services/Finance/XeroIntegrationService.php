@@ -2,12 +2,16 @@
 
 namespace App\Services\Finance;
 
+use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\XeroSyncStatus;
 use App\Enums\Finance\XeroSyncType;
 use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
 use App\Models\Finance\XeroSyncLog;
+use Carbon\Carbon;
+use Exception;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
@@ -141,7 +145,7 @@ class XeroIntegrationService
             ]);
 
             return $syncLog;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Mark sync log as failed
             $syncLog->markFailed($e->getMessage());
 
@@ -217,11 +221,11 @@ class XeroIntegrationService
         // TODO: Make this configurable via config/finance.php
         // These are placeholder account codes
         return match ($invoice->invoice_type) {
-            \App\Enums\Finance\InvoiceType::MembershipService => '200',  // Membership Revenue
-            \App\Enums\Finance\InvoiceType::VoucherSale => '210',        // Wine Sales Revenue
-            \App\Enums\Finance\InvoiceType::ShippingRedemption => '220', // Shipping Revenue
-            \App\Enums\Finance\InvoiceType::StorageFee => '230',         // Storage Revenue
-            \App\Enums\Finance\InvoiceType::ServiceEvents => '240',      // Service Events Revenue
+            InvoiceType::MembershipService => '200',  // Membership Revenue
+            InvoiceType::VoucherSale => '210',        // Wine Sales Revenue
+            InvoiceType::ShippingRedemption => '220', // Shipping Revenue
+            InvoiceType::StorageFee => '230',         // Storage Revenue
+            InvoiceType::ServiceEvents => '240',      // Service Events Revenue
         };
     }
 
@@ -346,7 +350,7 @@ class XeroIntegrationService
             ]);
 
             return $syncLog;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $syncLog->markFailed($e->getMessage());
 
             Log::channel('finance')->error('Xero credit note sync failed', [
@@ -476,7 +480,7 @@ class XeroIntegrationService
             ]);
 
             return $syncLog;
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $syncLog->markFailed($e->getMessage());
 
             Log::channel('finance')->error('Xero payment sync failed', [
@@ -583,7 +587,7 @@ class XeroIntegrationService
                     ? $this->syncPayment($syncable)->isSynced()
                     : throw new RuntimeException('Syncable entity is not a Payment'),
             };
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             Log::channel('finance')->error('Xero sync retry failed', [
                 'sync_log_id' => $syncLog->id,
                 'error' => $e->getMessage(),
@@ -620,7 +624,6 @@ class XeroIntegrationService
     // =========================================================================
     // Integration Health
     // =========================================================================
-
     /**
      * Get Xero integration health metrics.
      *
@@ -631,20 +634,7 @@ class XeroIntegrationService
      * - Active alerts
      * - US-E104: Invoices pending sync count
      *
-     * @return array{
-     *     status: string,
-     *     status_color: string,
-     *     sync_enabled: bool,
-     *     pending_count: int,
-     *     failed_count: int,
-     *     synced_today: int,
-     *     last_sync: \Carbon\Carbon|null,
-     *     last_sync_type: string|null,
-     *     alerts: array<string>,
-     *     is_healthy: bool,
-     *     invoices_pending_sync: int,
-     *     invoices_not_synced: int
-     * }
+     * @return array{status: string, status_color: string, sync_enabled: bool, pending_count: int, failed_count: int, synced_today: int, last_sync: Carbon|null, last_sync_type: string|null, alerts: array<string>, is_healthy: bool, invoices_pending_sync: int, invoices_not_synced: int}
      */
     public function getIntegrationHealth(): array
     {
@@ -719,9 +709,9 @@ class XeroIntegrationService
      * Get failed sync logs for review.
      *
      * @param  int  $limit  Maximum number of logs to return
-     * @return \Illuminate\Database\Eloquent\Collection<int, XeroSyncLog>
+     * @return Collection<int, XeroSyncLog>
      */
-    public function getFailedSyncs(int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    public function getFailedSyncs(int $limit = 20): Collection
     {
         return XeroSyncLog::failed()
             ->with('syncable')
@@ -733,9 +723,9 @@ class XeroIntegrationService
     /**
      * Get pending sync logs.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, XeroSyncLog>
+     * @return Collection<int, XeroSyncLog>
      */
-    public function getPendingSyncs(): \Illuminate\Database\Eloquent\Collection
+    public function getPendingSyncs(): Collection
     {
         return XeroSyncLog::pending()
             ->with('syncable')
@@ -746,7 +736,6 @@ class XeroIntegrationService
     // =========================================================================
     // US-E104: Invoice Sync Pending Management
     // =========================================================================
-
     /**
      * Get invoices with pending Xero sync.
      *
@@ -754,9 +743,9 @@ class XeroIntegrationService
      * xero_sync_pending flag set (sync failed and needs retry).
      *
      * @param  int  $limit  Maximum number of invoices to return
-     * @return \Illuminate\Database\Eloquent\Collection<int, Invoice>
+     * @return Collection<int, Invoice>
      */
-    public function getInvoicesWithPendingSync(int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    public function getInvoicesWithPendingSync(int $limit = 20): Collection
     {
         return Invoice::xeroSyncPending()
             ->with('customer')
@@ -772,9 +761,9 @@ class XeroIntegrationService
      * but don't have a xero_invoice_id.
      *
      * @param  int  $limit  Maximum number of invoices to return
-     * @return \Illuminate\Database\Eloquent\Collection<int, Invoice>
+     * @return Collection<int, Invoice>
      */
-    public function getInvoicesNotSyncedToXero(int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    public function getInvoicesNotSyncedToXero(int $limit = 20): Collection
     {
         return Invoice::xeroNotSynced()
             ->with('customer')
@@ -801,7 +790,7 @@ class XeroIntegrationService
                 if ($syncLog->isSynced()) {
                     $successCount++;
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Log::channel('finance')->warning('Failed to retry invoice sync', [
                     'invoice_id' => $invoice->id,
                     'invoice_number' => $invoice->invoice_number,

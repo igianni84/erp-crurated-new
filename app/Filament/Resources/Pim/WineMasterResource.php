@@ -2,18 +2,33 @@
 
 namespace App\Filament\Resources\Pim;
 
-use App\Filament\Resources\Pim\WineMasterResource\Pages;
+use App\Filament\Resources\Pim\WineMasterResource\Pages\CreateWineMaster;
+use App\Filament\Resources\Pim\WineMasterResource\Pages\EditWineMaster;
+use App\Filament\Resources\Pim\WineMasterResource\Pages\ListWineMasters;
 use App\Models\Pim\Appellation;
 use App\Models\Pim\Country;
 use App\Models\Pim\Producer;
 use App\Models\Pim\Region;
 use App\Models\Pim\WineMaster;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -22,9 +37,9 @@ class WineMasterResource extends Resource
 {
     protected static ?string $model = WineMaster::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-beaker';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-beaker';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 1;
 
@@ -34,17 +49,17 @@ class WineMasterResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Wine Masters';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Core Identity')
+        return $schema
+            ->components([
+                Section::make('Core Identity')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255),
 
-                        Forms\Components\Select::make('producer_id')
+                        Select::make('producer_id')
                             ->label('Producer')
                             ->searchable()
                             ->preload()
@@ -74,10 +89,10 @@ class WineMasterResource extends Resource
                                 $set('appellation', null);
                             })
                             ->createOptionForm([
-                                Forms\Components\TextInput::make('name')
+                                TextInput::make('name')
                                     ->required()
                                     ->maxLength(255),
-                                Forms\Components\Select::make('country_id')
+                                Select::make('country_id')
                                     ->label('Country')
                                     ->options(
                                         Country::where('is_active', true)
@@ -90,7 +105,7 @@ class WineMasterResource extends Resource
                                     ->searchable()
                                     ->preload()
                                     ->live(),
-                                Forms\Components\Select::make('region_id')
+                                Select::make('region_id')
                                     ->label('Region')
                                     ->options(function (Get $get): array {
                                         $countryId = $get('country_id');
@@ -121,14 +136,14 @@ class WineMasterResource extends Resource
                                 return $producer->id;
                             }),
 
-                        Forms\Components\TextInput::make('classification')
+                        TextInput::make('classification')
                             ->maxLength(255),
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Location')
+                Section::make('Location')
                     ->schema([
-                        Forms\Components\Select::make('country_id')
+                        Select::make('country_id')
                             ->label('Country')
                             ->searchable()
                             ->preload()
@@ -154,7 +169,7 @@ class WineMasterResource extends Resource
                                 }
                             }),
 
-                        Forms\Components\Select::make('region_id')
+                        Select::make('region_id')
                             ->label('Region')
                             ->searchable()
                             ->live()
@@ -190,7 +205,7 @@ class WineMasterResource extends Resource
                                 }
                             }),
 
-                        Forms\Components\Select::make('appellation_id')
+                        Select::make('appellation_id')
                             ->label('Appellation')
                             ->searchable()
                             ->options(function (Get $get): array {
@@ -229,21 +244,21 @@ class WineMasterResource extends Resource
                     ->columns(3),
 
                 // Hidden legacy string fields kept in sync via afterStateUpdated callbacks
-                Forms\Components\Hidden::make('producer'),
-                Forms\Components\Hidden::make('country'),
-                Forms\Components\Hidden::make('region'),
-                Forms\Components\Hidden::make('appellation'),
+                Hidden::make('producer'),
+                Hidden::make('country'),
+                Hidden::make('region'),
+                Hidden::make('appellation'),
 
-                Forms\Components\Section::make('Additional Information')
+                Section::make('Additional Information')
                     ->schema([
-                        Forms\Components\Textarea::make('description')
+                        Textarea::make('description')
                             ->rows(4)
                             ->columnSpanFull(),
-                        Forms\Components\TextInput::make('liv_ex_code')
+                        TextInput::make('liv_ex_code')
                             ->label('Liv-ex Code')
                             ->maxLength(255)
                             ->unique(ignoreRecord: true),
-                        Forms\Components\KeyValue::make('regulatory_attributes')
+                        KeyValue::make('regulatory_attributes')
                             ->label('Regulatory Attributes')
                             ->keyLabel('Attribute')
                             ->valueLabel('Value')
@@ -257,64 +272,64 @@ class WineMasterResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('producerRelation.name')
+                TextColumn::make('producerRelation.name')
                     ->label('Producer')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('appellationRelation.name')
+                TextColumn::make('appellationRelation.name')
                     ->label('Appellation')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('countryRelation.name')
+                TextColumn::make('countryRelation.name')
                     ->label('Country')
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('regionRelation.name')
+                TextColumn::make('regionRelation.name')
                     ->label('Region')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('classification')
+                TextColumn::make('classification')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('liv_ex_code')
+                TextColumn::make('liv_ex_code')
                     ->label('Liv-ex Code')
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('country_id')
+                SelectFilter::make('country_id')
                     ->label('Country')
                     ->relationship('countryRelation', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\SelectFilter::make('producer_id')
+                SelectFilter::make('producer_id')
                     ->label('Producer')
                     ->relationship('producerRelation', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('name');
@@ -361,9 +376,9 @@ class WineMasterResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListWineMasters::route('/'),
-            'create' => Pages\CreateWineMaster::route('/create'),
-            'edit' => Pages\EditWineMaster::route('/{record}/edit'),
+            'index' => ListWineMasters::route('/'),
+            'create' => CreateWineMaster::route('/create'),
+            'edit' => EditWineMaster::route('/{record}/edit'),
         ];
     }
 }

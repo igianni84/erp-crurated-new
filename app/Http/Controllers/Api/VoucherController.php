@@ -8,6 +8,7 @@ use App\Models\Allocation\Voucher;
 use App\Models\Customer\Customer;
 use App\Services\Allocation\VoucherService;
 use Illuminate\Http\JsonResponse;
+use InvalidArgumentException;
 
 /**
  * API Controller for Voucher operations.
@@ -58,7 +59,7 @@ class VoucherController extends Controller
                     'external_trading_reference' => $voucher->external_trading_reference,
                 ],
             ]);
-        } catch (\InvalidArgumentException $e) {
+        } catch (InvalidArgumentException $e) {
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),

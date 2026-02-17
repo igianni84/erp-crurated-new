@@ -4,23 +4,40 @@ namespace App\Filament\Resources;
 
 use App\Enums\Commercial\BundlePricingLogic;
 use App\Enums\Commercial\BundleStatus;
-use App\Filament\Resources\BundleResource\Pages;
+use App\Filament\Resources\BundleResource\Pages\CreateBundle;
+use App\Filament\Resources\BundleResource\Pages\EditBundle;
+use App\Filament\Resources\BundleResource\Pages\ListBundles;
+use App\Filament\Resources\BundleResource\Pages\ViewBundle;
+use App\Filament\Resources\BundleResource\RelationManagers\ComponentsRelationManager;
 use App\Models\Commercial\Bundle;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BundleResource extends Resource
 {
     protected static ?string $model = Bundle::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-gift';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-gift';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 7;
 
@@ -37,17 +54,17 @@ class BundleResource extends Resource
         return null;
     }
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Bundle Information')
+        return $schema
+            ->components([
+                Section::make('Bundle Information')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255)
                             ->placeholder('e.g., Premium Wine Collection, Holiday Gift Set'),
-                        Forms\Components\TextInput::make('bundle_sku')
+                        TextInput::make('bundle_sku')
                             ->label('Bundle SKU')
                             ->required()
                             ->maxLength(255)
@@ -57,9 +74,9 @@ class BundleResource extends Resource
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Pricing Configuration')
+                Section::make('Pricing Configuration')
                     ->schema([
-                        Forms\Components\Select::make('pricing_logic')
+                        Select::make('pricing_logic')
                             ->label('Pricing Logic')
                             ->options(collect(BundlePricingLogic::cases())->mapWithKeys(fn (BundlePricingLogic $logic) => [
                                 $logic->value => $logic->label(),
@@ -70,7 +87,7 @@ class BundleResource extends Resource
                             ->helperText(fn ($state): string => $state !== null
                                 ? BundlePricingLogic::tryFrom($state)?->description() ?? ''
                                 : 'Select how the bundle price should be calculated'),
-                        Forms\Components\TextInput::make('fixed_price')
+                        TextInput::make('fixed_price')
                             ->label('Fixed Price')
                             ->numeric()
                             ->prefix('€')
@@ -79,7 +96,7 @@ class BundleResource extends Resource
                             ->placeholder('e.g., 150.00')
                             ->visible(fn ($get): bool => $get('pricing_logic') === BundlePricingLogic::FixedPrice->value)
                             ->required(fn ($get): bool => $get('pricing_logic') === BundlePricingLogic::FixedPrice->value),
-                        Forms\Components\TextInput::make('percentage_off')
+                        TextInput::make('percentage_off')
                             ->label('Percentage Off')
                             ->numeric()
                             ->suffix('%')
@@ -92,9 +109,9 @@ class BundleResource extends Resource
                             ->required(fn ($get): bool => $get('pricing_logic') === BundlePricingLogic::PercentageOffSum->value),
                     ]),
 
-                Forms\Components\Section::make('Status')
+                Section::make('Status')
                     ->schema([
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->options(collect(BundleStatus::cases())->mapWithKeys(fn (BundleStatus $status) => [
                                 $status->value => $status->label(),
                             ]))
@@ -113,74 +130,74 @@ class BundleResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable()
                     ->weight('medium'),
-                Tables\Columns\TextColumn::make('bundle_sku')
+                TextColumn::make('bundle_sku')
                     ->label('Bundle SKU')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->color('gray'),
-                Tables\Columns\TextColumn::make('pricing_logic')
+                TextColumn::make('pricing_logic')
                     ->label('Pricing Logic')
                     ->badge()
                     ->formatStateUsing(fn (BundlePricingLogic $state): string => $state->label())
                     ->color(fn (BundlePricingLogic $state): string => $state->color())
                     ->icon(fn (BundlePricingLogic $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('components_count')
+                TextColumn::make('components_count')
                     ->label('Components')
                     ->counts('components')
                     ->badge()
                     ->color(fn (int $state): string => $state > 0 ? 'info' : 'gray')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (BundleStatus $state): string => $state->label())
                     ->color(fn (BundleStatus $state): string => $state->color())
                     ->icon(fn (BundleStatus $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('computed_price')
+                TextColumn::make('computed_price')
                     ->label('Computed Price')
                     ->getStateUsing(function (Bundle $record): string {
                         return self::getComputedPriceDisplay($record);
                     })
                     ->color('gray'),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Last Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(BundleStatus::cases())->mapWithKeys(fn (BundleStatus $status) => [
                         $status->value => $status->label(),
                     ])),
-                Tables\Filters\SelectFilter::make('pricing_logic')
+                SelectFilter::make('pricing_logic')
                     ->label('Pricing Logic')
                     ->options(collect(BundlePricingLogic::cases())->mapWithKeys(fn (BundlePricingLogic $logic) => [
                         $logic->value => $logic->label(),
                     ])),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make()
                     ->visible(fn (Bundle $record): bool => $record->isEditable()),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('activate')
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    BulkAction::make('activate')
                         ->label('Activate Selected')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
                         ->modalHeading('Activate Bundles')
                         ->modalDescription('Are you sure you want to activate the selected bundles? Only draft bundles with at least one component will be activated.')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $activated = 0;
                             $skipped = 0;
                             foreach ($records as $record) {
@@ -197,20 +214,20 @@ class BundleResource extends Resource
                             if ($skipped > 0) {
                                 $message .= ", {$skipped} skipped (no components)";
                             }
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title($message)
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\BulkAction::make('deactivate')
+                    BulkAction::make('deactivate')
                         ->label('Deactivate Selected')
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
                         ->requiresConfirmation()
                         ->modalHeading('Deactivate Bundles')
                         ->modalDescription('Are you sure you want to deactivate the selected bundles?')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                        ->action(function (Collection $records): void {
                             $deactivated = 0;
                             foreach ($records as $record) {
                                 /** @var Bundle $record */
@@ -220,15 +237,15 @@ class BundleResource extends Resource
                                     $deactivated++;
                                 }
                             }
-                            \Filament\Notifications\Notification::make()
+                            Notification::make()
                                 ->title("{$deactivated} bundle(s) deactivated")
                                 ->success()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\ForceDeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+                    DeleteBulkAction::make(),
+                    ForceDeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -253,17 +270,17 @@ class BundleResource extends Resource
     public static function getRelations(): array
     {
         return [
-            \App\Filament\Resources\BundleResource\RelationManagers\ComponentsRelationManager::class,
+            ComponentsRelationManager::class,
         ];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListBundles::route('/'),
-            'create' => Pages\CreateBundle::route('/create'),
-            'view' => Pages\ViewBundle::route('/{record}'),
-            'edit' => Pages\EditBundle::route('/{record}/edit'),
+            'index' => ListBundles::route('/'),
+            'create' => CreateBundle::route('/create'),
+            'view' => ViewBundle::route('/{record}'),
+            'edit' => EditBundle::route('/{record}/edit'),
         ];
     }
 

@@ -12,6 +12,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Services\Finance\PaymentService;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Placeholder;
@@ -19,17 +20,18 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\HtmlString;
@@ -47,9 +49,9 @@ class ViewPayment extends ViewRecord
         return 'Payment: '.$record->payment_reference;
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getHeaderSection(),
                 $this->getDuplicateWarningSection(),
@@ -74,7 +76,7 @@ class ViewPayment extends ViewRecord
                             TextEntry::make('payment_reference')
                                 ->label('Payment Reference')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->copyable()
                                 ->copyMessage('Payment reference copied'),
                             TextEntry::make('source')
@@ -115,7 +117,7 @@ class ViewPayment extends ViewRecord
                                 ->label('Payment Amount')
                                 ->money(fn (Payment $record): string => $record->currency)
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                             TextEntry::make('currency')
                                 ->label('Currency')
                                 ->badge()
@@ -730,7 +732,7 @@ class ViewPayment extends ViewRecord
     }
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
@@ -764,7 +766,7 @@ class ViewPayment extends ViewRecord
             ->modalHeading('Apply Payment to Invoice')
             ->modalDescription(fn (): string => $this->getApplyToInvoiceModalDescription())
             ->modalIcon('heroicon-o-link')
-            ->form([
+            ->schema([
                 Placeholder::make('payment_info')
                     ->label('')
                     ->content(fn (): string => $this->getPaymentInfoHtml())
@@ -778,7 +780,7 @@ class ViewPayment extends ViewRecord
                     ->options(fn (): array => $this->getAvailableInvoicesForPayment())
                     ->helperText('Select an open invoice to apply this payment to')
                     ->live()
-                    ->afterStateUpdated(fn (callable $set, ?string $state) => $this->onInvoiceSelected($set, $state)),
+                    ->afterStateUpdated(fn (Set $set, ?string $state) => $this->onInvoiceSelected($set, $state)),
 
                 Placeholder::make('invoice_info')
                     ->label('')
@@ -795,7 +797,7 @@ class ViewPayment extends ViewRecord
                     ->prefix(fn (): string => $this->getPayment()->currency)
                     ->helperText(fn (Get $get): string => $this->getAmountHelperText($get('invoice_id')))
                     ->rules([
-                        fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                        fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
                             $this->validateAmount($value, $get('invoice_id'), $fail);
                         },
                     ]),
@@ -925,7 +927,7 @@ class ViewPayment extends ViewRecord
     /**
      * Handle invoice selection - set default amount.
      */
-    protected function onInvoiceSelected(callable $set, ?string $invoiceId): void
+    protected function onInvoiceSelected(Set $set, ?string $invoiceId): void
     {
         if ($invoiceId === null) {
             return;
@@ -1009,7 +1011,7 @@ class ViewPayment extends ViewRecord
     /**
      * Validate the amount being applied.
      */
-    protected function validateAmount(mixed $value, ?string $invoiceId, \Closure $fail): void
+    protected function validateAmount(mixed $value, ?string $invoiceId, Closure $fail): void
     {
         if ($value === null || $value === '') {
             return;
@@ -1169,7 +1171,7 @@ class ViewPayment extends ViewRecord
             ->modalDescription(fn (): string => $this->getApplyToMultipleModalDescription())
             ->modalIcon('heroicon-o-rectangle-stack')
             ->modalWidth('4xl')
-            ->form([
+            ->schema([
                 Placeholder::make('multi_payment_info')
                     ->label('')
                     ->content(fn (): HtmlString => new HtmlString($this->getMultiPaymentInfoHtml()))
@@ -1631,7 +1633,7 @@ class ViewPayment extends ViewRecord
             ->modalHeading('Force Match Payment')
             ->modalDescription(fn (): string => 'This will override the mismatch and apply the payment to the selected invoice.')
             ->modalIcon('heroicon-o-exclamation-triangle')
-            ->form([
+            ->schema([
                 Placeholder::make('mismatch_info')
                     ->label('')
                     ->content(fn (): string => $this->getForceMatchInfoHtml())
@@ -1645,7 +1647,7 @@ class ViewPayment extends ViewRecord
                     ->options(fn (): array => $this->getAvailableInvoicesForForceMatch())
                     ->helperText('Select the invoice to force match this payment to')
                     ->live()
-                    ->afterStateUpdated(fn (callable $set, ?string $state) => $this->onForceMatchInvoiceSelected($set, $state)),
+                    ->afterStateUpdated(fn (Set $set, ?string $state) => $this->onForceMatchInvoiceSelected($set, $state)),
 
                 Placeholder::make('invoice_info')
                     ->label('')
@@ -1774,7 +1776,7 @@ class ViewPayment extends ViewRecord
     /**
      * Handle invoice selection for force match.
      */
-    protected function onForceMatchInvoiceSelected(callable $set, ?string $invoiceId): void
+    protected function onForceMatchInvoiceSelected(Set $set, ?string $invoiceId): void
     {
         if ($invoiceId === null) {
             return;
@@ -1846,7 +1848,7 @@ class ViewPayment extends ViewRecord
             ->modalHeading('Create Payment Exception')
             ->modalDescription('Document why this mismatch cannot be resolved through normal means.')
             ->modalIcon('heroicon-o-flag')
-            ->form([
+            ->schema([
                 Placeholder::make('mismatch_info')
                     ->label('')
                     ->content(fn (): string => $this->getExceptionInfoHtml())
@@ -1971,7 +1973,7 @@ class ViewPayment extends ViewRecord
             ->modalHeading('Mark Payment for Refund')
             ->modalDescription('This will mark the payment for refund processing. The actual refund will be processed separately.')
             ->modalIcon('heroicon-o-arrow-uturn-left')
-            ->form([
+            ->schema([
                 Placeholder::make('refund_warning')
                     ->label('')
                     ->content(fn (): string => $this->getRefundWarningHtml())
@@ -2114,7 +2116,7 @@ class ViewPayment extends ViewRecord
             ->modalHeading('Confirm Payment is Not a Duplicate')
             ->modalDescription('This will dismiss the duplicate warning for this payment.')
             ->modalIcon('heroicon-o-check-circle')
-            ->form([
+            ->schema([
                 Placeholder::make('info')
                     ->label('')
                     ->content(fn (): string => $this->getConfirmNotDuplicateInfoHtml())
@@ -2222,7 +2224,7 @@ class ViewPayment extends ViewRecord
             ->modalHeading('Mark Payment as Duplicate')
             ->modalDescription('This will flag the payment as a duplicate and prepare it for refund.')
             ->modalIcon('heroicon-o-exclamation-triangle')
-            ->form([
+            ->schema([
                 Placeholder::make('warning')
                     ->label('')
                     ->content(fn (): string => $this->getMarkAsDuplicateWarningHtml())

@@ -5,22 +5,31 @@ namespace App\Filament\Resources\Finance;
 use App\Enums\Finance\BillingCycle;
 use App\Enums\Finance\SubscriptionPlanType;
 use App\Enums\Finance\SubscriptionStatus;
-use App\Filament\Resources\Finance\SubscriptionResource\Pages;
+use App\Filament\Resources\Finance\SubscriptionResource\Pages\ListSubscriptions;
+use App\Filament\Resources\Finance\SubscriptionResource\Pages\ViewSubscription;
 use App\Models\Finance\Subscription;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SubscriptionResource extends Resource
 {
     protected static ?string $model = Subscription::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-path';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 60;
 
@@ -30,10 +39,10 @@ class SubscriptionResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Subscriptions';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in US-E084
             ]);
     }
@@ -42,7 +51,7 @@ class SubscriptionResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Subscription ID')
                     ->searchable()
                     ->sortable()
@@ -51,7 +60,7 @@ class SubscriptionResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (Subscription $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -65,12 +74,12 @@ class SubscriptionResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('plan_name')
+                TextColumn::make('plan_name')
                     ->label('Plan Name')
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('plan_type')
+                TextColumn::make('plan_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (SubscriptionPlanType $state): string => $state->label())
@@ -78,7 +87,7 @@ class SubscriptionResource extends Resource
                     ->icon(fn (SubscriptionPlanType $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('billing_cycle')
+                TextColumn::make('billing_cycle')
                     ->label('Billing Cycle')
                     ->badge()
                     ->formatStateUsing(fn (BillingCycle $state): string => $state->label())
@@ -86,13 +95,13 @@ class SubscriptionResource extends Resource
                     ->icon(fn (BillingCycle $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('amount')
+                TextColumn::make('amount')
                     ->label('Amount')
                     ->money(fn (Subscription $record): string => $record->currency)
                     ->sortable()
                     ->alignEnd(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (SubscriptionStatus $state): string => $state->label())
@@ -100,7 +109,7 @@ class SubscriptionResource extends Resource
                     ->icon(fn (SubscriptionStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('next_billing_date')
+                TextColumn::make('next_billing_date')
                     ->label('Next Billing')
                     ->date()
                     ->sortable()
@@ -109,14 +118,14 @@ class SubscriptionResource extends Resource
                         ? 'Overdue'
                         : ($record->isDueForBilling() ? 'Due today' : null)),
 
-                Tables\Columns\TextColumn::make('started_at')
+                TextColumn::make('started_at')
                     ->label('Started')
                     ->date()
                     ->sortable()
                     ->toggleable()
                     ->toggledHiddenByDefault(),
 
-                Tables\Columns\TextColumn::make('stripe_subscription_id')
+                TextColumn::make('stripe_subscription_id')
                     ->label('Stripe ID')
                     ->searchable()
                     ->toggleable()
@@ -124,28 +133,28 @@ class SubscriptionResource extends Resource
                     ->placeholder('Not linked'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('plan_type')
+                SelectFilter::make('plan_type')
                     ->options(collect(SubscriptionPlanType::cases())
                         ->mapWithKeys(fn (SubscriptionPlanType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Plan Type'),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(SubscriptionStatus::cases())
                         ->mapWithKeys(fn (SubscriptionStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('billing_cycle')
+                SelectFilter::make('billing_cycle')
                     ->options(collect(BillingCycle::cases())
                         ->mapWithKeys(fn (BillingCycle $cycle) => [$cycle->value => $cycle->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Billing Cycle'),
 
-                Tables\Filters\TernaryFilter::make('overdue_billing')
+                TernaryFilter::make('overdue_billing')
                     ->label('Billing Status')
                     ->placeholder('All subscriptions')
                     ->trueLabel('Overdue for billing')
@@ -160,16 +169,16 @@ class SubscriptionResource extends Resource
                         }),
                     ),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('export_csv')
+            ->toolbarActions([
+                BulkAction::make('export_csv')
                     ->label('Export to CSV')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                    ->action(function (Collection $records): StreamedResponse {
                         return response()->streamDownload(function () use ($records): void {
                             $handle = fopen('php://output', 'w');
                             if ($handle !== false) {
@@ -255,8 +264,8 @@ class SubscriptionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSubscriptions::route('/'),
-            'view' => Pages\ViewSubscription::route('/{record}'),
+            'index' => ListSubscriptions::route('/'),
+            'view' => ViewSubscription::route('/{record}'),
         ];
     }
 
@@ -264,7 +273,7 @@ class SubscriptionResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

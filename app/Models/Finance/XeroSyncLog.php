@@ -5,6 +5,8 @@ namespace App\Models\Finance;
 use App\Enums\Finance\XeroSyncStatus;
 use App\Enums\Finance\XeroSyncType;
 use App\Services\Finance\LogSanitizer;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -27,9 +29,9 @@ use InvalidArgumentException;
  * @property array<string, mixed>|null $request_payload
  * @property array<string, mixed>|null $response_payload
  * @property string|null $error_message
- * @property \Carbon\Carbon|null $synced_at
+ * @property Carbon|null $synced_at
  * @property int $retry_count
- * @property \Carbon\Carbon|null $created_at
+ * @property Carbon|null $created_at
  * @property-read Model|Invoice|CreditNote|Payment $syncable
  */
 class XeroSyncLog extends Model
@@ -263,12 +265,11 @@ class XeroSyncLog extends Model
     // =========================================================================
     // Query Scopes
     // =========================================================================
-
     /**
      * Scope to get only pending syncs.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopePending($query)
     {
@@ -278,8 +279,8 @@ class XeroSyncLog extends Model
     /**
      * Scope to get only synced logs.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopeSynced($query)
     {
@@ -289,8 +290,8 @@ class XeroSyncLog extends Model
     /**
      * Scope to get only failed syncs.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopeFailed($query)
     {
@@ -300,8 +301,8 @@ class XeroSyncLog extends Model
     /**
      * Scope to filter by sync type.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopeOfType($query, XeroSyncType $syncType)
     {
@@ -311,8 +312,8 @@ class XeroSyncLog extends Model
     /**
      * Scope to filter by syncable entity.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopeForSyncable($query, Model $syncable)
     {
@@ -323,8 +324,8 @@ class XeroSyncLog extends Model
     /**
      * Scope to get logs that require attention.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopeRequiresAttention($query)
     {
@@ -334,8 +335,8 @@ class XeroSyncLog extends Model
     /**
      * Scope to get logs with retry count below a threshold.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<XeroSyncLog>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<XeroSyncLog>
+     * @param  Builder<XeroSyncLog>  $query
+     * @return Builder<XeroSyncLog>
      */
     public function scopeRetryable($query, int $maxRetries = 3)
     {

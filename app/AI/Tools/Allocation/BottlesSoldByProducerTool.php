@@ -10,10 +10,11 @@ use App\Models\Pim\Producer;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class BottlesSoldByProducerTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get how many bottles of a specific producer (or top producers) have been sold.';
     }
@@ -34,7 +35,7 @@ class BottlesSoldByProducerTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         [$from, $to] = $this->parsePeriod($request['period'] ?? 'this_year');
         $limit = (int) ($request['limit'] ?? 10);

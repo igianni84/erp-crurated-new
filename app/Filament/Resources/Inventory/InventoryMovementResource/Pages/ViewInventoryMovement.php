@@ -11,10 +11,10 @@ use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\MovementItem;
 use App\Models\Inventory\SerializedBottle;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
 
 class ViewInventoryMovement extends ViewRecord
@@ -30,9 +30,9 @@ class ViewInventoryMovement extends ViewRecord
         return "Movement {$shortId}...";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 // Immutability notice at top
                 Section::make()

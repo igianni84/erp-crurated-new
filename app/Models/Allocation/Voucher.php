@@ -3,6 +3,7 @@
 namespace App\Models\Allocation;
 
 use App\Enums\Allocation\VoucherLifecycleState;
+use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Models\Pim\Format;
 use App\Models\Pim\SellableSku;
@@ -16,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use InvalidArgumentException;
 
 /**
  * Voucher Model
@@ -115,7 +117,7 @@ class Voucher extends Model
         // Enforce quantity = 1 invariant on updates
         static::saving(function (Voucher $voucher): void {
             if ($voucher->quantity !== 1) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Voucher quantity must always be 1. One voucher represents one bottle.'
                 );
             }
@@ -124,7 +126,7 @@ class Voucher extends Model
         // Prevent modification of allocation_id after creation
         static::updating(function (Voucher $voucher): void {
             if ($voucher->isDirty('allocation_id')) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Allocation lineage cannot be modified after voucher creation. This is an immutable field.'
                 );
             }
@@ -194,11 +196,11 @@ class Voucher extends Model
     /**
      * Get the audit logs for this voucher.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -508,7 +510,7 @@ class Voucher extends Model
 
         // Find the most recent lock event in audit logs
         $lockLog = $this->auditLogs()
-            ->where('event', \App\Models\AuditLog::EVENT_LIFECYCLE_CHANGE)
+            ->where('event', AuditLog::EVENT_LIFECYCLE_CHANGE)
             ->whereJsonContains('new_values->lifecycle_state', VoucherLifecycleState::Locked->value)
             ->orderByDesc('created_at')
             ->first();

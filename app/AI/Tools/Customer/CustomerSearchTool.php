@@ -8,10 +8,11 @@ use App\Models\Customer\Customer;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class CustomerSearchTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Search for a customer by name or email.';
     }
@@ -28,7 +29,7 @@ class CustomerSearchTool extends BaseTool implements Tool
         return ToolAccessLevel::Basic;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $search = (string) $request['query'];
 

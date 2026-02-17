@@ -4,21 +4,34 @@ namespace App\Filament\Resources\Procurement;
 
 use App\Enums\Procurement\BottlingInstructionStatus;
 use App\Enums\Procurement\BottlingPreferenceStatus;
-use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages;
+use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\CreateBottlingInstruction;
+use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\ListBottlingInstructions;
+use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\ViewBottlingInstruction;
 use App\Models\Procurement\BottlingInstruction;
-use Filament\Forms\Form;
+use Carbon\Carbon;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BottlingInstructionResource extends Resource
 {
     protected static ?string $model = BottlingInstruction::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-beaker';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-beaker';
 
-    protected static ?string $navigationGroup = 'Procurement';
+    protected static string|\UnitEnum|null $navigationGroup = 'Procurement';
 
     protected static ?int $navigationSort = 3;
 
@@ -30,10 +43,10 @@ class BottlingInstructionResource extends Resource
 
     protected static ?string $slug = 'procurement/bottling-instructions';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in wizard stories (US-029 to US-032)
             ]);
     }
@@ -42,7 +55,7 @@ class BottlingInstructionResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Instruction ID')
                     ->searchable()
                     ->sortable()
@@ -51,7 +64,7 @@ class BottlingInstructionResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (BottlingInstruction $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('product')
+                TextColumn::make('product')
                     ->label('Wine + Vintage')
                     ->state(fn (BottlingInstruction $record): string => $record->getProductLabel())
                     ->searchable(query: function (Builder $query, string $search): Builder {
@@ -69,14 +82,14 @@ class BottlingInstructionResource extends Resource
                     })
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('bottle_equivalents')
+                TextColumn::make('bottle_equivalents')
                     ->label('Bottle Equiv.')
                     ->numeric()
                     ->sortable()
                     ->badge()
                     ->color('info'),
 
-                Tables\Columns\TextColumn::make('allowed_formats')
+                TextColumn::make('allowed_formats')
                     ->label('Allowed Formats')
                     ->state(fn (BottlingInstruction $record): string => $record->getAllowedFormatsLabel())
                     ->badge()
@@ -85,7 +98,7 @@ class BottlingInstructionResource extends Resource
                     ->toggleable()
                     ->wrap(),
 
-                Tables\Columns\TextColumn::make('bottling_deadline')
+                TextColumn::make('bottling_deadline')
                     ->label('Bottling Deadline')
                     ->date()
                     ->sortable()
@@ -102,7 +115,7 @@ class BottlingInstructionResource extends Resource
                         default => '',
                     }),
 
-                Tables\Columns\IconColumn::make('deadline_urgent')
+                IconColumn::make('deadline_urgent')
                     ->label('Urgent')
                     ->boolean()
                     ->state(fn (BottlingInstruction $record): bool => $record->isDeadlineWithinDays(30) || $record->isDeadlinePassed())
@@ -113,7 +126,7 @@ class BottlingInstructionResource extends Resource
                         ? 'Deadline has passed!'
                         : ($record->isDeadlineWithinDays(30) ? 'Deadline within 30 days' : null)),
 
-                Tables\Columns\TextColumn::make('preference_status')
+                TextColumn::make('preference_status')
                     ->label('Preference Status')
                     ->badge()
                     ->formatStateUsing(fn (BottlingPreferenceStatus $state): string => $state->label())
@@ -121,7 +134,7 @@ class BottlingInstructionResource extends Resource
                     ->icon(fn (BottlingPreferenceStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('preference_pending')
+                IconColumn::make('preference_pending')
                     ->label('Needs Prefs')
                     ->boolean()
                     ->state(fn (BottlingInstruction $record): bool => $record->preference_status === BottlingPreferenceStatus::Pending)
@@ -132,7 +145,7 @@ class BottlingInstructionResource extends Resource
                         ? 'Customer preferences pending'
                         : null),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (BottlingInstructionStatus $state): string => $state->label())
@@ -140,14 +153,14 @@ class BottlingInstructionResource extends Resource
                     ->icon(fn (BottlingInstructionStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(BottlingInstructionStatus::cases())
                         ->mapWithKeys(fn (BottlingInstructionStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -158,18 +171,18 @@ class BottlingInstructionResource extends Resource
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('preference_status')
+                SelectFilter::make('preference_status')
                     ->options(collect(BottlingPreferenceStatus::cases())
                         ->mapWithKeys(fn (BottlingPreferenceStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Preference Status'),
 
-                Tables\Filters\Filter::make('deadline_range')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('deadline_from')
+                Filter::make('deadline_range')
+                    ->schema([
+                        DatePicker::make('deadline_from')
                             ->label('Deadline From'),
-                        \Filament\Forms\Components\DatePicker::make('deadline_to')
+                        DatePicker::make('deadline_to')
                             ->label('Deadline To'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -187,38 +200,38 @@ class BottlingInstructionResource extends Resource
                         $indicators = [];
 
                         if ($data['deadline_from'] ?? null) {
-                            $indicators[] = \Filament\Tables\Filters\Indicator::make('Deadline from '.\Carbon\Carbon::parse($data['deadline_from'])->format('M j, Y'))
+                            $indicators[] = Indicator::make('Deadline from '.Carbon::parse($data['deadline_from'])->format('M j, Y'))
                                 ->removeField('deadline_from');
                         }
 
                         if ($data['deadline_to'] ?? null) {
-                            $indicators[] = \Filament\Tables\Filters\Indicator::make('Deadline to '.\Carbon\Carbon::parse($data['deadline_to'])->format('M j, Y'))
+                            $indicators[] = Indicator::make('Deadline to '.Carbon::parse($data['deadline_to'])->format('M j, Y'))
                                 ->removeField('deadline_to');
                         }
 
                         return $indicators;
                     }),
 
-                Tables\Filters\Filter::make('deadline_urgent')
+                Filter::make('deadline_urgent')
                     ->label('Deadline < 30 days')
                     ->query(fn (Builder $query): Builder => $query
                         ->where('bottling_deadline', '<=', now()->addDays(30))
                         ->where('bottling_deadline', '>=', now()))
                     ->toggle(),
 
-                Tables\Filters\Filter::make('deadline_passed')
+                Filter::make('deadline_passed')
                     ->label('Deadline Passed')
                     ->query(fn (Builder $query): Builder => $query->where('bottling_deadline', '<', now()))
                     ->toggle(),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
             ])
             ->defaultSort('bottling_deadline', 'asc')
@@ -236,9 +249,9 @@ class BottlingInstructionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListBottlingInstructions::route('/'),
-            'create' => Pages\CreateBottlingInstruction::route('/create'),
-            'view' => Pages\ViewBottlingInstruction::route('/{record}'),
+            'index' => ListBottlingInstructions::route('/'),
+            'create' => CreateBottlingInstruction::route('/create'),
+            'view' => ViewBottlingInstruction::route('/{record}'),
         ];
     }
 
@@ -246,7 +259,7 @@ class BottlingInstructionResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 }

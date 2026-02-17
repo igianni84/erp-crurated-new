@@ -9,9 +9,11 @@ use App\Events\Finance\SubscriptionSuspended;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Subscription;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to suspend subscriptions with overdue INV0 invoices.
@@ -86,7 +88,7 @@ class SuspendOverdueSubscriptionsJob implements ShouldQueue
                 $this->suspendSubscription($subscription, $overdueInvoice, $daysOverdue);
 
                 $suspendedCount++;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to suspend subscription', [
                     'subscription_id' => $data['subscription']->id ?? 'unknown',
                     'error' => $e->getMessage(),
@@ -225,9 +227,9 @@ class SuspendOverdueSubscriptionsJob implements ShouldQueue
      * Get query builder for subscriptions with overdue INV0 invoices.
      * Useful for reporting and dashboard widgets.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     * @return Builder<Invoice>
      */
-    public static function getOverdueInvoicesQuery(int $thresholdDays): \Illuminate\Database\Eloquent\Builder
+    public static function getOverdueInvoicesQuery(int $thresholdDays): Builder
     {
         $thresholdDate = now()->subDays($thresholdDays)->startOfDay();
 

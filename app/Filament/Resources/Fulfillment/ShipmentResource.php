@@ -3,22 +3,38 @@
 namespace App\Filament\Resources\Fulfillment;
 
 use App\Enums\Fulfillment\ShipmentStatus;
-use App\Filament\Resources\Fulfillment\ShipmentResource\Pages;
+use App\Filament\Resources\Fulfillment\ShipmentResource\Pages\ListShipments;
+use App\Filament\Resources\Fulfillment\ShipmentResource\Pages\ViewShipment;
 use App\Models\Fulfillment\Shipment;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ShipmentResource extends Resource
 {
     protected static ?string $model = Shipment::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-paper-airplane';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-paper-airplane';
 
-    protected static ?string $navigationGroup = 'Fulfillment';
+    protected static string|\UnitEnum|null $navigationGroup = 'Fulfillment';
 
     protected static ?int $navigationSort = 2;
 
@@ -28,13 +44,13 @@ class ShipmentResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Shipments';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Shipment Information')
+        return $schema
+            ->components([
+                Section::make('Shipment Information')
                     ->schema([
-                        Forms\Components\Select::make('shipping_order_id')
+                        Select::make('shipping_order_id')
                             ->label('Shipping Order')
                             ->relationship('shippingOrder', 'id')
                             ->required()
@@ -42,17 +58,17 @@ class ShipmentResource extends Resource
                             ->preload()
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('carrier')
+                        TextInput::make('carrier')
                             ->label('Carrier')
                             ->maxLength(255)
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('tracking_number')
+                        TextInput::make('tracking_number')
                             ->label('Tracking Number')
                             ->maxLength(255)
                             ->disabled(),
 
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->label('Status')
                             ->options(collect(ShipmentStatus::cases())
                                 ->mapWithKeys(fn (ShipmentStatus $status) => [$status->value => $status->label()])
@@ -61,14 +77,14 @@ class ShipmentResource extends Resource
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Shipping Details')
+                Section::make('Shipping Details')
                     ->schema([
-                        Forms\Components\Select::make('origin_warehouse_id')
+                        Select::make('origin_warehouse_id')
                             ->label('Origin Warehouse')
                             ->relationship('originWarehouse', 'name')
                             ->disabled(),
 
-                        Forms\Components\Textarea::make('destination_address')
+                        Textarea::make('destination_address')
                             ->label('Destination Address')
                             ->rows(3)
                             ->disabled()
@@ -76,26 +92,26 @@ class ShipmentResource extends Resource
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Timestamps')
+                Section::make('Timestamps')
                     ->schema([
-                        Forms\Components\DateTimePicker::make('shipped_at')
+                        DateTimePicker::make('shipped_at')
                             ->label('Shipped At')
                             ->disabled(),
 
-                        Forms\Components\DateTimePicker::make('delivered_at')
+                        DateTimePicker::make('delivered_at')
                             ->label('Delivered At')
                             ->disabled(),
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Additional Information')
+                Section::make('Additional Information')
                     ->schema([
-                        Forms\Components\TextInput::make('weight')
+                        TextInput::make('weight')
                             ->label('Weight (kg)')
                             ->numeric()
                             ->disabled(),
 
-                        Forms\Components\Textarea::make('notes')
+                        Textarea::make('notes')
                             ->label('Notes')
                             ->rows(3)
                             ->disabled()
@@ -109,7 +125,7 @@ class ShipmentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Shipment ID')
                     ->searchable()
                     ->sortable()
@@ -118,7 +134,7 @@ class ShipmentResource extends Resource
                     ->limit(8)
                     ->tooltip(fn (Shipment $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('shippingOrder.id')
+                TextColumn::make('shippingOrder.id')
                     ->label('SO ID')
                     ->searchable()
                     ->sortable()
@@ -129,12 +145,12 @@ class ShipmentResource extends Resource
                     ->color('primary')
                     ->tooltip(fn (Shipment $record): string => $record->shipping_order_id),
 
-                Tables\Columns\TextColumn::make('carrier')
+                TextColumn::make('carrier')
                     ->label('Carrier')
                     ->searchable()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('tracking_number')
+                TextColumn::make('tracking_number')
                     ->label('Tracking Number')
                     ->searchable()
                     ->sortable()
@@ -142,13 +158,13 @@ class ShipmentResource extends Resource
                     ->copyMessage('Tracking number copied')
                     ->placeholder('-'),
 
-                Tables\Columns\TextColumn::make('shipped_at')
+                TextColumn::make('shipped_at')
                     ->label('Shipped At')
                     ->dateTime()
                     ->sortable()
                     ->placeholder('-'),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (ShipmentStatus $state): string => $state->label())
@@ -156,7 +172,7 @@ class ShipmentResource extends Resource
                     ->icon(fn (ShipmentStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('bottles_count')
+                TextColumn::make('bottles_count')
                     ->label('Bottles')
                     ->getStateUsing(fn (Shipment $record): int => $record->getBottleCount())
                     ->badge()
@@ -165,33 +181,33 @@ class ShipmentResource extends Resource
                         return $query->orderByRaw("JSON_LENGTH(shipped_bottle_serials) {$direction}");
                     }),
 
-                Tables\Columns\TextColumn::make('delivered_at')
+                TextColumn::make('delivered_at')
                     ->label('Delivered At')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('-'),
 
-                Tables\Columns\TextColumn::make('originWarehouse.name')
+                TextColumn::make('originWarehouse.name')
                     ->label('Origin Warehouse')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(ShipmentStatus::cases())
                         ->mapWithKeys(fn (ShipmentStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\SelectFilter::make('carrier')
+                SelectFilter::make('carrier')
                     ->options(fn (): array => Shipment::query()
                         ->whereNotNull('carrier')
                         ->distinct()
@@ -200,11 +216,11 @@ class ShipmentResource extends Resource
                     ->searchable()
                     ->label('Carrier'),
 
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        Forms\Components\DatePicker::make('shipped_from')
+                Filter::make('date_range')
+                    ->schema([
+                        DatePicker::make('shipped_from')
                             ->label('Shipped From'),
-                        Forms\Components\DatePicker::make('shipped_until')
+                        DatePicker::make('shipped_until')
                             ->label('Shipped Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -230,18 +246,18 @@ class ShipmentResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
+            ->toolbarActions([
+                BulkActionGroup::make([
                     // Export CSV
-                    Tables\Actions\BulkAction::make('export_csv')
+                    BulkAction::make('export_csv')
                         ->label('Export CSV')
                         ->icon('heroicon-o-arrow-down-tray')
-                        ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                        ->action(function (Collection $records): StreamedResponse {
                             return response()->streamDownload(function () use ($records): void {
                                 $handle = fopen('php://output', 'w');
                                 if ($handle === false) {
@@ -304,7 +320,7 @@ class ShipmentResource extends Resource
      *
      * @return array<string, string>
      */
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var Shipment $record */
         return [
@@ -332,8 +348,8 @@ class ShipmentResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListShipments::route('/'),
-            'view' => Pages\ViewShipment::route('/{record}'),
+            'index' => ListShipments::route('/'),
+            'view' => ViewShipment::route('/{record}'),
         ];
     }
 
@@ -341,7 +357,7 @@ class ShipmentResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -356,7 +372,7 @@ class ShipmentResource extends Resource
     /**
      * Shipments have limited edit capability - most fields are read-only.
      */
-    public static function canEdit(\Illuminate\Database\Eloquent\Model $record): bool
+    public static function canEdit(Model $record): bool
     {
         return false;
     }
@@ -364,7 +380,7 @@ class ShipmentResource extends Resource
     /**
      * Shipments cannot be deleted.
      */
-    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    public static function canDelete(Model $record): bool
     {
         return false;
     }

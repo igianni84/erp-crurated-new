@@ -3,12 +3,16 @@
 namespace App\Filament\Resources\Allocation;
 
 use App\Enums\Allocation\CaseEntitlementStatus;
-use App\Filament\Resources\Allocation\CaseEntitlementResource\Pages;
+use App\Filament\Resources\Allocation\CaseEntitlementResource\Pages\ListCaseEntitlements;
+use App\Filament\Resources\Allocation\CaseEntitlementResource\Pages\ViewCaseEntitlement;
 use App\Models\Allocation\CaseEntitlement;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -16,9 +20,9 @@ class CaseEntitlementResource extends Resource
 {
     protected static ?string $model = CaseEntitlement::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cube';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube';
 
-    protected static ?string $navigationGroup = 'Vouchers';
+    protected static string|\UnitEnum|null $navigationGroup = 'Vouchers';
 
     protected static ?int $navigationSort = 2;
 
@@ -28,10 +32,10 @@ class CaseEntitlementResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Case Entitlements';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // No form schema - case entitlements are created only via CaseEntitlementService
             ]);
     }
@@ -40,14 +44,14 @@ class CaseEntitlementResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Entitlement ID')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->copyMessage('Entitlement ID copied'),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -61,13 +65,13 @@ class CaseEntitlementResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('sellableSku.sku_code')
+                TextColumn::make('sellableSku.sku_code')
                     ->label('Sellable SKU')
                     ->searchable()
                     ->sortable()
                     ->placeholder('N/A'),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (CaseEntitlementStatus $state): string => $state->label())
@@ -75,20 +79,20 @@ class CaseEntitlementResource extends Resource
                     ->icon(fn (CaseEntitlementStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('vouchers_count')
+                TextColumn::make('vouchers_count')
                     ->label('Vouchers')
                     ->counts('vouchers')
                     ->badge()
                     ->color('gray')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('broken_at')
+                TextColumn::make('broken_at')
                     ->label('Broken At')
                     ->dateTime()
                     ->sortable()
@@ -96,16 +100,16 @@ class CaseEntitlementResource extends Resource
                     ->placeholder('N/A'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(CaseEntitlementStatus::cases())
                         ->mapWithKeys(fn (CaseEntitlementStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\Filter::make('customer')
-                    ->form([
-                        Forms\Components\Select::make('customer_id')
+                Filter::make('customer')
+                    ->schema([
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->relationship('customer', 'name')
                             ->searchable()
@@ -118,10 +122,10 @@ class CaseEntitlementResource extends Resource
                         );
                     }),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // No bulk actions - case entitlements require careful individual handling
             ])
             ->defaultSort('created_at', 'desc')
@@ -141,8 +145,8 @@ class CaseEntitlementResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCaseEntitlements::route('/'),
-            'view' => Pages\ViewCaseEntitlement::route('/{record}'),
+            'index' => ListCaseEntitlements::route('/'),
+            'view' => ViewCaseEntitlement::route('/{record}'),
         ];
     }
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\Procurement;
 
+use App\Enums\Allocation\AllocationSourceType;
 use App\Enums\Procurement\BottlingInstructionStatus;
 use App\Enums\Procurement\InboundStatus;
 use App\Enums\Procurement\ProcurementIntentStatus;
@@ -14,6 +15,7 @@ use App\Models\AuditLog;
 use App\Models\Procurement\ProcurementIntent;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing ProcurementIntent lifecycle.
@@ -29,14 +31,14 @@ class ProcurementIntentService
      * Creates a draft intent with trigger_type = voucher_driven.
      * The sourcing model is inferred from the allocation's source type.
      *
-     * @throws \InvalidArgumentException If voucher is missing required data
+     * @throws InvalidArgumentException If voucher is missing required data
      */
     public function createFromVoucherSale(Voucher $voucher): ProcurementIntent
     {
         $allocation = $voucher->allocation;
 
         if ($allocation === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create ProcurementIntent: Voucher has no linked allocation.'
             );
         }
@@ -55,7 +57,7 @@ class ProcurementIntentService
         $productReferenceId = $sellableSkuId ?? $wineVariantId;
 
         if ($productReferenceId === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create ProcurementIntent: Voucher has no product reference (sellable_sku_id or wine_variant_id).'
             );
         }
@@ -90,12 +92,12 @@ class ProcurementIntentService
      * Creates a draft intent with trigger_type = allocation_driven.
      * Useful for pre-emptive procurement based on allocation demand.
      *
-     * @throws \InvalidArgumentException If quantity is invalid
+     * @throws InvalidArgumentException If quantity is invalid
      */
     public function createFromAllocation(Allocation $allocation, int $quantity): ProcurementIntent
     {
         if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Quantity must be greater than 0.'
             );
         }
@@ -112,7 +114,7 @@ class ProcurementIntentService
         $productReferenceId = $allocation->getAttribute('wine_variant_id');
 
         if ($productReferenceId === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create ProcurementIntent: Allocation has no wine_variant_id.'
             );
         }
@@ -149,7 +151,7 @@ class ProcurementIntentService
      *
      * @param  array<string, mixed>  $data  Required keys: product_reference_type, product_reference_id, quantity, sourcing_model. Optional: preferred_inbound_location, rationale
      *
-     * @throws \InvalidArgumentException If required data is missing
+     * @throws InvalidArgumentException If required data is missing
      */
     public function createManual(array $data): ProcurementIntent
     {
@@ -157,7 +159,7 @@ class ProcurementIntentService
 
         foreach ($requiredFields as $field) {
             if (! array_key_exists($field, $data) || $data[$field] === null) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Missing required field: {$field}"
                 );
             }
@@ -173,14 +175,14 @@ class ProcurementIntentService
         $sourcingModel = $data['sourcing_model'];
 
         if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Quantity must be greater than 0.'
             );
         }
 
         $validProductTypes = ['sellable_skus', 'liquid_products'];
         if (! in_array($productReferenceType, $validProductTypes, true)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Invalid product_reference_type. Must be one of: '.implode(', ', $validProductTypes)
             );
         }
@@ -216,12 +218,12 @@ class ProcurementIntentService
      *
      * Records the approver and approval timestamp.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function approve(ProcurementIntent $intent): ProcurementIntent
     {
         if (! $intent->status->canTransitionTo(ProcurementIntentStatus::Approved)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot approve intent: current status '{$intent->status->label()}' does not allow transition to Approved. "
                 .'Only Draft intents can be approved.'
             );
@@ -244,12 +246,12 @@ class ProcurementIntentService
      *
      * Indicates that procurement activities have begun.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function markExecuted(ProcurementIntent $intent): ProcurementIntent
     {
         if (! $intent->status->canTransitionTo(ProcurementIntentStatus::Executed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot mark intent as executed: current status '{$intent->status->label()}' does not allow transition to Executed. "
                 .'Only Approved intents can be marked as executed.'
             );
@@ -270,12 +272,12 @@ class ProcurementIntentService
      *
      * Requires all linked objects to be in completed/closed states.
      *
-     * @throws \InvalidArgumentException If transition is not allowed or linked objects are incomplete
+     * @throws InvalidArgumentException If transition is not allowed or linked objects are incomplete
      */
     public function close(ProcurementIntent $intent): ProcurementIntent
     {
         if (! $intent->status->canTransitionTo(ProcurementIntentStatus::Closed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot close intent: current status '{$intent->status->label()}' does not allow transition to Closed. "
                 .'Only Executed intents can be closed.'
             );
@@ -286,7 +288,7 @@ class ProcurementIntentService
 
         if (! $validation['can_close']) {
             $pendingItems = implode(', ', $validation['pending_items']);
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot close intent: the following linked objects are not completed: {$pendingItems}. "
                 .'All linked Purchase Orders must be closed, all Bottling Instructions must be executed, '
                 .'and all Inbounds must be completed before closing the intent.'
@@ -356,10 +358,10 @@ class ProcurementIntentService
         // Map allocation source types to sourcing models
         // Based on AllocationSourceType enum values
         return match ($allocation->source_type) {
-            \App\Enums\Allocation\AllocationSourceType::ProducerAllocation => SourcingModel::Purchase,
-            \App\Enums\Allocation\AllocationSourceType::OwnedStock => SourcingModel::Purchase,
-            \App\Enums\Allocation\AllocationSourceType::PassiveConsignment => SourcingModel::PassiveConsignment,
-            \App\Enums\Allocation\AllocationSourceType::ThirdPartyCustody => SourcingModel::ThirdPartyCustody,
+            AllocationSourceType::ProducerAllocation => SourcingModel::Purchase,
+            AllocationSourceType::OwnedStock => SourcingModel::Purchase,
+            AllocationSourceType::PassiveConsignment => SourcingModel::PassiveConsignment,
+            AllocationSourceType::ThirdPartyCustody => SourcingModel::ThirdPartyCustody,
         };
     }
 

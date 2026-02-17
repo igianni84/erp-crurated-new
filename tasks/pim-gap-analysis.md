@@ -1,6 +1,6 @@
 # PIM Module — Gap Analysis Report
 
-**Data:** 9 Febbraio 2026
+**Data:** 9 Febbraio 2026 | **Ultima verifica codice:** 16 Febbraio 2026
 **Fonti confrontate:**
 1. **ERP-FULL-DOC.md** (Sezione 4 — Module 0 PIM) — Documentazione funzionale
 2. **prd-module-0-pim.md** — PRD UI/UX con 23 user stories
@@ -25,9 +25,9 @@
 | Lifecycle Workflow | ✅ | ✅ | ✅ | ⚠️ Differenze stati |
 | Liv-ex Integration | ✅ | ✅ | ✅ | ✅ Allineato |
 | Data Quality Dashboard | — | ✅ | ✅ | ✅ Allineato al PRD |
-| Service Layer | ✅ (implicito) | — | ❌ | 🔴 Gap architetturale |
+| Service Layer | ✅ (implicito) | — | ⚠️ | 🔴 Gap architetturale (LivExService esiste ma non organizzato in Pim/) |
 | Events/Listeners | — | — | ❌ | 🔴 Gap architetturale |
-| Test Suite | — | ✅ (AC) | ❌ | 🔴 Gap critico |
+| Test Suite | — | ✅ (AC) | ⚠️ | 🔴 Gap critico (solo 1 test AI tools, zero test modelli/servizi) |
 | Role-Based Access | ✅ | ✅ (parziale) | ❌ | 🔴 Gap |
 | SKU Lifecycle Enum | — | ✅ | ❌ (string) | ⚠️ Parziale |
 
@@ -190,6 +190,9 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 | is_primary | — | ✅ | ✅ auto-unset siblings | — |
 | sort_order | — | ✅ | ✅ | — |
 | is_locked | — | ✅ | ✅ | — |
+| original_filename | — | — | ✅ | Extra |
+| mime_type | — | — | ✅ | Extra |
+| file_size | — | — | ✅ | Extra |
 | alt_text | — | — | ✅ | Extra |
 | caption | — | — | ✅ | Extra |
 | Versioning | ✅ | — | ❌ | **GAP**: DOC dice "all enrichment is versioned" ma no versioning media |
@@ -208,7 +211,7 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 | Completeness weighting | — | ✅ `pesi` | ✅ `completeness_weight` | — |
 | Admin-configurable sets | — | ✅ (ambiguo) | ❌ | **GAP**: Solo seeded, no Filament CRUD per gestire AttributeSet/Group/Definition |
 
-**Nota importante:** La DOC funzionale NON menziona il sistema di attributi dinamici. È un'aggiunta del PRD UI/UX implementata correttamente.
+**Nota importante:** La DOC funzionale NON menziona il sistema di attributi dinamici. È un'aggiunta del PRD UI/UX implementata correttamente. Il seeder crea 1 set default (`wine_default`), 4 gruppi (wine_info, production, tasting, compliance), e **24 attributi** con pesi di completeness differenziati. Gli attributi sono integrati dinamicamente nel tab "Attributes" di WineVariantResource e contribuiscono al calcolo di `getDynamicCompletenessPercentage()`.
 
 ---
 
@@ -217,9 +220,9 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 | Aspetto | DOC Funzionale | PRD | Implementato | Delta |
 |---------|:-:|:-:|:-:|------|
 | Country model | ✅ (menzionato come campo) | — | ✅ Modello + Seeder (18 paesi) | **EXTRA** |
-| Region model | ✅ (menzionato come campo) | — | ✅ Gerarchico con parent (150+) | **EXTRA** |
-| Appellation model | ✅ (menzionato come campo) | — | ✅ Con AppellationSystem enum (150+) | **EXTRA** |
-| Producer model | ✅ (menzionato come campo) | — | ✅ Con party_id per B2B (90+) | **EXTRA** |
+| Region model | ✅ (menzionato come campo) | — | ✅ Gerarchico con parent (113 regioni) | **EXTRA** |
+| Appellation model | ✅ (menzionato come campo) | — | ✅ Con AppellationSystem enum (156 appellazioni) | **EXTRA** |
+| Producer model | ✅ (menzionato come campo) | — | ✅ Con party_id per B2B (133 produttori) | **EXTRA** |
 | Filament CRUD | — | — | ✅ Resources complete | **EXTRA** |
 
 **Nota:** La DOC e il PRD menzionano country/region/appellation/producer come **campi stringa** del Wine Master. L'implementazione li ha promossi a **modelli first-class** con lookup relazionali, gerarchie (Region), e sistema di appellazione (AppellationSystem enum con 14 casi). Questo è un miglioramento significativo rispetto alla documentazione.
@@ -233,8 +236,8 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 | Resource | PRD Prevede | Implementato | Delta |
 |----------|:-:|:-:|------|
 | WineMasterResource | ✅ | ✅ CRUD completo | — |
-| WineVariantResource | ✅ (6 tabs) | ✅ (6 tabs) | — |
-| SellableSkuResource | ✅ | ✅ + RelationManager | — |
+| WineVariantResource | ✅ (6 tabs) | ✅ (6 tabs) + SellableSkusRelationManager | — |
+| SellableSkuResource | ✅ | ✅ | — |
 | FormatResource | ✅ | ✅ | — |
 | CaseConfigurationResource | ✅ | ✅ | — |
 | LiquidProductResource | ✅ | ✅ | — |
@@ -253,7 +256,7 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 | US-002 | Creare Wine Variant | ✅ | WineVariantResource + CreateManualBottle |
 | US-003 | Gestire Format | ✅ | FormatResource |
 | US-004 | Gestire Case Configuration | ✅ | CaseConfigResource |
-| US-005 | Creare Sellable SKU | ✅ | SellableSkuResource + RelationManager |
+| US-005 | Creare Sellable SKU | ✅ | SellableSkuResource + SellableSkusRelationManager (in WineVariantResource) |
 | US-006 | Gestire Liquid Product | ✅ | LiquidProductResource |
 | US-007 | Lifecycle workflow | ✅ | ProductLifecycleStatus + transition actions |
 | US-008 | Completeness % | ✅ | getCompletenessPercentage() + dashboard |
@@ -266,40 +269,40 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 | US-015 | Gestione media | ✅ | Tab Media con dual-source |
 | US-016 | Refresh Liv-ex media | ✅ | `refresh_livex_media` action |
 | US-017 | Attributi dinamici | ✅ | AttributeSet system + tab Attributes |
-| US-018 | Media management avanzato | ⚠️ | Upload + primary, ma no bulk reorder persist |
+| US-018 | Media management avanzato | ✅ | Upload + primary + reorder con persistenza sort_order in EditWineVariant::saveMedia() |
 | US-019 | Data Quality Dashboard | ✅ | PimDashboard page |
 | US-020 | Export CSV issues | ✅ | `exportIssues()` StreamedResponse |
-| US-021 | Audit trail | ⚠️ | Trait Auditable, ma no Audit viewer dedicato in PIM |
+| US-021 | Audit trail | ✅ | Trait Auditable + tab Audit dedicato in WineVariantResource con timeline, filtri per tipo evento, e diff old/new values |
 | US-022 | Role-based permissions | ❌ | No Policy/Gate implementati per PIM |
 | US-023 | Composite SKU | ✅ | CompositeSkuItem + RelationManager |
 
-**Coverage: 20/23 complete, 2 parziali, 1 mancante**
+**Coverage: 22/23 complete, 0 parziali, 1 mancante**
 
 ---
 
 ## 4. GAP CRITICI
 
-### 🔴 GAP-01: Nessun Service Layer PIM
+### 🔴 GAP-01: Service Layer PIM non organizzato
 **Severità: Media-Alta**
 
 | | Dettaglio |
 |---|---|
 | **DOC** | Architecture patterns specifica "Service layer: Business logic in Services, not Controllers or Models" |
 | **PRD** | Non specifica services |
-| **Implementato** | Business logic in Models (completeness, lifecycle, validation) e Filament Pages (create flows, import) |
-| **Impatto** | Viola il pattern architetturale del progetto. Tutti gli altri moduli (Finance, Fulfillment, Commercial, Procurement, Inventory) hanno service layer dedicato |
-| **Raccomandazione** | Creare `WineVariantService`, `SellableSkuService`, `LivExImportService` |
+| **Implementato** | `LivExService` esiste in `app/Services/LivExService.php` (non nel subfolder `Pim/`). Tutta l'altra business logic e' in Models (completeness, lifecycle, validation) e Filament Pages (create flows, import) |
+| **Impatto** | Viola il pattern architetturale del progetto. Tutti gli altri moduli (Finance: 14 servizi, Procurement: 4, Fulfillment: 4, Allocation: 5, Inventory: 4, Commercial: 5) hanno service layer dedicato in subfolder |
+| **Raccomandazione** | Spostare `LivExService` in `app/Services/Pim/LivExService.php`. Creare `WineVariantService`, `SellableSkuService` |
 
 ---
 
-### 🔴 GAP-02: Nessun Test
+### 🔴 GAP-02: Nessun Test per modelli e servizi PIM
 **Severità: Alta**
 
 | | Dettaglio |
 |---|---|
 | **DOC** | Quality: PHPStan level 5, PHPUnit |
 | **PRD** | Ogni US ha acceptance criteria con "typecheck/lint requirements" |
-| **Implementato** | Zero test per PIM (nessun file in tests/) |
+| **Implementato** | Esiste solo `tests/Unit/AI/Tools/Pim/PimToolsTest.php` (test per AI tools: ProductCatalogSearchTool, DataQualityIssuesTool). Zero test per modelli, servizi e workflow PIM core |
 | **Impatto** | No regression testing, no CI/CD validation, no refactoring safety |
 | **Raccomandazione** | Priorità test per: lifecycle transitions, SKU generation, completeness calculation, composite validation, Liv-ex import |
 
@@ -383,9 +386,9 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 
 | | Dettaglio |
 |---|---|
-| **Implementato** | PimDashboard ha proprietà `$dateFrom`, `$dateTo`, `$eventTypeFilter` dichiarate ma non collegate a nessun filtro UI |
+| **Implementato** | PimDashboard ha proprietà `$dateFrom`, `$dateTo`, `$eventTypeFilter` dichiarate e inizializzate in `mount()`, ma non utilizzate né dai metodi PHP (`getStatusCounts()`, `getCompletenessDistribution()`, etc.) né dal template Blade (`pim-dashboard.blade.php`). Nessun elemento UI per filtrare. |
 | **Impatto** | Il dashboard mostra sempre tutti i dati senza possibilità di filtrare per periodo |
-| **Raccomandazione** | Collegare o rimuovere le proprietà inutilizzate |
+| **Raccomandazione** | Collegare le proprietà ai metodi di query (aggiungendo clausole `whereBetween` sulle date) e aggiungere filtri Livewire nel Blade, oppure rimuovere le proprietà inutilizzate |
 
 ---
 
@@ -394,9 +397,9 @@ Manca il pattern enum con `label()`, `color()`, `icon()`, `allowedTransitions()`
 
 | | Dettaglio |
 |---|---|
-| **Implementato** | Sia SellableSkuResource che CountryResource hanno `$navigationSort = 5` |
-| **Impatto** | Ordine imprevedibile nel menu sidebar |
-| **Raccomandazione** | Riassegnare: SKU=4, Country=5 (o altro schema coerente) |
+| **Implementato** | Due coppie duplicate: SellableSkuResource e CountryResource hanno entrambi `$navigationSort = 5`; LiquidProductResource e RegionResource hanno entrambi `$navigationSort = 6` |
+| **Impatto** | Ordine imprevedibile nel menu sidebar per 4 risorse |
+| **Raccomandazione** | Riassegnare sequenzialmente: Product=0, WineMaster=1, WineVariant=2, Format=3, CaseConfig=4, SellableSku=5, Country=6, LiquidProduct=7, Region=8, Appellation=9, Producer=10 |
 
 ---
 
@@ -463,14 +466,14 @@ Verifica che gli invarianti definiti nella DOC siano rispettati nell'implementaz
 | Metrica | Quantità |
 |---------|----------|
 | Modelli PIM | 16 |
-| Enum PIM (proper) | 3 (ProductLifecycleStatus, DataSource, AppellationSystem) |
+| Enum usati dal PIM | 3 — ma solo `AppellationSystem` è in `app/Enums/Pim/`; `ProductLifecycleStatus` e `DataSource` sono in `app/Enums/` (root level, condivisi) |
 | Enum PIM (missing) | 1 (SkuLifecycleStatus) |
-| Services PIM | 1 (LivExService — non in app/Services/Pim/) |
-| Filament Resources | 8 + 1 RelationManager |
-| Filament Custom Pages | 4 (Dashboard, ChooseCategory, CreateBottle, CreateManual, ImportLivex) |
-| Migrazioni PIM | 19 |
-| Seeders PIM | 9 |
-| Test PIM | 0 |
+| Services PIM | 1 (LivExService in `app/Services/`, non nel subfolder `Pim/`) |
+| Filament Resources | 11 (WineMaster, WineVariant, SellableSku, Format, CaseConfiguration, LiquidProduct, Product, Country, Region, Appellation, Producer) + 1 RelationManager (SellableSkusRelationManager in WineVariantResource) |
+| Filament Custom Pages | 6 (PimDashboard, ChooseProductCategory, CreateBottleProduct, CreateManualBottle, ImportLivex, ListProducts) |
+| Migrazioni PIM | 20 (serie 200000+, inclusa `add_lookup_fks_to_wine_masters_table`) |
+| Seeders PIM | 13 (Country, Region, Appellation, Producer, Format, AttributeSet, CaseConfiguration, LiquidProduct, WineMaster, WineVariant, SellableSku, ProductMedia, InventoryCaseSeeder) |
+| Test PIM | 1 (PimToolsTest — solo AI tools, zero test modelli/servizi) |
 | Events PIM | 0 |
 | Policies PIM | 0 |
 
@@ -500,14 +503,14 @@ Verifica che gli invarianti definiti nella DOC siano rispettati nell'implementaz
 ### Punti di forza
 1. **Core entities completamente allineate** — Wine Master, Variant, SKU, Format, Case Config, Liquid Product sono tutti implementati come da documentazione
 2. **Invarianti rispettati** — Tutti e 6 gli invarianti PIM sono enforced nell'implementazione
-3. **UI/UX PRD ben implementato** — 20/23 user stories completamente coperte
+3. **UI/UX PRD ben implementato** — 22/23 user stories completamente coperte
 4. **Miglioramenti non documentati** — Lookup tables relazionali, AppellationSystem, region hierarchy, integrity flags sono aggiunte di valore
 5. **Liv-ex integration funzionante** — Import, lock, unlock, refresh media tutto implementato
 
 ### Aree critiche da indirizzare
-1. **Zero test** — Il gap più grave. Nessuna safety net per refactoring o regression
+1. **Zero test per modelli/servizi** — Solo 1 test AI tools esiste. Nessuna safety net per refactoring o regression sui modelli core PIM
 2. **Nessun access control** — Tutti possono fare tutto. Serve urgentemente per go-live
-3. **Service layer assente** — Viola le convenzioni architetturali del progetto
+3. **Service layer non organizzato** — LivExService esiste ma non nel subfolder Pim/. Mancano WineVariantService, SellableSkuService. Viola le convenzioni architetturali del progetto
 4. **Nessun evento** — Impedisce l'integrazione event-driven con altri moduli
 
 ### Documentazione funzionale da aggiornare
@@ -515,3 +518,46 @@ Verifica che gli invarianti definiti nella DOC siano rispettati nell'implementaz
 2. **Lookup tables** — Documentare Country, Region, Appellation, Producer come entità
 3. **Dynamic attributes** — Aggiungere sezione dedicata
 4. **Integrity flags SKU** — Documentare is_intrinsic, is_producer_original, is_verified
+
+---
+
+## 10. LOG DI VERIFICA
+
+### Verifica del 16 Febbraio 2026 (audit approfondito su codebase)
+
+**Metodologia:** Verifica sistematica di ogni singola affermazione nel documento tramite lettura diretta dei file sorgente (modelli, migrazioni, enum, seeders, risorse Filament, servizi, test, policy, template Blade).
+
+**Correzioni applicate:**
+
+| # | Sezione | Errore originale | Correzione |
+|---|---------|-----------------|------------|
+| 1 | §3.2 US-018 | Marcato ⚠️ "no bulk reorder persist" | Corretto a ✅ — `EditWineVariant::saveMedia()` persiste `sort_order` per ogni media item nel repeater reorderable |
+| 2 | §3.2 US-021 | Marcato ⚠️ "no Audit viewer dedicato in PIM" | Corretto a ✅ — WineVariantResource ha un tab "Audit" completo con timeline, filtri per tipo evento, e diff old/new values (`getAuditSchema()`, righe 1683-1843) |
+| 3 | §3.2 Coverage | "20/23 complete, 2 parziali" | Corretto a "22/23 complete, 0 parziali, 1 mancante" |
+| 4 | §2.10 Lookup counts | "150+" regioni, "150+" appellazioni, "90+" produttori | Corretto a 113 regioni, 156 appellazioni, 133 produttori (conteggio esatto dai seeders) |
+| 5 | §7 Enum location | "3 (ProductLifecycleStatus, DataSource, AppellationSystem)" come enum PIM | Chiarito che solo `AppellationSystem` è in `app/Enums/Pim/`; gli altri due sono in `app/Enums/` (root, condivisi) |
+| 6 | §7 Migrazioni | "19" | Corretto a 20 (mancava `add_lookup_fks_to_wine_masters_table`) |
+| 7 | §7 Seeders | "12" | Corretto a 13 (mancava `InventoryCaseSeeder`) |
+| 8 | GAP-10 | Solo 1 coppia duplicata (sort=5) | Aggiunte 2 coppie: CountryResource/SellableSkuResource (sort=5) e LiquidProductResource/RegionResource (sort=6) |
+| 9 | GAP-09 | Descrizione generica | Precisato che le proprietà non sono usate né dai metodi PHP né dal template Blade |
+| 10 | §2.8 ProductMedia | Mancavano campi extra | Aggiunti `original_filename`, `mime_type`, `file_size` come campi Extra |
+| 11 | §2.9 Attributi | Mancava dettaglio seeder | Aggiunto: 1 set, 4 gruppi, 24 attributi con pesi di completeness |
+| 12 | §9 Conclusioni | "20/23" | Corretto a "22/23" |
+
+**Elementi confermati corretti (non modificati):**
+- Tutti i campi di WineMaster, WineVariant, Format, CaseConfiguration, SellableSku, CompositeSkuItem, LiquidProduct sono verificati ✅
+- ProductLifecycleStatus enum: 5 stati con `label()`, `color()`, `icon()`, `allowedTransitions()` ✅
+- SellableSku usa string constants (non enum) — confermato ✅
+- Nessun SkuLifecycleStatus enum — confermato ✅
+- Nessun servizio in `app/Services/Pim/` — confermato ✅
+- LivExService in `app/Services/LivExService.php` (root) — confermato ✅
+- Zero eventi PIM — confermato ✅
+- Zero policy PIM — confermato ✅
+- Zero test modelli/servizi PIM — confermato ✅
+- Tutti i 6 invarianti rispettati — confermato ✅
+- Nessun CRUD Filament per AttributeSet/Group/Definition — confermato ✅
+- Nessun versioning media — confermato ✅
+- ProductMedia type limitato a image/document — confermato ✅
+- Nessuna circular reference validation in CompositeSkuItem — confermato ✅
+- Producer model senza description/story/estate_info — confermato ✅
+- AppellationSystem enum con esattamente 14 casi — confermato ✅

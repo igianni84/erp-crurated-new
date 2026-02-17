@@ -3,22 +3,23 @@
 namespace App\Filament\Pages;
 
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 
 class AiAssistant extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-chat-bubble-left-right';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chat-bubble-left-right';
 
     protected static ?string $navigationLabel = 'AI Assistant';
 
-    protected static ?string $navigationGroup = 'System';
+    protected static string|\UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 99;
 
     protected static ?string $title = 'AI Assistant';
 
-    protected static string $view = 'filament.pages.ai-assistant';
+    protected string $view = 'filament.pages.ai-assistant';
 
     /**
      * @return array<string, mixed>

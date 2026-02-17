@@ -8,6 +8,8 @@ use App\Models\Customer\Customer;
 use App\Models\Inventory\Location;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,8 +26,8 @@ use InvalidArgumentException;
  * @property string $id
  * @property string $customer_id
  * @property string|null $location_id
- * @property \Carbon\Carbon $period_start
- * @property \Carbon\Carbon $period_end
+ * @property Carbon $period_start
+ * @property Carbon $period_end
  * @property int $bottle_count
  * @property int $bottle_days
  * @property string $unit_rate
@@ -33,13 +35,13 @@ use InvalidArgumentException;
  * @property string $currency
  * @property StorageBillingStatus $status
  * @property string|null $invoice_id
- * @property \Carbon\Carbon $calculated_at
+ * @property Carbon $calculated_at
  * @property array<string, mixed>|null $metadata
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class StorageBillingPeriod extends Model
 {
@@ -478,15 +480,14 @@ class StorageBillingPeriod extends Model
     // =========================================================================
     // Static Query Helpers
     // =========================================================================
-
     /**
      * Get blocked storage billing periods for a specific customer.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<StorageBillingPeriod>
+     * @return Builder<StorageBillingPeriod>
      */
-    public static function blockedForCustomer(string $customerId): \Illuminate\Database\Eloquent\Builder
+    public static function blockedForCustomer(string $customerId): Builder
     {
-        /** @var \Illuminate\Database\Eloquent\Builder<StorageBillingPeriod> $query */
+        /** @var Builder<StorageBillingPeriod> $query */
         $query = static::query()
             ->where('customer_id', $customerId)
             ->where('status', StorageBillingStatus::Blocked);

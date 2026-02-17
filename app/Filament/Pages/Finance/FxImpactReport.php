@@ -9,6 +9,7 @@ use App\Models\Finance\Payment;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * FX Impact Summary Report page for Finance module.
@@ -21,11 +22,11 @@ use Illuminate\Support\Collection;
  */
 class FxImpactReport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-currency-dollar';
 
     protected static ?string $navigationLabel = 'FX Impact';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -33,7 +34,7 @@ class FxImpactReport extends Page
 
     protected static ?string $title = 'FX Impact Summary Report';
 
-    protected static string $view = 'filament.pages.finance.fx-impact-report';
+    protected string $view = 'filament.pages.finance.fx-impact-report';
 
     /**
      * Selected period type: monthly, quarterly, yearly.
@@ -506,7 +507,7 @@ class FxImpactReport extends Page
     /**
      * Export report to CSV.
      */
-    public function exportToCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToCsv(): StreamedResponse
     {
         $invoiceData = $this->getInvoicesByCurrency();
         $paymentData = $this->getPaymentsByCurrency();

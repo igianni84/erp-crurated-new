@@ -3,15 +3,22 @@
 namespace App\Models\Procurement;
 
 use App\Enums\Procurement\PurchaseOrderStatus;
+use App\Models\AuditLog;
 use App\Models\Customer\Party;
+use App\Models\Pim\LiquidProduct;
+use App\Models\Pim\SellableSku;
+use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * PurchaseOrder Model
@@ -29,12 +36,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $currency Currency code (e.g., EUR, USD)
  * @property string|null $incoterms Incoterms for delivery
  * @property bool $ownership_transfer Whether ownership transfers on delivery
- * @property \Carbon\Carbon|null $expected_delivery_start Start of delivery window
- * @property \Carbon\Carbon|null $expected_delivery_end End of delivery window
+ * @property Carbon|null $expected_delivery_start Start of delivery window
+ * @property Carbon|null $expected_delivery_end End of delivery window
  * @property string|null $destination_warehouse Warehouse for delivery
  * @property string|null $serialization_routing_note Special routing instructions
  * @property PurchaseOrderStatus $status Current lifecycle status
- * @property \Carbon\Carbon|null $confirmed_at Timestamp when PO was confirmed
+ * @property Carbon|null $confirmed_at Timestamp when PO was confirmed
  * @property int|null $confirmed_by User who confirmed the PO
  */
 class PurchaseOrder extends Model
@@ -104,7 +111,7 @@ class PurchaseOrder extends Model
             // Enforce invariant: procurement_intent_id is required
             // This is also enforced at DB level, but we check here for early feedback
             if (empty($order->procurement_intent_id)) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'A Purchase Order cannot exist without a Procurement Intent'
                 );
             }
@@ -145,19 +152,19 @@ class PurchaseOrder extends Model
     /**
      * Get the audit logs for this purchase order.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
      * Get the inbounds linked to this PO.
      *
-     * @return \Illuminate\Database\Eloquent\Relations\HasMany<Inbound, $this>
+     * @return HasMany<Inbound, $this>
      */
-    public function inbounds(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function inbounds(): HasMany
     {
         return $this->hasMany(Inbound::class, 'purchase_order_id');
     }
@@ -165,11 +172,11 @@ class PurchaseOrder extends Model
     /**
      * Get the user who confirmed this PO.
      *
-     * @return BelongsTo<\App\Models\User, $this>
+     * @return BelongsTo<User, $this>
      */
     public function confirmedByUser(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\User::class, 'confirmed_by');
+        return $this->belongsTo(User::class, 'confirmed_by');
     }
 
     /**
@@ -276,12 +283,12 @@ class PurchaseOrder extends Model
         }
 
         // Handle SellableSku
-        if ($this->isForBottleSku() && $product instanceof \App\Models\Pim\SellableSku) {
+        if ($this->isForBottleSku() && $product instanceof SellableSku) {
             return $product->sku_code ?? 'Unknown SKU';
         }
 
         // Handle LiquidProduct
-        if ($this->isForLiquidProduct() && $product instanceof \App\Models\Pim\LiquidProduct) {
+        if ($this->isForLiquidProduct() && $product instanceof LiquidProduct) {
             $wineVariant = $product->wineVariant;
             if ($wineVariant && $wineVariant->wineMaster) {
                 return $wineVariant->wineMaster->name.' '.$wineVariant->vintage_year.' (Liquid)';

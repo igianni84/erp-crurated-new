@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\Inventory\BottleState;
+use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Enums\Inventory\InboundBatchStatus;
 use App\Enums\Inventory\LocationType;
 use App\Enums\Inventory\OwnershipType;
@@ -10,6 +11,7 @@ use App\Filament\Resources\Inventory\CaseResource;
 use App\Filament\Resources\Inventory\InboundBatchResource;
 use App\Filament\Resources\Inventory\LocationResource;
 use App\Filament\Resources\Inventory\SerializedBottleResource;
+use App\Models\Allocation\Allocation;
 use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\InventoryException;
@@ -18,7 +20,9 @@ use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Inventory\InventoryService;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -38,19 +42,19 @@ use Illuminate\Support\Collection;
  */
 class InventoryOverview extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-chart-bar-square';
 
     protected static ?string $navigationLabel = 'Inventory Overview';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 0;
 
     protected static ?string $title = 'Inventory Overview';
 
-    protected static string $view = 'filament.pages.inventory-overview';
+    protected string $view = 'filament.pages.inventory-overview';
 
     /**
      * Get the page heading.
@@ -117,9 +121,9 @@ class InventoryOverview extends Page
             ->pluck('allocation_id');
 
         foreach ($allocationIds as $allocationId) {
-            /** @var \App\Models\Allocation\Allocation|null $allocation */
-            $allocation = \App\Models\Allocation\Allocation::find($allocationId);
-            if ($allocation instanceof \App\Models\Allocation\Allocation) {
+            /** @var Allocation|null $allocation */
+            $allocation = Allocation::find($allocationId);
+            if ($allocation instanceof Allocation) {
                 $committed = $inventoryService->getCommittedQuantity($allocation);
                 $free = $inventoryService->getFreeQuantity($allocation);
                 $totalCommitted += $committed;
@@ -129,7 +133,7 @@ class InventoryOverview extends Page
 
         // Case statistics
         $totalCases = InventoryCase::count();
-        $intactCases = InventoryCase::where('integrity_status', \App\Enums\Inventory\CaseIntegrityStatus::Intact)->count();
+        $intactCases = InventoryCase::where('integrity_status', CaseIntegrityStatus::Intact)->count();
 
         return [
             'total_serialized_bottles' => $totalSerialized,
@@ -179,11 +183,11 @@ class InventoryOverview extends Page
     {
         $locations = Location::query()
             ->withCount([
-                'serializedBottles as stored_bottle_count' => function (\Illuminate\Database\Eloquent\Builder $query): void {
+                'serializedBottles as stored_bottle_count' => function (Builder $query): void {
                     $query->where('state', BottleState::Stored);
                 },
-                'cases as intact_case_count' => function (\Illuminate\Database\Eloquent\Builder $query): void {
-                    $query->where('integrity_status', \App\Enums\Inventory\CaseIntegrityStatus::Intact);
+                'cases as intact_case_count' => function (Builder $query): void {
+                    $query->where('integrity_status', CaseIntegrityStatus::Intact);
                 },
             ])
             ->orderByDesc('stored_bottle_count')
@@ -285,9 +289,9 @@ class InventoryOverview extends Page
             ->pluck('allocation_id');
 
         foreach ($allocationIds as $allocationId) {
-            /** @var \App\Models\Allocation\Allocation|null $allocation */
-            $allocation = \App\Models\Allocation\Allocation::find($allocationId);
-            if ($allocation instanceof \App\Models\Allocation\Allocation) {
+            /** @var Allocation|null $allocation */
+            $allocation = Allocation::find($allocationId);
+            if ($allocation instanceof Allocation) {
                 $committed = $inventoryService->getCommittedQuantity($allocation);
                 $free = $inventoryService->getFreeQuantity($allocation);
 
@@ -429,7 +433,7 @@ class InventoryOverview extends Page
     public function getBottlesByStateUrl(BottleState $state): string
     {
         return SerializedBottleResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'state' => [
                     'values' => [$state->value],
                 ],
@@ -467,7 +471,7 @@ class InventoryOverview extends Page
     public function getBottlesByLocationUrl(Location $location): string
     {
         return SerializedBottleResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'current_location_id' => $location->id,
             ],
         ]);
@@ -487,7 +491,7 @@ class InventoryOverview extends Page
     public function getDiscrepancyBatchesUrl(): string
     {
         return InboundBatchResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'serialization_status' => [
                     'values' => [InboundBatchStatus::Discrepancy->value],
                 ],
@@ -509,8 +513,8 @@ class InventoryOverview extends Page
     public function getIntactCasesUrl(): string
     {
         return CaseResource::getUrl('index', [
-            'tableFilters' => [
-                'integrity_status' => \App\Enums\Inventory\CaseIntegrityStatus::Intact->value,
+            'filters' => [
+                'integrity_status' => CaseIntegrityStatus::Intact->value,
             ],
         ]);
     }
@@ -534,7 +538,7 @@ class InventoryOverview extends Page
         $firstAllocationId = $atRiskAllocationIds->first();
 
         return SerializedBottleResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'allocation_id' => $firstAllocationId,
             ],
         ]);
@@ -543,9 +547,9 @@ class InventoryOverview extends Page
     /**
      * Get at-risk allocation details for display.
      *
-     * @return \Illuminate\Support\Collection<int, array{allocation: \App\Models\Allocation\Allocation, committed: int, free: int, risk_percentage: float}>
+     * @return Collection<int, array{allocation: Allocation, committed: int, free: int, risk_percentage: float}>
      */
-    public function getAtRiskAllocationDetails(): \Illuminate\Support\Collection
+    public function getAtRiskAllocationDetails(): Collection
     {
         $inventoryService = app(InventoryService::class);
 

@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\AI;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -86,11 +88,11 @@ class ConversationController extends Controller
     }
 
     /**
-     * @return \Illuminate\Database\Query\Builder
+     * @return Builder
      */
     private function conversationsQuery(Request $request)
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = $request->user();
 
         return DB::table('agent_conversations')

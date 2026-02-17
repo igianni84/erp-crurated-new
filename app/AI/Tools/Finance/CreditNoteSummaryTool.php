@@ -10,10 +10,11 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Support\Facades\DB;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class CreditNoteSummaryTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get a summary of credit notes for a given period, grouped by status.';
     }
@@ -34,7 +35,7 @@ class CreditNoteSummaryTool extends BaseTool implements Tool
         return ToolAccessLevel::Full;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         [$from, $to] = $this->parsePeriod($request['period'] ?? 'this_month');
 

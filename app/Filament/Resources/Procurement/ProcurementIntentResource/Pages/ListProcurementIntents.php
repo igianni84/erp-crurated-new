@@ -5,8 +5,10 @@ namespace App\Filament\Resources\Procurement\ProcurementIntentResource\Pages;
 use App\Enums\Procurement\ProcurementIntentStatus;
 use App\Filament\Resources\Procurement\ProcurementIntentResource;
 use Filament\Actions;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\Action;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListProcurementIntents extends ListRecords
@@ -21,8 +23,8 @@ class ListProcurementIntents extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
-            Actions\Action::make('aggregated_view')
+            CreateAction::make(),
+            Action::make('aggregated_view')
                 ->label('View Aggregated by Product')
                 ->icon('heroicon-o-chart-bar-square')
                 ->color('info')
@@ -33,7 +35,7 @@ class ListProcurementIntents extends ListRecords
     /**
      * Get tabs for filtering by status.
      *
-     * @return array<string, Tab>
+     * @return array<string, \Filament\Schemas\Components\Tabs\Tab>
      */
     public function getTabs(): array
     {

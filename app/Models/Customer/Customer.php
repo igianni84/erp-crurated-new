@@ -2,10 +2,26 @@
 
 namespace App\Models\Customer;
 
+use App\Enums\Customer\AddressType;
+use App\Enums\Customer\AffiliationStatus;
+use App\Enums\Customer\BlockStatus;
+use App\Enums\Customer\BlockType;
+use App\Enums\Customer\ChannelScope;
 use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\CustomerType;
+use App\Enums\Customer\MembershipStatus;
+use App\Enums\Customer\MembershipTier;
+use App\Models\Allocation\CaseEntitlement;
+use App\Models\Allocation\Voucher;
+use App\Models\AuditLog;
+use App\Models\Finance\CustomerCredit;
+use App\Models\Finance\Invoice;
+use App\Models\Finance\Subscription;
+use App\Models\Fulfillment\Shipment;
+use App\Models\Fulfillment\ShippingOrder;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -31,9 +47,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $default_billing_address_id
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Customer extends Model
 {
@@ -103,43 +119,43 @@ class Customer extends Model
     /**
      * Get the vouchers owned by this customer.
      *
-     * @return HasMany<\App\Models\Allocation\Voucher, $this>
+     * @return HasMany<Voucher, $this>
      */
     public function vouchers(): HasMany
     {
-        return $this->hasMany(\App\Models\Allocation\Voucher::class);
+        return $this->hasMany(Voucher::class);
     }
 
     /**
      * Get the case entitlements owned by this customer.
      *
-     * @return HasMany<\App\Models\Allocation\CaseEntitlement, $this>
+     * @return HasMany<CaseEntitlement, $this>
      */
     public function caseEntitlements(): HasMany
     {
-        return $this->hasMany(\App\Models\Allocation\CaseEntitlement::class);
+        return $this->hasMany(CaseEntitlement::class);
     }
 
     /**
      * Get the shipping orders for this customer.
      *
-     * @return HasMany<\App\Models\Fulfillment\ShippingOrder, $this>
+     * @return HasMany<ShippingOrder, $this>
      */
     public function shippingOrders(): HasMany
     {
-        return $this->hasMany(\App\Models\Fulfillment\ShippingOrder::class);
+        return $this->hasMany(ShippingOrder::class);
     }
 
     /**
      * Get the shipments for this customer through shipping orders.
      *
-     * @return HasManyThrough<\App\Models\Fulfillment\Shipment, \App\Models\Fulfillment\ShippingOrder, $this>
+     * @return HasManyThrough<Shipment, ShippingOrder, $this>
      */
     public function shipments(): HasManyThrough
     {
         return $this->hasManyThrough(
-            \App\Models\Fulfillment\Shipment::class,
-            \App\Models\Fulfillment\ShippingOrder::class,
+            Shipment::class,
+            ShippingOrder::class,
             'customer_id', // Foreign key on shipping_orders table
             'shipping_order_id', // Foreign key on shipments table
             'id', // Local key on customers table
@@ -150,37 +166,37 @@ class Customer extends Model
     /**
      * Get the subscriptions for this customer.
      *
-     * @return HasMany<\App\Models\Finance\Subscription, $this>
+     * @return HasMany<Subscription, $this>
      */
     public function subscriptions(): HasMany
     {
-        return $this->hasMany(\App\Models\Finance\Subscription::class);
+        return $this->hasMany(Subscription::class);
     }
 
     /**
      * Get the invoices for this customer.
      *
-     * @return HasMany<\App\Models\Finance\Invoice, $this>
+     * @return HasMany<Invoice, $this>
      */
     public function invoices(): HasMany
     {
-        return $this->hasMany(\App\Models\Finance\Invoice::class);
+        return $this->hasMany(Invoice::class);
     }
 
     /**
      * Get the customer credits for this customer.
      *
-     * @return HasMany<\App\Models\Finance\CustomerCredit, $this>
+     * @return HasMany<CustomerCredit, $this>
      */
     public function customerCredits(): HasMany
     {
-        return $this->hasMany(\App\Models\Finance\CustomerCredit::class);
+        return $this->hasMany(CustomerCredit::class);
     }
 
     /**
      * Get the usable customer credits (available or partially used, not expired).
      *
-     * @return HasMany<\App\Models\Finance\CustomerCredit, $this>
+     * @return HasMany<CustomerCredit, $this>
      */
     public function usableCredits(): HasMany
     {
@@ -198,7 +214,7 @@ class Customer extends Model
      */
     public function getTotalAvailableCredit(): string
     {
-        return \App\Models\Finance\CustomerCredit::getTotalAvailableForCustomer($this);
+        return CustomerCredit::getTotalAvailableForCustomer($this);
     }
 
     /**
@@ -237,7 +253,7 @@ class Customer extends Model
     public function billingAddresses(): MorphMany
     {
         return $this->morphMany(Address::class, 'addressable')
-            ->where('type', \App\Enums\Customer\AddressType::Billing);
+            ->where('type', AddressType::Billing);
     }
 
     /**
@@ -248,7 +264,7 @@ class Customer extends Model
     public function shippingAddresses(): MorphMany
     {
         return $this->morphMany(Address::class, 'addressable')
-            ->where('type', \App\Enums\Customer\AddressType::Shipping);
+            ->where('type', AddressType::Shipping);
     }
 
     /**
@@ -312,7 +328,7 @@ class Customer extends Model
     public function activeMembership(): HasOne
     {
         return $this->hasOne(Membership::class)
-            ->where('status', \App\Enums\Customer\MembershipStatus::Approved)
+            ->where('status', MembershipStatus::Approved)
             ->where(function ($query) {
                 $query->whereNull('effective_from')
                     ->orWhere('effective_from', '<=', now());
@@ -335,7 +351,7 @@ class Customer extends Model
     /**
      * Get the current membership tier, or null if no membership exists.
      */
-    public function getMembershipTier(): ?\App\Enums\Customer\MembershipTier
+    public function getMembershipTier(): ?MembershipTier
     {
         return $this->membership?->tier;
     }
@@ -343,7 +359,7 @@ class Customer extends Model
     /**
      * Get the current membership status, or null if no membership exists.
      */
-    public function getMembershipStatus(): ?\App\Enums\Customer\MembershipStatus
+    public function getMembershipStatus(): ?MembershipStatus
     {
         return $this->membership?->status;
     }
@@ -351,11 +367,11 @@ class Customer extends Model
     /**
      * Get the audit logs for this customer.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -463,7 +479,7 @@ class Customer extends Model
      * Check if the customer's membership tier allows access to a channel.
      * This is the base tier eligibility check - other factors may restrict access.
      *
-     * @param  \App\Enums\Customer\ChannelScope  $channel
+     * @param  ChannelScope  $channel
      */
     public function isMembershipEligibleForChannel($channel): bool
     {
@@ -638,7 +654,7 @@ class Customer extends Model
     public function activeClubAffiliations(): HasMany
     {
         return $this->hasMany(CustomerClub::class)
-            ->where('affiliation_status', \App\Enums\Customer\AffiliationStatus::Active);
+            ->where('affiliation_status', AffiliationStatus::Active);
     }
 
     /**
@@ -649,7 +665,7 @@ class Customer extends Model
     public function effectiveClubAffiliations(): HasMany
     {
         return $this->hasMany(CustomerClub::class)
-            ->where('affiliation_status', \App\Enums\Customer\AffiliationStatus::Active)
+            ->where('affiliation_status', AffiliationStatus::Active)
             ->where('start_date', '<=', now())
             ->where(function ($query) {
                 $query->whereNull('end_date')
@@ -711,7 +727,7 @@ class Customer extends Model
     public function activeOperationalBlocks(): MorphMany
     {
         return $this->morphMany(OperationalBlock::class, 'blockable')
-            ->where('status', \App\Enums\Customer\BlockStatus::Active);
+            ->where('status', BlockStatus::Active);
     }
 
     /**
@@ -725,7 +741,7 @@ class Customer extends Model
     /**
      * Check if the customer has an active block of a specific type.
      */
-    public function hasActiveBlockOfType(\App\Enums\Customer\BlockType $type): bool
+    public function hasActiveBlockOfType(BlockType $type): bool
     {
         return $this->activeOperationalBlocks()
             ->where('block_type', $type)
@@ -739,8 +755,8 @@ class Customer extends Model
     {
         return $this->activeOperationalBlocks()
             ->whereIn('block_type', [
-                \App\Enums\Customer\BlockType::Payment,
-                \App\Enums\Customer\BlockType::Compliance,
+                BlockType::Payment,
+                BlockType::Compliance,
             ])
             ->exists();
     }
@@ -778,8 +794,8 @@ class Customer extends Model
      */
     public function hasPaymentOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Payment)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+        return $this->hasActiveBlockOfType(BlockType::Payment)
+            || $this->hasActiveBlockOfType(BlockType::Compliance);
     }
 
     /**
@@ -788,8 +804,8 @@ class Customer extends Model
      */
     public function hasShipmentOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Shipment)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+        return $this->hasActiveBlockOfType(BlockType::Shipment)
+            || $this->hasActiveBlockOfType(BlockType::Compliance);
     }
 
     /**
@@ -798,8 +814,8 @@ class Customer extends Model
      */
     public function hasRedemptionOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Redemption)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+        return $this->hasActiveBlockOfType(BlockType::Redemption)
+            || $this->hasActiveBlockOfType(BlockType::Compliance);
     }
 
     /**
@@ -808,7 +824,7 @@ class Customer extends Model
      */
     public function hasTradingOperationBlocked(): bool
     {
-        return $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Trading)
-            || $this->hasActiveBlockOfType(\App\Enums\Customer\BlockType::Compliance);
+        return $this->hasActiveBlockOfType(BlockType::Trading)
+            || $this->hasActiveBlockOfType(BlockType::Compliance);
     }
 }

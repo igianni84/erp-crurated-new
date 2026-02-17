@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Pim\LiquidProductResource\Pages;
 
 use App\Filament\Resources\Pim\LiquidProductResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListLiquidProducts extends ListRecords
@@ -13,7 +13,7 @@ class ListLiquidProducts extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 }

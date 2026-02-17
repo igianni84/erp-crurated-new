@@ -5,8 +5,8 @@ namespace App\Filament\Resources\Finance\RefundResource\Pages;
 use App\Enums\Finance\RefundStatus;
 use App\Filament\Resources\Finance\RefundResource;
 use App\Models\Finance\Refund;
-use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListRefunds extends ListRecords

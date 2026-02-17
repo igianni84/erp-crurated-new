@@ -7,41 +7,55 @@ use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Customer\AccountStatus;
 use App\Enums\Customer\AccountUserRole;
 use App\Enums\Customer\AddressType;
+use App\Enums\Customer\AffiliationStatus;
 use App\Enums\Customer\BlockStatus;
 use App\Enums\Customer\BlockType;
 use App\Enums\Customer\ChannelScope;
+use App\Enums\Customer\ClubStatus;
 use App\Enums\Customer\CustomerStatus;
 use App\Enums\Customer\CustomerType;
 use App\Enums\Customer\MembershipStatus;
 use App\Enums\Customer\MembershipTier;
+use App\Exceptions\InvalidMembershipTransitionException;
 use App\Filament\Resources\Allocation\VoucherResource;
+use App\Filament\Resources\Customer\ClubResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Models\AuditLog;
 use App\Models\Customer\Account;
 use App\Models\Customer\AccountUser;
 use App\Models\Customer\Address;
+use App\Models\Customer\Club;
 use App\Models\Customer\Customer;
+use App\Models\Customer\CustomerClub;
 use App\Models\Customer\Membership;
 use App\Models\Customer\OperationalBlock;
 use App\Models\Customer\PaymentPermission;
 use App\Models\User;
+use App\Services\Customer\EligibilityEngine;
+use App\Services\Customer\SegmentEngine;
 use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Gate;
 
@@ -83,9 +97,9 @@ class ViewCustomer extends ViewRecord
         return "{$typeBadge} - {$statusBadge}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Customer Details')
                     ->tabs([
@@ -134,7 +148,7 @@ class ViewCustomer extends ViewRecord
                                         ->label('Name')
                                         ->getStateUsing(fn (Customer $customer): string => $customer->getName())
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                     TextEntry::make('email')
                                         ->label('Email')
                                         ->icon('heroicon-o-envelope')
@@ -220,7 +234,7 @@ class ViewCustomer extends ViewRecord
         $record = $this->record;
 
         // Compute segments using SegmentEngine
-        $segmentEngine = new \App\Services\Customer\SegmentEngine;
+        $segmentEngine = new SegmentEngine;
         $segments = $segmentEngine->compute($record);
         $segmentCount = count($segments);
 
@@ -244,7 +258,7 @@ class ViewCustomer extends ViewRecord
         }
 
         // Build segment definitions for the collapsible help section
-        $definitions = \App\Services\Customer\SegmentEngine::getSegmentDefinitions();
+        $definitions = SegmentEngine::getSegmentDefinitions();
         $definitionsHtml = '<div class="space-y-2">';
         foreach ($definitions as $def) {
             $tag = htmlspecialchars($def['tag']);
@@ -260,7 +274,7 @@ class ViewCustomer extends ViewRecord
             ->collapsible()
             ->collapsed($segmentCount === 0)
             ->headerActions([
-                \Filament\Infolists\Components\Actions\Action::make('refresh_segments')
+                Action::make('refresh_segments')
                     ->label('Refresh')
                     ->icon('heroicon-o-arrow-path')
                     ->action(fn () => $this->refreshFormData([]))
@@ -344,11 +358,11 @@ class ViewCustomer extends ViewRecord
             ->collapsible()
             ->collapsed($totalVouchers === 0 && $totalCaseEntitlements === 0)
             ->headerActions([
-                \Filament\Infolists\Components\Actions\Action::make('view_all_vouchers')
+                Action::make('view_all_vouchers')
                     ->label('View All Vouchers')
                     ->icon('heroicon-o-arrow-top-right-on-square')
                     ->url(fn (): string => VoucherResource::getUrl('index', [
-                        'tableFilters' => [
+                        'filters' => [
                             'customer' => ['customer_id' => $record->id],
                         ],
                     ]))
@@ -468,7 +482,7 @@ class ViewCustomer extends ViewRecord
     /**
      * Get the membership workflow actions based on current state.
      *
-     * @return array<\Filament\Infolists\Components\Actions\Action>
+     * @return array<Action>
      */
     protected function getMembershipActions(): array
     {
@@ -476,7 +490,7 @@ class ViewCustomer extends ViewRecord
         $record = $this->record;
         $membership = $record->membership;
 
-        /** @var \App\Models\User|null $user */
+        /** @var User|null $user */
         $user = auth()->user();
         $canApproveMemberships = $user?->canApproveMemberships() ?? false;
 
@@ -484,11 +498,11 @@ class ViewCustomer extends ViewRecord
 
         // Apply for Membership - only if no membership exists or previous was rejected
         if ($membership === null || $membership->status === MembershipStatus::Rejected) {
-            $actions[] = \Filament\Infolists\Components\Actions\Action::make('apply_membership')
+            $actions[] = Action::make('apply_membership')
                 ->label('Apply for Membership')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('primary')
-                ->form([
+                ->schema([
                     Select::make('tier')
                         ->label('Membership Tier')
                         ->options(collect(MembershipTier::cases())
@@ -521,7 +535,7 @@ class ViewCustomer extends ViewRecord
 
         // Submit for Review - only if status is Applied and transition is valid
         if ($membership !== null && $membership->canTransitionTo(MembershipStatus::UnderReview)) {
-            $actions[] = \Filament\Infolists\Components\Actions\Action::make('submit_review')
+            $actions[] = Action::make('submit_review')
                 ->label('Submit for Review')
                 ->icon('heroicon-o-clipboard-document-check')
                 ->color('warning')
@@ -538,7 +552,7 @@ class ViewCustomer extends ViewRecord
                             ->body('The membership application has been submitted for review.')
                             ->success()
                             ->send();
-                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                    } catch (InvalidMembershipTransitionException $e) {
                         Notification::make()
                             ->title('Transition failed')
                             ->body($e->getUserMessage())
@@ -552,13 +566,13 @@ class ViewCustomer extends ViewRecord
 
         // Approve - only if transition is valid and user has Manager role or higher
         if ($membership !== null && $membership->canTransitionTo(MembershipStatus::Approved) && $membership->status === MembershipStatus::UnderReview) {
-            $actions[] = \Filament\Infolists\Components\Actions\Action::make('approve_membership')
+            $actions[] = Action::make('approve_membership')
                 ->label('Approve')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
                 ->disabled(! $canApproveMemberships)
                 ->tooltip(! $canApproveMemberships ? 'Manager role or higher required to approve memberships' : null)
-                ->form([
+                ->schema([
                     Textarea::make('decision_notes')
                         ->label('Decision Notes (Optional)')
                         ->placeholder('Add any notes about this approval...')
@@ -586,7 +600,7 @@ class ViewCustomer extends ViewRecord
                             ->body('The membership has been approved and is now active.')
                             ->success()
                             ->send();
-                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                    } catch (InvalidMembershipTransitionException $e) {
                         Notification::make()
                             ->title('Transition failed')
                             ->body($e->getUserMessage())
@@ -600,13 +614,13 @@ class ViewCustomer extends ViewRecord
 
         // Reject - only if transition is valid and user has Manager role or higher
         if ($membership !== null && $membership->canTransitionTo(MembershipStatus::Rejected)) {
-            $actions[] = \Filament\Infolists\Components\Actions\Action::make('reject_membership')
+            $actions[] = Action::make('reject_membership')
                 ->label('Reject')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
                 ->disabled(! $canApproveMemberships)
                 ->tooltip(! $canApproveMemberships ? 'Manager role or higher required to reject memberships' : null)
-                ->form([
+                ->schema([
                     Textarea::make('decision_notes')
                         ->label('Rejection Reason')
                         ->placeholder('Explain why this membership application is being rejected...')
@@ -636,7 +650,7 @@ class ViewCustomer extends ViewRecord
                             ->body('The membership application has been rejected.')
                             ->warning()
                             ->send();
-                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                    } catch (InvalidMembershipTransitionException $e) {
                         Notification::make()
                             ->title('Transition failed')
                             ->body($e->getUserMessage())
@@ -650,11 +664,11 @@ class ViewCustomer extends ViewRecord
 
         // Suspend - only if transition is valid
         if ($membership !== null && $membership->canTransitionTo(MembershipStatus::Suspended)) {
-            $actions[] = \Filament\Infolists\Components\Actions\Action::make('suspend_membership')
+            $actions[] = Action::make('suspend_membership')
                 ->label('Suspend')
                 ->icon('heroicon-o-pause-circle')
                 ->color('danger')
-                ->form([
+                ->schema([
                     Textarea::make('decision_notes')
                         ->label('Suspension Reason')
                         ->placeholder('Explain why this membership is being suspended...')
@@ -674,7 +688,7 @@ class ViewCustomer extends ViewRecord
                             ->body('The membership has been suspended.')
                             ->warning()
                             ->send();
-                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                    } catch (InvalidMembershipTransitionException $e) {
                         Notification::make()
                             ->title('Transition failed')
                             ->body($e->getUserMessage())
@@ -688,11 +702,11 @@ class ViewCustomer extends ViewRecord
 
         // Reactivate - only if transition is valid (Suspended -> Approved)
         if ($membership !== null && $membership->status === MembershipStatus::Suspended && $membership->canTransitionTo(MembershipStatus::Approved)) {
-            $actions[] = \Filament\Infolists\Components\Actions\Action::make('reactivate_membership')
+            $actions[] = Action::make('reactivate_membership')
                 ->label('Reactivate')
                 ->icon('heroicon-o-play-circle')
                 ->color('success')
-                ->form([
+                ->schema([
                     Textarea::make('decision_notes')
                         ->label('Reactivation Notes (Optional)')
                         ->placeholder('Add any notes about this reactivation...')
@@ -710,7 +724,7 @@ class ViewCustomer extends ViewRecord
                             ->body('The membership has been reactivated and is now active.')
                             ->success()
                             ->send();
-                    } catch (\App\Exceptions\InvalidMembershipTransitionException $e) {
+                    } catch (InvalidMembershipTransitionException $e) {
                         Notification::make()
                             ->title('Transition failed')
                             ->body($e->getUserMessage())
@@ -945,11 +959,11 @@ class ViewCustomer extends ViewRecord
                 Section::make('Customer Accounts')
                     ->description('Operational contexts for this customer. Each account can have its own channel scope and restrictions.')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('create_account')
+                        Action::make('create_account')
                             ->label('Create Account')
                             ->icon('heroicon-o-plus-circle')
                             ->color('primary')
-                            ->form([
+                            ->schema([
                                 TextInput::make('name')
                                     ->label('Account Name')
                                     ->required()
@@ -1014,13 +1028,13 @@ class ViewCustomer extends ViewRecord
                                         TextEntry::make('created_at')
                                             ->label('Created')
                                             ->dateTime(),
-                                        \Filament\Infolists\Components\Actions::make([
-                                            \Filament\Infolists\Components\Actions\Action::make('edit_account')
+                                        \Filament\Schemas\Components\Actions::make([
+                                            Action::make('edit_account')
                                                 ->label('Edit')
                                                 ->icon('heroicon-o-pencil-square')
                                                 ->color('gray')
                                                 ->size('sm')
-                                                ->form(fn (Account $account): array => [
+                                                ->schema(fn (Account $account): array => [
                                                     TextInput::make('name')
                                                         ->label('Account Name')
                                                         ->required()
@@ -1054,7 +1068,7 @@ class ViewCustomer extends ViewRecord
 
                                                     $this->refreshFormData(['accounts']);
                                                 }),
-                                            \Filament\Infolists\Components\Actions\Action::make('suspend_account')
+                                            Action::make('suspend_account')
                                                 ->label('Suspend')
                                                 ->icon('heroicon-o-pause-circle')
                                                 ->color('warning')
@@ -1075,7 +1089,7 @@ class ViewCustomer extends ViewRecord
 
                                                     $this->refreshFormData(['accounts']);
                                                 }),
-                                            \Filament\Infolists\Components\Actions\Action::make('activate_account')
+                                            Action::make('activate_account')
                                                 ->label('Activate')
                                                 ->icon('heroicon-o-check-circle')
                                                 ->color('success')
@@ -1096,7 +1110,7 @@ class ViewCustomer extends ViewRecord
 
                                                     $this->refreshFormData(['accounts']);
                                                 }),
-                                            \Filament\Infolists\Components\Actions\Action::make('delete_account')
+                                            Action::make('delete_account')
                                                 ->label('Delete')
                                                 ->icon('heroicon-o-trash')
                                                 ->color('danger')
@@ -1157,11 +1171,11 @@ class ViewCustomer extends ViewRecord
         return Section::make('Billing Addresses')
             ->description('Addresses used for invoicing')
             ->headerActions([
-                \Filament\Infolists\Components\Actions\Action::make('add_billing_address')
+                Action::make('add_billing_address')
                     ->label('Add Billing Address')
                     ->icon('heroicon-o-plus-circle')
                     ->color('primary')
-                    ->form($this->getAddressFormFields())
+                    ->schema($this->getAddressFormFields())
                     ->modalHeading('Add Billing Address')
                     ->modalDescription('Add a new billing address for this customer.')
                     ->modalSubmitActionLabel('Add Address')
@@ -1190,11 +1204,11 @@ class ViewCustomer extends ViewRecord
         return Section::make('Shipping Addresses')
             ->description('Addresses used for deliveries')
             ->headerActions([
-                \Filament\Infolists\Components\Actions\Action::make('add_shipping_address')
+                Action::make('add_shipping_address')
                     ->label('Add Shipping Address')
                     ->icon('heroicon-o-plus-circle')
                     ->color('primary')
-                    ->form($this->getAddressFormFields())
+                    ->schema($this->getAddressFormFields())
                     ->modalHeading('Add Shipping Address')
                     ->modalDescription('Add a new shipping address for this customer.')
                     ->modalSubmitActionLabel('Add Address')
@@ -1214,7 +1228,7 @@ class ViewCustomer extends ViewRecord
     /**
      * Get the form fields for address creation/editing.
      *
-     * @return array<\Filament\Forms\Components\Component>
+     * @return array<\Filament\Schemas\Components\Component>
      */
     protected function getAddressFormFields(): array
     {
@@ -1228,7 +1242,7 @@ class ViewCustomer extends ViewRecord
                 ->label('Address Line 2')
                 ->maxLength(255)
                 ->helperText('Apartment, suite, unit, building, floor, etc.'),
-            \Filament\Forms\Components\Grid::make(2)
+            Grid::make(2)
                 ->schema([
                     TextInput::make('city')
                         ->label('City')
@@ -1238,7 +1252,7 @@ class ViewCustomer extends ViewRecord
                         ->label('State/Province/Region')
                         ->maxLength(255),
                 ]),
-            \Filament\Forms\Components\Grid::make(2)
+            Grid::make(2)
                 ->schema([
                     TextInput::make('postal_code')
                         ->label('Postal Code')
@@ -1249,7 +1263,7 @@ class ViewCustomer extends ViewRecord
                         ->required()
                         ->maxLength(255),
                 ]),
-            \Filament\Forms\Components\Toggle::make('is_default')
+            Toggle::make('is_default')
                 ->label('Set as default address')
                 ->helperText('This address will be used by default for this address type'),
         ];
@@ -1258,7 +1272,7 @@ class ViewCustomer extends ViewRecord
     /**
      * Get the schema for displaying an address entry.
      *
-     * @return array<\Filament\Infolists\Components\Component>
+     * @return array<\Filament\Schemas\Components\Component>
      */
     protected function getAddressEntrySchema(AddressType $addressType): array
     {
@@ -1281,13 +1295,13 @@ class ViewCustomer extends ViewRecord
                         ->formatStateUsing(fn (bool $state): string => $state ? 'Default' : '—')
                         ->color(fn (bool $state): string => $state ? 'success' : 'gray')
                         ->icon(fn (bool $state): ?string => $state ? 'heroicon-o-star' : null),
-                    \Filament\Infolists\Components\Actions::make([
-                        \Filament\Infolists\Components\Actions\Action::make('edit_address')
+                    \Filament\Schemas\Components\Actions::make([
+                        Action::make('edit_address')
                             ->label('Edit')
                             ->icon('heroicon-o-pencil-square')
                             ->color('gray')
                             ->size('sm')
-                            ->form(fn (Address $address): array => [
+                            ->schema(fn (Address $address): array => [
                                 TextInput::make('line_1')
                                     ->label('Address Line 1')
                                     ->required()
@@ -1297,7 +1311,7 @@ class ViewCustomer extends ViewRecord
                                     ->label('Address Line 2')
                                     ->maxLength(255)
                                     ->default($address->line_2),
-                                \Filament\Forms\Components\Grid::make(2)
+                                Grid::make(2)
                                     ->schema([
                                         TextInput::make('city')
                                             ->label('City')
@@ -1309,7 +1323,7 @@ class ViewCustomer extends ViewRecord
                                             ->maxLength(255)
                                             ->default($address->state),
                                     ]),
-                                \Filament\Forms\Components\Grid::make(2)
+                                Grid::make(2)
                                     ->schema([
                                         TextInput::make('postal_code')
                                             ->label('Postal Code')
@@ -1344,7 +1358,7 @@ class ViewCustomer extends ViewRecord
 
                                 $this->refreshFormData(['billingAddresses', 'shippingAddresses']);
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('set_default')
+                        Action::make('set_default')
                             ->label('Set Default')
                             ->icon('heroicon-o-star')
                             ->color('warning')
@@ -1365,7 +1379,7 @@ class ViewCustomer extends ViewRecord
 
                                 $this->refreshFormData(['billingAddresses', 'shippingAddresses']);
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('delete_address')
+                        Action::make('delete_address')
                             ->label('Delete')
                             ->icon('heroicon-o-trash')
                             ->color('danger')
@@ -1441,7 +1455,7 @@ class ViewCustomer extends ViewRecord
         /** @var Customer $record */
         $record = $this->record;
 
-        $eligibilityEngine = new \App\Services\Customer\EligibilityEngine;
+        $eligibilityEngine = new EligibilityEngine;
         $detailedEligibility = $eligibilityEngine->getDetailedEligibility($record);
 
         // Count how many channels are eligible
@@ -1456,7 +1470,7 @@ class ViewCustomer extends ViewRecord
                 Section::make('Channel Eligibility')
                     ->description('Real-time computed eligibility for each sales channel. This is read-only and reflects current state.')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('refresh_eligibility')
+                        Action::make('refresh_eligibility')
                             ->label('Refresh')
                             ->icon('heroicon-o-arrow-path')
                             ->color('gray')
@@ -1524,7 +1538,7 @@ class ViewCustomer extends ViewRecord
                 ->label('')
                 ->getStateUsing(fn (): string => $channel->description())
                 ->color('gray')
-                ->size(TextEntry\TextEntrySize::Small),
+                ->size(TextSize::Small),
             TextEntry::make("{$channel->value}_factors")
                 ->label('Factors')
                 ->getStateUsing(fn (): string => $this->renderFactorsHtml($positiveReasons, $negativeReasons))
@@ -1754,13 +1768,13 @@ class ViewCustomer extends ViewRecord
         $canManagePayments = Gate::allows('managePayments', $customer);
 
         if ($canManagePayments) {
-            $sectionActions[] = \Filament\Infolists\Components\Actions\Action::make('editPaymentPermissions')
+            $sectionActions[] = Action::make('editPaymentPermissions')
                 ->label('Edit Permissions')
                 ->icon('heroicon-o-pencil-square')
                 ->color('primary')
                 ->modalHeading('Edit Payment Permissions')
                 ->modalDescription('Modify payment methods and credit limit for this customer. Changes are logged automatically.')
-                ->form([
+                ->schema([
                     Toggle::make('card_allowed')
                         ->label('Card Payments Allowed')
                         ->helperText('Enable or disable card payments for this customer.')
@@ -2049,9 +2063,9 @@ class ViewCustomer extends ViewRecord
 
         // Get available clubs for the add affiliation form (exclude already affiliated clubs)
         $affiliatedClubIds = $record->clubAffiliations()->pluck('club_id')->toArray();
-        $availableClubs = \App\Models\Customer\Club::query()
+        $availableClubs = Club::query()
             ->whereNotIn('id', $affiliatedClubIds)
-            ->where('status', \App\Enums\Customer\ClubStatus::Active)
+            ->where('status', ClubStatus::Active)
             ->orderBy('partner_name')
             ->pluck('partner_name', 'id')
             ->toArray();
@@ -2064,12 +2078,12 @@ class ViewCustomer extends ViewRecord
                 Section::make('Club Affiliations')
                     ->description('Club memberships and partnerships for this customer. Effective affiliations unlock Club channel access.')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('add_affiliation')
+                        Action::make('add_affiliation')
                             ->label('Add Affiliation')
                             ->icon('heroicon-o-plus-circle')
                             ->color('primary')
                             ->visible(count($availableClubs) > 0)
-                            ->form([
+                            ->schema([
                                 Select::make('club_id')
                                     ->label('Club')
                                     ->options($availableClubs)
@@ -2088,11 +2102,11 @@ class ViewCustomer extends ViewRecord
                             ->modalDescription('Create a new club affiliation for this customer.')
                             ->modalSubmitActionLabel('Add Affiliation')
                             ->action(function (array $data) use ($record): void {
-                                $club = \App\Models\Customer\Club::find($data['club_id']);
+                                $club = Club::find($data['club_id']);
 
                                 $record->clubAffiliations()->create([
                                     'club_id' => $data['club_id'],
-                                    'affiliation_status' => \App\Enums\Customer\AffiliationStatus::Active,
+                                    'affiliation_status' => AffiliationStatus::Active,
                                     'start_date' => $data['start_date'],
                                     'end_date' => null,
                                 ]);
@@ -2157,13 +2171,13 @@ class ViewCustomer extends ViewRecord
                         TextEntry::make('club.partner_name')
                             ->label('Club')
                             ->weight(FontWeight::Bold)
-                            ->url(fn (\App\Models\Customer\CustomerClub $affiliation): string => \App\Filament\Resources\Customer\ClubResource::getUrl('view', ['record' => $affiliation->club_id])),
+                            ->url(fn (CustomerClub $affiliation): string => ClubResource::getUrl('view', ['record' => $affiliation->club_id])),
                         TextEntry::make('affiliation_status')
                             ->label('Status')
                             ->badge()
-                            ->formatStateUsing(fn (\App\Enums\Customer\AffiliationStatus $state): string => $state->label())
-                            ->color(fn (\App\Enums\Customer\AffiliationStatus $state): string => $state->color())
-                            ->icon(fn (\App\Enums\Customer\AffiliationStatus $state): string => $state->icon()),
+                            ->formatStateUsing(fn (AffiliationStatus $state): string => $state->label())
+                            ->color(fn (AffiliationStatus $state): string => $state->color())
+                            ->icon(fn (AffiliationStatus $state): string => $state->icon()),
                         TextEntry::make('start_date')
                             ->label('Start Date')
                             ->date(),
@@ -2173,30 +2187,30 @@ class ViewCustomer extends ViewRecord
                             ->placeholder('No end date'),
                         TextEntry::make('effective_indicator')
                             ->label('Eligibility')
-                            ->getStateUsing(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective() ? 'Effective' : 'Not Effective')
+                            ->getStateUsing(fn (CustomerClub $affiliation): string => $affiliation->isEffective() ? 'Effective' : 'Not Effective')
                             ->badge()
-                            ->color(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective() ? 'success' : 'gray')
-                            ->icon(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective() ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
-                            ->tooltip(fn (\App\Models\Customer\CustomerClub $affiliation): string => $affiliation->isEffective()
+                            ->color(fn (CustomerClub $affiliation): string => $affiliation->isEffective() ? 'success' : 'gray')
+                            ->icon(fn (CustomerClub $affiliation): string => $affiliation->isEffective() ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                            ->tooltip(fn (CustomerClub $affiliation): string => $affiliation->isEffective()
                                 ? 'This affiliation is active, has started, and has not ended - it grants Club channel access.'
                                 : 'This affiliation is not effective (suspended, not started, or ended) - it does not grant Club channel access.'),
                         TextEntry::make('club.status')
                             ->label('Club Status')
                             ->badge()
-                            ->formatStateUsing(fn (\App\Enums\Customer\ClubStatus $state): string => $state->label())
-                            ->color(fn (\App\Enums\Customer\ClubStatus $state): string => $state->color())
-                            ->icon(fn (\App\Enums\Customer\ClubStatus $state): string => $state->icon()),
-                        \Filament\Infolists\Components\Actions::make([
-                            \Filament\Infolists\Components\Actions\Action::make('edit_affiliation')
+                            ->formatStateUsing(fn (ClubStatus $state): string => $state->label())
+                            ->color(fn (ClubStatus $state): string => $state->color())
+                            ->icon(fn (ClubStatus $state): string => $state->icon()),
+                        \Filament\Schemas\Components\Actions::make([
+                            Action::make('edit_affiliation')
                                 ->label('Edit')
                                 ->icon('heroicon-o-pencil-square')
                                 ->color('gray')
                                 ->size('sm')
-                                ->form(fn (\App\Models\Customer\CustomerClub $affiliation): array => [
+                                ->schema(fn (CustomerClub $affiliation): array => [
                                     Select::make('affiliation_status')
                                         ->label('Affiliation Status')
-                                        ->options(collect(\App\Enums\Customer\AffiliationStatus::cases())
-                                            ->mapWithKeys(fn (\App\Enums\Customer\AffiliationStatus $status): array => [
+                                        ->options(collect(AffiliationStatus::cases())
+                                            ->mapWithKeys(fn (AffiliationStatus $status): array => [
                                                 $status->value => $status->label(),
                                             ])
                                             ->toArray())
@@ -2211,9 +2225,9 @@ class ViewCustomer extends ViewRecord
                                         ->helperText('Leave empty for ongoing affiliation, or set to end the affiliation'),
                                 ])
                                 ->modalHeading('Edit Club Affiliation')
-                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Edit affiliation with club: {$affiliation->club->partner_name}")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Edit affiliation with club: {$affiliation->club->partner_name}")
                                 ->modalSubmitActionLabel('Save Changes')
-                                ->action(function (array $data, \App\Models\Customer\CustomerClub $affiliation): void {
+                                ->action(function (array $data, CustomerClub $affiliation): void {
                                     $affiliation->update([
                                         'affiliation_status' => $data['affiliation_status'],
                                         'end_date' => $data['end_date'],
@@ -2227,18 +2241,18 @@ class ViewCustomer extends ViewRecord
 
                                     $this->refreshFormData(['clubAffiliations']);
                                 }),
-                            \Filament\Infolists\Components\Actions\Action::make('suspend_affiliation')
+                            Action::make('suspend_affiliation')
                                 ->label('Suspend')
                                 ->icon('heroicon-o-pause-circle')
                                 ->color('warning')
                                 ->size('sm')
                                 ->requiresConfirmation()
                                 ->modalHeading('Suspend Affiliation')
-                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Are you sure you want to suspend the affiliation with \"{$affiliation->club->partner_name}\"? This will remove Club channel eligibility from this affiliation.")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to suspend the affiliation with \"{$affiliation->club->partner_name}\"? This will remove Club channel eligibility from this affiliation.")
                                 ->modalSubmitActionLabel('Suspend')
-                                ->visible(fn (\App\Models\Customer\CustomerClub $affiliation): bool => $affiliation->isActive() && ! $affiliation->hasEnded())
-                                ->action(function (\App\Models\Customer\CustomerClub $affiliation): void {
-                                    $affiliation->update(['affiliation_status' => \App\Enums\Customer\AffiliationStatus::Suspended]);
+                                ->visible(fn (CustomerClub $affiliation): bool => $affiliation->isActive() && ! $affiliation->hasEnded())
+                                ->action(function (CustomerClub $affiliation): void {
+                                    $affiliation->update(['affiliation_status' => AffiliationStatus::Suspended]);
 
                                     Notification::make()
                                         ->title('Affiliation suspended')
@@ -2248,18 +2262,18 @@ class ViewCustomer extends ViewRecord
 
                                     $this->refreshFormData(['clubAffiliations']);
                                 }),
-                            \Filament\Infolists\Components\Actions\Action::make('reactivate_affiliation')
+                            Action::make('reactivate_affiliation')
                                 ->label('Reactivate')
                                 ->icon('heroicon-o-play-circle')
                                 ->color('success')
                                 ->size('sm')
                                 ->requiresConfirmation()
                                 ->modalHeading('Reactivate Affiliation')
-                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Are you sure you want to reactivate the affiliation with \"{$affiliation->club->partner_name}\"?")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to reactivate the affiliation with \"{$affiliation->club->partner_name}\"?")
                                 ->modalSubmitActionLabel('Reactivate')
-                                ->visible(fn (\App\Models\Customer\CustomerClub $affiliation): bool => $affiliation->isSuspended() && ! $affiliation->hasEnded())
-                                ->action(function (\App\Models\Customer\CustomerClub $affiliation): void {
-                                    $affiliation->update(['affiliation_status' => \App\Enums\Customer\AffiliationStatus::Active]);
+                                ->visible(fn (CustomerClub $affiliation): bool => $affiliation->isSuspended() && ! $affiliation->hasEnded())
+                                ->action(function (CustomerClub $affiliation): void {
+                                    $affiliation->update(['affiliation_status' => AffiliationStatus::Active]);
 
                                     Notification::make()
                                         ->title('Affiliation reactivated')
@@ -2269,17 +2283,17 @@ class ViewCustomer extends ViewRecord
 
                                     $this->refreshFormData(['clubAffiliations']);
                                 }),
-                            \Filament\Infolists\Components\Actions\Action::make('end_affiliation')
+                            Action::make('end_affiliation')
                                 ->label('End')
                                 ->icon('heroicon-o-x-circle')
                                 ->color('danger')
                                 ->size('sm')
                                 ->requiresConfirmation()
                                 ->modalHeading('End Affiliation')
-                                ->modalDescription(fn (\App\Models\Customer\CustomerClub $affiliation): string => "Are you sure you want to end the affiliation with \"{$affiliation->club->partner_name}\"? This will set the end date to today.")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to end the affiliation with \"{$affiliation->club->partner_name}\"? This will set the end date to today.")
                                 ->modalSubmitActionLabel('End Affiliation')
-                                ->visible(fn (\App\Models\Customer\CustomerClub $affiliation): bool => ! $affiliation->hasEnded())
-                                ->action(function (\App\Models\Customer\CustomerClub $affiliation): void {
+                                ->visible(fn (CustomerClub $affiliation): bool => ! $affiliation->hasEnded())
+                                ->action(function (CustomerClub $affiliation): void {
                                     $affiliation->update(['end_date' => now()]);
 
                                     Notification::make()
@@ -2380,12 +2394,12 @@ class ViewCustomer extends ViewRecord
                     ->icon('heroicon-o-rectangle-stack')
                     ->collapsible()
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('invite_user')
+                        Action::make('invite_user')
                             ->label('Invite User')
                             ->icon('heroicon-o-user-plus')
                             ->color('primary')
                             ->size('sm')
-                            ->form([
+                            ->schema([
                                 TextInput::make('email')
                                     ->label('User Email')
                                     ->email()
@@ -2490,14 +2504,14 @@ class ViewCustomer extends ViewRecord
                                     ->label('Invited')
                                     ->dateTime()
                                     ->placeholder('Not invited'),
-                                \Filament\Infolists\Components\Actions::make([
-                                    \Filament\Infolists\Components\Actions\Action::make('change_role')
+                                \Filament\Schemas\Components\Actions::make([
+                                    Action::make('change_role')
                                         ->label('Change Role')
                                         ->icon('heroicon-o-arrow-path')
                                         ->color('gray')
                                         ->size('sm')
                                         ->visible(fn (AccountUser $accountUser): bool => ! $accountUser->isOwner())
-                                        ->form(fn (AccountUser $accountUser): array => [
+                                        ->schema(fn (AccountUser $accountUser): array => [
                                             Select::make('role')
                                                 ->label('New Role')
                                                 ->options(collect(AccountUserRole::cases())
@@ -2527,7 +2541,7 @@ class ViewCustomer extends ViewRecord
 
                                             $this->refreshFormData(['accounts']);
                                         }),
-                                    \Filament\Infolists\Components\Actions\Action::make('remove_user')
+                                    Action::make('remove_user')
                                         ->label('Remove')
                                         ->icon('heroicon-o-trash')
                                         ->color('danger')
@@ -2577,11 +2591,11 @@ class ViewCustomer extends ViewRecord
                 Section::make('Active Blocks')
                     ->description('Current operational restrictions on this customer. Critical blocks (Payment, Compliance) affect eligibility.')
                     ->headerActions($canManageBlocks ? [
-                        \Filament\Infolists\Components\Actions\Action::make('add_block')
+                        Action::make('add_block')
                             ->label('Add Block')
                             ->icon('heroicon-o-plus-circle')
                             ->color('danger')
-                            ->form([
+                            ->schema([
                                 Select::make('block_type')
                                     ->label('Block Type')
                                     ->options(collect(BlockType::cases())
@@ -2679,13 +2693,13 @@ class ViewCustomer extends ViewRecord
                             ->dateTime('M d, Y H:i')
                             ->icon('heroicon-o-clock'),
                     ], $canManageBlocks ? [
-                        \Filament\Infolists\Components\Actions::make([
-                            \Filament\Infolists\Components\Actions\Action::make('remove_block')
+                        \Filament\Schemas\Components\Actions::make([
+                            Action::make('remove_block')
                                 ->label('Remove')
                                 ->icon('heroicon-o-x-circle')
                                 ->color('success')
                                 ->size('sm')
-                                ->form([
+                                ->schema([
                                     Textarea::make('removal_reason')
                                         ->label('Removal Reason')
                                         ->required()
@@ -2696,7 +2710,7 @@ class ViewCustomer extends ViewRecord
                                 ->modalDescription(fn (OperationalBlock $block): string => "Remove the {$block->getBlockTypeLabel()} from this customer?")
                                 ->modalSubmitActionLabel('Remove Block')
                                 ->action(function (array $data, OperationalBlock $block): void {
-                                    /** @var \App\Models\User $user */
+                                    /** @var User $user */
                                     $user = auth()->user();
                                     $block->remove($user, $data['removal_reason']);
 
@@ -2830,10 +2844,10 @@ class ViewCustomer extends ViewRecord
                 Section::make('Audit Trail')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -2856,7 +2870,7 @@ class ViewCustomer extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -3053,12 +3067,12 @@ class ViewCustomer extends ViewRecord
         $record = $this->record;
 
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
             $this->getSuspendAction(),
             $this->getActivateAction(),
-            Actions\ActionGroup::make([
-                Actions\DeleteAction::make(),
-                Actions\RestoreAction::make(),
+            ActionGroup::make([
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])->label('More')
                 ->icon('heroicon-o-ellipsis-vertical')
                 ->button(),
@@ -3068,12 +3082,12 @@ class ViewCustomer extends ViewRecord
     /**
      * Suspend customer action.
      */
-    protected function getSuspendAction(): Actions\Action
+    protected function getSuspendAction(): Action
     {
         /** @var Customer $record */
         $record = $this->record;
 
-        return Actions\Action::make('suspend')
+        return Action::make('suspend')
             ->label('Suspend')
             ->icon('heroicon-o-pause-circle')
             ->color('danger')
@@ -3084,7 +3098,7 @@ class ViewCustomer extends ViewRecord
             ->action(function () use ($record): void {
                 $record->update(['status' => CustomerStatus::Suspended]);
 
-                \Filament\Notifications\Notification::make()
+                Notification::make()
                     ->title('Customer suspended')
                     ->body('The customer has been suspended.')
                     ->success()
@@ -3099,14 +3113,14 @@ class ViewCustomer extends ViewRecord
     /**
      * Activate customer action.
      */
-    protected function getActivateAction(): Actions\Action
+    protected function getActivateAction(): Action
     {
         /** @var Customer $record */
         $record = $this->record;
 
         $hasBillingAddress = $record->hasBillingAddress();
 
-        return Actions\Action::make('activate')
+        return Action::make('activate')
             ->label('Activate')
             ->icon('heroicon-o-check-circle')
             ->color('success')

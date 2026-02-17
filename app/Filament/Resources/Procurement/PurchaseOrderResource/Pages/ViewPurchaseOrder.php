@@ -8,20 +8,22 @@ use App\Filament\Resources\Procurement\PurchaseOrderResource;
 use App\Models\AuditLog;
 use App\Models\Procurement\Inbound;
 use App\Models\Procurement\PurchaseOrder;
+use Carbon\Carbon;
 use Filament\Actions;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
 
@@ -60,9 +62,9 @@ class ViewPurchaseOrder extends ViewRecord
         return $record->getProductLabel().' - '.$record->status->label();
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Purchase Order Details')
                     ->tabs([
@@ -607,10 +609,10 @@ class ViewPurchaseOrder extends ViewRecord
                 Section::make('Audit Trail')
                     ->description('Immutable record of all changes')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->options([
@@ -631,7 +633,7 @@ class ViewPurchaseOrder extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filter')
+                        Action::make('clear_filter')
                             ->label('Clear')
                             ->icon('heroicon-o-x-mark')
                             ->action(function (): void {
@@ -668,7 +670,7 @@ class ViewPurchaseOrder extends ViewRecord
                                     ->schema([
                                         TextEntry::make('created_at')
                                             ->label('Date/Time')
-                                            ->formatStateUsing(fn ($state): string => $state instanceof \Carbon\Carbon
+                                            ->formatStateUsing(fn ($state): string => $state instanceof Carbon
                                                 ? $state->format('Y-m-d H:i:s')
                                                 : (is_string($state) ? $state : 'Unknown')),
                                         TextEntry::make('event_type')
@@ -737,7 +739,7 @@ class ViewPurchaseOrder extends ViewRecord
     {
         return [
             // Mark as Sent (Draft → Sent)
-            Actions\Action::make('mark_sent')
+            Action::make('mark_sent')
                 ->label('Mark as Sent')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('primary')
@@ -784,7 +786,7 @@ class ViewPurchaseOrder extends ViewRecord
                 }),
 
             // Confirm (Sent → Confirmed)
-            Actions\Action::make('confirm')
+            Action::make('confirm')
                 ->label('Confirm')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -837,7 +839,7 @@ class ViewPurchaseOrder extends ViewRecord
                 }),
 
             // Close (Confirmed → Closed)
-            Actions\Action::make('close')
+            Action::make('close')
                 ->label('Close PO')
                 ->icon('heroicon-o-archive-box')
                 ->color('gray')
@@ -859,7 +861,7 @@ class ViewPurchaseOrder extends ViewRecord
                     return $baseMessage;
                 })
                 ->modalSubmitActionLabel('Close PO')
-                ->form([
+                ->schema([
                     Textarea::make('variance_notes')
                         ->label('Variance Notes')
                         ->placeholder('Add any notes about quantity variances or delivery issues (optional)')
@@ -912,7 +914,7 @@ class ViewPurchaseOrder extends ViewRecord
                 }),
 
             // Link Inbound (available when confirmed, not closed)
-            Actions\Action::make('link_inbound')
+            Action::make('link_inbound')
                 ->label('Link Inbound')
                 ->icon('heroicon-o-arrow-down-on-square')
                 ->color('info')

@@ -3,23 +3,30 @@
 namespace App\Filament\Resources\Inventory;
 
 use App\Enums\Inventory\CaseIntegrityStatus;
-use App\Filament\Resources\Inventory\CaseResource\Pages;
+use App\Filament\Resources\Inventory\CaseResource\Pages\ListCases;
+use App\Filament\Resources\Inventory\CaseResource\Pages\ViewCase;
 use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\Location;
-use Filament\Forms\Form;
+use Filament\Actions\ViewAction;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CaseResource extends Resource
 {
     protected static ?string $model = InventoryCase::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-cube';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 5;
 
@@ -29,17 +36,17 @@ class CaseResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Cases';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
         // Cases are managed through detail page - no create/edit form
-        return $form->schema([]);
+        return $schema->components([]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Case ID')
                     ->searchable()
                     ->sortable()
@@ -49,7 +56,7 @@ class CaseResource extends Resource
                     ->limit(12)
                     ->tooltip(fn (InventoryCase $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('configuration')
+                TextColumn::make('configuration')
                     ->label('Configuration')
                     ->state(function (InventoryCase $record): string {
                         $config = $record->caseConfiguration;
@@ -65,7 +72,7 @@ class CaseResource extends Resource
                     ->wrap()
                     ->limit(30),
 
-                Tables\Columns\IconColumn::make('is_original')
+                IconColumn::make('is_original')
                     ->label('Original')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-badge')
@@ -75,7 +82,7 @@ class CaseResource extends Resource
                     ->tooltip(fn (InventoryCase $record): string => $record->is_original ? 'Original Producer Case' : 'Repacked Case')
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('is_breakable')
+                IconColumn::make('is_breakable')
                     ->label('Breakable')
                     ->boolean()
                     ->trueIcon('heroicon-o-scissors')
@@ -86,7 +93,7 @@ class CaseResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('integrity_status')
+                TextColumn::make('integrity_status')
                     ->label('Integrity')
                     ->badge()
                     ->formatStateUsing(fn (CaseIntegrityStatus $state): string => $state->label())
@@ -94,14 +101,14 @@ class CaseResource extends Resource
                     ->icon(fn (CaseIntegrityStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('currentLocation.name')
+                TextColumn::make('currentLocation.name')
                     ->label('Location')
                     ->searchable()
                     ->sortable()
                     ->icon('heroicon-o-map-pin')
                     ->limit(20),
 
-                Tables\Columns\TextColumn::make('bottle_count')
+                TextColumn::make('bottle_count')
                     ->label('Bottles')
                     ->state(fn (InventoryCase $record): int => $record->bottle_count)
                     ->badge()
@@ -111,7 +118,7 @@ class CaseResource extends Resource
                             ->orderBy('serialized_bottles_count', $direction);
                     }),
 
-                Tables\Columns\TextColumn::make('allocation_lineage')
+                TextColumn::make('allocation_lineage')
                     ->label('Allocation')
                     ->state(function (InventoryCase $record): string {
                         $allocation = $record->allocation;
@@ -126,7 +133,7 @@ class CaseResource extends Resource
                     ->limit(25)
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('broken_at')
+                TextColumn::make('broken_at')
                     ->label('Broken At')
                     ->dateTime()
                     ->sortable()
@@ -134,20 +141,20 @@ class CaseResource extends Resource
                     ->visible(fn (): bool => true)
                     ->placeholder('—'),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Created')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('integrity_status')
+                SelectFilter::make('integrity_status')
                     ->options(collect(CaseIntegrityStatus::cases())
                         ->mapWithKeys(fn (CaseIntegrityStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->label('Integrity Status'),
 
-                Tables\Filters\SelectFilter::make('current_location_id')
+                SelectFilter::make('current_location_id')
                     ->label('Location')
                     ->options(fn (): array => Location::query()
                         ->orderBy('name')
@@ -156,24 +163,24 @@ class CaseResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                Tables\Filters\TernaryFilter::make('is_original')
+                TernaryFilter::make('is_original')
                     ->label('Original Producer Case')
                     ->placeholder('All')
                     ->trueLabel('Original Only')
                     ->falseLabel('Repacked Only'),
 
-                Tables\Filters\TernaryFilter::make('is_breakable')
+                TernaryFilter::make('is_breakable')
                     ->label('Breakable')
                     ->placeholder('All')
                     ->trueLabel('Breakable Only')
                     ->falseLabel('Non-breakable Only'),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // Cases should not be bulk deleted - managed through detail page actions
             ])
             ->defaultSort('created_at', 'desc')
@@ -230,8 +237,8 @@ class CaseResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListCases::route('/'),
-            'view' => Pages\ViewCase::route('/{record}'),
+            'index' => ListCases::route('/'),
+            'view' => ViewCase::route('/{record}'),
         ];
     }
 
@@ -240,7 +247,7 @@ class CaseResource extends Resource
         return parent::getEloquentQuery()
             ->with(['caseConfiguration', 'allocation', 'currentLocation'])
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 

@@ -3,12 +3,15 @@
 namespace App\Models\Allocation;
 
 use App\Enums\Allocation\AllocationSupplyForm;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use InvalidArgumentException;
 
 /**
  * LiquidAllocationConstraint Model
@@ -20,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property string $allocation_id
  * @property array<string>|null $allowed_bottling_formats
  * @property array<string>|null $allowed_case_configurations
- * @property \Carbon\Carbon|null $bottling_confirmation_deadline
+ * @property Carbon|null $bottling_confirmation_deadline
  */
 class LiquidAllocationConstraint extends Model
 {
@@ -72,7 +75,7 @@ class LiquidAllocationConstraint extends Model
         static::saving(function (LiquidAllocationConstraint $constraint): void {
             $allocation = $constraint->allocation;
             if ($allocation !== null && $allocation->supply_form !== AllocationSupplyForm::Liquid) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'LiquidAllocationConstraint can only be created for allocations with supply_form = liquid.'
                 );
             }
@@ -82,7 +85,7 @@ class LiquidAllocationConstraint extends Model
         static::updating(function (LiquidAllocationConstraint $constraint): void {
             $allocation = $constraint->allocation;
             if ($allocation !== null && ! $allocation->isDraft()) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Constraints can only be edited when the allocation is in Draft status.'
                 );
             }
@@ -102,11 +105,11 @@ class LiquidAllocationConstraint extends Model
     /**
      * Get the audit logs for this constraint.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -180,7 +183,7 @@ class LiquidAllocationConstraint extends Model
             return false;
         }
 
-        /** @var \Carbon\Carbon $deadline */
+        /** @var Carbon $deadline */
         $deadline = $this->bottling_confirmation_deadline;
 
         return $deadline->isPast();
@@ -202,7 +205,7 @@ class LiquidAllocationConstraint extends Model
         }
 
         if ($this->bottling_confirmation_deadline !== null) {
-            /** @var \Carbon\Carbon $deadline */
+            /** @var Carbon $deadline */
             $deadline = $this->bottling_confirmation_deadline;
             $parts[] = 'deadline: '.$deadline->format('Y-m-d');
         }

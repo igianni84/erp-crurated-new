@@ -221,7 +221,7 @@ class ProcurementToolsTest extends TestCase
     {
         $now = Carbon::now();
 
-        // PO with expected delivery within next 30 days
+        // PO with expected delivery within next 30 days (no inbounds = pending arrival)
         PurchaseOrder::create([
             'procurement_intent_id' => $this->procurementIntent->id,
             'supplier_party_id' => $this->supplier->id,
@@ -233,6 +233,7 @@ class ProcurementToolsTest extends TestCase
             'ownership_transfer' => true,
             'expected_delivery_start' => $now->copy()->addDays(5)->toDateString(),
             'expected_delivery_end' => $now->copy()->addDays(10)->toDateString(),
+            'destination_warehouse' => 'Milano Central Warehouse',
             'status' => PurchaseOrderStatus::Confirmed,
         ]);
 
@@ -255,10 +256,13 @@ class ProcurementToolsTest extends TestCase
         $data = json_decode((string) $result, true);
 
         $this->assertIsArray($data);
-        $this->assertArrayHasKey('total_expected', $data);
+        $this->assertArrayHasKey('total_pending_arrival', $data);
+        $this->assertArrayHasKey('total_bottles', $data);
+        $this->assertArrayHasKey('by_warehouse', $data);
         $this->assertArrayHasKey('purchase_orders', $data);
         // Only the first PO is within 30 days
-        $this->assertEquals(1, $data['total_expected']);
+        $this->assertEquals(1, $data['total_pending_arrival']);
+        $this->assertEquals(60, $data['total_bottles']);
         $this->assertCount(1, $data['purchase_orders']);
 
         $order = $data['purchase_orders'][0];
@@ -266,39 +270,73 @@ class ProcurementToolsTest extends TestCase
         $this->assertArrayHasKey('supplier_name', $order);
         $this->assertArrayHasKey('quantity', $order);
         $this->assertArrayHasKey('status', $order);
-        $this->assertArrayHasKey('inbound_count', $order);
+        $this->assertArrayHasKey('destination_warehouse', $order);
+        $this->assertArrayHasKey('has_inbound', $order);
         $this->assertEquals('Supplier Vini Srl', $order['supplier_name']);
+        $this->assertEquals('Milano Central Warehouse', $order['destination_warehouse']);
+        $this->assertFalse($order['has_inbound']);
+
+        // Verify warehouse grouping
+        $this->assertArrayHasKey('Milano Central Warehouse', $data['by_warehouse']);
+        $this->assertEquals(1, $data['by_warehouse']['Milano Central Warehouse']['count']);
+        $this->assertEquals(60, $data['by_warehouse']['Milano Central Warehouse']['total_bottles']);
     }
 
-    public function test_inbound_schedule_include_draft_filter(): void
+    public function test_inbound_schedule_excludes_pos_with_inbounds(): void
     {
         $now = Carbon::now();
 
-        // Draft PO with delivery in 10 days
+        // PO that already has an inbound record (goods already received)
+        $poWithInbound = PurchaseOrder::create([
+            'procurement_intent_id' => $this->procurementIntent->id,
+            'supplier_party_id' => $this->supplier->id,
+            'product_reference_type' => 'sellable_skus',
+            'product_reference_id' => $this->sellableSku->id,
+            'quantity' => 60,
+            'unit_cost' => 30.00,
+            'currency' => 'EUR',
+            'ownership_transfer' => true,
+            'expected_delivery_start' => $now->copy()->addDays(5)->toDateString(),
+            'status' => PurchaseOrderStatus::Confirmed,
+        ]);
+
+        // Create an inbound record for this PO (goods already received)
+        \App\Models\Procurement\Inbound::create([
+            'purchase_order_id' => $poWithInbound->id,
+            'warehouse' => 'Milano Central Warehouse',
+            'product_reference_type' => 'sellable_skus',
+            'product_reference_id' => $this->sellableSku->id,
+            'received_date' => $now->copy()->addDays(3)->toDateString(),
+            'quantity' => 60,
+            'packaging' => 'cases',
+            'status' => 'recorded',
+        ]);
+
+        // PO without inbound (still pending)
         PurchaseOrder::create([
             'procurement_intent_id' => $this->procurementIntent->id,
             'supplier_party_id' => $this->supplier->id,
             'product_reference_type' => 'sellable_skus',
             'product_reference_id' => $this->sellableSku->id,
-            'quantity' => 25,
-            'unit_cost' => 20.00,
+            'quantity' => 40,
+            'unit_cost' => 35.00,
             'currency' => 'EUR',
             'ownership_transfer' => true,
             'expected_delivery_start' => $now->copy()->addDays(10)->toDateString(),
-            'status' => PurchaseOrderStatus::Draft,
+            'status' => PurchaseOrderStatus::Sent,
         ]);
 
         $tool = new InboundScheduleTool;
 
-        // Without including draft: should find 0
-        $resultExclude = $tool->handle(new Request(['days_ahead' => 30, 'include_draft' => 'false']));
-        $dataExclude = json_decode((string) $resultExclude, true);
-        $this->assertEquals(0, $dataExclude['total_expected']);
+        // Default: excludes POs with inbounds
+        $result = $tool->handle(new Request(['days_ahead' => 30]));
+        $data = json_decode((string) $result, true);
+        $this->assertEquals(1, $data['total_pending_arrival']);
 
-        // With include_draft: should find 1
-        $resultInclude = $tool->handle(new Request(['days_ahead' => 30, 'include_draft' => 'true']));
-        $dataInclude = json_decode((string) $resultInclude, true);
-        $this->assertEquals(1, $dataInclude['total_expected']);
+        // With include flag: shows all
+        $resultAll = $tool->handle(new Request(['days_ahead' => 30, 'include_confirmed_with_inbounds' => 'true']));
+        $dataAll = json_decode((string) $resultAll, true);
+        $this->assertEquals(2, $dataAll['total_pending_arrival']);
     }
 
     public function test_inbound_schedule_authorization_editor_denied(): void

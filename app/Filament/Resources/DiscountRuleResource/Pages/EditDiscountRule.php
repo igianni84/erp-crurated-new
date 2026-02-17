@@ -4,7 +4,9 @@ namespace App\Filament\Resources\DiscountRuleResource\Pages;
 
 use App\Enums\Commercial\DiscountRuleType;
 use App\Filament\Resources\DiscountRuleResource;
-use Filament\Actions;
+use App\Models\Commercial\DiscountRule;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -14,14 +16,14 @@ class EditDiscountRule extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        /** @var \App\Models\Commercial\DiscountRule $record */
+        /** @var DiscountRule $record */
         $record = $this->getRecord();
 
         return [
-            Actions\ViewAction::make(),
-            Actions\DeleteAction::make()
+            ViewAction::make(),
+            DeleteAction::make()
                 ->visible(fn (): bool => $record->canBeDeleted())
-                ->before(function (Actions\DeleteAction $action) use ($record): void {
+                ->before(function (DeleteAction $action) use ($record): void {
                     if ($record->isReferencedByAnyOffer()) {
                         Notification::make()
                             ->title('Cannot delete')
@@ -42,7 +44,7 @@ class EditDiscountRule extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var \App\Models\Commercial\DiscountRule $record */
+        /** @var DiscountRule $record */
         $record = $this->getRecord();
 
         if (! $record->canBeEdited()) {

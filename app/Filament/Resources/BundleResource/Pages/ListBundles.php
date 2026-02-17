@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\BundleResource\Pages;
 
 use App\Filament\Resources\BundleResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListBundles extends ListRecords
@@ -13,7 +13,7 @@ class ListBundles extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
+            CreateAction::make()
                 ->label('Create Bundle'),
         ];
     }

@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Procurement\Inbound;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing Inbound lifecycle.
@@ -29,7 +30,7 @@ class InboundService
      *
      * @param  array<string, mixed>  $data  Required keys: warehouse, product_reference_type, product_reference_id, quantity, packaging, ownership_flag, received_date. Optional: procurement_intent_id, purchase_order_id, condition_notes, serialization_required, serialization_location_authorized, serialization_routing_rule
      *
-     * @throws \InvalidArgumentException If required data is missing or invalid
+     * @throws InvalidArgumentException If required data is missing or invalid
      */
     public function record(array $data): Inbound
     {
@@ -45,7 +46,7 @@ class InboundService
 
         foreach ($requiredFields as $field) {
             if (! array_key_exists($field, $data) || $data[$field] === null) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Missing required field: {$field}"
                 );
             }
@@ -57,14 +58,14 @@ class InboundService
         $productReferenceType = $data['product_reference_type'];
 
         if ($quantity <= 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Quantity must be greater than 0.'
             );
         }
 
         $validProductTypes = ['sellable_skus', 'liquid_products'];
         if (! in_array($productReferenceType, $validProductTypes, true)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Invalid product_reference_type. Must be one of: '.implode(', ', $validProductTypes)
             );
         }
@@ -74,7 +75,7 @@ class InboundService
         if (is_string($packaging)) {
             $packaging = InboundPackaging::tryFrom($packaging);
             if ($packaging === null) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Invalid packaging. Must be one of: cases, loose, mixed'
                 );
             }
@@ -85,7 +86,7 @@ class InboundService
         if (is_string($ownershipFlag)) {
             $ownershipFlag = OwnershipFlag::tryFrom($ownershipFlag);
             if ($ownershipFlag === null) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Invalid ownership_flag. Must be one of: owned, in_custody, pending'
                 );
             }
@@ -121,19 +122,19 @@ class InboundService
      *
      * Assigns a serialization location and validates routing constraints.
      *
-     * @throws \InvalidArgumentException If transition is not allowed or routing is invalid
+     * @throws InvalidArgumentException If transition is not allowed or routing is invalid
      */
     public function route(Inbound $inbound, string $location): Inbound
     {
         if (! $inbound->status->canTransitionTo(InboundStatus::Routed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot route inbound: current status '{$inbound->status->label()}' does not allow transition to Routed. "
                 .'Only Recorded inbounds can be routed.'
             );
         }
 
         if (empty($location)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Serialization location is required for routing.'
             );
         }
@@ -163,12 +164,12 @@ class InboundService
      *
      * Validates that ownership has been clarified before completion.
      *
-     * @throws \InvalidArgumentException If transition is not allowed or ownership is unclear
+     * @throws InvalidArgumentException If transition is not allowed or ownership is unclear
      */
     public function complete(Inbound $inbound): Inbound
     {
         if (! $inbound->status->canTransitionTo(InboundStatus::Completed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot complete inbound: current status '{$inbound->status->label()}' does not allow transition to Completed. "
                 .'Only Routed inbounds can be completed.'
             );
@@ -194,19 +195,19 @@ class InboundService
      *
      * This is a one-way operation - once handed off, it cannot be reversed.
      *
-     * @throws \InvalidArgumentException If hand-off is not allowed
+     * @throws InvalidArgumentException If hand-off is not allowed
      */
     public function handOffToModuleB(Inbound $inbound): Inbound
     {
         if (! $inbound->status->allowsHandOff()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot hand off inbound to Module B: current status '{$inbound->status->label()}' does not allow hand-off. "
                 .'Only Completed inbounds can be handed off.'
             );
         }
 
         if ($inbound->handed_to_module_b) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot hand off inbound to Module B: inbound has already been handed off.'
             );
         }
@@ -231,12 +232,12 @@ class InboundService
     /**
      * Validate that ownership has been clarified (not pending).
      *
-     * @throws \InvalidArgumentException If ownership is still pending
+     * @throws InvalidArgumentException If ownership is still pending
      */
     public function validateOwnershipClarity(Inbound $inbound): void
     {
         if (! $inbound->hasOwnershipClarity()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Ownership must be clarified (owned or in_custody) before this operation. '
                 .'Current ownership flag: '.$inbound->ownership_flag->label().'.'
             );
@@ -249,7 +250,7 @@ class InboundService
      * Ensures that if serialization is required, an authorized location has been set
      * and the location is authorized according to ProducerSupplierConfig.serialization_constraints.
      *
-     * @throws \InvalidArgumentException If serialization routing is invalid or location not authorized
+     * @throws InvalidArgumentException If serialization routing is invalid or location not authorized
      */
     public function validateSerializationRouting(Inbound $inbound): void
     {
@@ -258,7 +259,7 @@ class InboundService
         }
 
         if ($inbound->serialization_location_authorized === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Serialization location must be specified because serialization is required for this inbound.'
             );
         }
@@ -273,7 +274,7 @@ class InboundService
      * If the inbound is linked to a PurchaseOrder with a supplier that has serialization constraints,
      * the location must be in the list of authorized locations.
      *
-     * @throws \InvalidArgumentException If location is not authorized for this product/supplier
+     * @throws InvalidArgumentException If location is not authorized for this product/supplier
      */
     protected function validateLocationAgainstSupplierConfig(Inbound $inbound, string $location): void
     {
@@ -302,7 +303,7 @@ class InboundService
                 ? implode(', ', $authorizedLocations)
                 : 'none defined';
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Serialization location '{$location}' is not authorized for this product. "
                 ."Authorized locations: {$authorizedList}."
             );
@@ -393,12 +394,12 @@ class InboundService
     /**
      * Update the ownership flag for an inbound.
      *
-     * @throws \InvalidArgumentException If the inbound is already completed with hand-off
+     * @throws InvalidArgumentException If the inbound is already completed with hand-off
      */
     public function updateOwnershipFlag(Inbound $inbound, OwnershipFlag $newFlag): Inbound
     {
         if ($inbound->handed_to_module_b) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot update ownership flag: inbound has already been handed off to Module B.'
             );
         }

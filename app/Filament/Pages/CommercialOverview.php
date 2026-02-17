@@ -16,22 +16,23 @@ use App\Models\Commercial\PriceBook;
 use App\Models\Commercial\PricingPolicy;
 use App\Models\Pim\SellableSku;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 
 class CommercialOverview extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-storefront';
 
     protected static ?string $navigationLabel = 'Overview';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 1;
 
     protected static ?string $title = 'Commercial Overview';
 
-    protected static string $view = 'filament.pages.commercial-overview';
+    protected string $view = 'filament.pages.commercial-overview';
 
     /**
      * Get the configured EMP deviation threshold.
@@ -322,7 +323,7 @@ class CommercialOverview extends Page
         $url = PricingIntelligence::getUrl();
 
         if ($filter !== null) {
-            $url .= '?tableFilters['.$filter.'][value]=1';
+            $url .= '?filters['.$filter.'][value]=1';
         }
 
         return $url;

@@ -9,10 +9,11 @@ use App\Models\Pim\WineMaster;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class ProductCatalogSearchTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Search the product catalog by name, producer, appellation, or SKU code.';
     }
@@ -32,7 +33,7 @@ class ProductCatalogSearchTool extends BaseTool implements Tool
         return ToolAccessLevel::Overview;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $searchQuery = $request['query'] ?? '';
         if (mb_strlen((string) $searchQuery) < 2) {

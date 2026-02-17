@@ -4,22 +4,36 @@ namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
-use App\Filament\Resources\Finance\InvoiceResource\Pages;
+use App\Filament\Resources\Finance\InvoiceResource\Pages\CreateInvoice;
+use App\Filament\Resources\Finance\InvoiceResource\Pages\ListInvoices;
+use App\Filament\Resources\Finance\InvoiceResource\Pages\ViewInvoice;
 use App\Models\Finance\Invoice;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class InvoiceResource extends Resource
 {
     protected static ?string $model = Invoice::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-text';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?int $navigationSort = 10;
 
@@ -29,10 +43,10 @@ class InvoiceResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Invoices';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // Form schema will be implemented in US-E018
             ]);
     }
@@ -41,7 +55,7 @@ class InvoiceResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('invoice_number')
+                TextColumn::make('invoice_number')
                     ->label('Invoice #')
                     ->searchable()
                     ->sortable()
@@ -49,7 +63,7 @@ class InvoiceResource extends Resource
                     ->copyMessage('Invoice number copied')
                     ->placeholder('Draft'),
 
-                Tables\Columns\TextColumn::make('invoice_type')
+                TextColumn::make('invoice_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (InvoiceType $state): string => $state->code())
@@ -58,7 +72,7 @@ class InvoiceResource extends Resource
                     ->tooltip(fn (InvoiceType $state): string => $state->label())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('customer.name')
+                TextColumn::make('customer.name')
                     ->label('Customer')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('customer', function (Builder $query) use ($search): void {
@@ -72,7 +86,7 @@ class InvoiceResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('total_amount')
+                TextColumn::make('total_amount')
                     ->label('Amount')
                     ->money(fn (Invoice $record): string => $record->currency)
                     ->sortable()
@@ -81,7 +95,7 @@ class InvoiceResource extends Resource
                         ? $record->currency.' ('.$record->getCurrencySymbol().')'
                         : ''),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (InvoiceStatus $state): string => $state->label())
@@ -89,26 +103,26 @@ class InvoiceResource extends Resource
                     ->icon(fn (InvoiceStatus $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('issued_at')
+                TextColumn::make('issued_at')
                     ->label('Issue Date')
                     ->date()
                     ->sortable()
                     ->placeholder('Not issued'),
 
-                Tables\Columns\TextColumn::make('due_date')
+                TextColumn::make('due_date')
                     ->label('Due Date')
                     ->date()
                     ->sortable()
                     ->placeholder('N/A')
                     ->color(fn (Invoice $record): ?string => $record->isOverdue() ? 'danger' : null),
 
-                Tables\Columns\TextColumn::make('xero_invoice_id')
+                TextColumn::make('xero_invoice_id')
                     ->label('Xero Ref')
                     ->searchable()
                     ->toggleable()
                     ->placeholder('Not synced'),
 
-                Tables\Columns\TextColumn::make('flags')
+                TextColumn::make('flags')
                     ->label('Flags')
                     ->state(function (Invoice $record): string {
                         $flags = [];
@@ -125,23 +139,23 @@ class InvoiceResource extends Resource
                     ->placeholder(''),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('invoice_type')
+                SelectFilter::make('invoice_type')
                     ->options(collect(InvoiceType::cases())
                         ->mapWithKeys(fn (InvoiceType $type) => [$type->value => $type->code().' - '.$type->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Invoice Type'),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(InvoiceStatus::cases())
                         ->mapWithKeys(fn (InvoiceStatus $status) => [$status->value => $status->label()])
                         ->toArray())
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\Filter::make('customer')
-                    ->form([
-                        Forms\Components\Select::make('customer_id')
+                Filter::make('customer')
+                    ->schema([
+                        Select::make('customer_id')
                             ->label('Customer')
                             ->relationship('customer', 'name')
                             ->searchable()
@@ -154,11 +168,11 @@ class InvoiceResource extends Resource
                         );
                     }),
 
-                Tables\Filters\Filter::make('issued_at')
-                    ->form([
-                        Forms\Components\DatePicker::make('issued_from')
+                Filter::make('issued_at')
+                    ->schema([
+                        DatePicker::make('issued_from')
                             ->label('Issued From'),
-                        Forms\Components\DatePicker::make('issued_until')
+                        DatePicker::make('issued_until')
                             ->label('Issued Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -184,11 +198,11 @@ class InvoiceResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('currency')
+                SelectFilter::make('currency')
                     ->options(Invoice::getSupportedCurrencies())
                     ->label('Currency'),
 
-                Tables\Filters\TernaryFilter::make('overdue')
+                TernaryFilter::make('overdue')
                     ->label('Overdue Status')
                     ->placeholder('All invoices')
                     ->trueLabel('Overdue only')
@@ -205,16 +219,16 @@ class InvoiceResource extends Resource
                         }),
                     ),
 
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkAction::make('export_csv')
+            ->toolbarActions([
+                BulkAction::make('export_csv')
                     ->label('Export to CSV')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): \Symfony\Component\HttpFoundation\StreamedResponse {
+                    ->action(function (Collection $records): StreamedResponse {
                         return response()->streamDownload(function () use ($records): void {
                             $handle = fopen('php://output', 'w');
                             if ($handle !== false) {
@@ -255,12 +269,12 @@ class InvoiceResource extends Resource
                     })
                     ->deselectRecordsAfterCompletion(),
 
-                Tables\Actions\BulkAction::make('retry_xero_sync')
+                BulkAction::make('retry_xero_sync')
                     ->label('Retry Xero Sync')
                     ->icon('heroicon-o-arrow-path')
-                    ->action(function (\Illuminate\Database\Eloquent\Collection $records): void {
+                    ->action(function (Collection $records): void {
                         // TODO: Implement Xero sync retry in US-E101
-                        \Filament\Notifications\Notification::make()
+                        Notification::make()
                             ->title('Xero sync retry queued')
                             ->body('Sync retry has been queued for '.count($records).' invoice(s).')
                             ->success()
@@ -285,9 +299,9 @@ class InvoiceResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListInvoices::route('/'),
-            'create' => Pages\CreateInvoice::route('/create'),
-            'view' => Pages\ViewInvoice::route('/{record}'),
+            'index' => ListInvoices::route('/'),
+            'create' => CreateInvoice::route('/create'),
+            'view' => ViewInvoice::route('/{record}'),
         ];
     }
 
@@ -295,7 +309,7 @@ class InvoiceResource extends Resource
     {
         return parent::getEloquentQuery()
             ->withoutGlobalScopes([
-                \Illuminate\Database\Eloquent\SoftDeletingScope::class,
+                SoftDeletingScope::class,
             ]);
     }
 
@@ -309,13 +323,13 @@ class InvoiceResource extends Resource
         return parent::getGlobalSearchEloquentQuery()->with(['customer']);
     }
 
-    public static function getGlobalSearchResultTitle(\Illuminate\Database\Eloquent\Model $record): string
+    public static function getGlobalSearchResultTitle(Model $record): string
     {
         /** @var Invoice $record */
         return $record->invoice_number ?? 'Draft Invoice #'.$record->id;
     }
 
-    public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
+    public static function getGlobalSearchResultDetails(Model $record): array
     {
         /** @var Invoice $record */
         return [
@@ -325,7 +339,7 @@ class InvoiceResource extends Resource
         ];
     }
 
-    public static function getGlobalSearchResultUrl(\Illuminate\Database\Eloquent\Model $record): ?string
+    public static function getGlobalSearchResultUrl(Model $record): ?string
     {
         return static::getUrl('view', ['record' => $record]);
     }

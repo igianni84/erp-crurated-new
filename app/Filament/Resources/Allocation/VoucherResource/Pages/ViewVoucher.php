@@ -17,17 +17,19 @@ use Filament\Actions\ActionGroup;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Carbon;
+use InvalidArgumentException;
 
 class ViewVoucher extends ViewRecord
 {
@@ -117,7 +119,7 @@ class ViewVoucher extends ViewRecord
                         ->send();
 
                     $this->refreshFormData(['tradable']);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot modify tradable flag')
                         ->body($e->getMessage())
@@ -175,7 +177,7 @@ class ViewVoucher extends ViewRecord
                         ->send();
 
                     $this->refreshFormData(['giftable']);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot modify giftable flag')
                         ->body($e->getMessage())
@@ -230,7 +232,7 @@ class ViewVoucher extends ViewRecord
                         ->send();
 
                     $this->refreshFormData(['suspended']);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot suspend voucher')
                         ->body($e->getMessage())
@@ -284,7 +286,7 @@ class ViewVoucher extends ViewRecord
                         ->send();
 
                     $this->refreshFormData(['suspended']);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot reactivate voucher')
                         ->body($e->getMessage())
@@ -318,7 +320,7 @@ class ViewVoucher extends ViewRecord
             ->label('Initiate Transfer')
             ->icon('heroicon-o-arrow-right-circle')
             ->color('primary')
-            ->form([
+            ->schema([
                 Placeholder::make('info')
                     ->label('')
                     ->content('Transfers do not create new vouchers or consume allocation. They only change the voucher holder. The recipient will need to accept the transfer in the customer portal.'),
@@ -377,7 +379,7 @@ class ViewVoucher extends ViewRecord
                         ->send();
 
                     $this->refreshFormData([]);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot initiate transfer')
                         ->body($e->getMessage())
@@ -440,7 +442,7 @@ class ViewVoucher extends ViewRecord
 
                     $pendingTransfer = $record->getPendingTransfer();
                     if (! $pendingTransfer) {
-                        throw new \InvalidArgumentException('No pending transfer found.');
+                        throw new InvalidArgumentException('No pending transfer found.');
                     }
 
                     $service->cancelTransfer($pendingTransfer);
@@ -452,7 +454,7 @@ class ViewVoucher extends ViewRecord
                         ->send();
 
                     $this->refreshFormData([]);
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot cancel transfer')
                         ->body($e->getMessage())
@@ -465,9 +467,9 @@ class ViewVoucher extends ViewRecord
             ->authorize('cancelTransfer', $record);
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 // Header: Lifecycle state banner
                 $this->getHeaderSection(),
@@ -510,7 +512,7 @@ class ViewVoucher extends ViewRecord
                                 ->copyable()
                                 ->copyMessage('Voucher ID copied')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                         ])->columnSpan(1),
                         Group::make([
                             TextEntry::make('customer.name')
@@ -531,7 +533,7 @@ class ViewVoucher extends ViewRecord
                                 ->formatStateUsing(fn (VoucherLifecycleState $state): string => $state->label())
                                 ->color(fn (VoucherLifecycleState $state): string => $state->color())
                                 ->icon(fn (VoucherLifecycleState $state): string => $state->icon())
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                         ])->columnSpan(1),
                         Group::make([
                             TextEntry::make('created_at')
@@ -560,7 +562,7 @@ class ViewVoucher extends ViewRecord
                 TextEntry::make('quarantine_warning_banner')
                     ->label('')
                     ->getStateUsing(fn (): string => 'ANOMALOUS VOUCHER - REQUIRES MANUAL ATTENTION')
-                    ->size(TextEntry\TextEntrySize::Large)
+                    ->size(TextSize::Large)
                     ->weight(FontWeight::Bold)
                     ->color('danger')
                     ->icon('heroicon-o-exclamation-triangle'),
@@ -708,7 +710,7 @@ class ViewVoucher extends ViewRecord
                         TextEntry::make('lineage_critical_warning')
                             ->label('')
                             ->getStateUsing(fn (): string => '⛔ NOT FULFILLABLE OUTSIDE LINEAGE')
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->weight(FontWeight::Bold)
                             ->color('danger'),
                         TextEntry::make('lineage_constraint_message')
@@ -840,7 +842,7 @@ Attempting to fulfill this voucher with bottles from a different allocation will
                                 ->formatStateUsing(fn (VoucherLifecycleState $state): string => $state->label())
                                 ->color(fn (VoucherLifecycleState $state): string => $state->color())
                                 ->icon(fn (VoucherLifecycleState $state): string => $state->icon())
-                                ->size(TextEntry\TextEntrySize::Large),
+                                ->size(TextSize::Large),
                             TextEntry::make('state_description')
                                 ->label('')
                                 ->getStateUsing(fn (Voucher $record): string => $record->lifecycle_state->description())
@@ -1010,7 +1012,7 @@ Attempting to fulfill this voucher with bottles from a different allocation will
                         TextEntry::make('transfer_blocked_warning')
                             ->label('')
                             ->getStateUsing(fn (): string => '⚠️ LOCKED DURING TRANSFER - ACCEPTANCE BLOCKED')
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->weight(FontWeight::Bold)
                             ->color('danger')
                             ->visible(fn (Voucher $record): bool => $record->hasPendingTransferBlockedByLock()),
@@ -1166,10 +1168,10 @@ Attempting to fulfill this voucher with bottles from a different allocation will
             ->icon('heroicon-o-document-text')
             ->collapsible()
             ->headerActions([
-                \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                Action::make('filter_audit')
                     ->label('Filter')
                     ->icon('heroicon-o-funnel')
-                    ->form([
+                    ->schema([
                         Select::make('event_type')
                             ->label('Event Type')
                             ->placeholder('All events')
@@ -1204,7 +1206,7 @@ Attempting to fulfill this voucher with bottles from a different allocation will
                         $this->auditDateFrom = $data['date_from'] ?? null;
                         $this->auditDateUntil = $data['date_until'] ?? null;
                     }),
-                \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                Action::make('clear_filters')
                     ->label('Clear Filters')
                     ->icon('heroicon-o-x-mark')
                     ->color('gray')

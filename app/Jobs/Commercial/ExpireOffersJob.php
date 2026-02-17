@@ -5,6 +5,7 @@ namespace App\Jobs\Commercial;
 use App\Enums\Commercial\OfferStatus;
 use App\Models\AuditLog;
 use App\Models\Commercial\Offer;
+use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
@@ -73,7 +74,7 @@ class ExpireOffersJob implements ShouldQueue
                 $expiredCount++;
 
                 Log::info("Auto-expired offer: {$offer->name} (ID: {$offer->id}), valid_to: {$offer->valid_to}");
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errorCount++;
 
                 Log::error("Failed to auto-expire offer: {$offer->name} (ID: {$offer->id})", [

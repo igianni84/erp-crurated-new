@@ -3,6 +3,7 @@
 namespace App\Models\Commercial;
 
 use App\Enums\Commercial\PriceSource;
+use App\Models\AuditLog;
 use App\Models\Pim\SellableSku;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
@@ -96,11 +97,11 @@ class PriceBookEntry extends Model
     /**
      * Get the audit logs for this price book entry.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

@@ -18,7 +18,7 @@ class CustomerPreferenceCollectionWidget extends Widget
     /**
      * The view for the widget.
      */
-    protected static string $view = 'filament.widgets.procurement.customer-preference-collection-widget';
+    protected string $view = 'filament.widgets.procurement.customer-preference-collection-widget';
 
     /**
      * The bottling instruction to display preferences for.

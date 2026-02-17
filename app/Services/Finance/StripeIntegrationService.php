@@ -8,7 +8,11 @@ use App\Jobs\Finance\ProcessStripeWebhookJob;
 use App\Models\AuditLog;
 use App\Models\Finance\Payment;
 use App\Models\Finance\StripeWebhook;
+use Carbon\Carbon;
+use Exception;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
 use RuntimeException;
 
 /**
@@ -78,7 +82,7 @@ class StripeIntegrationService
                 'event_id' => $webhook->event_id,
                 'event_type' => $webhook->event_type,
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Mark as failed with error message
             $webhook->markFailed($e->getMessage());
 
@@ -309,7 +313,7 @@ class StripeIntegrationService
                     'stripe_refund_id' => $stripeRefundId,
                     'amount' => $refund->amount,
                 ]);
-            } catch (\InvalidArgumentException $e) {
+            } catch (InvalidArgumentException $e) {
                 // Log but don't fail - payment may not be applied to invoice yet
                 Log::channel('finance')->warning('Could not create refund record', [
                     'webhook_id' => $webhook->id,
@@ -440,7 +444,6 @@ class StripeIntegrationService
     // =========================================================================
     // Integration Health
     // =========================================================================
-
     /**
      * Get Stripe integration health metrics.
      *
@@ -452,21 +455,7 @@ class StripeIntegrationService
      * - Today's activity
      * - Active alerts
      *
-     * @return array{
-     *     status: string,
-     *     status_color: string,
-     *     last_webhook: string|null,
-     *     last_webhook_time: \Carbon\Carbon|null,
-     *     failed_count: int,
-     *     pending_count: int,
-     *     pending_reconciliations: int,
-     *     mismatched_reconciliations: int,
-     *     today_received: int,
-     *     today_processed: int,
-     *     alerts: array<string>,
-     *     is_healthy: bool,
-     *     has_recent_activity: bool
-     * }
+     * @return array{status: string, status_color: string, last_webhook: string|null, last_webhook_time: Carbon|null, failed_count: int, pending_count: int, pending_reconciliations: int, mismatched_reconciliations: int, today_received: int, today_processed: int, alerts: array<string>, is_healthy: bool, has_recent_activity: bool}
      */
     public function getIntegrationHealth(): array
     {
@@ -551,9 +540,9 @@ class StripeIntegrationService
      * Get failed webhooks for review/retry.
      *
      * @param  int  $limit  Maximum number of webhooks to return
-     * @return \Illuminate\Database\Eloquent\Collection<int, StripeWebhook>
+     * @return Collection<int, StripeWebhook>
      */
-    public function getFailedWebhooks(int $limit = 20): \Illuminate\Database\Eloquent\Collection
+    public function getFailedWebhooks(int $limit = 20): Collection
     {
         return StripeWebhook::failed()
             ->orderBy('created_at', 'desc')

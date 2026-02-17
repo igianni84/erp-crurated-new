@@ -3,7 +3,8 @@
 namespace App\Filament\Resources\Pim\FormatResource\Pages;
 
 use App\Filament\Resources\Pim\FormatResource;
-use Filament\Actions;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditFormat extends EditRecord
@@ -13,8 +14,8 @@ class EditFormat extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\DeleteAction::make(),
-            Actions\RestoreAction::make(),
+            DeleteAction::make(),
+            RestoreAction::make(),
         ];
     }
 }

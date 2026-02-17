@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\RefundMethod;
 use App\Enums\Finance\RefundStatus;
 use App\Enums\Finance\RefundType;
@@ -10,6 +11,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Models\Finance\Refund;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -626,7 +628,7 @@ class RefundService
 
         // If fully refunded, update payment status
         if (bccomp($totalRefunded, $totalApplied, 2) >= 0) {
-            $payment->status = \App\Enums\Finance\PaymentStatus::Refunded;
+            $payment->status = PaymentStatus::Refunded;
             $payment->save();
 
             Log::channel('finance')->info('Payment marked as fully refunded', [
@@ -661,13 +663,12 @@ class RefundService
     // =========================================================================
     // Query Helpers
     // =========================================================================
-
     /**
      * Get pending refunds.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Refund>
+     * @return Collection<int, Refund>
      */
-    public function getPendingRefunds(): \Illuminate\Database\Eloquent\Collection
+    public function getPendingRefunds(): Collection
     {
         return Refund::where('status', RefundStatus::Pending)
             ->orderBy('created_at', 'asc')
@@ -677,9 +678,9 @@ class RefundService
     /**
      * Get failed refunds that can be retried.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Refund>
+     * @return Collection<int, Refund>
      */
-    public function getFailedRefunds(): \Illuminate\Database\Eloquent\Collection
+    public function getFailedRefunds(): Collection
     {
         return Refund::where('status', RefundStatus::Failed)
             ->orderBy('created_at', 'asc')
@@ -689,9 +690,9 @@ class RefundService
     /**
      * Get refunds for an invoice.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Refund>
+     * @return Collection<int, Refund>
      */
-    public function getRefundsForInvoice(Invoice $invoice): \Illuminate\Database\Eloquent\Collection
+    public function getRefundsForInvoice(Invoice $invoice): Collection
     {
         return Refund::where('invoice_id', $invoice->id)
             ->orderBy('created_at', 'desc')
@@ -701,9 +702,9 @@ class RefundService
     /**
      * Get refunds for a payment.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Refund>
+     * @return Collection<int, Refund>
      */
-    public function getRefundsForPayment(Payment $payment): \Illuminate\Database\Eloquent\Collection
+    public function getRefundsForPayment(Payment $payment): Collection
     {
         return Refund::where('payment_id', $payment->id)
             ->orderBy('created_at', 'desc')

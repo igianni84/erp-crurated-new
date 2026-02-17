@@ -8,17 +8,18 @@ use App\Models\AuditLog;
 use App\Models\Finance\CreditNote;
 use App\Services\Finance\CreditNoteService;
 use Filament\Actions\Action;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use InvalidArgumentException;
 
@@ -34,9 +35,9 @@ class ViewCreditNote extends ViewRecord
         return 'Credit Note: '.($record->credit_note_number ?? 'Draft #'.$record->id);
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getHeaderSection(),
                 Tabs::make('Credit Note Details')
@@ -65,7 +66,7 @@ class ViewCreditNote extends ViewRecord
                             TextEntry::make('credit_note_number')
                                 ->label('Credit Note Number')
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->copyable()
                                 ->copyMessage('Credit note number copied')
                                 ->placeholder('Draft - Not yet issued'),
@@ -96,7 +97,7 @@ class ViewCreditNote extends ViewRecord
                                 ->label('Credit Note Amount')
                                 ->money(fn (CreditNote $record): string => $record->currency)
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->color('warning'),
                             TextEntry::make('currency')
                                 ->label('Currency')

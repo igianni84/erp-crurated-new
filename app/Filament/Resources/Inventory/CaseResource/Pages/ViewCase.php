@@ -5,25 +5,32 @@ namespace App\Filament\Resources\Inventory\CaseResource\Pages;
 use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Enums\Inventory\MovementTrigger;
 use App\Filament\Resources\Inventory\CaseResource;
+use App\Models\AuditLog;
 use App\Models\Inventory\InventoryCase;
 use App\Models\Inventory\InventoryException;
 use App\Models\Inventory\MovementItem;
 use App\Services\Inventory\MovementService;
-use Filament\Actions;
-use Filament\Forms;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
+use Filament\Actions\Action;
+use Filament\Forms\Components\Checkbox;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\HtmlString;
+use InvalidArgumentException;
+use RuntimeException;
+use Throwable;
 
 /**
  * ViewCase Page - Comprehensive view of case details with 5 tabs (US-B031, US-B056).
@@ -47,9 +54,9 @@ class ViewCase extends ViewRecord
         return "Case: {$record->display_label}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getIntegrityStatusBanner(),
                 Tabs::make('Case Details')
@@ -109,7 +116,7 @@ class ViewCase extends ViewRecord
                                         ->copyable()
                                         ->copyMessage('Case ID copied')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large)
+                                        ->size(TextSize::Large)
                                         ->icon('heroicon-o-archive-box'),
                                 ])->columnSpan(1),
                                 Group::make([
@@ -137,7 +144,7 @@ class ViewCase extends ViewRecord
                                         ->formatStateUsing(fn (CaseIntegrityStatus $state): string => $state->label())
                                         ->color(fn (CaseIntegrityStatus $state): string => $state->color())
                                         ->icon(fn (CaseIntegrityStatus $state): string => $state->icon())
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                             ]),
                     ]),
@@ -190,7 +197,7 @@ class ViewCase extends ViewRecord
                                     ->badge()
                                     ->color('primary')
                                     ->icon('heroicon-o-link')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('allocation_id')
                                     ->label('Allocation ID')
                                     ->copyable()
@@ -379,7 +386,7 @@ class ViewCase extends ViewRecord
                                     ->formatStateUsing(fn (CaseIntegrityStatus $state): string => $state->label())
                                     ->color(fn (CaseIntegrityStatus $state): string => $state->color())
                                     ->icon(fn (CaseIntegrityStatus $state): string => $state->icon())
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('can_break')
                                     ->label('Can Be Opened')
                                     ->getStateUsing(fn (InventoryCase $record): string => $record->canBreak()
@@ -671,7 +678,7 @@ class ViewCase extends ViewRecord
                                 $html = '<div class="space-y-3">';
 
                                 foreach ($auditLogs as $log) {
-                                    /** @var \App\Models\AuditLog $log */
+                                    /** @var AuditLog $log */
                                     $eventLabel = $log->getEventLabel();
                                     $eventIcon = $log->getEventIcon();
                                     $eventColor = $log->getEventColor();
@@ -800,9 +807,9 @@ class ViewCase extends ViewRecord
      * - Bottles immediately appear as loose stock
      * - Breaking is IRREVERSIBLE
      */
-    protected function getBreakCaseAction(): Actions\Action
+    protected function getBreakCaseAction(): Action
     {
-        return Actions\Action::make('breakCase')
+        return Action::make('breakCase')
             ->label('Break Case')
             ->icon('heroicon-o-scissors')
             ->color('danger')
@@ -818,10 +825,10 @@ class ViewCase extends ViewRecord
             })
             ->modalIcon('heroicon-o-exclamation-triangle')
             ->modalIconColor('danger')
-            ->form([
-                Forms\Components\Section::make()
+            ->schema([
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('warning_content')
+                        Placeholder::make('warning_content')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-danger-50 dark:bg-danger-900/20 rounded-lg border border-danger-200 dark:border-danger-800">
@@ -844,7 +851,7 @@ class ViewCase extends ViewRecord
                                 </div>'
                             )),
                     ]),
-                Forms\Components\Textarea::make('reason')
+                Textarea::make('reason')
                     ->label('Reason for Breaking')
                     ->helperText('Explain why this case needs to be opened (e.g., inspection, sampling, event preparation)')
                     ->required()
@@ -852,7 +859,7 @@ class ViewCase extends ViewRecord
                     ->maxLength(500)
                     ->rows(3)
                     ->placeholder('Enter the reason for opening this case...'),
-                Forms\Components\Checkbox::make('confirm_irreversible')
+                Checkbox::make('confirm_irreversible')
                     ->label('I understand that breaking this case is IRREVERSIBLE and the case can never be handled as a unit again')
                     ->required()
                     ->accepted()
@@ -864,7 +871,7 @@ class ViewCase extends ViewRecord
                 try {
                     $user = auth()->user();
                     if ($user === null) {
-                        throw new \RuntimeException('No authenticated user');
+                        throw new RuntimeException('No authenticated user');
                     }
 
                     /** @var string $reason */
@@ -894,13 +901,13 @@ class ViewCase extends ViewRecord
                     // Refresh the page to show updated status
                     $this->refreshFormData(['integrity_status', 'broken_at', 'broken_by', 'broken_reason']);
 
-                } catch (\InvalidArgumentException $e) {
+                } catch (InvalidArgumentException $e) {
                     Notification::make()
                         ->title('Cannot Break Case')
                         ->body($e->getMessage())
                         ->danger()
                         ->send();
-                } catch (\Throwable $e) {
+                } catch (Throwable $e) {
                     Notification::make()
                         ->title('Error Breaking Case')
                         ->body('An unexpected error occurred: '.$e->getMessage())

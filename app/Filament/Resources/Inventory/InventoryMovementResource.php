@@ -4,14 +4,19 @@ namespace App\Filament\Resources\Inventory;
 
 use App\Enums\Inventory\MovementTrigger;
 use App\Enums\Inventory\MovementType;
-use App\Filament\Resources\Inventory\InventoryMovementResource\Pages;
+use App\Filament\Resources\Inventory\InventoryMovementResource\Pages\ListInventoryMovements;
+use App\Filament\Resources\Inventory\InventoryMovementResource\Pages\ViewInventoryMovement;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Location;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Form;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -19,9 +24,9 @@ class InventoryMovementResource extends Resource
 {
     protected static ?string $model = InventoryMovement::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-path';
 
-    protected static ?string $navigationGroup = 'Inventory';
+    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 6;
 
@@ -31,17 +36,17 @@ class InventoryMovementResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Movements';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
         // Movements are immutable - no create/edit form
-        return $form->schema([]);
+        return $schema->components([]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Movement ID')
                     ->searchable()
                     ->sortable()
@@ -51,7 +56,7 @@ class InventoryMovementResource extends Resource
                     ->limit(12)
                     ->tooltip(fn (InventoryMovement $record): string => $record->id),
 
-                Tables\Columns\TextColumn::make('movement_type')
+                TextColumn::make('movement_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (MovementType $state): string => $state->label())
@@ -59,7 +64,7 @@ class InventoryMovementResource extends Resource
                     ->icon(fn (MovementType $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('sourceLocation.name')
+                TextColumn::make('sourceLocation.name')
                     ->label('Source')
                     ->searchable()
                     ->sortable()
@@ -67,7 +72,7 @@ class InventoryMovementResource extends Resource
                     ->limit(20)
                     ->placeholder('—'),
 
-                Tables\Columns\TextColumn::make('destinationLocation.name')
+                TextColumn::make('destinationLocation.name')
                     ->label('Destination')
                     ->searchable()
                     ->sortable()
@@ -75,7 +80,7 @@ class InventoryMovementResource extends Resource
                     ->limit(20)
                     ->placeholder('—'),
 
-                Tables\Columns\TextColumn::make('items_count')
+                TextColumn::make('items_count')
                     ->label('Items')
                     ->state(fn (InventoryMovement $record): int => $record->items_count)
                     ->badge()
@@ -85,7 +90,7 @@ class InventoryMovementResource extends Resource
                             ->orderBy('movement_items_count', $direction);
                     }),
 
-                Tables\Columns\TextColumn::make('trigger')
+                TextColumn::make('trigger')
                     ->label('Trigger')
                     ->badge()
                     ->formatStateUsing(fn (MovementTrigger $state): string => $state->label())
@@ -93,7 +98,7 @@ class InventoryMovementResource extends Resource
                     ->icon(fn (MovementTrigger $state): string => $state->icon())
                     ->sortable(),
 
-                Tables\Columns\IconColumn::make('custody_changed')
+                IconColumn::make('custody_changed')
                     ->label('Custody')
                     ->boolean()
                     ->trueIcon('heroicon-o-arrow-path-rounded-square')
@@ -103,7 +108,7 @@ class InventoryMovementResource extends Resource
                     ->tooltip(fn (InventoryMovement $record): string => $record->custody_changed ? 'Custody Changed' : 'No Custody Change')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('wms_event_id')
+                TextColumn::make('wms_event_id')
                     ->label('WMS Event')
                     ->searchable()
                     ->sortable()
@@ -113,12 +118,12 @@ class InventoryMovementResource extends Resource
                     ->copyable()
                     ->copyMessage('WMS Event ID copied'),
 
-                Tables\Columns\TextColumn::make('executed_at')
+                TextColumn::make('executed_at')
                     ->label('Executed At')
                     ->dateTime()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('executor.name')
+                TextColumn::make('executor.name')
                     ->label('Executed By')
                     ->searchable()
                     ->sortable()
@@ -127,21 +132,21 @@ class InventoryMovementResource extends Resource
                     ->placeholder('System'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('movement_type')
+                SelectFilter::make('movement_type')
                     ->options(collect(MovementType::cases())
                         ->mapWithKeys(fn (MovementType $type) => [$type->value => $type->label()])
                         ->toArray())
                     ->label('Movement Type')
                     ->multiple(),
 
-                Tables\Filters\SelectFilter::make('trigger')
+                SelectFilter::make('trigger')
                     ->options(collect(MovementTrigger::cases())
                         ->mapWithKeys(fn (MovementTrigger $trigger) => [$trigger->value => $trigger->label()])
                         ->toArray())
                     ->label('Trigger')
                     ->multiple(),
 
-                Tables\Filters\SelectFilter::make('source_location_id')
+                SelectFilter::make('source_location_id')
                     ->label('Source Location')
                     ->options(fn (): array => Location::query()
                         ->orderBy('name')
@@ -150,7 +155,7 @@ class InventoryMovementResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                Tables\Filters\SelectFilter::make('destination_location_id')
+                SelectFilter::make('destination_location_id')
                     ->label('Destination Location')
                     ->options(fn (): array => Location::query()
                         ->orderBy('name')
@@ -161,7 +166,7 @@ class InventoryMovementResource extends Resource
 
                 Filter::make('executed_at')
                     ->label('Execution Date')
-                    ->form([
+                    ->schema([
                         DatePicker::make('executed_from')
                             ->label('From'),
                         DatePicker::make('executed_until')
@@ -190,13 +195,13 @@ class InventoryMovementResource extends Resource
                         return $indicators;
                     }),
 
-                Tables\Filters\TernaryFilter::make('custody_changed')
+                TernaryFilter::make('custody_changed')
                     ->label('Custody Change')
                     ->placeholder('All')
                     ->trueLabel('With Custody Change')
                     ->falseLabel('Without Custody Change'),
 
-                Tables\Filters\TernaryFilter::make('has_wms_event')
+                TernaryFilter::make('has_wms_event')
                     ->label('WMS Event')
                     ->placeholder('All')
                     ->trueLabel('WMS Triggered')
@@ -206,10 +211,10 @@ class InventoryMovementResource extends Resource
                         false: fn (Builder $query) => $query->whereNull('wms_event_id'),
                     ),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // Movements are immutable - no bulk actions
             ])
             ->defaultSort('executed_at', 'desc')
@@ -226,8 +231,8 @@ class InventoryMovementResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListInventoryMovements::route('/'),
-            'view' => Pages\ViewInventoryMovement::route('/{record}'),
+            'index' => ListInventoryMovements::route('/'),
+            'view' => ViewInventoryMovement::route('/{record}'),
         ];
     }
 

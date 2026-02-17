@@ -17,6 +17,8 @@ use App\Services\Allocation\VoucherService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
+use Throwable;
 
 /**
  * Service for managing Shipping Order lifecycle and operations.
@@ -69,7 +71,7 @@ class ShippingOrderService
      * @param  string|null  $shippingMethod  The shipping method (nullable)
      * @return ShippingOrder The created shipping order
      *
-     * @throws \InvalidArgumentException If validation fails
+     * @throws InvalidArgumentException If validation fails
      */
     public function create(
         Customer $customer,
@@ -84,7 +86,7 @@ class ShippingOrderService
 
         // Validate at least one voucher
         if ($vouchers->isEmpty()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot create Shipping Order: at least one voucher is required.'
             );
         }
@@ -196,7 +198,7 @@ class ShippingOrderService
      * @param  ShippingOrderStatus  $targetStatus  The target status
      * @return ShippingOrder The updated shipping order
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function transitionTo(ShippingOrder $shippingOrder, ShippingOrderStatus $targetStatus): ShippingOrder
     {
@@ -204,7 +206,7 @@ class ShippingOrderService
 
         // Check if transition is allowed
         if (! $currentStatus->canTransitionTo($targetStatus)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Invalid status transition from {$currentStatus->label()} to {$targetStatus->label()}. "
                 .'Allowed transitions: '.implode(', ', array_map(fn ($s) => $s->label(), $currentStatus->allowedTransitions())).'.'
             );
@@ -243,12 +245,12 @@ class ShippingOrderService
      * @param  string  $reason  The reason for cancellation
      * @return ShippingOrder The cancelled shipping order
      *
-     * @throws \InvalidArgumentException If cancellation is not allowed
+     * @throws InvalidArgumentException If cancellation is not allowed
      */
     public function cancel(ShippingOrder $shippingOrder, string $reason): ShippingOrder
     {
         if (! $shippingOrder->canBeCancelled()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot cancel Shipping Order: status '{$shippingOrder->status->label()}' does not allow cancellation."
             );
         }
@@ -299,7 +301,7 @@ class ShippingOrderService
      *
      * @param  ShippingOrder  $shippingOrder  The shipping order
      *
-     * @throws \InvalidArgumentException If any voucher cannot be locked
+     * @throws InvalidArgumentException If any voucher cannot be locked
      */
     public function lockVouchersForSO(ShippingOrder $shippingOrder): void
     {
@@ -337,7 +339,7 @@ class ShippingOrderService
                     'count' => count($lockedVouchers),
                 ]
             );
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             // If locking fails, unlock any vouchers we already locked
             foreach ($lockedVouchers as $voucherId) {
                 try {
@@ -345,12 +347,12 @@ class ShippingOrderService
                     if ($voucher !== null && $voucher->isLocked()) {
                         $this->voucherService->unlock($voucher);
                     }
-                } catch (\Throwable) {
+                } catch (Throwable) {
                     // Best effort rollback
                 }
             }
 
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Failed to lock vouchers for Shipping Order: {$e->getMessage()}"
             );
         }
@@ -384,7 +386,7 @@ class ShippingOrderService
             try {
                 $this->voucherService->unlock($voucher);
                 $unlockedVouchers[] = $voucher->id;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Log but continue - best effort unlock
                 $this->logEvent(
                     $shippingOrder,
@@ -433,7 +435,7 @@ class ShippingOrderService
             try {
                 $this->lateBindingService->unbindLine($line);
                 $unboundSerials[] = $serial;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 // Log but continue - best effort unbind
                 $this->logEvent(
                     $shippingOrder,
@@ -591,19 +593,19 @@ class ShippingOrderService
      * @param  ShippingOrder  $shippingOrder  The shipping order
      * @param  Voucher  $voucher  The voucher to add
      *
-     * @throws \InvalidArgumentException If voucher cannot be added
+     * @throws InvalidArgumentException If voucher cannot be added
      */
     public function addVoucher(ShippingOrder $shippingOrder, Voucher $voucher): ShippingOrderLine
     {
         if (! $shippingOrder->canBeEdited()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot add voucher: Shipping Order status '{$shippingOrder->status->label()}' does not allow editing."
             );
         }
 
         // Check if voucher already in this SO
         if ($shippingOrder->lines()->where('voucher_id', $voucher->id)->exists()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Voucher is already included in this Shipping Order.'
             );
         }
@@ -611,7 +613,7 @@ class ShippingOrderService
         // Check voucher eligibility
         $eligibility = $this->checkVoucherEligibility($voucher, $shippingOrder);
         if (! $eligibility['eligible']) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot add voucher: {$eligibility['reason']}"
             );
         }
@@ -648,12 +650,12 @@ class ShippingOrderService
      * @param  ShippingOrder  $shippingOrder  The shipping order
      * @param  Voucher  $voucher  The voucher to remove
      *
-     * @throws \InvalidArgumentException If voucher cannot be removed
+     * @throws InvalidArgumentException If voucher cannot be removed
      */
     public function removeVoucher(ShippingOrder $shippingOrder, Voucher $voucher): void
     {
         if (! $shippingOrder->canBeEdited()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot remove voucher: Shipping Order status '{$shippingOrder->status->label()}' does not allow editing."
             );
         }
@@ -661,7 +663,7 @@ class ShippingOrderService
         $line = $shippingOrder->lines()->where('voucher_id', $voucher->id)->first();
 
         if ($line === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Voucher is not in this Shipping Order.'
             );
         }
@@ -687,12 +689,12 @@ class ShippingOrderService
      *
      * @param  Customer  $customer  The customer to validate
      *
-     * @throws \InvalidArgumentException If customer is not eligible
+     * @throws InvalidArgumentException If customer is not eligible
      */
     protected function validateCustomer(Customer $customer): void
     {
         if (! $customer->isActive()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot create Shipping Order: customer is not active (status: {$customer->status->value})."
             );
         }
@@ -704,14 +706,14 @@ class ShippingOrderService
      * @param  Customer  $customer  The customer
      * @param  Collection<int, Voucher>  $vouchers  The vouchers to validate
      *
-     * @throws \InvalidArgumentException If any voucher is not eligible
+     * @throws InvalidArgumentException If any voucher is not eligible
      */
     protected function validateVouchersForCreation(Customer $customer, Collection $vouchers): void
     {
         foreach ($vouchers as $voucher) {
             // Check voucher belongs to customer
             if ($voucher->customer_id !== $customer->id) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Voucher {$voucher->id} does not belong to customer {$customer->id}."
                 );
             }
@@ -719,7 +721,7 @@ class ShippingOrderService
             // Check voucher is eligible (uses full eligibility check)
             $eligibility = $this->checkVoucherEligibility($voucher);
             if (! $eligibility['eligible']) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     "Voucher {$voucher->id} is not eligible: {$eligibility['reason']}"
                 );
             }
@@ -858,7 +860,7 @@ class ShippingOrderService
      * @param  ShippingOrderStatus  $from  The current status
      * @param  ShippingOrderStatus  $to  The target status
      *
-     * @throws \InvalidArgumentException If pre-conditions are not met
+     * @throws InvalidArgumentException If pre-conditions are not met
      */
     protected function handlePreTransition(
         ShippingOrder $shippingOrder,
@@ -889,7 +891,7 @@ class ShippingOrderService
                     ]);
                 }
 
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Cannot plan Shipping Order: voucher validation failed. '
                     .implode('; ', $errorMessages)
                 );
@@ -929,7 +931,7 @@ class ShippingOrderService
                     );
                 }
 
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Cannot proceed to picking: voucher validation failed. '
                     .'One or more vouchers are no longer eligible for fulfillment. '
                     .implode('; ', $errorMessages)

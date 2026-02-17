@@ -5,22 +5,34 @@ namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
 use App\Enums\Allocation\AllocationSourceType;
 use App\Enums\Allocation\AllocationSupplyForm;
 use App\Filament\Resources\Allocation\AllocationResource;
+use App\Models\Allocation\Allocation;
 use App\Models\Pim\Format;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
 use App\Services\Allocation\AllocationService;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Exception;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateAllocation extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = AllocationResource::class;
 
@@ -33,10 +45,10 @@ class CreateAllocation extends CreateRecord
      * Get the form for creating an allocation.
      * Implements a multi-step wizard for allocation creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -53,7 +65,7 @@ class CreateAllocation extends CreateRecord
     protected function getWizardSubmitActions(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex gap-3">
                     <x-filament::button
                         type="submit"
@@ -99,7 +111,7 @@ class CreateAllocation extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -116,24 +128,24 @@ class CreateAllocation extends CreateRecord
      * Step 1: Bottle SKU Selection
      * Allows selection of Wine (via WineMaster search) + Vintage + Format
      */
-    protected function getBottleSkuStep(): Wizard\Step
+    protected function getBottleSkuStep(): Step
     {
-        return Wizard\Step::make('Bottle SKU')
+        return Step::make('Bottle SKU')
             ->description('Select the wine and format for this allocation')
             ->icon('heroicon-o-cube')
             ->schema([
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('bottle_sku_info')
+                        Placeholder::make('bottle_sku_info')
                             ->label('')
                             ->content('Allocation always happens at Bottle SKU level (Wine + Vintage + Format). You cannot allocate at sellable SKU or packaging level.')
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Wine Selection')
+                Section::make('Wine Selection')
                     ->description('Search and select the wine')
                     ->schema([
-                        Forms\Components\Select::make('wine_master_id')
+                        Select::make('wine_master_id')
                             ->label('Wine')
                             ->placeholder('Search for a wine by name or producer...')
                             ->searchable()
@@ -161,7 +173,7 @@ class CreateAllocation extends CreateRecord
                             ->required()
                             ->helperText('Type at least 2 characters to search for wines by name or producer'),
 
-                        Forms\Components\Select::make('wine_variant_id')
+                        Select::make('wine_variant_id')
                             ->label('Vintage')
                             ->placeholder('Select vintage year...')
                             ->options(function (Get $get): array {
@@ -189,10 +201,10 @@ class CreateAllocation extends CreateRecord
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Format Selection')
+                Section::make('Format Selection')
                     ->description('Select the bottle format (size)')
                     ->schema([
-                        Forms\Components\Select::make('format_id')
+                        Select::make('format_id')
                             ->label('Format')
                             ->placeholder('Select bottle format...')
                             ->options(function (): array {
@@ -211,9 +223,9 @@ class CreateAllocation extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('wine_variant_id') === null)
                     ->columns(1),
 
-                Forms\Components\Section::make('Selected Bottle SKU')
+                Section::make('Selected Bottle SKU')
                     ->schema([
-                        Forms\Components\Placeholder::make('selected_bottle_sku')
+                        Placeholder::make('selected_bottle_sku')
                             ->label('Bottle SKU Preview')
                             ->content(function (Get $get): string {
                                 $wineVariantId = $get('wine_variant_id');
@@ -254,16 +266,16 @@ class CreateAllocation extends CreateRecord
      * Step 2: Source & Capacity
      * Defines the source type, supply form, quantity, and availability window
      */
-    protected function getSourceAndCapacityStep(): Wizard\Step
+    protected function getSourceAndCapacityStep(): Step
     {
-        return Wizard\Step::make('Source & Capacity')
+        return Step::make('Source & Capacity')
             ->description('Define the supply source and quantity')
             ->icon('heroicon-o-archive-box')
             ->schema([
-                Forms\Components\Section::make('Supply Source')
+                Section::make('Supply Source')
                     ->description('Define where this supply comes from')
                     ->schema([
-                        Forms\Components\Select::make('source_type')
+                        Select::make('source_type')
                             ->label('Source Type')
                             ->options(
                                 collect(AllocationSourceType::cases())
@@ -276,7 +288,7 @@ class CreateAllocation extends CreateRecord
                             ->native(false)
                             ->helperText('The commercial arrangement for this supply'),
 
-                        Forms\Components\Select::make('supply_form')
+                        Select::make('supply_form')
                             ->label('Supply Form')
                             ->options(
                                 collect(AllocationSupplyForm::cases())
@@ -292,9 +304,9 @@ class CreateAllocation extends CreateRecord
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('supply_form_guidance')
+                        Placeholder::make('supply_form_guidance')
                             ->label('')
                             ->content(function (Get $get): string {
                                 $supplyForm = $get('supply_form');
@@ -313,10 +325,10 @@ class CreateAllocation extends CreateRecord
                     ])
                     ->hidden(fn (Get $get): bool => $get('supply_form') === null),
 
-                Forms\Components\Section::make('Capacity')
+                Section::make('Capacity')
                     ->description('Define the total available quantity')
                     ->schema([
-                        Forms\Components\TextInput::make('total_quantity')
+                        TextInput::make('total_quantity')
                             ->label('Total Quantity')
                             ->numeric()
                             ->required()
@@ -327,17 +339,17 @@ class CreateAllocation extends CreateRecord
                     ])
                     ->columns(1),
 
-                Forms\Components\Section::make('Availability Window')
+                Section::make('Availability Window')
                     ->description('When will this supply be available for fulfillment?')
                     ->schema([
-                        Forms\Components\DatePicker::make('expected_availability_start')
+                        DatePicker::make('expected_availability_start')
                             ->label('Expected Availability Start')
                             ->native(false)
                             ->displayFormat('Y-m-d')
                             ->live()
                             ->helperText('Earliest date when this supply can be fulfilled'),
 
-                        Forms\Components\DatePicker::make('expected_availability_end')
+                        DatePicker::make('expected_availability_end')
                             ->label('Expected Availability End')
                             ->native(false)
                             ->displayFormat('Y-m-d')
@@ -346,16 +358,16 @@ class CreateAllocation extends CreateRecord
                     ])
                     ->columns(2),
 
-                Forms\Components\Section::make('Serialization')
+                Section::make('Serialization')
                     ->description('Configure bottle tracking requirements')
                     ->schema([
-                        Forms\Components\Toggle::make('serialization_required')
+                        Toggle::make('serialization_required')
                             ->label('Serialization Required')
                             ->default(true)
                             ->live()
                             ->helperText('Each bottle must be assigned a unique serial number'),
 
-                        Forms\Components\Placeholder::make('serialization_guidance')
+                        Placeholder::make('serialization_guidance')
                             ->label('')
                             ->content(function (Get $get): string {
                                 $required = $get('serialization_required');
@@ -376,24 +388,24 @@ class CreateAllocation extends CreateRecord
      * Step 3: Commercial Constraints
      * Defines the authoritative commercial constraints for the allocation
      */
-    protected function getCommercialConstraintsStep(): Wizard\Step
+    protected function getCommercialConstraintsStep(): Step
     {
-        return Wizard\Step::make('Commercial Constraints')
+        return Step::make('Commercial Constraints')
             ->description('Define where and to whom this allocation can be sold')
             ->icon('heroicon-o-shield-check')
             ->schema([
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('constraints_warning')
+                        Placeholder::make('constraints_warning')
                             ->label('')
                             ->content('⚠️ **AUTHORITATIVE CONSTRAINTS** — These constraints are binding and will be enforced by Module S (Sales). Any sale that violates these constraints will be rejected. If no values are selected for a constraint category, all options are allowed by default.')
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Sales Channels')
+                Section::make('Sales Channels')
                     ->description('Which sales channels can sell from this allocation?')
                     ->schema([
-                        Forms\Components\CheckboxList::make('constraint.allowed_channels')
+                        CheckboxList::make('constraint.allowed_channels')
                             ->label('Allowed Channels')
                             ->options([
                                 'b2c' => 'B2C (Direct to Consumer)',
@@ -406,19 +418,19 @@ class CreateAllocation extends CreateRecord
                             ->helperText('Leave empty to allow all channels'),
                     ]),
 
-                Forms\Components\Section::make('Geographic Restrictions')
+                Section::make('Geographic Restrictions')
                     ->description('Which geographic regions can receive from this allocation?')
                     ->schema([
-                        Forms\Components\TagsInput::make('constraint.allowed_geographies')
+                        TagsInput::make('constraint.allowed_geographies')
                             ->label('Allowed Geographies')
                             ->placeholder('Add geography codes (e.g., IT, FR, US, EU)...')
                             ->helperText('Enter ISO country codes or region codes. Leave empty to allow all geographies.'),
                     ]),
 
-                Forms\Components\Section::make('Customer Types')
+                Section::make('Customer Types')
                     ->description('Which customer types can purchase from this allocation?')
                     ->schema([
-                        Forms\Components\CheckboxList::make('constraint.allowed_customer_types')
+                        CheckboxList::make('constraint.allowed_customer_types')
                             ->label('Allowed Customer Types')
                             ->options([
                                 'retail' => 'Retail Customers',
@@ -431,9 +443,9 @@ class CreateAllocation extends CreateRecord
                             ->helperText('Leave empty to allow all customer types'),
                     ]),
 
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('constraints_info')
+                        Placeholder::make('constraints_info')
                             ->label('')
                             ->content('**Note:** Constraints become read-only once the allocation is activated. To modify constraints, the allocation must remain in Draft status.')
                             ->columnSpanFull(),
@@ -445,33 +457,33 @@ class CreateAllocation extends CreateRecord
      * Step 4: Advanced/Liquid Constraints
      * Defines advanced constraints and liquid-specific options
      */
-    protected function getAdvancedConstraintsStep(): Wizard\Step
+    protected function getAdvancedConstraintsStep(): Step
     {
-        return Wizard\Step::make('Advanced Constraints')
+        return Step::make('Advanced Constraints')
             ->description('Optional advanced constraints (expanded for liquid allocations)')
             ->icon('heroicon-o-adjustments-horizontal')
             ->schema([
                 // Section that shows when liquid is selected - expanded by default
-                Forms\Components\Section::make('Liquid Allocation Constraints')
+                Section::make('Liquid Allocation Constraints')
                     ->description('Additional constraints specific to liquid (not yet bottled) supply')
                     ->icon('heroicon-o-beaker')
                     ->schema([
-                        Forms\Components\Placeholder::make('liquid_constraints_info')
+                        Placeholder::make('liquid_constraints_info')
                             ->label('')
                             ->content('**Liquid allocations** require additional constraints to define bottling options and deadlines. Customers purchasing from liquid allocations may need to confirm bottling preferences before a deadline.')
                             ->columnSpanFull(),
 
-                        Forms\Components\TagsInput::make('liquid_constraint.allowed_bottling_formats')
+                        TagsInput::make('liquid_constraint.allowed_bottling_formats')
                             ->label('Allowed Bottling Formats')
                             ->placeholder('Add format codes (e.g., 750ml, 1500ml, 375ml)...')
                             ->helperText('Specify which bottle formats customers can choose for bottling. Leave empty to allow all formats.'),
 
-                        Forms\Components\TagsInput::make('liquid_constraint.allowed_case_configurations')
+                        TagsInput::make('liquid_constraint.allowed_case_configurations')
                             ->label('Allowed Case Configurations')
                             ->placeholder('Add case configs (e.g., 6-pack, 12-pack, OWC-6)...')
                             ->helperText('Specify case packaging options available to customers. Leave empty to allow all configurations.'),
 
-                        Forms\Components\DatePicker::make('liquid_constraint.bottling_confirmation_deadline')
+                        DatePicker::make('liquid_constraint.bottling_confirmation_deadline')
                             ->label('Bottling Confirmation Deadline')
                             ->native(false)
                             ->displayFormat('Y-m-d')
@@ -482,26 +494,26 @@ class CreateAllocation extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('supply_form') !== AllocationSupplyForm::Liquid->value),
 
                 // Advanced constraints section - always available but collapsed by default
-                Forms\Components\Section::make('Advanced Commercial Constraints')
+                Section::make('Advanced Commercial Constraints')
                     ->description('Optional advanced constraints for special scenarios')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->schema([
-                        Forms\Components\TextInput::make('constraint.composition_constraint_group')
+                        TextInput::make('constraint.composition_constraint_group')
                             ->label('Composition Constraint Group')
                             ->placeholder('e.g., vertical-case-2020, premium-selection')
                             ->helperText('Optional identifier for grouping allocations that can be composed into vertical cases or themed selections. Allocations with the same group can be combined.'),
 
-                        Forms\Components\Placeholder::make('composition_guidance')
+                        Placeholder::make('composition_guidance')
                             ->label('')
                             ->content('**Composition Constraint Groups** are used for vertical cases and themed collections. For example, if you have separate allocations for different vintages of the same wine, you can assign them the same composition group (e.g., "château-margaux-vertical") to indicate they can be combined into a vertical case offering.')
                             ->columnSpanFull(),
 
-                        Forms\Components\Toggle::make('constraint.fungibility_exception')
+                        Toggle::make('constraint.fungibility_exception')
                             ->label('Fungibility Exception')
                             ->default(false)
                             ->helperText('Enable if bottles from this allocation are NOT interchangeable with identical bottles from other allocations'),
 
-                        Forms\Components\Placeholder::make('fungibility_guidance')
+                        Placeholder::make('fungibility_guidance')
                             ->label('')
                             ->content('**Fungibility Exception:** By default, bottles of the same SKU are considered fungible (interchangeable). Enable this exception for special allocations where the specific provenance matters, such as ex-cellar releases or bottles with specific storage history.')
                             ->hidden(fn (Get $get): bool => ! $get('constraint.fungibility_exception'))
@@ -511,9 +523,9 @@ class CreateAllocation extends CreateRecord
                     ->collapsed(fn (Get $get): bool => $get('supply_form') !== AllocationSupplyForm::Liquid->value),
 
                 // Info message for non-liquid allocations
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('advanced_info')
+                        Placeholder::make('advanced_info')
                             ->label('')
                             ->content('**Tip:** For bottled allocations, advanced constraints are typically not needed. You can skip this step unless you need composition groups or fungibility exceptions.')
                             ->columnSpanFull(),
@@ -526,26 +538,26 @@ class CreateAllocation extends CreateRecord
      * Step 5: Review & Create
      * Shows a read-only summary of all data and provides creation options
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review & Create')
+        return Step::make('Review & Create')
             ->description('Review your allocation before creating')
             ->icon('heroicon-o-check-badge')
             ->schema([
                 // Draft status warning
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('draft_warning')
+                        Placeholder::make('draft_warning')
                             ->label('')
                             ->content('⚠️ **Draft allocations cannot be consumed and do not issue vouchers.** Activate the allocation when you are ready to start selling from it.')
                             ->columnSpanFull(),
                     ]),
 
                 // Bottle SKU Summary
-                Forms\Components\Section::make('Bottle SKU')
+                Section::make('Bottle SKU')
                     ->icon('heroicon-o-cube')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_bottle_sku')
+                        Placeholder::make('review_bottle_sku')
                             ->label('Selected Bottle SKU')
                             ->content(function (Get $get): string {
                                 $wineVariantId = $get('wine_variant_id');
@@ -580,10 +592,10 @@ class CreateAllocation extends CreateRecord
                     ->columns(1),
 
                 // Source & Capacity Summary
-                Forms\Components\Section::make('Source & Capacity')
+                Section::make('Source & Capacity')
                     ->icon('heroicon-o-archive-box')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_source_type')
+                        Placeholder::make('review_source_type')
                             ->label('Source Type')
                             ->content(function (Get $get): string {
                                 $sourceType = $get('source_type');
@@ -595,7 +607,7 @@ class CreateAllocation extends CreateRecord
                                 return $enum !== null ? $enum->label() : $sourceType;
                             }),
 
-                        Forms\Components\Placeholder::make('review_supply_form')
+                        Placeholder::make('review_supply_form')
                             ->label('Supply Form')
                             ->content(function (Get $get): string {
                                 $supplyForm = $get('supply_form');
@@ -607,11 +619,11 @@ class CreateAllocation extends CreateRecord
                                 return $enum !== null ? $enum->label() : $supplyForm;
                             }),
 
-                        Forms\Components\Placeholder::make('review_total_quantity')
+                        Placeholder::make('review_total_quantity')
                             ->label('Total Quantity')
                             ->content(fn (Get $get): string => ($get('total_quantity') ?? '0').' bottles'),
 
-                        Forms\Components\Placeholder::make('review_availability')
+                        Placeholder::make('review_availability')
                             ->label('Availability Window')
                             ->content(function (Get $get): string {
                                 $start = $get('expected_availability_start');
@@ -632,17 +644,17 @@ class CreateAllocation extends CreateRecord
                                 return "{$start} - {$end}";
                             }),
 
-                        Forms\Components\Placeholder::make('review_serialization')
+                        Placeholder::make('review_serialization')
                             ->label('Serialization')
                             ->content(fn (Get $get): string => $get('serialization_required') ? 'Required (individual tracking)' : 'Not required'),
                     ])
                     ->columns(2),
 
                 // Commercial Constraints Summary
-                Forms\Components\Section::make('Commercial Constraints')
+                Section::make('Commercial Constraints')
                     ->icon('heroicon-o-shield-check')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_channels')
+                        Placeholder::make('review_channels')
                             ->label('Allowed Channels')
                             ->content(function (Get $get): string {
                                 $channels = $get('constraint.allowed_channels');
@@ -660,7 +672,7 @@ class CreateAllocation extends CreateRecord
                                 }, $channels));
                             }),
 
-                        Forms\Components\Placeholder::make('review_geographies')
+                        Placeholder::make('review_geographies')
                             ->label('Allowed Geographies')
                             ->content(function (Get $get): string {
                                 $geos = $get('constraint.allowed_geographies');
@@ -671,7 +683,7 @@ class CreateAllocation extends CreateRecord
                                 return implode(', ', $geos);
                             }),
 
-                        Forms\Components\Placeholder::make('review_customer_types')
+                        Placeholder::make('review_customer_types')
                             ->label('Allowed Customer Types')
                             ->content(function (Get $get): string {
                                 $types = $get('constraint.allowed_customer_types');
@@ -692,14 +704,14 @@ class CreateAllocation extends CreateRecord
                     ->columns(2),
 
                 // Advanced Constraints Summary (only shown if any are set)
-                Forms\Components\Section::make('Advanced Constraints')
+                Section::make('Advanced Constraints')
                     ->icon('heroicon-o-adjustments-horizontal')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_composition_group')
+                        Placeholder::make('review_composition_group')
                             ->label('Composition Constraint Group')
                             ->content(fn (Get $get): string => $get('constraint.composition_constraint_group') ?? 'None'),
 
-                        Forms\Components\Placeholder::make('review_fungibility')
+                        Placeholder::make('review_fungibility')
                             ->label('Fungibility Exception')
                             ->content(fn (Get $get): string => $get('constraint.fungibility_exception') ? 'Yes (non-fungible)' : 'No (standard fungibility)'),
                     ])
@@ -707,10 +719,10 @@ class CreateAllocation extends CreateRecord
                     ->hidden(fn (Get $get): bool => empty($get('constraint.composition_constraint_group')) && ! $get('constraint.fungibility_exception')),
 
                 // Liquid Constraints Summary (only shown for liquid allocations)
-                Forms\Components\Section::make('Liquid Allocation Constraints')
+                Section::make('Liquid Allocation Constraints')
                     ->icon('heroicon-o-beaker')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_bottling_formats')
+                        Placeholder::make('review_bottling_formats')
                             ->label('Allowed Bottling Formats')
                             ->content(function (Get $get): string {
                                 $formats = $get('liquid_constraint.allowed_bottling_formats');
@@ -721,7 +733,7 @@ class CreateAllocation extends CreateRecord
                                 return implode(', ', $formats);
                             }),
 
-                        Forms\Components\Placeholder::make('review_case_configs')
+                        Placeholder::make('review_case_configs')
                             ->label('Allowed Case Configurations')
                             ->content(function (Get $get): string {
                                 $configs = $get('liquid_constraint.allowed_case_configurations');
@@ -732,7 +744,7 @@ class CreateAllocation extends CreateRecord
                                 return implode(', ', $configs);
                             }),
 
-                        Forms\Components\Placeholder::make('review_bottling_deadline')
+                        Placeholder::make('review_bottling_deadline')
                             ->label('Bottling Confirmation Deadline')
                             ->content(fn (Get $get): string => $get('liquid_constraint.bottling_confirmation_deadline') ?? 'No deadline'),
                     ])
@@ -740,20 +752,20 @@ class CreateAllocation extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('supply_form') !== AllocationSupplyForm::Liquid->value),
 
                 // Informational warnings section
-                Forms\Components\Section::make('Before You Create')
+                Section::make('Before You Create')
                     ->icon('heroicon-o-information-circle')
                     ->schema([
-                        Forms\Components\Placeholder::make('info_constraints_readonly')
+                        Placeholder::make('info_constraints_readonly')
                             ->label('')
                             ->content('📋 **Constraints become read-only** once the allocation is activated. Review them carefully before proceeding.')
                             ->columnSpanFull(),
 
-                        Forms\Components\Placeholder::make('info_draft_explanation')
+                        Placeholder::make('info_draft_explanation')
                             ->label('')
                             ->content('📝 **"Create as Draft"** creates the allocation in Draft status. You can review and edit constraints, then activate later.')
                             ->columnSpanFull(),
 
-                        Forms\Components\Placeholder::make('info_activate_explanation')
+                        Placeholder::make('info_activate_explanation')
                             ->label('')
                             ->content('⚡ **"Create and Activate"** creates the allocation and immediately activates it. Constraints will be locked immediately.')
                             ->columnSpanFull(),
@@ -835,7 +847,7 @@ class CreateAllocation extends CreateRecord
      */
     protected function afterCreate(): void
     {
-        /** @var \App\Models\Allocation\Allocation $allocation */
+        /** @var Allocation $allocation */
         $allocation = $this->record;
 
         // Handle AllocationConstraint data (from Step 3 and Step 4)
@@ -919,7 +931,7 @@ class CreateAllocation extends CreateRecord
                     ->title('Allocation created and activated')
                     ->body('The allocation has been created and is now active. Constraints are now read-only.')
                     ->send();
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 Notification::make()
                     ->warning()
                     ->title('Allocation created but activation failed')

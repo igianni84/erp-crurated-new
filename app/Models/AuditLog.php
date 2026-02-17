@@ -3,9 +3,11 @@
 namespace App\Models;
 
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use InvalidArgumentException;
 
 /**
  * AuditLog Model
@@ -21,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property array|null $old_values
  * @property array|null $new_values
  * @property int|null $user_id
- * @property \Carbon\Carbon $created_at
+ * @property Carbon $created_at
  */
 class AuditLog extends Model
 {
@@ -38,14 +40,14 @@ class AuditLog extends Model
 
         // Prevent updates - audit logs are immutable
         static::updating(function (): void {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Audit logs are immutable and cannot be updated.'
             );
         });
 
         // Prevent deletions - audit logs are immutable
         static::deleting(function (): void {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Audit logs are immutable and cannot be deleted.'
             );
         });

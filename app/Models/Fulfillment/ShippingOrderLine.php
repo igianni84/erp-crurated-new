@@ -5,15 +5,18 @@ namespace App\Models\Fulfillment;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
+use App\Models\AuditLog;
 use App\Models\Inventory\InventoryCase;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * ShippingOrderLine Model
@@ -35,7 +38,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $bound_bottle_serial
  * @property string|null $bound_case_id
  * @property string|null $early_binding_serial
- * @property \Carbon\Carbon|null $binding_confirmed_at
+ * @property Carbon|null $binding_confirmed_at
  * @property int|null $binding_confirmed_by
  * @property int|null $created_by
  * @property int|null $updated_by
@@ -105,7 +108,7 @@ class ShippingOrderLine extends Model
         // Prevent modification of allocation_id after creation (IMMUTABLE)
         static::updating(function (ShippingOrderLine $line): void {
             if ($line->isDirty('allocation_id')) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'allocation_id is immutable after creation. Cross-allocation substitution is not allowed.'
                 );
             }
@@ -175,11 +178,11 @@ class ShippingOrderLine extends Model
     /**
      * Get the audit logs for this shipping order line.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**

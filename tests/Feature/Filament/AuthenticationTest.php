@@ -4,7 +4,7 @@ namespace Tests\Feature\Filament;
 
 use App\Enums\UserRole;
 use App\Models\User;
-use Filament\Pages\Auth\Login;
+use Filament\Auth\Pages\Login;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\TestCase;

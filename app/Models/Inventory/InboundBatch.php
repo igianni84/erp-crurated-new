@@ -5,8 +5,10 @@ namespace App\Models\Inventory;
 use App\Enums\Inventory\InboundBatchStatus;
 use App\Enums\Inventory\OwnershipType;
 use App\Models\Allocation\Allocation;
+use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * InboundBatch Model
@@ -33,7 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $packaging_type
  * @property string $receiving_location_id
  * @property OwnershipType $ownership_type
- * @property \Carbon\Carbon $received_date
+ * @property Carbon $received_date
  * @property string|null $condition_notes
  * @property InboundBatchStatus $serialization_status
  * @property string|null $wms_reference_id
@@ -100,7 +103,7 @@ class InboundBatch extends Model
         static::saving(function (InboundBatch $batch): void {
             // Ensure quantity_received is non-negative
             if ($batch->quantity_received < 0) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'quantity_received cannot be negative'
                 );
             }
@@ -140,11 +143,11 @@ class InboundBatch extends Model
     /**
      * Get the audit logs for this inbound batch.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -264,9 +267,9 @@ class InboundBatch extends Model
      */
     public function getDisplayLabelAttribute(): string
     {
-        /** @var \Carbon\Carbon|null $receivedDate */
+        /** @var Carbon|null $receivedDate */
         $receivedDate = $this->received_date;
-        $date = $receivedDate instanceof \Carbon\Carbon
+        $date = $receivedDate instanceof Carbon
             ? $receivedDate->format('Y-m-d')
             : 'Unknown date';
 

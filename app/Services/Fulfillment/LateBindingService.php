@@ -3,7 +3,9 @@
 namespace App\Services\Fulfillment;
 
 use App\Enums\Fulfillment\PackagingPreference;
+use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
 use App\Enums\Fulfillment\ShippingOrderExceptionType;
+use App\Enums\Fulfillment\ShippingOrderStatus;
 use App\Enums\Inventory\BottleState;
 use App\Enums\Inventory\CaseIntegrityStatus;
 use App\Models\Fulfillment\ShippingOrder;
@@ -17,6 +19,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing Late Binding logic in fulfillment.
@@ -166,13 +169,13 @@ class LateBindingService
      * @param  string  $serialNumber  The bottle serial number to bind
      * @return ShippingOrderLine The updated line
      *
-     * @throws \InvalidArgumentException If binding validation fails
+     * @throws InvalidArgumentException If binding validation fails
      */
     public function bindVoucherToBottle(ShippingOrderLine $line, string $serialNumber): ShippingOrderLine
     {
         // Validate line status allows binding
         if (! $line->status->allowsBinding()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot bind voucher: line status '{$line->status->label()}' does not allow binding. "
                 .'Binding is only allowed in Validated status.'
             );
@@ -180,7 +183,7 @@ class LateBindingService
 
         // Check if already bound
         if ($line->isBound()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot bind voucher: line is already bound to serial '{$line->bound_bottle_serial}'. "
                 .'Use unbindLine() first to change the binding.'
             );
@@ -189,14 +192,14 @@ class LateBindingService
         // Find the bottle
         $bottle = SerializedBottle::where('serial_number', $serialNumber)->first();
         if ($bottle === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot bind voucher: bottle with serial '{$serialNumber}' not found."
             );
         }
 
         // Validate allocation lineage match (HARD constraint)
         if ($bottle->allocation_id !== $line->allocation_id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Allocation lineage mismatch. Cross-allocation substitution not allowed. '
                 ."Line allocation: {$line->allocation_id}, Bottle allocation: {$bottle->allocation_id}."
             );
@@ -204,7 +207,7 @@ class LateBindingService
 
         // Validate bottle state
         if ($bottle->state !== BottleState::Stored) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot bind voucher: bottle is in '{$bottle->state->label()}' state. "
                 .'Only bottles in Stored state can be bound.'
             );
@@ -215,14 +218,14 @@ class LateBindingService
             ->where('id', '!=', $line->id)
             ->whereHas('shippingOrder', function ($query) {
                 $query->whereNotIn('status', [
-                    \App\Enums\Fulfillment\ShippingOrderStatus::Cancelled->value,
-                    \App\Enums\Fulfillment\ShippingOrderStatus::Completed->value,
+                    ShippingOrderStatus::Cancelled->value,
+                    ShippingOrderStatus::Completed->value,
                 ]);
             })
             ->first();
 
         if ($existingBinding !== null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot bind voucher: bottle '{$serialNumber}' is already bound to another active shipping order line."
             );
         }
@@ -348,7 +351,7 @@ class LateBindingService
      * @param  ShippingOrderLine  $line  The line with early binding to validate
      * @return array{valid: bool, errors: list<string>}
      *
-     * @throws \InvalidArgumentException If validation fails and blocks shipment
+     * @throws InvalidArgumentException If validation fails and blocks shipment
      */
     public function validateEarlyBinding(ShippingOrderLine $line): array
     {
@@ -422,20 +425,20 @@ class LateBindingService
      * @param  ShippingOrderLine  $line  The line to unbind
      * @return ShippingOrderLine The updated line
      *
-     * @throws \InvalidArgumentException If unbinding is not allowed
+     * @throws InvalidArgumentException If unbinding is not allowed
      */
     public function unbindLine(ShippingOrderLine $line): ShippingOrderLine
     {
         // Cannot unbind if already shipped
         if ($line->isShipped()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot unbind line: line has already been shipped. Shipped bindings are permanent.'
             );
         }
 
         // Cannot unbind if not bound
         if (! $line->isBound()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot unbind line: line has no bound bottle.'
             );
         }
@@ -626,7 +629,7 @@ class LateBindingService
             'exception_type' => ShippingOrderExceptionType::EarlyBindingFailed,
             'description' => "Early binding validation failed for voucher {$line->voucher_id}: {$reason}. "
                 .'NO fallback to late binding is allowed.',
-            'status' => \App\Enums\Fulfillment\ShippingOrderExceptionStatus::Active,
+            'status' => ShippingOrderExceptionStatus::Active,
             'created_by' => Auth::id(),
         ]);
     }

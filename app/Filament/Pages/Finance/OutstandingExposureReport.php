@@ -9,6 +9,7 @@ use App\Models\Finance\Invoice;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Outstanding Exposure Report page for Finance module.
@@ -21,11 +22,11 @@ use Illuminate\Support\Collection;
  */
 class OutstandingExposureReport extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-exclamation-triangle';
 
     protected static ?string $navigationLabel = 'Outstanding Exposure';
 
-    protected static ?string $navigationGroup = 'Finance';
+    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
 
     protected static ?string $navigationParentItem = 'Reports';
 
@@ -33,7 +34,7 @@ class OutstandingExposureReport extends Page
 
     protected static ?string $title = 'Outstanding Exposure Report';
 
-    protected static string $view = 'filament.pages.finance.outstanding-exposure-report';
+    protected string $view = 'filament.pages.finance.outstanding-exposure-report';
 
     /**
      * Number of months to show in trend chart.
@@ -450,7 +451,7 @@ class OutstandingExposureReport extends Page
     /**
      * Export report to CSV.
      */
-    public function exportToCsv(): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportToCsv(): StreamedResponse
     {
         $summary = $this->getSummary();
         $customerData = $this->getOutstandingByCustomer();

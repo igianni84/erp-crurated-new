@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Customer\ClubResource\Pages;
 
 use App\Filament\Resources\Customer\ClubResource;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 
 class ListClubs extends ListRecords
@@ -13,7 +13,7 @@ class ListClubs extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make(),
         ];
     }
 }

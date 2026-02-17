@@ -7,6 +7,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Models\AuditLog;
 use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
+use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -367,7 +368,7 @@ class CreditNoteService
         try {
             $xeroService = app(XeroIntegrationService::class);
             $xeroService->syncCreditNote($creditNote);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Log the error but don't fail the credit note issuance
             // The sync can be retried later via the Integrations Health page
             Log::channel('finance')->warning('Xero sync failed after credit note issuance', [

@@ -5,8 +5,9 @@ namespace App\Filament\Resources\Finance\CreditNoteResource\Pages;
 use App\Enums\Finance\CreditNoteStatus;
 use App\Filament\Resources\Finance\CreditNoteResource;
 use App\Models\Finance\CreditNote;
-use Filament\Resources\Components\Tab;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 
 class ListCreditNotes extends ListRecords
@@ -14,7 +15,7 @@ class ListCreditNotes extends ListRecords
     protected static string $resource = CreditNoteResource::class;
 
     /**
-     * @return array<\Filament\Actions\Action>
+     * @return array<Action>
      */
     protected function getHeaderActions(): array
     {
@@ -24,7 +25,7 @@ class ListCreditNotes extends ListRecords
     }
 
     /**
-     * @return array<string, Tab>
+     * @return array<string, \Filament\Schemas\Components\Tabs\Tab>
      */
     public function getTabs(): array
     {

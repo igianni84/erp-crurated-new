@@ -7,17 +7,19 @@ use App\Enums\ProductLifecycleStatus;
 use App\Filament\Resources\Pim\WineVariantResource;
 use App\Models\AuditLog;
 use App\Models\Pim\WineVariant;
-use Filament\Actions;
-use Filament\Infolists\Components\Actions\Action as InfolistAction;
-use Filament\Infolists\Components\Actions as InfolistActions;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
 
@@ -36,9 +38,9 @@ class ViewWineVariant extends ViewRecord
         return "{$wineName} ({$record->vintage_year})";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Section::make('Product Overview')
                     ->description('Control panel showing product identity and status')
@@ -240,7 +242,7 @@ class ViewWineVariant extends ViewRecord
         $record = $this->record;
 
         return [
-            Actions\Action::make('validate')
+            Action::make('validate')
                 ->label('Validate')
                 ->icon('heroicon-o-shield-check')
                 ->color('gray')
@@ -275,9 +277,9 @@ class ViewWineVariant extends ViewRecord
                     // Refresh the page to show updated infolist
                     $this->redirect(WineVariantResource::getUrl('view', ['record' => $record]));
                 }),
-            Actions\EditAction::make(),
-            Actions\ActionGroup::make([
-                Actions\Action::make('submit_for_review')
+            EditAction::make(),
+            ActionGroup::make([
+                Action::make('submit_for_review')
                     ->label('Submit for Review')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('warning')
@@ -293,7 +295,7 @@ class ViewWineVariant extends ViewRecord
                             ->send();
                         $this->refreshFormData(['lifecycle_status']);
                     }),
-                Actions\Action::make('approve')
+                Action::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check')
                     ->color('info')
@@ -309,7 +311,7 @@ class ViewWineVariant extends ViewRecord
                             ->send();
                         $this->refreshFormData(['lifecycle_status']);
                     }),
-                Actions\Action::make('reject')
+                Action::make('reject')
                     ->label('Reject')
                     ->icon('heroicon-o-x-mark')
                     ->color('danger')
@@ -325,7 +327,7 @@ class ViewWineVariant extends ViewRecord
                             ->send();
                         $this->refreshFormData(['lifecycle_status']);
                     }),
-                Actions\Action::make('publish')
+                Action::make('publish')
                     ->label('Publish')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
@@ -357,7 +359,7 @@ class ViewWineVariant extends ViewRecord
                             ->send();
                         $this->refreshFormData(['lifecycle_status']);
                     }),
-                Actions\Action::make('archive')
+                Action::make('archive')
                     ->label('Archive')
                     ->icon('heroicon-o-archive-box')
                     ->color('danger')
@@ -376,8 +378,8 @@ class ViewWineVariant extends ViewRecord
             ])->label('Lifecycle')
                 ->icon('heroicon-o-arrow-path')
                 ->button(),
-            Actions\DeleteAction::make(),
-            Actions\RestoreAction::make(),
+            DeleteAction::make(),
+            RestoreAction::make(),
         ];
     }
 
@@ -421,7 +423,7 @@ class ViewWineVariant extends ViewRecord
     /**
      * Get action buttons for navigating to fix blocking issues.
      */
-    protected function getBlockingIssuesActions(): InfolistActions
+    protected function getBlockingIssuesActions(): \Filament\Schemas\Components\Actions
     {
         /** @var WineVariant $record */
         $record = $this->record;
@@ -430,21 +432,21 @@ class ViewWineVariant extends ViewRecord
 
         $actions = [];
         foreach ($tabs as $tab) {
-            $actions[] = InfolistAction::make("fix_{$tab}")
+            $actions[] = Action::make("fix_{$tab}")
                 ->label('Fix in '.self::formatTabName($tab))
                 ->icon('heroicon-o-pencil-square')
                 ->color('danger')
                 ->url(self::getEditUrlForTab($record, $tab));
         }
 
-        return InfolistActions::make($actions)
+        return \Filament\Schemas\Components\Actions::make($actions)
             ->visible(fn (): bool => count($issues) > 0);
     }
 
     /**
      * Get action buttons for navigating to fix warnings.
      */
-    protected function getWarningsActions(): InfolistActions
+    protected function getWarningsActions(): \Filament\Schemas\Components\Actions
     {
         /** @var WineVariant $record */
         $record = $this->record;
@@ -453,14 +455,14 @@ class ViewWineVariant extends ViewRecord
 
         $actions = [];
         foreach ($tabs as $tab) {
-            $actions[] = InfolistAction::make("improve_{$tab}")
+            $actions[] = Action::make("improve_{$tab}")
                 ->label('Improve in '.self::formatTabName($tab))
                 ->icon('heroicon-o-pencil-square')
                 ->color('warning')
                 ->url(self::getEditUrlForTab($record, $tab));
         }
 
-        return InfolistActions::make($actions)
+        return \Filament\Schemas\Components\Actions::make($actions)
             ->visible(fn (): bool => count($warnings) > 0);
     }
 

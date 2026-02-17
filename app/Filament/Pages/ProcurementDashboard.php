@@ -19,23 +19,24 @@ use App\Models\Procurement\ProcurementIntent;
 use App\Models\Procurement\PurchaseOrder;
 use Carbon\Carbon;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Collection;
 
 class ProcurementDashboard extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-group';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-group';
 
     protected static ?string $navigationLabel = 'Overview';
 
-    protected static ?string $navigationGroup = 'Procurement';
+    protected static string|\UnitEnum|null $navigationGroup = 'Procurement';
 
     protected static ?int $navigationSort = 0;
 
     protected static ?string $title = 'Procurement Overview';
 
-    protected static string $view = 'filament.pages.procurement-dashboard';
+    protected string $view = 'filament.pages.procurement-dashboard';
 
     // ========================================
     // Dashboard Controls State
@@ -285,7 +286,7 @@ class ProcurementDashboard extends Page
     public function getVouchersAwaitingSourcingUrl(): string
     {
         return ProcurementIntentResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'trigger_type' => [
                     'value' => ProcurementTriggerType::VoucherDriven->value,
                 ],
@@ -305,7 +306,7 @@ class ProcurementDashboard extends Page
     public function getAllocationDrivenPendingUrl(): string
     {
         return ProcurementIntentResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'trigger_type' => [
                     'value' => ProcurementTriggerType::AllocationDriven->value,
                 ],
@@ -325,7 +326,7 @@ class ProcurementDashboard extends Page
     public function getBottlingRequiredDemandUrl(): string
     {
         return BottlingInstructionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'value' => BottlingInstructionStatus::Active->value,
                 ],
@@ -339,7 +340,7 @@ class ProcurementDashboard extends Page
     public function getExpectedInboundsUrl(): string
     {
         return PurchaseOrderResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [
                         PurchaseOrderStatus::Sent->value,
@@ -627,7 +628,7 @@ class ProcurementDashboard extends Page
     public function getPendingApprovalsUrl(): string
     {
         return ProcurementIntentResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [ProcurementIntentStatus::Draft->value],
                 ],
@@ -673,7 +674,7 @@ class ProcurementDashboard extends Page
     public function getPendingOwnershipInboundsUrl(): string
     {
         return InboundResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'ownership_pending' => true,
             ],
         ]);
@@ -685,7 +686,7 @@ class ProcurementDashboard extends Page
     public function getUnlinkedInboundsUrl(): string
     {
         return InboundResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'unlinked' => true,
             ],
         ]);
@@ -697,7 +698,7 @@ class ProcurementDashboard extends Page
     public function getVariancePOsUrl(): string
     {
         return PurchaseOrderResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'variance' => 'significant_variance',
             ],
         ]);
@@ -709,7 +710,7 @@ class ProcurementDashboard extends Page
     public function getOverduePOsUrl(): string
     {
         return PurchaseOrderResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'overdue' => true,
             ],
         ]);
@@ -721,7 +722,7 @@ class ProcurementDashboard extends Page
     public function getBottlingDeadlinesUrl(): string
     {
         return BottlingInstructionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'deadline_urgent' => true,
             ],
         ]);
@@ -874,7 +875,7 @@ class ProcurementDashboard extends Page
     public function getBottling30dDeadlinesUrl(): string
     {
         return BottlingInstructionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'deadline_urgent' => true,
             ],
         ]);
@@ -886,7 +887,7 @@ class ProcurementDashboard extends Page
     public function getBottlingPendingPreferencesUrl(): string
     {
         return BottlingInstructionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'preference_status' => [
                     'values' => [
                         BottlingPreferenceStatus::Pending->value,
@@ -903,7 +904,7 @@ class ProcurementDashboard extends Page
     public function getBottlingDefaultedUrl(): string
     {
         return BottlingInstructionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'preference_status' => [
                     'values' => [
                         BottlingPreferenceStatus::Defaulted->value,
@@ -999,7 +1000,7 @@ class ProcurementDashboard extends Page
     public function getAwaitingSerializationRoutingUrl(): string
     {
         return InboundResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [InboundStatus::Recorded->value],
                 ],
@@ -1014,7 +1015,7 @@ class ProcurementDashboard extends Page
     public function getAwaitingHandoffUrl(): string
     {
         return InboundResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [InboundStatus::Completed->value],
                 ],
@@ -1029,7 +1030,7 @@ class ProcurementDashboard extends Page
     public function getDelayedPOsUrl(): string
     {
         return PurchaseOrderResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'overdue' => true,
             ],
         ]);
@@ -1041,7 +1042,7 @@ class ProcurementDashboard extends Page
     public function getExpected30dPOsUrl(): string
     {
         return PurchaseOrderResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'values' => [
                         PurchaseOrderStatus::Sent->value,
@@ -1108,7 +1109,7 @@ class ProcurementDashboard extends Page
     public function getBottlingPastDeadlineUrl(): string
     {
         return BottlingInstructionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'status' => [
                     'value' => BottlingInstructionStatus::Active->value,
                 ],

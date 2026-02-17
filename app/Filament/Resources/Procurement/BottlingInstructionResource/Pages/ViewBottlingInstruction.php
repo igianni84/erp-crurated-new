@@ -8,17 +8,21 @@ use App\Filament\Resources\Procurement\BottlingInstructionResource;
 use App\Models\AuditLog;
 use App\Models\Procurement\BottlingInstruction;
 use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\ActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\RestoreAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Contracts\Support\Htmlable;
 
@@ -57,9 +61,9 @@ class ViewBottlingInstruction extends ViewRecord
         return $record->getProductLabel().' - '.$record->status->label();
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Bottling Instruction Details')
                     ->tabs([
@@ -754,10 +758,10 @@ class ViewBottlingInstruction extends ViewRecord
                 Section::make('Audit Trail')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -780,7 +784,7 @@ class ViewBottlingInstruction extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -943,7 +947,7 @@ class ViewBottlingInstruction extends ViewRecord
 
         return [
             // Activate action (Draft → Active)
-            Actions\Action::make('activate')
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-play')
                 ->color('success')
@@ -986,7 +990,7 @@ class ViewBottlingInstruction extends ViewRecord
                 }),
 
             // Mark Executed action (Active → Executed)
-            Actions\Action::make('mark_executed')
+            Action::make('mark_executed')
                 ->label('Mark Executed')
                 ->icon('heroicon-o-check-badge')
                 ->color('info')
@@ -1037,7 +1041,7 @@ class ViewBottlingInstruction extends ViewRecord
                 }),
 
             // View linked intent action
-            Actions\Action::make('view_intent')
+            Action::make('view_intent')
                 ->label('View Intent')
                 ->icon('heroicon-o-clipboard-document-list')
                 ->color('gray')
@@ -1048,9 +1052,9 @@ class ViewBottlingInstruction extends ViewRecord
                 ->visible(fn (): bool => $record->procurementIntent !== null),
 
             // More actions (delete, restore)
-            Actions\ActionGroup::make([
-                Actions\DeleteAction::make(),
-                Actions\RestoreAction::make(),
+            ActionGroup::make([
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])->label('More')
                 ->icon('heroicon-o-ellipsis-vertical')
                 ->button(),

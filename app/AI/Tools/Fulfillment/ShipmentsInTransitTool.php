@@ -10,10 +10,11 @@ use Carbon\Carbon;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class ShipmentsInTransitTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Get count and details of shipments currently in transit (non-terminal states).';
     }
@@ -28,7 +29,7 @@ class ShipmentsInTransitTool extends BaseTool implements Tool
         return ToolAccessLevel::Overview;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $nonTerminalStatuses = array_filter(
             ShipmentStatus::cases(),

@@ -8,6 +8,7 @@ use App\Services\Finance\InvoiceService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Listener: GenerateEventServiceInvoice
@@ -95,7 +96,7 @@ class GenerateEventServiceInvoice implements ShouldQueue
                     'invoice_number' => $invoice->invoice_number,
                     'event_booking_id' => $event->eventBookingId,
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to auto-issue INV4 invoice', [
                     'invoice_id' => $invoice->id,
                     'event_booking_id' => $event->eventBookingId,

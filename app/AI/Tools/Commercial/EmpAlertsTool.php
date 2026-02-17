@@ -9,10 +9,11 @@ use App\Models\Commercial\PriceBookEntry;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
+use Stringable;
 
 class EmpAlertsTool extends BaseTool implements Tool
 {
-    public function description(): \Stringable|string
+    public function description(): Stringable|string
     {
         return 'Identify products priced significantly above or below estimated market price.';
     }
@@ -29,7 +30,7 @@ class EmpAlertsTool extends BaseTool implements Tool
         return ToolAccessLevel::Standard;
     }
 
-    public function handle(Request $request): \Stringable|string
+    public function handle(Request $request): Stringable|string
     {
         $threshold = (float) ($request['threshold_percent'] ?? 20.0);
 

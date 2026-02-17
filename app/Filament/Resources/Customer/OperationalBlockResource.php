@@ -5,13 +5,20 @@ namespace App\Filament\Resources\Customer;
 use App\Enums\Customer\BlockStatus;
 use App\Enums\Customer\BlockType;
 use App\Filament\Exports\Customer\OperationalBlockExporter;
-use App\Filament\Resources\Customer\OperationalBlockResource\Pages;
+use App\Filament\Resources\Customer\OperationalBlockResource\Pages\ListOperationalBlocks;
 use App\Models\Customer\Account;
 use App\Models\Customer\Customer;
 use App\Models\Customer\OperationalBlock;
+use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\ExportAction;
+use Filament\Actions\ExportBulkAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Resources\Resource;
-use Filament\Tables;
-use Filament\Tables\Actions\ExportAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -19,9 +26,9 @@ class OperationalBlockResource extends Resource
 {
     protected static ?string $model = OperationalBlock::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-shield-exclamation';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shield-exclamation';
 
-    protected static ?string $navigationGroup = 'Customers';
+    protected static string|\UnitEnum|null $navigationGroup = 'Customers';
 
     protected static ?int $navigationSort = 4;
 
@@ -35,7 +42,7 @@ class OperationalBlockResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('blockable_name')
+                TextColumn::make('blockable_name')
                     ->label('Customer/Account')
                     ->state(function (OperationalBlock $record): string {
                         $blockable = $record->blockable;
@@ -74,7 +81,7 @@ class OperationalBlockResource extends Resource
                     })
                     ->weight('bold'),
 
-                Tables\Columns\TextColumn::make('blockable_type_label')
+                TextColumn::make('blockable_type_label')
                     ->label('Type')
                     ->state(function (OperationalBlock $record): string {
                         $blockable = $record->blockable;
@@ -101,7 +108,7 @@ class OperationalBlockResource extends Resource
                     })
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('block_type')
+                TextColumn::make('block_type')
                     ->label('Block Type')
                     ->badge()
                     ->formatStateUsing(fn (?BlockType $state): string => $state?->label() ?? '-')
@@ -109,13 +116,13 @@ class OperationalBlockResource extends Resource
                     ->icon(fn (?BlockType $state): ?string => $state?->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('reason')
+                TextColumn::make('reason')
                     ->label('Reason')
                     ->limit(50)
                     ->tooltip(fn (OperationalBlock $record): string => $record->reason)
                     ->searchable(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(fn (?BlockStatus $state): string => $state?->label() ?? '-')
@@ -123,48 +130,48 @@ class OperationalBlockResource extends Resource
                     ->icon(fn (?BlockStatus $state): ?string => $state?->icon())
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('appliedByUser.name')
+                TextColumn::make('appliedByUser.name')
                     ->label('Applied By')
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Applied At')
                     ->dateTime()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('removed_at')
+                TextColumn::make('removed_at')
                     ->label('Removed At')
                     ->dateTime()
                     ->sortable()
                     ->toggleable()
                     ->placeholder('-'),
 
-                Tables\Columns\TextColumn::make('removedByUser.name')
+                TextColumn::make('removedByUser.name')
                     ->label('Removed By')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('-'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('block_type')
+                SelectFilter::make('block_type')
                     ->label('Block Type')
                     ->options(collect(BlockType::cases())->mapWithKeys(fn (BlockType $type) => [
                         $type->value => $type->label(),
                     ])),
 
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->label('Status')
                     ->options(collect(BlockStatus::cases())->mapWithKeys(fn (BlockStatus $status) => [
                         $status->value => $status->label(),
                     ]))
                     ->default(BlockStatus::Active->value),
 
-                Tables\Filters\Filter::make('created_at')
-                    ->form([
-                        \Filament\Forms\Components\DatePicker::make('applied_from')
+                Filter::make('created_at')
+                    ->schema([
+                        DatePicker::make('applied_from')
                             ->label('Applied From'),
-                        \Filament\Forms\Components\DatePicker::make('applied_until')
+                        DatePicker::make('applied_until')
                             ->label('Applied Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -182,25 +189,25 @@ class OperationalBlockResource extends Resource
                         $indicators = [];
 
                         if ($data['applied_from'] ?? null) {
-                            $indicators['applied_from'] = 'Applied from '.\Carbon\Carbon::parse($data['applied_from'])->toFormattedDateString();
+                            $indicators['applied_from'] = 'Applied from '.Carbon::parse($data['applied_from'])->toFormattedDateString();
                         }
 
                         if ($data['applied_until'] ?? null) {
-                            $indicators['applied_until'] = 'Applied until '.\Carbon\Carbon::parse($data['applied_until'])->toFormattedDateString();
+                            $indicators['applied_until'] = 'Applied until '.Carbon::parse($data['applied_until'])->toFormattedDateString();
                         }
 
                         return $indicators;
                     }),
 
-                Tables\Filters\SelectFilter::make('blockable_type')
+                SelectFilter::make('blockable_type')
                     ->label('Entity Type')
                     ->options([
                         Customer::class => 'Customer',
                         Account::class => 'Account',
                     ]),
             ])
-            ->actions([
-                Tables\Actions\Action::make('view_customer')
+            ->recordActions([
+                Action::make('view_customer')
                     ->label('View Customer')
                     ->icon('heroicon-o-eye')
                     ->color('gray')
@@ -225,9 +232,9 @@ class OperationalBlockResource extends Resource
                     ->label('Export CSV')
                     ->icon('heroicon-o-arrow-down-tray'),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\ExportBulkAction::make()
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    ExportBulkAction::make()
                         ->exporter(OperationalBlockExporter::class)
                         ->label('Export Selected'),
                 ]),
@@ -245,7 +252,7 @@ class OperationalBlockResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListOperationalBlocks::route('/'),
+            'index' => ListOperationalBlocks::route('/'),
         ];
     }
 

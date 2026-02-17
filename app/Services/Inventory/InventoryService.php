@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Enums\Allocation\VoucherLifecycleState;
 use App\Enums\Inventory\BottleState;
 use App\Enums\Inventory\InboundBatchStatus;
+use App\Enums\Inventory\OwnershipType;
 use App\Jobs\Inventory\SyncCommittedInventoryJob;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
@@ -12,6 +13,7 @@ use App\Models\Inventory\InboundBatch;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\SerializedBottle;
 use Illuminate\Database\Eloquent\Collection;
+use InvalidArgumentException;
 
 /**
  * Service for managing inventory queries and validations.
@@ -32,7 +34,7 @@ class InventoryService
      *
      * @return int The number of unredeemed vouchers for this allocation
      *
-     * @throws \InvalidArgumentException If allocation is null
+     * @throws InvalidArgumentException If allocation is null
      */
     public function getCommittedQuantity(Allocation $allocation): int
     {
@@ -72,7 +74,7 @@ class InventoryService
      *
      * @return int The number of free bottles (can be negative if oversold)
      *
-     * @throws \InvalidArgumentException If allocation is null
+     * @throws InvalidArgumentException If allocation is null
      */
     public function getFreeQuantity(Allocation $allocation): int
     {
@@ -94,7 +96,7 @@ class InventoryService
      *
      * @return bool True if the bottle can be consumed
      *
-     * @throws \InvalidArgumentException If bottle is null
+     * @throws InvalidArgumentException If bottle is null
      */
     public function canConsume(SerializedBottle $bottle): bool
     {
@@ -111,7 +113,7 @@ class InventoryService
         // Check if there's free quantity for this allocation
         $allocation = $bottle->allocation;
         if ($allocation === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Bottle must have an allocation to check consumption eligibility'
             );
         }
@@ -127,7 +129,7 @@ class InventoryService
      *
      * @return Collection<int, SerializedBottle>
      *
-     * @throws \InvalidArgumentException If location is null
+     * @throws InvalidArgumentException If location is null
      */
     public function getBottlesAtLocation(Location $location): Collection
     {
@@ -144,7 +146,7 @@ class InventoryService
      *
      * @return Collection<int, SerializedBottle>
      *
-     * @throws \InvalidArgumentException If allocation is null
+     * @throws InvalidArgumentException If allocation is null
      */
     public function getBottlesByAllocationLineage(Allocation $allocation): Collection
     {
@@ -279,7 +281,7 @@ class InventoryService
             ->with(['allocation'])
             ->where('current_location_id', $location->id)
             ->where('state', BottleState::Stored)
-            ->where('ownership_type', \App\Enums\Inventory\OwnershipType::CururatedOwned->value)
+            ->where('ownership_type', OwnershipType::CururatedOwned->value)
             ->get();
 
         // Filter to only committed bottles
@@ -426,12 +428,12 @@ class InventoryService
      * @param  Allocation  $targetAllocation  The allocation the bottle is being used for
      * @return bool True if the bottle matches the allocation, false otherwise
      *
-     * @throws \InvalidArgumentException If attempting cross-allocation substitution
+     * @throws InvalidArgumentException If attempting cross-allocation substitution
      */
     public function validateAllocationLineageMatch(SerializedBottle $bottle, Allocation $targetAllocation): bool
     {
         if ($bottle->allocation_id !== $targetAllocation->id) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Allocation lineage mismatch. Substitution not allowed. '.
                 "Bottle allocation: {$bottle->allocation_id}, ".
                 "Target allocation: {$targetAllocation->id}"

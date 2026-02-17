@@ -5,9 +5,12 @@ namespace App\Jobs\Finance;
 use App\Enums\Finance\SubscriptionStatus;
 use App\Events\Finance\SubscriptionBillingDue;
 use App\Models\Finance\Subscription;
+use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Job to process subscription billing for the day.
@@ -87,7 +90,7 @@ class ProcessSubscriptionBillingJob implements ShouldQueue
                 ]);
 
                 $processedCount++;
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to process subscription billing', [
                     'subscription_id' => $subscription->id,
                     'error' => $e->getMessage(),
@@ -128,9 +131,9 @@ class ProcessSubscriptionBillingJob implements ShouldQueue
     /**
      * Get query builder for subscriptions due for billing today.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Subscription>
+     * @return Builder<Subscription>
      */
-    public static function getDueSubscriptionsQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getDueSubscriptionsQuery(): Builder
     {
         return Subscription::query()
             ->where('status', SubscriptionStatus::Active)
@@ -140,9 +143,9 @@ class ProcessSubscriptionBillingJob implements ShouldQueue
     /**
      * Get query builder for subscriptions due for billing on a specific date.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Subscription>
+     * @return Builder<Subscription>
      */
-    public static function getDueSubscriptionsForDateQuery(\Carbon\Carbon $date): \Illuminate\Database\Eloquent\Builder
+    public static function getDueSubscriptionsForDateQuery(Carbon $date): Builder
     {
         return Subscription::query()
             ->where('status', SubscriptionStatus::Active)

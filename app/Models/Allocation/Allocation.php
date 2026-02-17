@@ -5,10 +5,12 @@ namespace App\Models\Allocation;
 use App\Enums\Allocation\AllocationSourceType;
 use App\Enums\Allocation\AllocationStatus;
 use App\Enums\Allocation\AllocationSupplyForm;
+use App\Models\AuditLog;
 use App\Models\Pim\Format;
 use App\Models\Pim\WineVariant;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * Allocation Model
@@ -92,7 +95,7 @@ class Allocation extends Model
         static::saving(function (Allocation $allocation): void {
             // Ensure sold_quantity never exceeds total_quantity
             if ($allocation->sold_quantity > $allocation->total_quantity) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'sold_quantity cannot exceed total_quantity'
                 );
             }
@@ -178,11 +181,11 @@ class Allocation extends Model
     /**
      * Get the audit logs for this allocation.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -295,13 +298,13 @@ class Allocation extends Model
      */
     public function getAvailabilityWindowLabel(): string
     {
-        /** @var \Carbon\Carbon|null $start */
+        /** @var Carbon|null $start */
         $start = $this->expected_availability_start;
-        /** @var \Carbon\Carbon|null $end */
+        /** @var Carbon|null $end */
         $end = $this->expected_availability_end;
 
-        $hasStart = $start instanceof \Carbon\Carbon;
-        $hasEnd = $end instanceof \Carbon\Carbon;
+        $hasStart = $start instanceof Carbon;
+        $hasEnd = $end instanceof Carbon;
 
         if (! $hasStart && ! $hasEnd) {
             return 'Not specified';

@@ -13,23 +13,24 @@ use App\Models\Fulfillment\ShippingOrder;
 use App\Models\Fulfillment\ShippingOrderException;
 use Carbon\Carbon;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Collection;
 
 class FulfillmentDashboard extends Page
 {
-    protected ?string $maxContentWidth = 'full';
+    protected Width|string|null $maxContentWidth = 'full';
 
-    protected static ?string $navigationIcon = 'heroicon-o-truck';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-truck';
 
     protected static ?string $navigationLabel = 'Fulfillment Overview';
 
-    protected static ?string $navigationGroup = 'Fulfillment';
+    protected static string|\UnitEnum|null $navigationGroup = 'Fulfillment';
 
     protected static ?int $navigationSort = 0;
 
     protected static ?string $title = 'Fulfillment Overview';
 
-    protected static string $view = 'filament.pages.fulfillment-dashboard';
+    protected string $view = 'filament.pages.fulfillment-dashboard';
 
     // ========================================
     // Widget A: SO by Status
@@ -214,7 +215,7 @@ class FulfillmentDashboard extends Page
     {
         $params = [];
         if ($status !== null) {
-            $params['tableFilters'] = [
+            $params['filters'] = [
                 'status' => [
                     'values' => [$status],
                 ],
@@ -246,7 +247,7 @@ class FulfillmentDashboard extends Page
     public function getExceptionsByTypeUrl(string $type): string
     {
         return ShippingOrderExceptionResource::getUrl('index', [
-            'tableFilters' => [
+            'filters' => [
                 'exception_type' => [
                     'values' => [$type],
                 ],

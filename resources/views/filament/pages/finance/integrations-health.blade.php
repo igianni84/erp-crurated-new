@@ -271,7 +271,7 @@
                 </dl>
                 @if($stripeSummary['pending_reconciliations'] > 0 || $stripeSummary['mismatched_reconciliations'] > 0)
                     <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <a href="{{ route('filament.admin.resources.finance.payments.index', ['tableFilters' => ['reconciliation_status' => ['value' => 'pending']]]) }}" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">
+                        <a href="{{ route('filament.admin.resources.finance.payments.index', ['filters' => ['reconciliation_status' => ['value' => 'pending']]]) }}" class="text-sm text-primary-600 dark:text-primary-400 hover:underline">
                             View pending reconciliations &rarr;
                         </a>
                     </div>

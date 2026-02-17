@@ -5,14 +5,19 @@ namespace App\Models\Customer;
 use App\Enums\Customer\PartyRoleType;
 use App\Enums\Customer\PartyStatus;
 use App\Enums\Customer\PartyType;
+use App\Models\AuditLog;
+use App\Models\Procurement\ProducerSupplierConfig;
+use App\Models\Procurement\PurchaseOrder;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\QueryException;
 
 /**
  * Party Model
@@ -30,9 +35,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property PartyStatus $status
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  */
 class Party extends Model
 {
@@ -89,21 +94,21 @@ class Party extends Model
      * Get the supplier/producer config for this party.
      * This is an optional one-to-one relationship - not all parties have a config.
      *
-     * @return HasOne<\App\Models\Procurement\ProducerSupplierConfig, $this>
+     * @return HasOne<ProducerSupplierConfig, $this>
      */
     public function supplierConfig(): HasOne
     {
-        return $this->hasOne(\App\Models\Procurement\ProducerSupplierConfig::class, 'party_id');
+        return $this->hasOne(ProducerSupplierConfig::class, 'party_id');
     }
 
     /**
      * Get the purchase orders where this party is the supplier.
      *
-     * @return HasMany<\App\Models\Procurement\PurchaseOrder, $this>
+     * @return HasMany<PurchaseOrder, $this>
      */
     public function purchaseOrdersAsSupplier(): HasMany
     {
-        return $this->hasMany(\App\Models\Procurement\PurchaseOrder::class, 'supplier_party_id');
+        return $this->hasMany(PurchaseOrder::class, 'supplier_party_id');
     }
 
     /**
@@ -117,11 +122,11 @@ class Party extends Model
     /**
      * Get the audit logs for this party.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -169,7 +174,7 @@ class Party extends Model
     /**
      * Add a role to this party.
      *
-     * @throws \Illuminate\Database\QueryException if role already exists (unique constraint)
+     * @throws QueryException if role already exists (unique constraint)
      */
     public function addRole(PartyRoleType $role): PartyRole
     {

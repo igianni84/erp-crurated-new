@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Procurement\BottlingInstruction;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing BottlingInstruction lifecycle.
@@ -22,12 +23,12 @@ class BottlingInstructionService
      *
      * Activating an instruction makes it ready for customer preference collection.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function activate(BottlingInstruction $instruction): BottlingInstruction
     {
         if (! $instruction->status->canTransitionTo(BottlingInstructionStatus::Active)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot activate bottling instruction: current status '{$instruction->status->label()}' does not allow transition to Active. "
                 .'Only Draft instructions can be activated.'
             );
@@ -50,12 +51,12 @@ class BottlingInstructionService
      *
      * Indicates that bottling has been completed.
      *
-     * @throws \InvalidArgumentException If transition is not allowed
+     * @throws InvalidArgumentException If transition is not allowed
      */
     public function markExecuted(BottlingInstruction $instruction): BottlingInstruction
     {
         if (! $instruction->status->canTransitionTo(BottlingInstructionStatus::Executed)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot mark bottling instruction as executed: current status '{$instruction->status->label()}' does not allow transition to Executed. "
                 .'Only Active instructions can be marked as executed.'
             );
@@ -82,13 +83,13 @@ class BottlingInstructionService
      * This is called when the deadline passes and not all preferences
      * have been collected. Sets preference_status to 'defaulted'.
      *
-     * @throws \InvalidArgumentException If defaults cannot be applied
+     * @throws InvalidArgumentException If defaults cannot be applied
      */
     public function applyDefaults(BottlingInstruction $instruction): BottlingInstruction
     {
         // Validate that instruction is in a state where defaults can be applied
         if ($instruction->status !== BottlingInstructionStatus::Active) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot apply defaults to bottling instruction: current status '{$instruction->status->label()}' is not Active. "
                 .'Defaults can only be applied to Active instructions.'
             );
@@ -96,14 +97,14 @@ class BottlingInstructionService
 
         // Validate that preferences are not already complete
         if ($instruction->preference_status === BottlingPreferenceStatus::Complete) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot apply defaults to bottling instruction: all preferences have already been collected.'
             );
         }
 
         // Validate that defaults haven't already been applied
         if ($instruction->preference_status === BottlingPreferenceStatus::Defaulted) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot apply defaults to bottling instruction: defaults have already been applied.'
             );
         }
@@ -130,7 +131,7 @@ class BottlingInstructionService
      * @param  int  $collectedCount  The number of preferences collected
      * @param  int|null  $totalCount  The total expected (defaults to bottle_equivalents)
      *
-     * @throws \InvalidArgumentException If instruction is not in a valid state
+     * @throws InvalidArgumentException If instruction is not in a valid state
      */
     public function updatePreferenceStatus(
         BottlingInstruction $instruction,
@@ -139,7 +140,7 @@ class BottlingInstructionService
     ): BottlingInstruction {
         // Validate that preference collection is still allowed
         if (! $instruction->canCollectPreferences()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot update preference status: instruction status '{$instruction->status->label()}' "
                 ."with preference status '{$instruction->preference_status->label()}' does not allow preference updates."
             );
@@ -148,13 +149,13 @@ class BottlingInstructionService
         $total = $totalCount ?? $instruction->bottle_equivalents;
 
         if ($collectedCount < 0) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Collected count cannot be negative.'
             );
         }
 
         if ($collectedCount > $total) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Collected count ({$collectedCount}) cannot exceed total count ({$total})."
             );
         }

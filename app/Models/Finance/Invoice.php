@@ -9,6 +9,9 @@ use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -43,28 +46,28 @@ use InvalidArgumentException;
  * @property InvoiceStatus $status
  * @property string|null $source_type
  * @property string|null $source_id
- * @property \Carbon\Carbon|null $issued_at
- * @property \Carbon\Carbon|null $due_date
+ * @property Carbon|null $issued_at
+ * @property Carbon|null $due_date
  * @property string|null $notes
  * @property string|null $xero_invoice_id
- * @property \Carbon\Carbon|null $xero_synced_at
+ * @property Carbon|null $xero_synced_at
  * @property bool $xero_sync_pending
  * @property bool $is_disputed
- * @property \Carbon\Carbon|null $disputed_at
+ * @property Carbon|null $disputed_at
  * @property string|null $dispute_reason
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
- * @property \Carbon\Carbon|null $deleted_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
  * @property-read bool $is_overdue
  *
- * @method static \Illuminate\Database\Eloquent\Builder<static> xeroSyncPending()
- * @method static \Illuminate\Database\Eloquent\Builder<static> xeroNotSynced()
- * @method static \Illuminate\Database\Eloquent\Builder<static> overdue()
- * @method static \Illuminate\Database\Eloquent\Builder<static> notOverdue()
- * @method static \Illuminate\Database\Eloquent\Builder<static> unpaidImmediate(?int $thresholdHours = null)
- * @method static \Illuminate\Database\Eloquent\Builder<static> disputed()
+ * @method static Builder<static> xeroSyncPending()
+ * @method static Builder<static> xeroNotSynced()
+ * @method static Builder<static> overdue()
+ * @method static Builder<static> notOverdue()
+ * @method static Builder<static> unpaidImmediate(?int $thresholdHours = null)
+ * @method static Builder<static> disputed()
  */
 class Invoice extends Model
 {
@@ -469,14 +472,13 @@ class Invoice extends Model
     // =========================================================================
     // Query Scopes
     // =========================================================================
-
     /**
      * Scope to get overdue invoices.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<self>
+     * @param  Builder<self>  $query
+     * @return Builder<self>
      */
-    public function scopeOverdue(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    public function scopeOverdue(Builder $query): Builder
     {
         return $query
             ->where('status', InvoiceStatus::Issued)
@@ -487,12 +489,12 @@ class Invoice extends Model
     /**
      * Scope to get invoices that are not overdue.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<self>
+     * @param  Builder<self>  $query
+     * @return Builder<self>
      */
-    public function scopeNotOverdue(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    public function scopeNotOverdue(Builder $query): Builder
     {
-        return $query->where(function (\Illuminate\Database\Eloquent\Builder $q): void {
+        return $query->where(function (Builder $q): void {
             $q->where('status', '!=', InvoiceStatus::Issued)
                 ->orWhereNull('due_date')
                 ->orWhere('due_date', '>=', now()->startOfDay());
@@ -502,11 +504,11 @@ class Invoice extends Model
     /**
      * Scope to get unpaid immediate invoices (INV1, INV2, INV4) past threshold.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
+     * @param  Builder<self>  $query
      * @param  int|null  $thresholdHours  Hours since issuance (default: config value or 24)
-     * @return \Illuminate\Database\Eloquent\Builder<self>
+     * @return Builder<self>
      */
-    public function scopeUnpaidImmediate(\Illuminate\Database\Eloquent\Builder $query, ?int $thresholdHours = null): \Illuminate\Database\Eloquent\Builder
+    public function scopeUnpaidImmediate(Builder $query, ?int $thresholdHours = null): Builder
     {
         $thresholdHours = $thresholdHours ?? (int) config('finance.immediate_invoice_alert_hours', 24);
         $cutoffTime = now()->subHours($thresholdHours);
@@ -527,10 +529,10 @@ class Invoice extends Model
      *
      * US-E104: Returns invoices that are issued but haven't been synced to Xero yet.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<self>
+     * @param  Builder<self>  $query
+     * @return Builder<self>
      */
-    public function scopeXeroSyncPending(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    public function scopeXeroSyncPending(Builder $query): Builder
     {
         return $query->where('xero_sync_pending', true);
     }
@@ -541,10 +543,10 @@ class Invoice extends Model
      * US-E104: Invariant check - every issued invoice should have xero_invoice_id.
      * This scope finds violations of that invariant.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<self>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<self>
+     * @param  Builder<self>  $query
+     * @return Builder<self>
      */
-    public function scopeXeroNotSynced(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    public function scopeXeroNotSynced(Builder $query): Builder
     {
         return $query
             ->where('status', '!=', InvoiceStatus::Draft)
@@ -1946,12 +1948,12 @@ class Invoice extends Model
      * Returns invoice lines that have sellable_sku_id (wine products),
      * which should not be present on INV4 (Service Events) invoices.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, InvoiceLine>
+     * @return Collection<int, InvoiceLine>
      */
-    public function getInvalidInv4Lines(): \Illuminate\Database\Eloquent\Collection
+    public function getInvalidInv4Lines(): Collection
     {
         if (! $this->isServiceEventsInvoice()) {
-            return new \Illuminate\Database\Eloquent\Collection;
+            return new Collection;
         }
 
         return $this->invoiceLines()->whereNotNull('sellable_sku_id')->get();
@@ -2014,8 +2016,8 @@ class Invoice extends Model
     /**
      * Scope to get only disputed invoices.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<Invoice>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     * @param  Builder<Invoice>  $query
+     * @return Builder<Invoice>
      */
     public function scopeDisputed($query)
     {

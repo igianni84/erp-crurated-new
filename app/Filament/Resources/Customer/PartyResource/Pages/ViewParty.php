@@ -10,21 +10,26 @@ use App\Models\AuditLog;
 use App\Models\Customer\Party;
 use App\Models\Customer\PartyRole;
 use App\Models\Procurement\ProducerSupplierConfig;
-use Filament\Actions;
-use Filament\Forms;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
+use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\QueryException;
 
@@ -66,7 +71,7 @@ class ViewParty extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make(),
+            EditAction::make(),
             $this->getActivateAction(),
             $this->getDeactivateAction(),
         ];
@@ -75,12 +80,12 @@ class ViewParty extends ViewRecord
     /**
      * Activate party action.
      */
-    protected function getActivateAction(): Actions\Action
+    protected function getActivateAction(): Action
     {
         /** @var Party $record */
         $record = $this->record;
 
-        return Actions\Action::make('activate')
+        return Action::make('activate')
             ->label('Activate')
             ->icon('heroicon-o-check-circle')
             ->color('success')
@@ -105,12 +110,12 @@ class ViewParty extends ViewRecord
     /**
      * Deactivate party action.
      */
-    protected function getDeactivateAction(): Actions\Action
+    protected function getDeactivateAction(): Action
     {
         /** @var Party $record */
         $record = $this->record;
 
-        return Actions\Action::make('deactivate')
+        return Action::make('deactivate')
             ->label('Deactivate')
             ->icon('heroicon-o-x-circle')
             ->color('danger')
@@ -132,9 +137,9 @@ class ViewParty extends ViewRecord
             ->visible(fn (): bool => $record->status === PartyStatus::Active);
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Party Details')
                     ->tabs([
@@ -171,7 +176,7 @@ class ViewParty extends ViewRecord
                                     TextEntry::make('legal_name')
                                         ->label('Legal Name')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('party_type')
@@ -229,11 +234,11 @@ class ViewParty extends ViewRecord
                 Section::make('Party Roles')
                     ->description('Manage the roles assigned to this party. A party can have multiple roles simultaneously.')
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('add_role')
+                        Action::make('add_role')
                             ->label('Add Role')
                             ->icon('heroicon-o-plus-circle')
                             ->color('primary')
-                            ->form([
+                            ->schema([
                                 Select::make('role')
                                     ->label('Role')
                                     ->options(function () use ($record): array {
@@ -292,8 +297,8 @@ class ViewParty extends ViewRecord
                                         TextEntry::make('creator.name')
                                             ->label('Assigned By')
                                             ->default('System'),
-                                        \Filament\Infolists\Components\Actions::make([
-                                            \Filament\Infolists\Components\Actions\Action::make('remove_role')
+                                        \Filament\Schemas\Components\Actions::make([
+                                            Action::make('remove_role')
                                                 ->label('Remove')
                                                 ->icon('heroicon-o-trash')
                                                 ->color('danger')
@@ -358,7 +363,7 @@ class ViewParty extends ViewRecord
                     ->description('Default configurations for this supplier/producer. These settings are used when creating Purchase Orders and Bottling Instructions.')
                     ->visible(fn (): bool => $hasConfig)
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('edit_config')
+                        Action::make('edit_config')
                             ->label('Edit Config')
                             ->icon('heroicon-o-pencil')
                             ->color('primary')
@@ -477,30 +482,30 @@ class ViewParty extends ViewRecord
                             ->icon('heroicon-o-check-circle')
                             ->color('success'),
 
-                        \Filament\Infolists\Components\Actions::make([
-                            \Filament\Infolists\Components\Actions\Action::make('create_config')
+                        \Filament\Schemas\Components\Actions::make([
+                            Action::make('create_config')
                                 ->label('Create Config')
                                 ->icon('heroicon-o-plus-circle')
                                 ->color('primary')
-                                ->form([
-                                    Forms\Components\TextInput::make('default_bottling_deadline_days')
+                                ->schema([
+                                    TextInput::make('default_bottling_deadline_days')
                                         ->label('Default Bottling Deadline (days)')
                                         ->numeric()
                                         ->minValue(1)
                                         ->helperText('Number of days from intent creation to bottling deadline'),
 
-                                    Forms\Components\TagsInput::make('allowed_formats')
+                                    TagsInput::make('allowed_formats')
                                         ->label('Allowed Formats')
                                         ->helperText('Enter allowed bottle formats (e.g., 750ml, 1500ml)')
                                         ->placeholder('Add formats...'),
 
-                                    Forms\Components\KeyValue::make('serialization_constraints')
+                                    KeyValue::make('serialization_constraints')
                                         ->label('Serialization Constraints')
                                         ->keyLabel('Constraint Type')
                                         ->valueLabel('Value')
                                         ->helperText('e.g., authorized_locations: france,italy'),
 
-                                    Forms\Components\Textarea::make('notes')
+                                    Textarea::make('notes')
                                         ->label('Notes')
                                         ->rows(3)
                                         ->helperText('General notes about working with this supplier'),
@@ -593,10 +598,10 @@ class ViewParty extends ViewRecord
                 Section::make('Audit Trail')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -619,7 +624,7 @@ class ViewParty extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')

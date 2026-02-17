@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\UserRole;
 use App\Models\Customer\Account;
 use App\Models\User;
 
@@ -69,7 +70,7 @@ class AccountPolicy
     public function delete(User $user, Account $account): bool
     {
         // Managers and above can delete any account
-        if ($user->role?->hasAtLeast(\App\Enums\UserRole::Manager) ?? false) {
+        if ($user->role?->hasAtLeast(UserRole::Manager) ?? false) {
             return true;
         }
 
@@ -84,7 +85,7 @@ class AccountPolicy
      */
     public function restore(User $user, Account $account): bool
     {
-        return $user->role?->hasAtLeast(\App\Enums\UserRole::Manager) ?? false;
+        return $user->role?->hasAtLeast(UserRole::Manager) ?? false;
     }
 
     /**
@@ -106,7 +107,7 @@ class AccountPolicy
     public function manageUsers(User $user, Account $account): bool
     {
         // Admin staff with Manager+ role can manage any account's users
-        if ($user->role?->hasAtLeast(\App\Enums\UserRole::Manager) ?? false) {
+        if ($user->role?->hasAtLeast(UserRole::Manager) ?? false) {
             return true;
         }
 

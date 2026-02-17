@@ -7,17 +7,19 @@ use App\Filament\Resources\BundleResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\Bundle;
 use App\Models\Commercial\PriceBook;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Illuminate\Support\HtmlString;
 
@@ -40,9 +42,9 @@ class ViewBundle extends ViewRecord
      */
     public ?string $auditDateUntil = null;
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Bundle Details')
                     ->tabs([
@@ -438,10 +440,10 @@ class ViewBundle extends ViewRecord
         $record = $this->getRecord();
 
         return [
-            Actions\EditAction::make()
+            EditAction::make()
                 ->visible($record->isEditable()),
 
-            Actions\Action::make('activate')
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -491,7 +493,7 @@ class ViewBundle extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('deactivate')
+            Action::make('deactivate')
                 ->label('Deactivate')
                 ->icon('heroicon-o-pause-circle')
                 ->color('warning')
@@ -511,7 +513,7 @@ class ViewBundle extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('reactivate')
+            Action::make('reactivate')
                 ->label('Reactivate')
                 ->icon('heroicon-o-arrow-path')
                 ->color('success')
@@ -552,7 +554,7 @@ class ViewBundle extends ViewRecord
                         ->send();
                 }),
 
-            Actions\DeleteAction::make()
+            DeleteAction::make()
                 ->visible($record->isDraft()),
         ];
     }
@@ -568,10 +570,10 @@ class ViewBundle extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -594,7 +596,7 @@ class ViewBundle extends ViewRecord
                                 $this->auditDateFrom = $data['date_from'] ?? null;
                                 $this->auditDateUntil = $data['date_until'] ?? null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')

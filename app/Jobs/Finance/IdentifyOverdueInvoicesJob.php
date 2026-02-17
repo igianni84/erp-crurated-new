@@ -5,6 +5,7 @@ namespace App\Jobs\Finance;
 use App\Enums\Finance\InvoiceStatus;
 use App\Models\Finance\Invoice;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
@@ -91,9 +92,9 @@ class IdentifyOverdueInvoicesJob implements ShouldQueue
     /**
      * Get overdue invoices query builder for reuse.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     * @return Builder<Invoice>
      */
-    public static function getOverdueInvoicesQuery(): \Illuminate\Database\Eloquent\Builder
+    public static function getOverdueInvoicesQuery(): Builder
     {
         return Invoice::query()
             ->where('status', InvoiceStatus::Issued)

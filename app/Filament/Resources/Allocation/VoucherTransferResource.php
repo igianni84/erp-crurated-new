@@ -3,24 +3,32 @@
 namespace App\Filament\Resources\Allocation;
 
 use App\Enums\Allocation\VoucherTransferStatus;
-use App\Filament\Resources\Allocation\VoucherTransferResource\Pages;
+use App\Filament\Resources\Allocation\VoucherTransferResource\Pages\ListVoucherTransfers;
+use App\Filament\Resources\Allocation\VoucherTransferResource\Pages\ViewVoucherTransfer;
 use App\Models\Allocation\VoucherTransfer;
 use App\Services\Allocation\VoucherTransferService;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\Action;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use InvalidArgumentException;
 
 class VoucherTransferResource extends Resource
 {
     protected static ?string $model = VoucherTransfer::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-arrows-right-left';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrows-right-left';
 
-    protected static ?string $navigationGroup = 'Vouchers';
+    protected static string|\UnitEnum|null $navigationGroup = 'Vouchers';
 
     protected static ?int $navigationSort = 3;
 
@@ -30,10 +38,10 @@ class VoucherTransferResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Transfers';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
+        return $schema
+            ->components([
                 // No form schema - transfers are created from VoucherResource
             ]);
     }
@@ -42,14 +50,14 @@ class VoucherTransferResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('Transfer ID')
                     ->searchable()
                     ->sortable()
                     ->copyable()
                     ->copyMessage('Transfer ID copied'),
 
-                Tables\Columns\TextColumn::make('voucher_id')
+                TextColumn::make('voucher_id')
                     ->label('Voucher')
                     ->searchable()
                     ->sortable()
@@ -57,7 +65,7 @@ class VoucherTransferResource extends Resource
                     ->openUrlInNewTab()
                     ->color('primary'),
 
-                Tables\Columns\TextColumn::make('fromCustomer.name')
+                TextColumn::make('fromCustomer.name')
                     ->label('From')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('fromCustomer', function (Builder $query) use ($search): void {
@@ -72,7 +80,7 @@ class VoucherTransferResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('toCustomer.name')
+                TextColumn::make('toCustomer.name')
                     ->label('To')
                     ->searchable(query: function (Builder $query, string $search): Builder {
                         return $query->whereHas('toCustomer', function (Builder $query) use ($search): void {
@@ -87,7 +95,7 @@ class VoucherTransferResource extends Resource
                         : null)
                     ->openUrlInNewTab(),
 
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Status')
                     ->badge()
                     ->formatStateUsing(function (VoucherTransferStatus $state, VoucherTransfer $record): string {
@@ -117,26 +125,26 @@ class VoucherTransferResource extends Resource
                         : null)
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('initiated_at')
+                TextColumn::make('initiated_at')
                     ->label('Initiated')
                     ->dateTime()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('expires_at')
+                TextColumn::make('expires_at')
                     ->label('Expires')
                     ->dateTime()
                     ->sortable()
                     ->color(fn (VoucherTransfer $record): string => $record->isPending() && $record->expires_at->isPast() ? 'danger' : 'gray')
                     ->description(fn (VoucherTransfer $record): ?string => $record->isPending() && $record->expires_at->isPast() ? 'Expired' : null),
 
-                Tables\Columns\TextColumn::make('accepted_at')
+                TextColumn::make('accepted_at')
                     ->label('Accepted')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('—'),
 
-                Tables\Columns\TextColumn::make('cancelled_at')
+                TextColumn::make('cancelled_at')
                     ->label('Cancelled')
                     ->dateTime()
                     ->sortable()
@@ -144,7 +152,7 @@ class VoucherTransferResource extends Resource
                     ->placeholder('—'),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(VoucherTransferStatus::cases())
                         ->mapWithKeys(fn (VoucherTransferStatus $status) => [$status->value => $status->label()])
                         ->toArray())
@@ -152,11 +160,11 @@ class VoucherTransferResource extends Resource
                     ->multiple()
                     ->label('Status'),
 
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        Forms\Components\DatePicker::make('initiated_from')
+                Filter::make('date_range')
+                    ->schema([
+                        DatePicker::make('initiated_from')
                             ->label('Initiated From'),
-                        Forms\Components\DatePicker::make('initiated_until')
+                        DatePicker::make('initiated_until')
                             ->label('Initiated Until'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -171,9 +179,9 @@ class VoucherTransferResource extends Resource
                             );
                     }),
 
-                Tables\Filters\Filter::make('from_customer')
-                    ->form([
-                        Forms\Components\Select::make('from_customer_id')
+                Filter::make('from_customer')
+                    ->schema([
+                        Select::make('from_customer_id')
                             ->label('From Customer')
                             ->relationship('fromCustomer', 'name')
                             ->searchable()
@@ -186,9 +194,9 @@ class VoucherTransferResource extends Resource
                         );
                     }),
 
-                Tables\Filters\Filter::make('to_customer')
-                    ->form([
-                        Forms\Components\Select::make('to_customer_id')
+                Filter::make('to_customer')
+                    ->schema([
+                        Select::make('to_customer_id')
                             ->label('To Customer')
                             ->relationship('toCustomer', 'name')
                             ->searchable()
@@ -201,9 +209,9 @@ class VoucherTransferResource extends Resource
                         );
                     }),
 
-                Tables\Filters\Filter::make('voucher')
-                    ->form([
-                        Forms\Components\TextInput::make('voucher_id')
+                Filter::make('voucher')
+                    ->schema([
+                        TextInput::make('voucher_id')
                             ->label('Voucher ID'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
@@ -213,10 +221,10 @@ class VoucherTransferResource extends Resource
                         );
                     }),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
+            ->recordActions([
+                ViewAction::make(),
 
-                Tables\Actions\Action::make('cancel_transfer')
+                Action::make('cancel_transfer')
                     ->label('Cancel')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
@@ -233,7 +241,7 @@ class VoucherTransferResource extends Resource
                                 ->title('Transfer cancelled')
                                 ->success()
                                 ->send();
-                        } catch (\InvalidArgumentException $e) {
+                        } catch (InvalidArgumentException $e) {
                             Notification::make()
                                 ->title('Cannot cancel transfer')
                                 ->body($e->getMessage())
@@ -244,7 +252,7 @@ class VoucherTransferResource extends Resource
                     ->visible(fn (VoucherTransfer $record): bool => $record->canBeCancelled())
                     ->authorize('cancelTransfer'),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 // No bulk actions - transfers require careful individual handling
             ])
             ->defaultSort('initiated_at', 'desc')
@@ -263,8 +271,8 @@ class VoucherTransferResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListVoucherTransfers::route('/'),
-            'view' => Pages\ViewVoucherTransfer::route('/{record}'),
+            'index' => ListVoucherTransfers::route('/'),
+            'view' => ViewVoucherTransfer::route('/{record}'),
         ];
     }
 

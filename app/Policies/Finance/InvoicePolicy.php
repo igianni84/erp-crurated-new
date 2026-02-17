@@ -2,6 +2,7 @@
 
 namespace App\Policies\Finance;
 
+use App\Enums\Finance\InvoiceStatus;
 use App\Models\Finance\Invoice;
 use App\Models\User;
 
@@ -56,7 +57,7 @@ class InvoicePolicy
     public function delete(User $user, Invoice $invoice): bool
     {
         // Only draft invoices can be deleted
-        return $invoice->status === \App\Enums\Finance\InvoiceStatus::Draft;
+        return $invoice->status === InvoiceStatus::Draft;
     }
 
     /**

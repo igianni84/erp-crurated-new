@@ -8,20 +8,32 @@ use App\Enums\Procurement\OwnershipFlag;
 use App\Enums\Procurement\ProcurementIntentStatus;
 use App\Enums\Procurement\PurchaseOrderStatus;
 use App\Filament\Resources\Procurement\InboundResource;
+use App\Models\Procurement\Inbound;
 use App\Models\Procurement\ProcurementIntent;
 use App\Models\Procurement\PurchaseOrder;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Carbon\Carbon;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateInbound extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = InboundResource::class;
 
@@ -29,10 +41,10 @@ class CreateInbound extends CreateRecord
      * Get the form for creating an inbound.
      * Implements a 4-step wizard for Inbound creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -49,7 +61,7 @@ class CreateInbound extends CreateRecord
     protected function getWizardSubmitActions(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex gap-3">
                     <x-filament::button
                         type="submit"
@@ -65,7 +77,7 @@ class CreateInbound extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -81,16 +93,16 @@ class CreateInbound extends CreateRecord
      * Step 1: Physical Receipt (US-038)
      * Record the physical details of the inbound.
      */
-    protected function getPhysicalReceiptStep(): Wizard\Step
+    protected function getPhysicalReceiptStep(): Step
     {
-        return Wizard\Step::make('Physical Receipt')
+        return Step::make('Physical Receipt')
             ->description('Record physical arrival details')
             ->icon('heroicon-o-inbox-arrow-down')
             ->schema([
                 // Informational message about Inbound
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('inbound_info')
+                        Placeholder::make('inbound_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">'
@@ -103,10 +115,10 @@ class CreateInbound extends CreateRecord
                     ]),
 
                 // Warehouse Selection
-                Forms\Components\Section::make('Receiving Location')
+                Section::make('Receiving Location')
                     ->description('Select where the goods were received')
                     ->schema([
-                        Forms\Components\Select::make('warehouse')
+                        Select::make('warehouse')
                             ->label('Warehouse')
                             ->options([
                                 'main_warehouse' => 'Main Warehouse',
@@ -121,10 +133,10 @@ class CreateInbound extends CreateRecord
                     ]),
 
                 // Receipt Details
-                Forms\Components\Section::make('Receipt Details')
+                Section::make('Receipt Details')
                     ->description('Record the details of the physical receipt')
                     ->schema([
-                        Forms\Components\DatePicker::make('received_date')
+                        DatePicker::make('received_date')
                             ->label('Received Date')
                             ->required()
                             ->native(false)
@@ -132,7 +144,7 @@ class CreateInbound extends CreateRecord
                             ->default(now())
                             ->helperText('Date when goods physically arrived'),
 
-                        Forms\Components\TextInput::make('quantity')
+                        TextInput::make('quantity')
                             ->label('Quantity')
                             ->numeric()
                             ->required()
@@ -141,7 +153,7 @@ class CreateInbound extends CreateRecord
                             ->suffix('bottles')
                             ->helperText('Number of bottles received'),
 
-                        Forms\Components\Select::make('packaging')
+                        Select::make('packaging')
                             ->label('Packaging')
                             ->options(collect(InboundPackaging::cases())
                                 ->mapWithKeys(fn (InboundPackaging $packaging) => [$packaging->value => $packaging->label()])
@@ -153,7 +165,7 @@ class CreateInbound extends CreateRecord
                             ->live(),
 
                         // Packaging info
-                        Forms\Components\Placeholder::make('packaging_info')
+                        Placeholder::make('packaging_info')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $packaging = $get('packaging');
@@ -181,16 +193,16 @@ class CreateInbound extends CreateRecord
                     ->columns(2),
 
                 // Condition Notes
-                Forms\Components\Section::make('Condition Notes')
+                Section::make('Condition Notes')
                     ->description('Document any issues or observations')
                     ->schema([
-                        Forms\Components\Textarea::make('condition_notes')
+                        Textarea::make('condition_notes')
                             ->label('Condition Notes')
                             ->placeholder('Enter any notes about the condition of the goods (damage, discrepancies, etc.)')
                             ->rows(4)
                             ->helperText('Optional but recommended: Document any damage, missing items, or quality issues'),
 
-                        Forms\Components\Placeholder::make('condition_tips')
+                        Placeholder::make('condition_tips')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">'
@@ -211,17 +223,17 @@ class CreateInbound extends CreateRecord
      * Step 2: Sourcing Context (US-039)
      * Link the inbound to the sourcing context.
      */
-    protected function getSourcingContextStep(): Wizard\Step
+    protected function getSourcingContextStep(): Step
     {
-        return Wizard\Step::make('Sourcing Context')
+        return Step::make('Sourcing Context')
             ->description('Link to procurement source')
             ->icon('heroicon-o-link')
             ->schema([
                 // Sourcing Context Selection
-                Forms\Components\Section::make('Link to Procurement')
+                Section::make('Link to Procurement')
                     ->description('Optionally link this inbound to a Procurement Intent or Purchase Order')
                     ->schema([
-                        Forms\Components\Select::make('purchase_order_id')
+                        Select::make('purchase_order_id')
                             ->label('Purchase Order')
                             ->placeholder('Search for a PO by ID or supplier...')
                             ->searchable()
@@ -303,7 +315,7 @@ class CreateInbound extends CreateRecord
                             })
                             ->helperText('Optional: Link to an existing Purchase Order'),
 
-                        Forms\Components\Select::make('procurement_intent_id')
+                        Select::make('procurement_intent_id')
                             ->label('Procurement Intent')
                             ->placeholder('Search for an intent by ID or product...')
                             ->searchable()
@@ -361,10 +373,10 @@ class CreateInbound extends CreateRecord
                     ->columns(2),
 
                 // PO Preview
-                Forms\Components\Section::make('Purchase Order Summary')
+                Section::make('Purchase Order Summary')
                     ->description('Preview of the selected Purchase Order')
                     ->schema([
-                        Forms\Components\Placeholder::make('po_supplier')
+                        Placeholder::make('po_supplier')
                             ->label('Supplier')
                             ->content(function (Get $get): string {
                                 $data = $get('po_preview_data');
@@ -375,7 +387,7 @@ class CreateInbound extends CreateRecord
                                 return is_string($data['supplier_name']) ? $data['supplier_name'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('po_product')
+                        Placeholder::make('po_product')
                             ->label('Product')
                             ->content(function (Get $get): string {
                                 $data = $get('po_preview_data');
@@ -386,7 +398,7 @@ class CreateInbound extends CreateRecord
                                 return is_string($data['product_label']) ? $data['product_label'] : 'Unknown';
                             }),
 
-                        Forms\Components\Placeholder::make('po_quantity')
+                        Placeholder::make('po_quantity')
                             ->label('PO Quantity')
                             ->content(function (Get $get): string {
                                 $data = $get('po_preview_data');
@@ -397,7 +409,7 @@ class CreateInbound extends CreateRecord
                                 return is_numeric($data['quantity']) ? (string) (int) $data['quantity'].' bottles' : '-';
                             }),
 
-                        Forms\Components\Placeholder::make('po_status')
+                        Placeholder::make('po_status')
                             ->label('PO Status')
                             ->content(function (Get $get): string {
                                 $data = $get('po_preview_data');
@@ -412,10 +424,10 @@ class CreateInbound extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('purchase_order_id') === null),
 
                 // Ownership Flag
-                Forms\Components\Section::make('Ownership Status')
+                Section::make('Ownership Status')
                     ->description('Clarify the ownership status of these goods')
                     ->schema([
-                        Forms\Components\Select::make('ownership_flag')
+                        Select::make('ownership_flag')
                             ->label('Ownership Flag')
                             ->options(collect(OwnershipFlag::cases())
                                 ->mapWithKeys(fn (OwnershipFlag $flag) => [$flag->value => $flag->label()])
@@ -428,7 +440,7 @@ class CreateInbound extends CreateRecord
                             ->helperText('Clarify who owns these goods'),
 
                         // Ownership explanation
-                        Forms\Components\Placeholder::make('ownership_explanation')
+                        Placeholder::make('ownership_explanation')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $flag = $get('ownership_flag');
@@ -458,9 +470,9 @@ class CreateInbound extends CreateRecord
                     ]),
 
                 // Unlinked warning
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('unlinked_warning')
+                        Placeholder::make('unlinked_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">'
@@ -473,11 +485,11 @@ class CreateInbound extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('procurement_intent_id') !== null),
 
                 // Hidden fields
-                Forms\Components\Hidden::make('po_preview_data'),
-                Forms\Components\Hidden::make('intent_preview_data'),
-                Forms\Components\Hidden::make('intent_manually_selected'),
-                Forms\Components\Hidden::make('product_reference_type'),
-                Forms\Components\Hidden::make('product_reference_id'),
+                Hidden::make('po_preview_data'),
+                Hidden::make('intent_preview_data'),
+                Hidden::make('intent_manually_selected'),
+                Hidden::make('product_reference_type'),
+                Hidden::make('product_reference_id'),
             ]);
     }
 
@@ -485,23 +497,23 @@ class CreateInbound extends CreateRecord
      * Step 3: Serialization (US-040)
      * Define serialization requirements.
      */
-    protected function getSerializationStep(): Wizard\Step
+    protected function getSerializationStep(): Step
     {
-        return Wizard\Step::make('Serialization')
+        return Step::make('Serialization')
             ->description('Define serialization requirements')
             ->icon('heroicon-o-qr-code')
             ->schema([
                 // Serialization Requirements
-                Forms\Components\Section::make('Serialization Requirements')
+                Section::make('Serialization Requirements')
                     ->description('Configure serialization settings for this inbound')
                     ->schema([
-                        Forms\Components\Toggle::make('serialization_required')
+                        Toggle::make('serialization_required')
                             ->label('Serialization Required')
                             ->helperText('Does this inbound require bottle serialization?')
                             ->live()
                             ->default(true),
 
-                        Forms\Components\Placeholder::make('serialization_info')
+                        Placeholder::make('serialization_info')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $required = $get('serialization_required') === true;
@@ -528,10 +540,10 @@ class CreateInbound extends CreateRecord
                     ]),
 
                 // Serialization Location
-                Forms\Components\Section::make('Serialization Location')
+                Section::make('Serialization Location')
                     ->description('Where should serialization be performed?')
                     ->schema([
-                        Forms\Components\Select::make('serialization_location_authorized')
+                        Select::make('serialization_location_authorized')
                             ->label('Authorized Serialization Location')
                             ->options([
                                 'main_warehouse' => 'Main Warehouse',
@@ -547,7 +559,7 @@ class CreateInbound extends CreateRecord
                             ->live()
                             ->helperText('Where serialization is authorized for this product'),
 
-                        Forms\Components\Placeholder::make('location_preview')
+                        Placeholder::make('location_preview')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $location = $get('serialization_location_authorized');
@@ -583,16 +595,16 @@ class CreateInbound extends CreateRecord
                     ->hidden(fn (Get $get): bool => $get('serialization_required') !== true),
 
                 // Serialization Routing Rule
-                Forms\Components\Section::make('Serialization Routing Rule')
+                Section::make('Serialization Routing Rule')
                     ->description('Special instructions for serialization routing')
                     ->schema([
-                        Forms\Components\Textarea::make('serialization_routing_rule')
+                        Textarea::make('serialization_routing_rule')
                             ->label('Serialization Routing Rule')
                             ->placeholder('Enter special routing instructions (e.g., "France only for this wine due to regulatory requirements")')
                             ->rows(3)
                             ->helperText('Optional: Define any special constraints or requirements for serialization routing'),
 
-                        Forms\Components\Placeholder::make('routing_tips')
+                        Placeholder::make('routing_tips')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">'
@@ -614,16 +626,16 @@ class CreateInbound extends CreateRecord
      * Step 4: Review (US-041)
      * Review all data before creating the inbound.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->description('Review and record the inbound')
             ->icon('heroicon-o-check-badge')
             ->schema([
                 // Recorded status info
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('recorded_info')
+                        Placeholder::make('recorded_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">'
@@ -636,10 +648,10 @@ class CreateInbound extends CreateRecord
                     ]),
 
                 // Warnings Section
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
                         // Ownership pending warning
-                        Forms\Components\Placeholder::make('ownership_warning')
+                        Placeholder::make('ownership_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-red-50 dark:bg-red-950 rounded-lg border border-red-200 dark:border-red-800">'
@@ -651,7 +663,7 @@ class CreateInbound extends CreateRecord
                             ->hidden(fn (Get $get): bool => $get('ownership_flag') !== OwnershipFlag::Pending->value),
 
                         // Unlinked warning
-                        Forms\Components\Placeholder::make('unlinked_inbound_warning')
+                        Placeholder::make('unlinked_inbound_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">'
@@ -664,10 +676,10 @@ class CreateInbound extends CreateRecord
                     ]),
 
                 // Physical Receipt Summary
-                Forms\Components\Section::make('Physical Receipt')
+                Section::make('Physical Receipt')
                     ->icon('heroicon-o-inbox-arrow-down')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_warehouse')
+                        Placeholder::make('review_warehouse')
                             ->label('Warehouse')
                             ->content(function (Get $get): string {
                                 $warehouse = $get('warehouse');
@@ -681,7 +693,7 @@ class CreateInbound extends CreateRecord
                                 };
                             }),
 
-                        Forms\Components\Placeholder::make('review_received_date')
+                        Placeholder::make('review_received_date')
                             ->label('Received Date')
                             ->content(function (Get $get): string {
                                 $date = $get('received_date');
@@ -689,14 +701,14 @@ class CreateInbound extends CreateRecord
                                     return 'Not specified';
                                 }
 
-                                if ($date instanceof \Carbon\Carbon) {
+                                if ($date instanceof Carbon) {
                                     return $date->format('F j, Y');
                                 }
 
                                 return is_string($date) ? $date : 'Invalid date';
                             }),
 
-                        Forms\Components\Placeholder::make('review_quantity')
+                        Placeholder::make('review_quantity')
                             ->label('Quantity')
                             ->content(function (Get $get): string {
                                 $quantity = is_numeric($get('quantity')) ? (int) $get('quantity') : 0;
@@ -704,7 +716,7 @@ class CreateInbound extends CreateRecord
                                 return "{$quantity} bottles";
                             }),
 
-                        Forms\Components\Placeholder::make('review_packaging')
+                        Placeholder::make('review_packaging')
                             ->label('Packaging')
                             ->content(function (Get $get): string {
                                 $packaging = $get('packaging');
@@ -717,7 +729,7 @@ class CreateInbound extends CreateRecord
                                 };
                             }),
 
-                        Forms\Components\Placeholder::make('review_condition')
+                        Placeholder::make('review_condition')
                             ->label('Condition Notes')
                             ->content(function (Get $get): string {
                                 $notes = $get('condition_notes');
@@ -729,10 +741,10 @@ class CreateInbound extends CreateRecord
                     ->columns(4),
 
                 // Sourcing Context Summary
-                Forms\Components\Section::make('Sourcing Context')
+                Section::make('Sourcing Context')
                     ->icon('heroicon-o-link')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_po')
+                        Placeholder::make('review_po')
                             ->label('Purchase Order')
                             ->content(function (Get $get): string {
                                 $poId = $get('purchase_order_id');
@@ -745,7 +757,7 @@ class CreateInbound extends CreateRecord
                                 return $po !== null ? self::formatPurchaseOrderOption($po) : 'Not found';
                             }),
 
-                        Forms\Components\Placeholder::make('review_intent')
+                        Placeholder::make('review_intent')
                             ->label('Procurement Intent')
                             ->content(function (Get $get): string {
                                 $intentId = $get('procurement_intent_id');
@@ -758,7 +770,7 @@ class CreateInbound extends CreateRecord
                                 return $intent !== null ? self::formatIntentOption($intent) : 'Not found';
                             }),
 
-                        Forms\Components\Placeholder::make('review_ownership')
+                        Placeholder::make('review_ownership')
                             ->label('Ownership Status')
                             ->content(function (Get $get): HtmlString {
                                 $flag = $get('ownership_flag');
@@ -783,14 +795,14 @@ class CreateInbound extends CreateRecord
                     ->columns(3),
 
                 // Serialization Summary
-                Forms\Components\Section::make('Serialization')
+                Section::make('Serialization')
                     ->icon('heroicon-o-qr-code')
                     ->schema([
-                        Forms\Components\Placeholder::make('review_serialization_required')
+                        Placeholder::make('review_serialization_required')
                             ->label('Serialization Required')
                             ->content(fn (Get $get): string => $get('serialization_required') === true ? 'Yes' : 'No'),
 
-                        Forms\Components\Placeholder::make('review_serialization_location')
+                        Placeholder::make('review_serialization_location')
                             ->label('Authorized Location')
                             ->content(function (Get $get): string {
                                 if ($get('serialization_required') !== true) {
@@ -811,7 +823,7 @@ class CreateInbound extends CreateRecord
                                 };
                             }),
 
-                        Forms\Components\Placeholder::make('review_routing_rule')
+                        Placeholder::make('review_routing_rule')
                             ->label('Routing Rule')
                             ->content(function (Get $get): string {
                                 if ($get('serialization_required') !== true) {
@@ -917,7 +929,7 @@ class CreateInbound extends CreateRecord
         $record = $this->record;
         $warnings = [];
 
-        if ($record instanceof \App\Models\Procurement\Inbound) {
+        if ($record instanceof Inbound) {
             if ($record->hasOwnershipPending()) {
                 $warnings[] = 'Ownership status is pending and must be clarified';
             }

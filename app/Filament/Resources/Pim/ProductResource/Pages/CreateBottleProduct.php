@@ -10,7 +10,7 @@ class CreateBottleProduct extends Page
 {
     protected static string $resource = ProductResource::class;
 
-    protected static string $view = 'filament.resources.pim.product-resource.pages.create-bottle-product';
+    protected string $view = 'filament.resources.pim.product-resource.pages.create-bottle-product';
 
     protected static ?string $title = 'Create Bottle Product';
 

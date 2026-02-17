@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Enums\ProductLifecycleStatus;
 use Illuminate\Database\Eloquent\Builder;
+use InvalidArgumentException;
 
 /**
  * Trait HasProductLifecycle
@@ -240,12 +241,12 @@ trait HasProductLifecycle
     /**
      * Transition to a new status.
      *
-     * @throws \InvalidArgumentException if transition is not allowed
+     * @throws InvalidArgumentException if transition is not allowed
      */
     public function transitionTo(ProductLifecycleStatus $status): bool
     {
         if (! $this->canTransitionTo($status)) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot transition from {$this->lifecycle_status->value} to {$status->value}"
             );
         }

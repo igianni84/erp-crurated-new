@@ -2,24 +2,38 @@
 
 namespace App\Filament\Resources\Pim;
 
-use App\Filament\Resources\Pim\ProducerResource\Pages;
+use App\Filament\Resources\Pim\ProducerResource\Pages\CreateProducer;
+use App\Filament\Resources\Pim\ProducerResource\Pages\EditProducer;
+use App\Filament\Resources\Pim\ProducerResource\Pages\ListProducers;
 use App\Models\Pim\Producer;
 use App\Models\Pim\Region;
-use Filament\Forms;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class ProducerResource extends Resource
 {
     protected static ?string $model = Producer::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-office-2';
 
-    protected static ?string $navigationGroup = 'PIM';
+    protected static string|\UnitEnum|null $navigationGroup = 'PIM';
 
     protected static ?int $navigationSort = 8;
 
@@ -29,16 +43,16 @@ class ProducerResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Producers';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Producer Details')
+        return $schema
+            ->components([
+                Section::make('Producer Details')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('country_id')
+                        Select::make('country_id')
                             ->relationship('country', 'name')
                             ->required()
                             ->searchable()
@@ -47,7 +61,7 @@ class ProducerResource extends Resource
                             ->afterStateUpdated(function (Set $set): void {
                                 $set('region_id', null);
                             }),
-                        Forms\Components\Select::make('region_id')
+                        Select::make('region_id')
                             ->label('Region')
                             ->options(function (Get $get): array {
                                 $countryId = $get('country_id');
@@ -63,11 +77,11 @@ class ProducerResource extends Resource
                                     ->toArray();
                             })
                             ->searchable(),
-                        Forms\Components\TextInput::make('website')
+                        TextInput::make('website')
                             ->url(),
-                        Forms\Components\Toggle::make('is_active')
+                        Toggle::make('is_active')
                             ->default(true),
-                        Forms\Components\TextInput::make('sort_order')
+                        TextInput::make('sort_order')
                             ->numeric(),
                     ])
                     ->columns(2),
@@ -78,42 +92,42 @@ class ProducerResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('country.name')
+                TextColumn::make('country.name')
                     ->label('Country')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('region.name')
+                TextColumn::make('region.name')
                     ->label('Region')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('wine_masters_count')
+                TextColumn::make('wine_masters_count')
                     ->counts('wineMasters')
                     ->label('Wines'),
-                Tables\Columns\IconColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->boolean(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\TrashedFilter::make(),
-                Tables\Filters\SelectFilter::make('country_id')
+                TrashedFilter::make(),
+                SelectFilter::make('country_id')
                     ->relationship('country', 'name')
                     ->label('Country')
                     ->searchable()
                     ->preload(),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\RestoreAction::make(),
+            ->recordActions([
+                EditAction::make(),
+                DeleteAction::make(),
+                RestoreAction::make(),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('name');
@@ -129,9 +143,9 @@ class ProducerResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListProducers::route('/'),
-            'create' => Pages\CreateProducer::route('/create'),
-            'edit' => Pages\EditProducer::route('/{record}/edit'),
+            'index' => ListProducers::route('/'),
+            'create' => CreateProducer::route('/create'),
+            'edit' => EditProducer::route('/{record}/edit'),
         ];
     }
 }

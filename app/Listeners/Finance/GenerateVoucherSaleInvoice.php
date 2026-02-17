@@ -8,6 +8,7 @@ use App\Services\Finance\InvoiceService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 /**
  * Listener: GenerateVoucherSaleInvoice
@@ -97,7 +98,7 @@ class GenerateVoucherSaleInvoice implements ShouldQueue
                     'invoice_number' => $invoice->invoice_number,
                     'sale_reference' => $event->saleReference,
                 ]);
-            } catch (\Throwable $e) {
+            } catch (Throwable $e) {
                 Log::channel('finance')->error('Failed to auto-issue INV1 invoice', [
                     'invoice_id' => $invoice->id,
                     'sale_reference' => $event->saleReference,

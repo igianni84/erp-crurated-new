@@ -9,20 +9,23 @@ use App\Enums\Commercial\OfferVisibility;
 use App\Filament\Resources\OfferResource;
 use App\Models\AuditLog;
 use App\Models\Commercial\Offer;
-use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
+use Illuminate\Database\Eloquent\Collection;
 
 class ViewOffer extends ViewRecord
 {
@@ -51,9 +54,9 @@ class ViewOffer extends ViewRecord
         return "Offer: {$record->name}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 Tabs::make('Offer Details')
                     ->tabs([
@@ -95,7 +98,7 @@ class ViewOffer extends ViewRecord
                                     TextEntry::make('name')
                                         ->label('Name')
                                         ->weight(FontWeight::Bold)
-                                        ->size(TextEntry\TextEntrySize::Large),
+                                        ->size(TextSize::Large),
                                 ])->columnSpan(1),
                                 Group::make([
                                     TextEntry::make('offer_type')
@@ -265,7 +268,7 @@ class ViewOffer extends ViewRecord
 
                                         return $currency.' '.number_format($finalPrice, 2);
                                     })
-                                    ->size(TextEntry\TextEntrySize::Large)
+                                    ->size(TextSize::Large)
                                     ->weight(FontWeight::Bold)
                                     ->color(fn (Offer $record): string => $record->hasBasePrice() ? 'primary' : 'danger'),
                                 TextEntry::make('savings')
@@ -310,7 +313,7 @@ class ViewOffer extends ViewRecord
                         TextEntry::make('eligibility_summary')
                             ->label('')
                             ->getStateUsing(fn (): string => $eligibility?->getEligibilitySummary() ?? 'No eligibility restrictions defined')
-                            ->size(TextEntry\TextEntrySize::Large)
+                            ->size(TextSize::Large)
                             ->weight(FontWeight::Medium)
                             ->color(fn (): string => $eligibility !== null && $eligibility->hasAnyRestrictions() ? 'warning' : 'success'),
                     ]),
@@ -442,7 +445,7 @@ class ViewOffer extends ViewRecord
                                     ->badge()
                                     ->color(fn (): string => $benefit?->getBenefitTypeColor() ?? 'gray')
                                     ->icon(fn (): string => $benefit?->getBenefitTypeIcon() ?? 'heroicon-o-minus')
-                                    ->size(TextEntry\TextEntrySize::Large),
+                                    ->size(TextSize::Large),
                                 TextEntry::make('benefit_value')
                                     ->label('Benefit Value')
                                     ->getStateUsing(function () use ($benefit, $record): string {
@@ -882,7 +885,7 @@ class ViewOffer extends ViewRecord
                                 TextEntry::make('created_priority')
                                     ->label('Created')
                                     ->getStateUsing(fn (): string => $record->created_at?->format('M d, Y H:i:s') ?? '-')
-                                    ->size(TextEntry\TextEntrySize::Small),
+                                    ->size(TextSize::Small),
                             ]),
                     ]),
             ]);
@@ -1086,10 +1089,10 @@ class ViewOffer extends ViewRecord
                 Section::make('Audit History')
                     ->description(fn (): string => $this->getAuditFilterDescription())
                     ->headerActions([
-                        \Filament\Infolists\Components\Actions\Action::make('filter_audit')
+                        Action::make('filter_audit')
                             ->label('Filter')
                             ->icon('heroicon-o-funnel')
-                            ->form([
+                            ->schema([
                                 Select::make('event_type')
                                     ->label('Event Type')
                                     ->placeholder('All events')
@@ -1112,7 +1115,7 @@ class ViewOffer extends ViewRecord
                                 $this->auditDateFrom = isset($data['date_from']) && is_string($data['date_from']) ? $data['date_from'] : null;
                                 $this->auditDateUntil = isset($data['date_until']) && is_string($data['date_until']) ? $data['date_until'] : null;
                             }),
-                        \Filament\Infolists\Components\Actions\Action::make('clear_filters')
+                        Action::make('clear_filters')
                             ->label('Clear Filters')
                             ->icon('heroicon-o-x-mark')
                             ->color('gray')
@@ -1269,9 +1272,9 @@ class ViewOffer extends ViewRecord
     /**
      * Get conflicting offers.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Offer>
+     * @return Collection<int, Offer>
      */
-    protected function getConflictingOffers(): \Illuminate\Database\Eloquent\Collection
+    protected function getConflictingOffers(): Collection
     {
         /** @var Offer $record */
         $record = $this->record;
@@ -1299,10 +1302,10 @@ class ViewOffer extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Actions\EditAction::make()
+            EditAction::make()
                 ->visible(fn (Offer $record): bool => $record->isEditable()),
 
-            Actions\Action::make('activate')
+            Action::make('activate')
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
@@ -1360,7 +1363,7 @@ class ViewOffer extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('pause')
+            Action::make('pause')
                 ->label('Pause')
                 ->icon('heroicon-o-pause')
                 ->color('warning')
@@ -1384,7 +1387,7 @@ class ViewOffer extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('resume')
+            Action::make('resume')
                 ->label('Resume')
                 ->icon('heroicon-o-play')
                 ->color('success')
@@ -1408,7 +1411,7 @@ class ViewOffer extends ViewRecord
                         ->send();
                 }),
 
-            Actions\Action::make('cancel')
+            Action::make('cancel')
                 ->label('Cancel')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')

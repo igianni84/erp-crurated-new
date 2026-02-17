@@ -24,7 +24,7 @@ use Illuminate\Support\Collection;
  */
 class MonthlyFinancialSummaryWidget extends Widget
 {
-    protected static string $view = 'filament.widgets.finance.monthly-financial-summary-widget';
+    protected string $view = 'filament.widgets.finance.monthly-financial-summary-widget';
 
     protected static ?string $heading = 'Monthly Financial Summary';
 

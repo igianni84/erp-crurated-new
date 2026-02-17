@@ -6,6 +6,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Models\Finance\Invoice;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
 
@@ -123,9 +124,9 @@ class AlertUnpaidImmediateInvoicesJob implements ShouldQueue
     /**
      * Get query builder for unpaid immediate invoices (for reuse in UI).
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     * @return Builder<Invoice>
      */
-    public static function getUnpaidImmediateInvoicesQuery(?int $thresholdHours = null): \Illuminate\Database\Eloquent\Builder
+    public static function getUnpaidImmediateInvoicesQuery(?int $thresholdHours = null): Builder
     {
         $thresholdHours = $thresholdHours ?? (int) config('finance.immediate_invoice_alert_hours', 24);
         $cutoffTime = now()->subHours($thresholdHours);
@@ -152,9 +153,9 @@ class AlertUnpaidImmediateInvoicesJob implements ShouldQueue
     /**
      * Get query builder for unpaid INV1 invoices specifically.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<Invoice>
+     * @return Builder<Invoice>
      */
-    public static function getUnpaidInv1Query(?int $thresholdHours = null): \Illuminate\Database\Eloquent\Builder
+    public static function getUnpaidInv1Query(?int $thresholdHours = null): Builder
     {
         $thresholdHours = $thresholdHours ?? (int) config('finance.immediate_invoice_alert_hours', 24);
         $cutoffTime = now()->subHours($thresholdHours);

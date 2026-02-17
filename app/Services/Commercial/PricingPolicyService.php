@@ -14,9 +14,11 @@ use App\Models\Commercial\PriceBookEntry;
 use App\Models\Commercial\PricingPolicy;
 use App\Models\Commercial\PricingPolicyExecution;
 use App\Models\Pim\SellableSku;
+use Exception;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 /**
  * Service for managing PricingPolicy lifecycle and execution.
@@ -29,12 +31,12 @@ class PricingPolicyService
     /**
      * Activate a PricingPolicy (draft → active).
      *
-     * @throws \InvalidArgumentException If activation is not allowed
+     * @throws InvalidArgumentException If activation is not allowed
      */
     public function activate(PricingPolicy $policy): PricingPolicy
     {
         if (! $policy->canBeActivated()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot activate PricingPolicy: current status '{$policy->status->label()}' is not Draft. "
                 .'Only Draft policies can be activated.'
             );
@@ -52,12 +54,12 @@ class PricingPolicyService
     /**
      * Pause a PricingPolicy (active → paused).
      *
-     * @throws \InvalidArgumentException If pausing is not allowed
+     * @throws InvalidArgumentException If pausing is not allowed
      */
     public function pause(PricingPolicy $policy): PricingPolicy
     {
         if (! $policy->canBePaused()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot pause PricingPolicy: current status '{$policy->status->label()}' is not Active. "
                 .'Only Active policies can be paused.'
             );
@@ -75,12 +77,12 @@ class PricingPolicyService
     /**
      * Resume a PricingPolicy (paused → active).
      *
-     * @throws \InvalidArgumentException If resuming is not allowed
+     * @throws InvalidArgumentException If resuming is not allowed
      */
     public function resume(PricingPolicy $policy): PricingPolicy
     {
         if (! $policy->canBeResumed()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot resume PricingPolicy: current status '{$policy->status->label()}' is not Paused. "
                 .'Only Paused policies can be resumed.'
             );
@@ -98,12 +100,12 @@ class PricingPolicyService
     /**
      * Archive a PricingPolicy (active/paused → archived).
      *
-     * @throws \InvalidArgumentException If archiving is not allowed
+     * @throws InvalidArgumentException If archiving is not allowed
      */
     public function archive(PricingPolicy $policy): PricingPolicy
     {
         if (! $policy->canBeArchived()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot archive PricingPolicy: current status '{$policy->status->label()}' does not allow archiving. "
                 .'Only Active or Paused policies can be archived.'
             );
@@ -124,20 +126,20 @@ class PricingPolicyService
      * @param  bool  $isDryRun  If true, preview results without writing to Price Book
      * @return ExecutionResult The result of the execution
      *
-     * @throws \InvalidArgumentException If execution is not allowed
+     * @throws InvalidArgumentException If execution is not allowed
      */
     public function execute(PricingPolicy $policy, bool $isDryRun = false): ExecutionResult
     {
         // Validate execution is allowed
         if (! $isDryRun && ! $policy->canBeExecuted()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 "Cannot execute PricingPolicy: status '{$policy->status->label()}' does not allow execution. "
                 .'Only Active policies can be executed. Dry runs are available for non-archived policies.'
             );
         }
 
         if ($isDryRun && ! $policy->canDryRun()) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot perform dry run: Archived policies cannot be previewed.'
             );
         }
@@ -145,7 +147,7 @@ class PricingPolicyService
         // Validate target Price Book exists
         $targetPriceBook = $policy->targetPriceBook;
         if ($targetPriceBook === null) {
-            throw new \InvalidArgumentException(
+            throw new InvalidArgumentException(
                 'Cannot execute PricingPolicy: no target Price Book is assigned. '
                 .'Assign a target Price Book before executing.'
             );
@@ -184,7 +186,7 @@ class PricingPolicyService
                         'current_price' => $this->getCurrentPrice($targetPriceBook, $sku),
                     ];
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = [
                     'sku_id' => $sku->id,
                     'sku_code' => $sku->sku_code,

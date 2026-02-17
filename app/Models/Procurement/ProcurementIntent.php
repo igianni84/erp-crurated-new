@@ -7,9 +7,13 @@ use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\SourcingModel;
 use App\Models\Allocation\Allocation;
 use App\Models\Allocation\Voucher;
+use App\Models\AuditLog;
+use App\Models\Pim\LiquidProduct;
+use App\Models\Pim\SellableSku;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use InvalidArgumentException;
 
 /**
  * ProcurementIntent Model
@@ -33,7 +38,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string|null $preferred_inbound_location Preferred warehouse for delivery
  * @property string|null $rationale Operational notes
  * @property ProcurementIntentStatus $status Current lifecycle status
- * @property \Carbon\Carbon|null $approved_at When the intent was approved
+ * @property Carbon|null $approved_at When the intent was approved
  * @property int|null $approved_by User ID who approved the intent
  * @property string|null $source_allocation_id FK to allocation that triggered this intent (voucher-driven)
  * @property string|null $source_voucher_id FK to voucher that triggered this intent (voucher-driven)
@@ -101,7 +106,7 @@ class ProcurementIntent extends Model
         static::saving(function (ProcurementIntent $intent): void {
             // Enforce invariant: quantity > 0 always
             if ($intent->quantity <= 0) {
-                throw new \InvalidArgumentException(
+                throw new InvalidArgumentException(
                     'Quantity must be greater than 0'
                 );
             }
@@ -152,11 +157,11 @@ class ProcurementIntent extends Model
     /**
      * Get the audit logs for this procurement intent.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -306,12 +311,12 @@ class ProcurementIntent extends Model
         }
 
         // Handle SellableSku
-        if ($this->isForBottleSku() && $product instanceof \App\Models\Pim\SellableSku) {
+        if ($this->isForBottleSku() && $product instanceof SellableSku) {
             return $product->sku_code ?? 'Unknown SKU';
         }
 
         // Handle LiquidProduct
-        if ($this->isForLiquidProduct() && $product instanceof \App\Models\Pim\LiquidProduct) {
+        if ($this->isForLiquidProduct() && $product instanceof LiquidProduct) {
             $wineVariant = $product->wineVariant;
             if ($wineVariant && $wineVariant->wineMaster) {
                 return $wineVariant->wineMaster->name.' '.$wineVariant->vintage_year.' (Liquid)';

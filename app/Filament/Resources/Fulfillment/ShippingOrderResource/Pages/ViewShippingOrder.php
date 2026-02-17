@@ -8,12 +8,14 @@ use App\Enums\Fulfillment\ShippingOrderExceptionStatus;
 use App\Enums\Fulfillment\ShippingOrderExceptionType;
 use App\Enums\Fulfillment\ShippingOrderLineStatus;
 use App\Enums\Fulfillment\ShippingOrderStatus;
+use App\Enums\Inventory\LocationStatus;
 use App\Enums\Inventory\LocationType;
 use App\Filament\Resources\Allocation\VoucherResource;
 use App\Filament\Resources\Customer\CustomerResource;
 use App\Filament\Resources\Fulfillment\ShippingOrderResource;
 use App\Models\Allocation\Voucher;
 use App\Models\Fulfillment\ShippingOrder;
+use App\Models\Fulfillment\ShippingOrderAuditLog;
 use App\Models\Fulfillment\ShippingOrderException;
 use App\Models\Fulfillment\ShippingOrderLine;
 use App\Models\Inventory\Location;
@@ -21,21 +23,27 @@ use App\Services\Fulfillment\LateBindingService;
 use App\Services\Fulfillment\ShipmentService;
 use App\Services\Fulfillment\ShippingOrderService;
 use App\Services\Fulfillment\WmsIntegrationService;
+use Exception;
 use Filament\Actions;
+use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Infolists\Components\Grid;
-use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Section;
-use Filament\Infolists\Components\Tabs;
-use Filament\Infolists\Components\Tabs\Tab;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\View;
-use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Group;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
+use Filament\Schemas\Components\Tabs\Tab;
+use Filament\Schemas\Components\View;
+use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\Facades\Auth;
 
@@ -51,9 +59,9 @@ class ViewShippingOrder extends ViewRecord
         return "Shipping Order: #{$record->id}";
     }
 
-    public function infolist(Infolist $infolist): Infolist
+    public function infolist(Schema $schema): Schema
     {
-        return $infolist
+        return $schema
             ->schema([
                 $this->getWorkflowIndicator(),
                 $this->getStatusBanner(),
@@ -764,7 +772,7 @@ class ViewShippingOrder extends ViewRecord
                             ->default('Not selected')
                             ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null)
                             ->weight(FontWeight::Bold)
-                            ->size(TextEntry\TextEntrySize::Large),
+                            ->size(TextSize::Large),
                         TextEntry::make('sourceWarehouse.country')
                             ->label('Country')
                             ->visible(fn (ShippingOrder $record): bool => $record->source_warehouse_id !== null),
@@ -1180,7 +1188,7 @@ class ViewShippingOrder extends ViewRecord
                             ->getStateUsing(fn (ShippingOrder $record): int => $record->lines()->count())
                             ->badge()
                             ->color('info')
-                            ->size(TextEntry\TextEntrySize::Large),
+                            ->size(TextSize::Large),
                         TextEntry::make('eligible_vouchers')
                             ->label('Eligible')
                             ->getStateUsing(fn (ShippingOrder $record): int => $this->countEligibleVouchers($record))
@@ -1524,7 +1532,7 @@ class ViewShippingOrder extends ViewRecord
                                     : null)
                                 ->openUrlInNewTab()
                                 ->weight(FontWeight::Bold)
-                                ->size(TextEntry\TextEntrySize::Large)
+                                ->size(TextSize::Large)
                                 ->icon('heroicon-o-user'),
                             TextEntry::make('customer.email')
                                 ->label('Email')
@@ -1657,7 +1665,7 @@ class ViewShippingOrder extends ViewRecord
                             ->badge()
                             ->color(fn (ShippingOrder $record): string => $record->packaging_preference->color())
                             ->icon(fn (ShippingOrder $record): string => $record->packaging_preference->icon())
-                            ->size(TextEntry\TextEntrySize::Large),
+                            ->size(TextSize::Large),
                         TextEntry::make('packaging_description')
                             ->label('Description')
                             ->getStateUsing(fn (ShippingOrder $record): string => $record->getPackagingPreferenceDescription())
@@ -1689,7 +1697,7 @@ class ViewShippingOrder extends ViewRecord
                             ->getStateUsing(fn (ShippingOrder $record): int => $record->lines()->count())
                             ->badge()
                             ->color('info')
-                            ->size(TextEntry\TextEntrySize::Large),
+                            ->size(TextSize::Large),
                         TextEntry::make('pending_lines')
                             ->label('Pending')
                             ->getStateUsing(fn (ShippingOrder $record): int => $record->lines()
@@ -2193,7 +2201,7 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Format change tracking details for an audit log entry.
      *
-     * @param  \App\Models\Fulfillment\ShippingOrderAuditLog  $log
+     * @param  ShippingOrderAuditLog  $log
      */
     protected function formatChangeTracking($log): string
     {
@@ -2310,7 +2318,7 @@ class ViewShippingOrder extends ViewRecord
             // Draft status actions
             $this->getSelectWarehouseAction(),
             $this->getPlanOrderAction(),
-            Actions\EditAction::make()
+            EditAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft()),
 
             // Planned status actions
@@ -2329,7 +2337,7 @@ class ViewShippingOrder extends ViewRecord
             $this->getExportAuditCsvAction(),
 
             // Delete (draft only)
-            Actions\DeleteAction::make()
+            DeleteAction::make()
                 ->visible(fn (ShippingOrder $record): bool => $record->isDraft())
                 ->requiresConfirmation()
                 ->modalHeading('Delete Shipping Order')
@@ -2340,9 +2348,9 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Action to export the audit trail as CSV.
      */
-    protected function getExportAuditCsvAction(): Actions\Action
+    protected function getExportAuditCsvAction(): Action
     {
-        return Actions\Action::make('exportAuditCsv')
+        return Action::make('exportAuditCsv')
             ->label('Export Audit CSV')
             ->icon('heroicon-o-arrow-down-tray')
             ->color('gray')
@@ -2395,16 +2403,16 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Action to select/change source warehouse.
      */
-    protected function getSelectWarehouseAction(): Actions\Action
+    protected function getSelectWarehouseAction(): Action
     {
-        return Actions\Action::make('selectWarehouse')
+        return Action::make('selectWarehouse')
             ->label(fn (ShippingOrder $record): string => $record->source_warehouse_id === null
                 ? 'Select Warehouse'
                 : 'Change Warehouse')
             ->icon('heroicon-o-building-storefront')
             ->color('gray')
             ->visible(fn (ShippingOrder $record): bool => $record->isDraft())
-            ->form([
+            ->schema([
                 Select::make('source_warehouse_id')
                     ->label('Source Warehouse')
                     ->options(function (): array {
@@ -2413,7 +2421,7 @@ class ViewShippingOrder extends ViewRecord
                                 LocationType::MainWarehouse,
                                 LocationType::SatelliteWarehouse,
                             ])
-                            ->where('status', \App\Enums\Inventory\LocationStatus::Active)
+                            ->where('status', LocationStatus::Active)
                             ->pluck('name', 'id')
                             ->toArray();
                     })
@@ -2439,9 +2447,9 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Action to plan the shipping order.
      */
-    protected function getPlanOrderAction(): Actions\Action
+    protected function getPlanOrderAction(): Action
     {
-        return Actions\Action::make('planOrder')
+        return Action::make('planOrder')
             ->label('Plan Order')
             ->icon('heroicon-o-clipboard-document-check')
             ->color('primary')
@@ -2511,7 +2519,7 @@ class ViewShippingOrder extends ViewRecord
 
                     // Redirect to refresh the page
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Planning Failed')
                         ->body($e->getMessage())
@@ -2524,9 +2532,9 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Action to request a re-pick from WMS for discrepant items.
      */
-    protected function getRequestRePickAction(): Actions\Action
+    protected function getRequestRePickAction(): Action
     {
-        return Actions\Action::make('requestRePick')
+        return Action::make('requestRePick')
             ->label('Request Re-pick')
             ->icon('heroicon-o-arrow-path')
             ->color('warning')
@@ -2540,7 +2548,7 @@ class ViewShippingOrder extends ViewRecord
 
                 return $completion['discrepancy_count'] > 0;
             })
-            ->form([
+            ->schema([
                 Select::make('line_id')
                     ->label('Select Line to Re-pick')
                     ->options(function (ShippingOrder $record): array {
@@ -2629,7 +2637,7 @@ class ViewShippingOrder extends ViewRecord
 
                     // Refresh the page
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Re-pick Request Failed')
                         ->body($e->getMessage())
@@ -2642,9 +2650,9 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Action to send the shipping order to picking (transition from Planned to Picking).
      */
-    protected function getSendToPickingAction(): Actions\Action
+    protected function getSendToPickingAction(): Action
     {
-        return Actions\Action::make('sendToPicking')
+        return Action::make('sendToPicking')
             ->label('Send to Picking')
             ->icon('heroicon-o-hand-raised')
             ->color('primary')
@@ -2679,7 +2687,7 @@ class ViewShippingOrder extends ViewRecord
                         ->send();
 
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Send to Picking Failed')
                         ->body($e->getMessage())
@@ -2693,9 +2701,9 @@ class ViewShippingOrder extends ViewRecord
      * Action to confirm shipment (transition from Picking to Shipped).
      * Only enabled when all bindings are complete.
      */
-    protected function getConfirmShipmentAction(): Actions\Action
+    protected function getConfirmShipmentAction(): Action
     {
-        return Actions\Action::make('confirmShipment')
+        return Action::make('confirmShipment')
             ->label('Confirm Shipment')
             ->icon('heroicon-o-truck')
             ->color('success')
@@ -2734,7 +2742,7 @@ class ViewShippingOrder extends ViewRecord
 
                 return $description;
             })
-            ->form(function (ShippingOrder $record): array {
+            ->schema(function (ShippingOrder $record): array {
                 /** @var ShipmentService $shipmentService */
                 $shipmentService = app(ShipmentService::class);
                 $caseImpact = $shipmentService->checkCaseIntegrityImpact($record);
@@ -2742,7 +2750,7 @@ class ViewShippingOrder extends ViewRecord
                 $formFields = [];
 
                 if ($caseImpact['requires_case_break']) {
-                    $formFields[] = \Filament\Forms\Components\Checkbox::make('case_break_confirmed')
+                    $formFields[] = Checkbox::make('case_break_confirmed')
                         ->label('I understand that this shipment will permanently break the original case(s) and this action is IRREVERSIBLE')
                         ->required()
                         ->accepted();
@@ -2786,7 +2794,7 @@ class ViewShippingOrder extends ViewRecord
                         ->send();
 
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Shipment Confirmation Failed')
                         ->body($e->getMessage())
@@ -2800,9 +2808,9 @@ class ViewShippingOrder extends ViewRecord
      * Action to put the shipping order on hold.
      * Available from Draft, Planned, Picking, and Shipped statuses.
      */
-    protected function getPutOnHoldAction(): Actions\Action
+    protected function getPutOnHoldAction(): Action
     {
-        return Actions\Action::make('putOnHold')
+        return Action::make('putOnHold')
             ->label('Put on Hold')
             ->icon('heroicon-o-pause-circle')
             ->color('warning')
@@ -2814,7 +2822,7 @@ class ViewShippingOrder extends ViewRecord
             ], true))
             ->requiresConfirmation()
             ->modalHeading('Put Shipping Order on Hold')
-            ->form([
+            ->schema([
                 Textarea::make('reason')
                     ->label('Reason for Hold')
                     ->placeholder('Enter the reason for putting this order on hold...')
@@ -2844,7 +2852,7 @@ class ViewShippingOrder extends ViewRecord
                     $shippingOrderService->transitionTo($record, ShippingOrderStatus::OnHold);
 
                     // Log the hold reason
-                    \App\Models\Fulfillment\ShippingOrderAuditLog::create([
+                    ShippingOrderAuditLog::create([
                         'shipping_order_id' => $record->id,
                         'event_type' => 'put_on_hold',
                         'description' => "Order put on hold: {$reason}",
@@ -2860,7 +2868,7 @@ class ViewShippingOrder extends ViewRecord
                         ->send();
 
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Put on Hold Failed')
                         ->body($e->getMessage())
@@ -2873,9 +2881,9 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Action to resume the shipping order from on hold status.
      */
-    protected function getResumeAction(): Actions\Action
+    protected function getResumeAction(): Action
     {
-        return Actions\Action::make('resume')
+        return Action::make('resume')
             ->label('Resume')
             ->icon('heroicon-o-play-circle')
             ->color('success')
@@ -2899,7 +2907,7 @@ class ViewShippingOrder extends ViewRecord
                     $shippingOrderService->transitionTo($record, $previousStatus);
 
                     // Log the resume
-                    \App\Models\Fulfillment\ShippingOrderAuditLog::create([
+                    ShippingOrderAuditLog::create([
                         'shipping_order_id' => $record->id,
                         'event_type' => 'resumed_from_hold',
                         'description' => "Order resumed from hold to {$previousStatus->label()}",
@@ -2915,7 +2923,7 @@ class ViewShippingOrder extends ViewRecord
                         ->send();
 
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Resume Failed')
                         ->body($e->getMessage())
@@ -2929,16 +2937,16 @@ class ViewShippingOrder extends ViewRecord
      * Action to cancel the shipping order.
      * Available from Draft, Planned, Picking, and On Hold statuses.
      */
-    protected function getCancelAction(): Actions\Action
+    protected function getCancelAction(): Action
     {
-        return Actions\Action::make('cancel')
+        return Action::make('cancel')
             ->label('Cancel')
             ->icon('heroicon-o-x-circle')
             ->color('danger')
             ->visible(fn (ShippingOrder $record): bool => $record->canBeCancelled())
             ->requiresConfirmation()
             ->modalHeading('Cancel Shipping Order')
-            ->form([
+            ->schema([
                 Textarea::make('reason')
                     ->label('Cancellation Reason')
                     ->placeholder('Enter the reason for cancelling this order...')
@@ -2981,7 +2989,7 @@ class ViewShippingOrder extends ViewRecord
                         ->send();
 
                     $this->redirect(ShippingOrderResource::getUrl('view', ['record' => $record]));
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
                     Notification::make()
                         ->title('Cancellation Failed')
                         ->body($e->getMessage())

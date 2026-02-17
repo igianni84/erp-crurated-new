@@ -3,9 +3,12 @@
 namespace App\Models\Customer;
 
 use App\Enums\Customer\AccountUserRole;
+use App\Models\AuditLog;
 use App\Models\User;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
@@ -21,12 +24,12 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
  * @property string $account_id
  * @property int $user_id
  * @property AccountUserRole $role
- * @property \Carbon\Carbon|null $invited_at
- * @property \Carbon\Carbon|null $accepted_at
+ * @property Carbon|null $invited_at
+ * @property Carbon|null $accepted_at
  * @property int|null $created_by
  * @property int|null $updated_by
- * @property \Carbon\Carbon $created_at
- * @property \Carbon\Carbon $updated_at
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
  */
 class AccountUser extends Model
 {
@@ -90,11 +93,11 @@ class AccountUser extends Model
     /**
      * Get the audit logs for this account-user relationship.
      *
-     * @return MorphMany<\App\Models\AuditLog, $this>
+     * @return MorphMany<AuditLog, $this>
      */
     public function auditLogs(): MorphMany
     {
-        return $this->morphMany(\App\Models\AuditLog::class, 'auditable');
+        return $this->morphMany(AuditLog::class, 'auditable');
     }
 
     /**
@@ -230,8 +233,8 @@ class AccountUser extends Model
     /**
      * Scope to get only accepted relationships.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<AccountUser>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<AccountUser>
+     * @param  Builder<AccountUser>  $query
+     * @return Builder<AccountUser>
      */
     public function scopeAccepted($query)
     {
@@ -241,8 +244,8 @@ class AccountUser extends Model
     /**
      * Scope to get only pending (invited but not accepted) relationships.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<AccountUser>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<AccountUser>
+     * @param  Builder<AccountUser>  $query
+     * @return Builder<AccountUser>
      */
     public function scopePending($query)
     {
@@ -253,8 +256,8 @@ class AccountUser extends Model
     /**
      * Scope to get relationships with a specific role.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<AccountUser>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<AccountUser>
+     * @param  Builder<AccountUser>  $query
+     * @return Builder<AccountUser>
      */
     public function scopeWithRole($query, AccountUserRole $role)
     {
@@ -264,8 +267,8 @@ class AccountUser extends Model
     /**
      * Scope to get relationships that can manage users.
      *
-     * @param  \Illuminate\Database\Eloquent\Builder<AccountUser>  $query
-     * @return \Illuminate\Database\Eloquent\Builder<AccountUser>
+     * @param  Builder<AccountUser>  $query
+     * @return Builder<AccountUser>
      */
     public function scopeCanManageUsers($query)
     {

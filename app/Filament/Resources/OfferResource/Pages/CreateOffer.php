@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\OfferResource\Pages;
 
+use App\Enums\Allocation\AllocationStatus;
 use App\Enums\Commercial\BenefitType;
+use App\Enums\Commercial\ChannelStatus;
 use App\Enums\Commercial\OfferStatus;
 use App\Enums\Commercial\OfferType;
 use App\Enums\Commercial\OfferVisibility;
@@ -11,22 +13,36 @@ use App\Filament\Resources\OfferResource;
 use App\Models\Allocation\Allocation;
 use App\Models\Commercial\Channel;
 use App\Models\Commercial\EstimatedMarketPrice;
+use App\Models\Commercial\Offer;
 use App\Models\Commercial\OfferBenefit;
 use App\Models\Commercial\OfferEligibility;
 use App\Models\Commercial\PriceBook;
 use App\Models\Commercial\PriceBookEntry;
 use App\Models\Pim\SellableSku;
-use Filament\Forms;
-use Filament\Forms\Components\Wizard;
-use Filament\Forms\Form;
-use Filament\Forms\Get;
+use Carbon\Carbon;
+use Closure;
+use DateInterval;
+use DateTimeInterface;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Wizard;
+use Filament\Schemas\Components\Wizard\Step;
+use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\HtmlString;
 
 class CreateOffer extends CreateRecord
 {
-    use CreateRecord\Concerns\HasWizard;
+    use HasWizard;
 
     protected static string $resource = OfferResource::class;
 
@@ -39,10 +55,10 @@ class CreateOffer extends CreateRecord
      * Get the form for creating an offer.
      * Implements a multi-step wizard for offer creation.
      */
-    public function form(Form $form): Form
+    public function form(Schema $schema): Schema
     {
-        return parent::form($form)
-            ->schema([
+        return parent::form($schema)
+            ->components([
                 Wizard::make($this->getSteps())
                     ->startOnStep($this->getStartStep())
                     ->cancelAction($this->getCancelFormAction())
@@ -59,7 +75,7 @@ class CreateOffer extends CreateRecord
     protected function getWizardSubmitAction(): HtmlString
     {
         return new HtmlString(
-            \Illuminate\Support\Facades\Blade::render(<<<'BLADE'
+            Blade::render(<<<'BLADE'
                 <div class="flex gap-3">
                     <x-filament::button
                         type="submit"
@@ -83,7 +99,7 @@ class CreateOffer extends CreateRecord
     /**
      * Get the wizard steps.
      *
-     * @return array<Wizard\Step>
+     * @return array<\Filament\Schemas\Components\Wizard\Step>
      */
     protected function getSteps(): array
     {
@@ -100,15 +116,15 @@ class CreateOffer extends CreateRecord
      * Step 1: Product Selection
      * Select the Sellable SKU for the new Offer.
      */
-    protected function getProductStep(): Wizard\Step
+    protected function getProductStep(): Step
     {
-        return Wizard\Step::make('Product')
+        return Step::make('Product')
             ->description('Select the Sellable SKU for this Offer')
             ->icon('heroicon-o-cube')
             ->schema([
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('offer_info')
+                        Placeholder::make('offer_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-primary-50 dark:bg-primary-950 p-4 border border-primary-200 dark:border-primary-800">'
@@ -129,10 +145,10 @@ class CreateOffer extends CreateRecord
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Select Sellable SKU')
+                Section::make('Select Sellable SKU')
                     ->description('Choose the product you want to create an offer for')
                     ->schema([
-                        Forms\Components\Select::make('sellable_sku_id')
+                        Select::make('sellable_sku_id')
                             ->label('Sellable SKU')
                             ->required()
                             ->searchable()
@@ -182,7 +198,7 @@ class CreateOffer extends CreateRecord
                             ->helperText('Only SKUs with active allocations are shown'),
 
                         // SKU Preview Section
-                        Forms\Components\Placeholder::make('sku_preview')
+                        Placeholder::make('sku_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('sellable_sku_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -208,9 +224,9 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // No EMP Warning
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('no_emp_warning')
+                        Placeholder::make('no_emp_warning')
                             ->label('')
                             ->visible(function (Get $get): bool {
                                 $skuId = $get('sellable_sku_id');
@@ -248,16 +264,16 @@ class CreateOffer extends CreateRecord
      * Step 2: Channel & Eligibility
      * Define the channel and eligibility conditions for the Offer.
      */
-    protected function getChannelAndEligibilityStep(): Wizard\Step
+    protected function getChannelAndEligibilityStep(): Step
     {
-        return Wizard\Step::make('Channel & Eligibility')
+        return Step::make('Channel & Eligibility')
             ->description('Define channel and customer eligibility')
             ->icon('heroicon-o-globe-alt')
             ->schema([
                 // Warning about allocation constraints
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('allocation_warning')
+                        Placeholder::make('allocation_warning')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-4 border border-warning-300 dark:border-warning-700">'
@@ -280,10 +296,10 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Channel Selection Section
-                Forms\Components\Section::make('Channel Selection')
+                Section::make('Channel Selection')
                     ->description('Select the commercial channel for this offer')
                     ->schema([
-                        Forms\Components\Select::make('channel_id')
+                        Select::make('channel_id')
                             ->label('Channel')
                             ->required()
                             ->searchable()
@@ -296,7 +312,7 @@ class CreateOffer extends CreateRecord
                                 if ($skuId === null) {
                                     // Return all active channels if no SKU selected
                                     return Channel::query()
-                                        ->where('status', \App\Enums\Commercial\ChannelStatus::Active)
+                                        ->where('status', ChannelStatus::Active)
                                         ->pluck('name', 'id')
                                         ->toArray();
                                 }
@@ -320,11 +336,11 @@ class CreateOffer extends CreateRecord
 
                                 // Map allocation channel types to Channel model records
                                 $query = Channel::query()
-                                    ->where('status', \App\Enums\Commercial\ChannelStatus::Active);
+                                    ->where('status', ChannelStatus::Active);
 
                                 // If there are specific channel restrictions, filter by channel_type
                                 if (! empty($allowedChannelTypes)) {
-                                    $query->where(function (\Illuminate\Database\Eloquent\Builder $q) use ($allowedChannelTypes): void {
+                                    $query->where(function (Builder $q) use ($allowedChannelTypes): void {
                                         foreach ($allowedChannelTypes as $channelType) {
                                             // Match channel_type enum value with allocation constraint channel types
                                             $q->orWhere('channel_type', $channelType);
@@ -337,7 +353,7 @@ class CreateOffer extends CreateRecord
                             ->helperText('Only channels permitted by the SKU\'s allocation constraints are shown'),
 
                         // Channel Preview
-                        Forms\Components\Placeholder::make('channel_preview')
+                        Placeholder::make('channel_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('channel_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -381,10 +397,10 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Allocation Constraints Preview
-                Forms\Components\Section::make('Allocation Constraints')
+                Section::make('Allocation Constraints')
                     ->description('Current allocation constraints that apply to this SKU')
                     ->schema([
-                        Forms\Components\Placeholder::make('constraints_preview')
+                        Placeholder::make('constraints_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('sellable_sku_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -406,10 +422,10 @@ class CreateOffer extends CreateRecord
                     ->collapsed(),
 
                 // Eligibility Section
-                Forms\Components\Section::make('Eligibility Rules')
+                Section::make('Eligibility Rules')
                     ->description('Define who can access this offer (within allocation constraints)')
                     ->schema([
-                        Forms\Components\Select::make('allowed_markets')
+                        Select::make('allowed_markets')
                             ->label('Allowed Markets')
                             ->multiple()
                             ->searchable()
@@ -435,7 +451,7 @@ class CreateOffer extends CreateRecord
                             ->helperText('Leave empty to allow all markets permitted by allocation constraints')
                             ->columnSpan(1),
 
-                        Forms\Components\Select::make('allowed_customer_types')
+                        Select::make('allowed_customer_types')
                             ->label('Allowed Customer Types')
                             ->multiple()
                             ->searchable()
@@ -464,9 +480,9 @@ class CreateOffer extends CreateRecord
                     ->columns(2),
 
                 // Eligibility Summary
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('eligibility_summary')
+                        Placeholder::make('eligibility_summary')
                             ->label('')
                             ->visible(function (Get $get): bool {
                                 $markets = $get('allowed_markets');
@@ -693,17 +709,17 @@ class CreateOffer extends CreateRecord
      * Step 3: Pricing
      * Define the pricing of the Offer - Price Book selection and benefit configuration.
      */
-    protected function getPricingStep(): Wizard\Step
+    protected function getPricingStep(): Step
     {
-        return Wizard\Step::make('Pricing')
+        return Step::make('Pricing')
             ->description('Define pricing and discounts')
             ->icon('heroicon-o-currency-euro')
             ->schema([
                 // Price Book Selection
-                Forms\Components\Section::make('Price Book Selection')
+                Section::make('Price Book Selection')
                     ->description('Select the Price Book that provides base prices for this offer')
                     ->schema([
-                        Forms\Components\Select::make('price_book_id')
+                        Select::make('price_book_id')
                             ->label('Price Book')
                             ->required()
                             ->searchable()
@@ -720,7 +736,7 @@ class CreateOffer extends CreateRecord
 
                                 // If channel is selected, filter by channel or null (global)
                                 if ($channelId !== null) {
-                                    $query->where(function (\Illuminate\Database\Eloquent\Builder $q) use ($channelId): void {
+                                    $query->where(function (Builder $q) use ($channelId): void {
                                         $q->where('channel_id', $channelId)
                                             ->orWhereNull('channel_id');
                                     });
@@ -728,7 +744,7 @@ class CreateOffer extends CreateRecord
 
                                 // Filter for valid dates
                                 $query->where('valid_from', '<=', now())
-                                    ->where(function (\Illuminate\Database\Eloquent\Builder $q): void {
+                                    ->where(function (Builder $q): void {
                                         $q->whereNull('valid_to')
                                             ->orWhere('valid_to', '>=', now());
                                     });
@@ -742,7 +758,7 @@ class CreateOffer extends CreateRecord
                             ->helperText('Only active Price Books within their validity period are shown'),
 
                         // Price Book Preview
-                        Forms\Components\Placeholder::make('price_book_preview')
+                        Placeholder::make('price_book_preview')
                             ->label('')
                             ->visible(fn (Get $get): bool => $get('price_book_id') !== null)
                             ->content(function (Get $get): HtmlString {
@@ -762,11 +778,11 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Base Price Preview (from selected Price Book)
-                Forms\Components\Section::make('Base Price Preview')
+                Section::make('Base Price Preview')
                     ->description('Base price from the selected Price Book and EMP comparison')
                     ->visible(fn (Get $get): bool => $get('price_book_id') !== null && $get('sellable_sku_id') !== null)
                     ->schema([
-                        Forms\Components\Placeholder::make('base_price_preview')
+                        Placeholder::make('base_price_preview')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $priceBookId = $get('price_book_id');
@@ -789,10 +805,10 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Benefit Configuration
-                Forms\Components\Section::make('Benefit Configuration')
+                Section::make('Benefit Configuration')
                     ->description('Apply discounts or price overrides to the base price')
                     ->schema([
-                        Forms\Components\Radio::make('benefit_type')
+                        Radio::make('benefit_type')
                             ->label('Benefit Type')
                             ->required()
                             ->live()
@@ -806,7 +822,7 @@ class CreateOffer extends CreateRecord
                             ->columns(2),
 
                         // Value input for discount types
-                        Forms\Components\TextInput::make('benefit_value')
+                        TextInput::make('benefit_value')
                             ->label(fn (Get $get): string => match ($get('benefit_type')) {
                                 BenefitType::PercentageDiscount->value => 'Discount Percentage (%)',
                                 BenefitType::FixedDiscount->value => 'Discount Amount',
@@ -843,7 +859,7 @@ class CreateOffer extends CreateRecord
                             }),
 
                         // Percentage validation warning
-                        Forms\Components\Placeholder::make('percentage_warning')
+                        Placeholder::make('percentage_warning')
                             ->label('')
                             ->visible(function (Get $get): bool {
                                 $benefitType = $get('benefit_type');
@@ -864,11 +880,11 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Final Price Preview
-                Forms\Components\Section::make('Final Price Preview')
+                Section::make('Final Price Preview')
                     ->description('Preview of the final price after applying benefits')
                     ->visible(fn (Get $get): bool => $get('price_book_id') !== null && $get('sellable_sku_id') !== null)
                     ->schema([
-                        Forms\Components\Placeholder::make('final_price_preview')
+                        Placeholder::make('final_price_preview')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $priceBookId = $get('price_book_id');
@@ -1110,17 +1126,17 @@ class CreateOffer extends CreateRecord
      * Step 4: Validity & Visibility
      * Define the validity period, visibility, and metadata of the Offer.
      */
-    protected function getValidityAndVisibilityStep(): Wizard\Step
+    protected function getValidityAndVisibilityStep(): Step
     {
-        return Wizard\Step::make('Validity & Visibility')
+        return Step::make('Validity & Visibility')
             ->description('Define validity period and visibility settings')
             ->icon('heroicon-o-eye')
             ->schema([
                 // Offer Identity Section
-                Forms\Components\Section::make('Offer Identity')
+                Section::make('Offer Identity')
                     ->description('Give your offer a name and define its type')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->label('Offer Name')
                             ->required()
                             ->maxLength(255)
@@ -1129,7 +1145,7 @@ class CreateOffer extends CreateRecord
                             ->helperText('A descriptive name to identify this offer')
                             ->columnSpanFull(),
 
-                        Forms\Components\Radio::make('offer_type')
+                        Radio::make('offer_type')
                             ->label('Offer Type')
                             ->required()
                             ->live()
@@ -1147,7 +1163,7 @@ class CreateOffer extends CreateRecord
                             ->columns(3),
 
                         // Promotion type hint when discount is applied
-                        Forms\Components\Placeholder::make('promotion_hint')
+                        Placeholder::make('promotion_hint')
                             ->label('')
                             ->visible(function (Get $get): bool {
                                 $offerType = (string) $get('offer_type');
@@ -1199,10 +1215,10 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Visibility Section
-                Forms\Components\Section::make('Visibility')
+                Section::make('Visibility')
                     ->description('Control who can see this offer')
                     ->schema([
-                        Forms\Components\Radio::make('visibility')
+                        Radio::make('visibility')
                             ->label('Visibility Level')
                             ->required()
                             ->live()
@@ -1218,7 +1234,7 @@ class CreateOffer extends CreateRecord
                             ->columns(2),
 
                         // Visibility explanation
-                        Forms\Components\Placeholder::make('visibility_info')
+                        Placeholder::make('visibility_info')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $visibility = $get('visibility');
@@ -1261,10 +1277,10 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Validity Period Section
-                Forms\Components\Section::make('Validity Period')
+                Section::make('Validity Period')
                     ->description('Define when this offer is active')
                     ->schema([
-                        Forms\Components\DateTimePicker::make('valid_from')
+                        DateTimePicker::make('valid_from')
                             ->label('Valid From')
                             ->required()
                             ->live()
@@ -1274,14 +1290,14 @@ class CreateOffer extends CreateRecord
                             ->helperText('The date and time when this offer becomes active')
                             ->columnSpan(1),
 
-                        Forms\Components\DateTimePicker::make('valid_to')
+                        DateTimePicker::make('valid_to')
                             ->label('Valid To')
                             ->native(false)
                             ->live()
                             ->seconds(false)
                             ->helperText('Leave empty for indefinite validity')
                             ->rules([
-                                fn (Get $get): \Closure => function (string $attribute, mixed $value, \Closure $fail) use ($get): void {
+                                fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
                                     if ($value === null) {
                                         return;
                                     }
@@ -1291,10 +1307,10 @@ class CreateOffer extends CreateRecord
                                         return;
                                     }
 
-                                    /** @var \DateTimeInterface|string $validFrom */
-                                    $fromDate = \Carbon\Carbon::parse($validFrom);
-                                    /** @var \DateTimeInterface|string $value */
-                                    $toDate = \Carbon\Carbon::parse($value);
+                                    /** @var DateTimeInterface|string $validFrom */
+                                    $fromDate = Carbon::parse($validFrom);
+                                    /** @var DateTimeInterface|string $value */
+                                    $toDate = Carbon::parse($value);
 
                                     if ($toDate->lte($fromDate)) {
                                         $fail('The Valid To date must be after the Valid From date.');
@@ -1304,7 +1320,7 @@ class CreateOffer extends CreateRecord
                             ->columnSpan(1),
 
                         // Validity period summary
-                        Forms\Components\Placeholder::make('validity_summary')
+                        Placeholder::make('validity_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $validFrom = $get('valid_from');
@@ -1314,8 +1330,8 @@ class CreateOffer extends CreateRecord
                                     return new HtmlString('');
                                 }
 
-                                /** @var \DateTimeInterface|string $validFrom */
-                                $fromDate = \Carbon\Carbon::parse($validFrom);
+                                /** @var DateTimeInterface|string $validFrom */
+                                $fromDate = Carbon::parse($validFrom);
                                 $now = now();
 
                                 // Determine status
@@ -1345,8 +1361,8 @@ class CreateOffer extends CreateRecord
                                     );
                                 }
 
-                                /** @var \DateTimeInterface|string $validTo */
-                                $toDate = \Carbon\Carbon::parse($validTo);
+                                /** @var DateTimeInterface|string $validTo */
+                                $toDate = Carbon::parse($validTo);
 
                                 // Validation check
                                 if ($toDate->lte($fromDate)) {
@@ -1394,17 +1410,17 @@ class CreateOffer extends CreateRecord
                     ->columns(2),
 
                 // Campaign Tag Section
-                Forms\Components\Section::make('Campaign & Grouping')
+                Section::make('Campaign & Grouping')
                     ->description('Optional grouping for promotional campaigns')
                     ->schema([
-                        Forms\Components\TextInput::make('campaign_tag')
+                        TextInput::make('campaign_tag')
                             ->label('Campaign Tag')
                             ->maxLength(255)
                             ->live(onBlur: true)
                             ->placeholder('e.g., summer-2026, black-friday, vip-exclusive')
                             ->helperText('Use campaign tags to group related offers together for reporting and management'),
 
-                        Forms\Components\Placeholder::make('campaign_info')
+                        Placeholder::make('campaign_info')
                             ->label('')
                             ->visible(fn (Get $get): bool => ! empty($get('campaign_tag')))
                             ->content(function (Get $get): HtmlString {
@@ -1424,9 +1440,9 @@ class CreateOffer extends CreateRecord
                     ->collapsible(),
 
                 // Configuration Summary
-                Forms\Components\Section::make('Configuration Summary')
+                Section::make('Configuration Summary')
                     ->schema([
-                        Forms\Components\Placeholder::make('step4_summary')
+                        Placeholder::make('step4_summary')
                             ->label('')
                             ->content(function (Get $get): HtmlString {
                                 $name = $get('name');
@@ -1456,9 +1472,9 @@ class CreateOffer extends CreateRecord
                                     : '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>';
 
                                 /** @var \DateTimeInterface|string|null $validFrom */
-                                /** @var \DateTimeInterface|string|null $validTo */
-                                $validFromStr = $validFrom !== null ? \Carbon\Carbon::parse($validFrom)->format('M j, Y g:i A') : '-';
-                                $validToStr = $validTo !== null ? \Carbon\Carbon::parse($validTo)->format('M j, Y g:i A') : 'Indefinite';
+                                /** @var DateTimeInterface|string|null $validTo */
+                                $validFromStr = $validFrom !== null ? Carbon::parse($validFrom)->format('M j, Y g:i A') : '-';
+                                $validToStr = $validTo !== null ? Carbon::parse($validTo)->format('M j, Y g:i A') : 'Indefinite';
 
                                 $campaignTagStr = (string) $campaignTag;
                                 $campaignTagHtml = ! empty($campaignTagStr)
@@ -1504,7 +1520,7 @@ class CreateOffer extends CreateRecord
     /**
      * Format a DateInterval as a human-readable duration string.
      */
-    protected function formatDuration(\DateInterval $interval): string
+    protected function formatDuration(DateInterval $interval): string
     {
         $parts = [];
 
@@ -1532,16 +1548,16 @@ class CreateOffer extends CreateRecord
      * Step 5: Review & Create
      * Show a complete summary of the offer configuration before creation.
      */
-    protected function getReviewStep(): Wizard\Step
+    protected function getReviewStep(): Step
     {
-        return Wizard\Step::make('Review')
+        return Step::make('Review')
             ->description('Review and create your offer')
             ->icon('heroicon-o-check-circle')
             ->schema([
                 // Summary Header
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('review_header')
+                        Placeholder::make('review_header')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="rounded-lg bg-gradient-to-r from-success-50 to-primary-50 dark:from-success-950 dark:to-primary-950 p-6 border border-success-200 dark:border-success-800">'
@@ -1566,9 +1582,9 @@ class CreateOffer extends CreateRecord
                     ]),
 
                 // Conflict Warning Section
-                Forms\Components\Section::make()
+                Section::make()
                     ->schema([
-                        Forms\Components\Placeholder::make('conflict_warning')
+                        Placeholder::make('conflict_warning')
                             ->label('')
                             ->visible(fn (Get $get): bool => $this->hasConflictingOffers($get))
                             ->content(fn (Get $get): HtmlString => $this->buildConflictWarningHtml($get))
@@ -1577,11 +1593,11 @@ class CreateOffer extends CreateRecord
                     ->hidden(fn (Get $get): bool => ! $this->hasConflictingOffers($get)),
 
                 // Product Summary Section
-                Forms\Components\Section::make('Product')
+                Section::make('Product')
                     ->description('The Sellable SKU for this offer')
                     ->icon('heroicon-o-cube')
                     ->schema([
-                        Forms\Components\Placeholder::make('product_summary')
+                        Placeholder::make('product_summary')
                             ->label('')
                             ->content(fn (Get $get): HtmlString => $this->buildProductSummaryHtml($get))
                             ->columnSpanFull(),
@@ -1589,11 +1605,11 @@ class CreateOffer extends CreateRecord
                     ->collapsible(),
 
                 // Channel & Eligibility Summary Section
-                Forms\Components\Section::make('Channel & Eligibility')
+                Section::make('Channel & Eligibility')
                     ->description('Commercial channel and customer eligibility')
                     ->icon('heroicon-o-globe-alt')
                     ->schema([
-                        Forms\Components\Placeholder::make('channel_eligibility_summary')
+                        Placeholder::make('channel_eligibility_summary')
                             ->label('')
                             ->content(fn (Get $get): HtmlString => $this->buildChannelEligibilitySummaryHtml($get))
                             ->columnSpanFull(),
@@ -1601,11 +1617,11 @@ class CreateOffer extends CreateRecord
                     ->collapsible(),
 
                 // Pricing Summary Section
-                Forms\Components\Section::make('Pricing')
+                Section::make('Pricing')
                     ->description('Price Book and benefit configuration')
                     ->icon('heroicon-o-currency-euro')
                     ->schema([
-                        Forms\Components\Placeholder::make('pricing_summary')
+                        Placeholder::make('pricing_summary')
                             ->label('')
                             ->content(fn (Get $get): HtmlString => $this->buildPricingSummaryHtml($get))
                             ->columnSpanFull(),
@@ -1613,11 +1629,11 @@ class CreateOffer extends CreateRecord
                     ->collapsible(),
 
                 // Validity & Visibility Summary Section
-                Forms\Components\Section::make('Validity & Visibility')
+                Section::make('Validity & Visibility')
                     ->description('Timing and access settings')
                     ->icon('heroicon-o-eye')
                     ->schema([
-                        Forms\Components\Placeholder::make('validity_summary')
+                        Placeholder::make('validity_summary')
                             ->label('')
                             ->content(fn (Get $get): HtmlString => $this->buildValiditySummaryHtml($get))
                             ->columnSpanFull(),
@@ -1625,9 +1641,9 @@ class CreateOffer extends CreateRecord
                     ->collapsible(),
 
                 // Status & Next Steps Section
-                Forms\Components\Section::make('Status & Next Steps')
+                Section::make('Status & Next Steps')
                     ->schema([
-                        Forms\Components\Placeholder::make('status_info')
+                        Placeholder::make('status_info')
                             ->label('')
                             ->content(new HtmlString(
                                 '<div class="space-y-4">'
@@ -1702,24 +1718,24 @@ class CreateOffer extends CreateRecord
     /**
      * Get conflicting offers query.
      *
-     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\Offer>
+     * @return Builder<Offer>
      */
-    protected function getConflictingOffersQuery(string $skuId, string $channelId, mixed $validFrom, mixed $validTo): \Illuminate\Database\Eloquent\Builder
+    protected function getConflictingOffersQuery(string $skuId, string $channelId, mixed $validFrom, mixed $validTo): Builder
     {
-        /** @var \DateTimeInterface|string $validFrom */
-        $fromDate = \Carbon\Carbon::parse($validFrom);
+        /** @var DateTimeInterface|string $validFrom */
+        $fromDate = Carbon::parse($validFrom);
 
-        $query = \App\Models\Commercial\Offer::query()
+        $query = Offer::query()
             ->where('sellable_sku_id', $skuId)
             ->where('channel_id', $channelId)
             ->whereIn('status', [OfferStatus::Draft, OfferStatus::Active, OfferStatus::Paused]);
 
         // Check for date overlap
-        $query->where(function (\Illuminate\Database\Eloquent\Builder $q) use ($fromDate, $validTo): void {
+        $query->where(function (Builder $q) use ($fromDate, $validTo): void {
             // New offer starts during existing offer's validity
-            $q->where(function (\Illuminate\Database\Eloquent\Builder $q2) use ($fromDate): void {
+            $q->where(function (Builder $q2) use ($fromDate): void {
                 $q2->where('valid_from', '<=', $fromDate)
-                    ->where(function (\Illuminate\Database\Eloquent\Builder $q3) use ($fromDate): void {
+                    ->where(function (Builder $q3) use ($fromDate): void {
                         $q3->whereNull('valid_to')
                             ->orWhere('valid_to', '>=', $fromDate);
                     });
@@ -1727,10 +1743,10 @@ class CreateOffer extends CreateRecord
 
             // Existing offer starts during new offer's validity
             if ($validTo !== null) {
-                /** @var \DateTimeInterface|string $validTo */
-                $toDate = \Carbon\Carbon::parse($validTo);
+                /** @var DateTimeInterface|string $validTo */
+                $toDate = Carbon::parse($validTo);
 
-                $q->orWhere(function (\Illuminate\Database\Eloquent\Builder $q2) use ($fromDate, $toDate): void {
+                $q->orWhere(function (Builder $q2) use ($fromDate, $toDate): void {
                     $q2->where('valid_from', '>=', $fromDate)
                         ->where('valid_from', '<=', $toDate);
                 });
@@ -1767,7 +1783,7 @@ class CreateOffer extends CreateRecord
 
         $conflictList = '';
         foreach ($conflicts as $conflict) {
-            /** @var \App\Models\Commercial\Offer $conflict */
+            /** @var Offer $conflict */
             $validToStr = $conflict->valid_to !== null ? $conflict->valid_to->format('M j, Y') : 'Indefinite';
             $statusColor = $conflict->getStatusColor();
 
@@ -2084,15 +2100,15 @@ class CreateOffer extends CreateRecord
             : '<svg class="w-4 h-4 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>';
 
         /** @var \DateTimeInterface|string|null $validFrom */
-        /** @var \DateTimeInterface|string|null $validTo */
-        $validFromStr = $validFrom !== null ? \Carbon\Carbon::parse($validFrom)->format('M j, Y g:i A') : '-';
-        $validToStr = $validTo !== null ? \Carbon\Carbon::parse($validTo)->format('M j, Y g:i A') : 'Indefinite';
+        /** @var DateTimeInterface|string|null $validTo */
+        $validFromStr = $validFrom !== null ? Carbon::parse($validFrom)->format('M j, Y g:i A') : '-';
+        $validToStr = $validTo !== null ? Carbon::parse($validTo)->format('M j, Y g:i A') : 'Indefinite';
 
         // Calculate duration
         $durationStr = '';
         if ($validFrom !== null && $validTo !== null) {
-            $fromDate = \Carbon\Carbon::parse($validFrom);
-            $toDate = \Carbon\Carbon::parse($validTo);
+            $fromDate = Carbon::parse($validFrom);
+            $toDate = Carbon::parse($validTo);
             $duration = $fromDate->diff($toDate);
             $durationStr = $this->formatDuration($duration);
         } elseif ($validFrom !== null) {
@@ -2148,21 +2164,21 @@ class CreateOffer extends CreateRecord
         return Allocation::query()
             ->where('wine_variant_id', $sku->wine_variant_id)
             ->where('format_id', $sku->format_id)
-            ->where('status', \App\Enums\Allocation\AllocationStatus::Active)
+            ->where('status', AllocationStatus::Active)
             ->exists();
     }
 
     /**
      * Get active allocations for a Sellable SKU.
      *
-     * @return \Illuminate\Database\Eloquent\Collection<int, Allocation>
+     * @return Collection<int, Allocation>
      */
-    protected function getActiveAllocationsForSku(SellableSku $sku): \Illuminate\Database\Eloquent\Collection
+    protected function getActiveAllocationsForSku(SellableSku $sku): Collection
     {
         return Allocation::query()
             ->where('wine_variant_id', $sku->wine_variant_id)
             ->where('format_id', $sku->format_id)
-            ->where('status', \App\Enums\Allocation\AllocationStatus::Active)
+            ->where('status', AllocationStatus::Active)
             ->with('constraint')
             ->get();
     }
@@ -2333,7 +2349,7 @@ class CreateOffer extends CreateRecord
      */
     protected function afterCreate(): void
     {
-        /** @var \App\Models\Commercial\Offer $offer */
+        /** @var Offer $offer */
         $offer = $this->record;
 
         // Create OfferEligibility record

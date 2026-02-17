@@ -2,15 +2,30 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\Commercial\ExecutionCadence;
 use App\Enums\Commercial\ExecutionStatus;
+use App\Enums\Commercial\PricingPolicyInputSource;
 use App\Enums\Commercial\PricingPolicyStatus;
 use App\Enums\Commercial\PricingPolicyType;
-use App\Filament\Resources\PricingPolicyResource\Pages;
+use App\Filament\Resources\PricingPolicyResource\Pages\CreatePricingPolicy;
+use App\Filament\Resources\PricingPolicyResource\Pages\EditPricingPolicy;
+use App\Filament\Resources\PricingPolicyResource\Pages\ListPricingPolicies;
+use App\Filament\Resources\PricingPolicyResource\Pages\ViewPricingPolicy;
 use App\Models\Commercial\PricingPolicy;
-use Filament\Forms;
-use Filament\Forms\Form;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\RestoreBulkAction;
+use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -19,9 +34,9 @@ class PricingPolicyResource extends Resource
 {
     protected static ?string $model = PricingPolicy::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-calculator';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calculator';
 
-    protected static ?string $navigationGroup = 'Commercial';
+    protected static string|\UnitEnum|null $navigationGroup = 'Commercial';
 
     protected static ?int $navigationSort = 3;
 
@@ -31,30 +46,30 @@ class PricingPolicyResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Pricing Policies';
 
-    public static function form(Form $form): Form
+    public static function form(Schema $schema): Schema
     {
-        return $form
-            ->schema([
-                Forms\Components\Section::make('Policy Information')
+        return $schema
+            ->components([
+                Section::make('Policy Information')
                     ->schema([
-                        Forms\Components\TextInput::make('name')
+                        TextInput::make('name')
                             ->required()
                             ->maxLength(255),
-                        Forms\Components\Select::make('policy_type')
+                        Select::make('policy_type')
                             ->label('Policy Type')
                             ->options(collect(PricingPolicyType::cases())->mapWithKeys(fn (PricingPolicyType $type) => [
                                 $type->value => $type->label(),
                             ]))
                             ->required()
                             ->native(false),
-                        Forms\Components\Select::make('input_source')
+                        Select::make('input_source')
                             ->label('Input Source')
-                            ->options(collect(\App\Enums\Commercial\PricingPolicyInputSource::cases())->mapWithKeys(fn (\App\Enums\Commercial\PricingPolicyInputSource $source) => [
+                            ->options(collect(PricingPolicyInputSource::cases())->mapWithKeys(fn (PricingPolicyInputSource $source) => [
                                 $source->value => $source->label(),
                             ]))
                             ->required()
                             ->native(false),
-                        Forms\Components\Select::make('target_price_book_id')
+                        Select::make('target_price_book_id')
                             ->label('Target Price Book')
                             ->relationship('targetPriceBook', 'name')
                             ->searchable()
@@ -63,16 +78,16 @@ class PricingPolicyResource extends Resource
                             ->helperText('Select the Price Book where generated prices will be stored'),
                     ])
                     ->columns(2),
-                Forms\Components\Section::make('Execution Settings')
+                Section::make('Execution Settings')
                     ->schema([
-                        Forms\Components\Select::make('execution_cadence')
+                        Select::make('execution_cadence')
                             ->label('Execution Cadence')
-                            ->options(collect(\App\Enums\Commercial\ExecutionCadence::cases())->mapWithKeys(fn (\App\Enums\Commercial\ExecutionCadence $cadence) => [
+                            ->options(collect(ExecutionCadence::cases())->mapWithKeys(fn (ExecutionCadence $cadence) => [
                                 $cadence->value => $cadence->label(),
                             ]))
                             ->required()
                             ->native(false),
-                        Forms\Components\Select::make('status')
+                        Select::make('status')
                             ->options(collect(PricingPolicyStatus::cases())->mapWithKeys(fn (PricingPolicyStatus $status) => [
                                 $status->value => $status->label(),
                             ]))
@@ -90,37 +105,37 @@ class PricingPolicyResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->searchable()
                     ->sortable()
                     ->description(fn (PricingPolicy $record): string => $record->getLogicDescription())
                     ->wrap(),
-                Tables\Columns\TextColumn::make('policy_type')
+                TextColumn::make('policy_type')
                     ->label('Type')
                     ->badge()
                     ->formatStateUsing(fn (PricingPolicyType $state): string => $state->label())
                     ->color(fn (PricingPolicyType $state): string => $state->color())
                     ->icon(fn (PricingPolicyType $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('input_source')
+                TextColumn::make('input_source')
                     ->label('Input')
                     ->badge()
-                    ->formatStateUsing(fn (\App\Enums\Commercial\PricingPolicyInputSource $state): string => $state->label())
-                    ->color(fn (\App\Enums\Commercial\PricingPolicyInputSource $state): string => $state->color())
+                    ->formatStateUsing(fn (PricingPolicyInputSource $state): string => $state->label())
+                    ->color(fn (PricingPolicyInputSource $state): string => $state->color())
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('targetPriceBook.name')
+                TextColumn::make('targetPriceBook.name')
                     ->label('Target Price Book')
                     ->sortable()
                     ->placeholder('Not set')
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->badge()
                     ->formatStateUsing(fn (PricingPolicyStatus $state): string => $state->label())
                     ->color(fn (PricingPolicyStatus $state): string => $state->color())
                     ->icon(fn (PricingPolicyStatus $state): string => $state->icon())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('last_executed_at')
+                TextColumn::make('last_executed_at')
                     ->label('Last Executed')
                     ->dateTime()
                     ->sortable()
@@ -128,35 +143,35 @@ class PricingPolicyResource extends Resource
                     ->description(fn (PricingPolicy $record): ?string => static::getLastExecutionStatusDescription($record))
                     ->icon(fn (PricingPolicy $record): ?string => static::getLastExecutionIcon($record))
                     ->iconColor(fn (PricingPolicy $record): ?string => static::getLastExecutionIconColor($record)),
-                Tables\Columns\TextColumn::make('execution_cadence')
+                TextColumn::make('execution_cadence')
                     ->label('Cadence')
                     ->badge()
-                    ->formatStateUsing(fn (\App\Enums\Commercial\ExecutionCadence $state): string => $state->label())
-                    ->color(fn (\App\Enums\Commercial\ExecutionCadence $state): string => $state->color())
+                    ->formatStateUsing(fn (ExecutionCadence $state): string => $state->label())
+                    ->color(fn (ExecutionCadence $state): string => $state->color())
                     ->sortable()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Last Updated')
                     ->dateTime()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                SelectFilter::make('status')
                     ->options(collect(PricingPolicyStatus::cases())->mapWithKeys(fn (PricingPolicyStatus $status) => [
                         $status->value => $status->label(),
                     ])),
-                Tables\Filters\SelectFilter::make('policy_type')
+                SelectFilter::make('policy_type')
                     ->label('Policy Type')
                     ->options(collect(PricingPolicyType::cases())->mapWithKeys(fn (PricingPolicyType $type) => [
                         $type->value => $type->label(),
                     ])),
-                Tables\Filters\SelectFilter::make('target_price_book_id')
+                SelectFilter::make('target_price_book_id')
                     ->label('Target Price Book')
                     ->relationship('targetPriceBook', 'name')
                     ->searchable()
                     ->preload(),
-                Tables\Filters\TernaryFilter::make('has_failed_executions')
+                TernaryFilter::make('has_failed_executions')
                     ->label('Failed Executions')
                     ->placeholder('All')
                     ->trueLabel('With failed executions')
@@ -169,17 +184,17 @@ class PricingPolicyResource extends Resource
                             $q->where('status', ExecutionStatus::Failed);
                         }),
                     ),
-                Tables\Filters\TrashedFilter::make(),
+                TrashedFilter::make(),
             ])
-            ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make()
                     ->visible(fn (PricingPolicy $record): bool => $record->isEditable()),
             ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                    Tables\Actions\RestoreBulkAction::make(),
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->defaultSort('updated_at', 'desc');
@@ -195,10 +210,10 @@ class PricingPolicyResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPricingPolicies::route('/'),
-            'create' => Pages\CreatePricingPolicy::route('/create'),
-            'view' => Pages\ViewPricingPolicy::route('/{record}'),
-            'edit' => Pages\EditPricingPolicy::route('/{record}/edit'),
+            'index' => ListPricingPolicies::route('/'),
+            'create' => CreatePricingPolicy::route('/create'),
+            'view' => ViewPricingPolicy::route('/{record}'),
+            'edit' => EditPricingPolicy::route('/{record}/edit'),
         ];
     }
 
