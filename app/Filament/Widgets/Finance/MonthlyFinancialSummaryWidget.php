@@ -26,7 +26,7 @@ class MonthlyFinancialSummaryWidget extends Widget
 {
     protected string $view = 'filament.widgets.finance.monthly-financial-summary-widget';
 
-    protected static ?string $heading = 'Monthly Financial Summary';
+    protected ?string $heading = 'Monthly Financial Summary';
 
     protected static ?int $sort = 9;
 

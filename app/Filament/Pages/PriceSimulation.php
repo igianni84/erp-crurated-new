@@ -28,6 +28,9 @@ use Illuminate\Support\HtmlString;
  * Allows operators to simulate end-to-end price resolution for debugging.
  * Inputs: sellable_sku_id, customer_id (optional), channel_id, date, quantity.
  */
+/**
+ * @property \Filament\Schemas\Schema $form
+ */
 class PriceSimulation extends Page implements HasForms
 {
     use InteractsWithForms;
