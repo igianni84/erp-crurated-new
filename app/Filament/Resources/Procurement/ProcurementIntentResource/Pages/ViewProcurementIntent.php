@@ -74,6 +74,7 @@ class ViewProcurementIntent extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 Tabs::make('Procurement Intent Details')
                     ->tabs([

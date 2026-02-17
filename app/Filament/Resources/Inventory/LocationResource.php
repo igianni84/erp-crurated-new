@@ -53,6 +53,7 @@ class LocationResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 // Warning banner for pending serialization when disabling serialization_authorized
                 Section::make()

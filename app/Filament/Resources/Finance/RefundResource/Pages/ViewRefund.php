@@ -42,6 +42,7 @@ class ViewRefund extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 $this->getHeaderSection(),
                 Tabs::make('Refund Details')

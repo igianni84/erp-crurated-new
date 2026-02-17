@@ -66,6 +66,7 @@ class ViewAllocation extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 Tabs::make('Allocation Details')
                     ->tabs([

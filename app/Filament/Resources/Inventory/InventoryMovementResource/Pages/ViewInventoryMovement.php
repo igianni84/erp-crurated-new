@@ -33,6 +33,7 @@ class ViewInventoryMovement extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 // Immutability notice at top
                 Section::make()

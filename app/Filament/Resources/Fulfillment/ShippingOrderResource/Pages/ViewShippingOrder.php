@@ -56,12 +56,13 @@ class ViewShippingOrder extends ViewRecord
         /** @var ShippingOrder $record */
         $record = $this->record;
 
-        return "Shipping Order: #{$record->id}";
+        return 'Shipping Order: #'.substr((string) $record->id, 0, 8);
     }
 
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 $this->getWorkflowIndicator(),
                 $this->getStatusBanner(),

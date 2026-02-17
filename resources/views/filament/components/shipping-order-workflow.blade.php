@@ -51,49 +51,64 @@
     @endif
 
     {{-- Workflow Stepper --}}
-    <div class="flex items-center justify-between py-4 px-2 {{ ($isOnHold || $isCancelled) ? 'opacity-40' : '' }}">
-        @foreach($workflowSteps as $index => $step)
-            @php
-                $isCompleted = $index < $currentIndex;
-                $isCurrent = $index === $currentIndex && !$isCancelled;
-                $isFuture = $index > $currentIndex;
+    <div class="py-4 px-4 {{ ($isOnHold || $isCancelled) ? 'opacity-40' : '' }}">
+        {{-- Circles + Lines row (vertically centered) --}}
+        <div class="flex items-center">
+            @foreach($workflowSteps as $index => $step)
+                @php
+                    $isCompleted = $index < $currentIndex;
+                    $isCurrent = $index === $currentIndex && !$isCancelled;
 
-                // Determine colors
-                if ($isCompleted) {
-                    $circleClass = 'bg-success-500 border-success-500 text-white';
-                    $lineClass = 'bg-success-500';
-                    $labelClass = 'text-success-700 dark:text-success-400';
-                } elseif ($isCurrent) {
-                    $circleClass = 'bg-info-500 border-info-500 text-white';
-                    $lineClass = 'bg-gray-200 dark:bg-gray-700';
-                    $labelClass = 'text-info-700 dark:text-info-400 font-semibold';
-                } else {
-                    $circleClass = 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500';
-                    $lineClass = 'bg-gray-200 dark:bg-gray-700';
-                    $labelClass = 'text-gray-500 dark:text-gray-500';
-                }
-            @endphp
+                    if ($isCompleted) {
+                        $circleClass = 'bg-success-500 border-success-500 text-white';
+                    } elseif ($isCurrent) {
+                        $circleClass = 'bg-info-500 border-info-500 text-white';
+                    } else {
+                        $circleClass = 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500';
+                    }
+                @endphp
 
-            <div class="flex flex-col items-center relative {{ $index < count($workflowSteps) - 1 ? 'flex-1' : '' }}">
-                {{-- Step Circle --}}
-                <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 {{ $circleClass }} z-10">
+                @if($index > 0)
+                    <div class="flex-1 h-0.5 {{ ($index <= $currentIndex) ? 'bg-success-500' : 'bg-gray-200 dark:bg-gray-700' }}"></div>
+                @endif
+
+                <div class="flex items-center justify-center w-10 h-10 rounded-full border-2 shrink-0 {{ $circleClass }}">
                     @if($isCompleted)
                         <x-heroicon-s-check class="h-5 w-5" />
                     @else
                         <span class="text-sm font-medium">{{ $index + 1 }}</span>
                     @endif
                 </div>
+            @endforeach
+        </div>
 
-                {{-- Step Label --}}
-                <span class="mt-2 text-xs {{ $labelClass }} text-center whitespace-nowrap">
-                    {{ $step->label() }}
-                </span>
+        {{-- Labels row --}}
+        <div class="flex items-start mt-2">
+            @foreach($workflowSteps as $index => $step)
+                @php
+                    $isCompleted = $index < $currentIndex;
+                    $isCurrent = $index === $currentIndex && !$isCancelled;
 
-                {{-- Connecting Line (not for last item) --}}
-                @if($index < count($workflowSteps) - 1)
-                    <div class="absolute top-5 left-1/2 w-full h-0.5 {{ $isCompleted ? 'bg-success-500' : 'bg-gray-200 dark:bg-gray-700' }}" style="transform: translateX(50%);"></div>
+                    if ($isCompleted) {
+                        $labelClass = 'text-success-700 dark:text-success-400';
+                    } elseif ($isCurrent) {
+                        $labelClass = 'text-info-700 dark:text-info-400 font-semibold';
+                    } else {
+                        $labelClass = 'text-gray-500 dark:text-gray-500';
+                    }
+                @endphp
+
+                @if($index > 0)
+                    <div class="flex-1"></div>
                 @endif
-            </div>
-        @endforeach
+
+                {{-- Fixed-width wrapper matching circle (w-10), label overflows centered --}}
+                <div class="relative shrink-0 w-10 flex justify-center">
+                    <span class="absolute text-xs {{ $labelClass }} whitespace-nowrap">
+                        {{ $step->label() }}
+                    </span>
+                </div>
+            @endforeach
+        </div>
     </div>
 </div>

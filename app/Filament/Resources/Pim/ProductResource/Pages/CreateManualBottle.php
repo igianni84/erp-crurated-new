@@ -62,6 +62,7 @@ class CreateManualBottle extends Page
     public function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 Section::make('Wine Master')
                     ->description('Select an existing Wine Master or create a new one.')

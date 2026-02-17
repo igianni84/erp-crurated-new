@@ -55,6 +55,7 @@ class ShippingOrderResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 // Form will be implemented in US-C018-C022 (creation wizard)
                 // For now, provide basic fields for view/edit

@@ -44,6 +44,7 @@ class ViewLocation extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 $this->getSerializationWarningSection(),
                 Tabs::make('Location Details')

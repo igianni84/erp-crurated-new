@@ -59,9 +59,23 @@ class ProductResource extends Resource
             ->columns([
                 ImageColumn::make('thumbnail_url')
                     ->label('Thumbnail')
-                    ->disk('public')
                     ->checkFileExistence(false)
                     ->height(60)
+                    ->getStateUsing(function (WineVariant $record): ?string {
+                        $path = $record->thumbnail_url;
+
+                        if ($path === null || $path === '') {
+                            return null;
+                        }
+
+                        // Full URLs (external Liv-ex images) — pass through
+                        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+                            return $path;
+                        }
+
+                        // Build URL from current request host (port-agnostic)
+                        return request()->getSchemeAndHttpHost().'/storage/'.ltrim($path, '/');
+                    })
                     ->defaultImageUrl(function (WineVariant $record): string {
                         $wineMaster = $record->wineMaster;
                         $name = $wineMaster !== null ? $wineMaster->name : 'Wine';

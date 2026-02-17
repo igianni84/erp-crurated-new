@@ -41,6 +41,7 @@ class VoucherResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 // No form schema - vouchers are created only from sale confirmation
             ]);

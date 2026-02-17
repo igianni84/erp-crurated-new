@@ -43,6 +43,7 @@ class ViewVoucherTransfer extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 // Header with status banner
                 Section::make()

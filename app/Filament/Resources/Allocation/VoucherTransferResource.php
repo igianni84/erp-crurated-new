@@ -41,6 +41,7 @@ class VoucherTransferResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 // No form schema - transfers are created from VoucherResource
             ]);

@@ -108,6 +108,7 @@ class ViewDiscountRule extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 Tabs::make('Discount Rule Details')
                     ->tabs([

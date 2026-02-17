@@ -41,6 +41,7 @@ class ViewWineVariant extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 Section::make('Product Overview')
                     ->description('Control panel showing product identity and status')

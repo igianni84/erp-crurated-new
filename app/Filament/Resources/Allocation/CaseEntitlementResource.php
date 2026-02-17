@@ -35,6 +35,7 @@ class CaseEntitlementResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 // No form schema - case entitlements are created only via CaseEntitlementService
             ]);

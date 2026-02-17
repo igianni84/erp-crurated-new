@@ -42,6 +42,7 @@ class RefundResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 // Form schema will be implemented in US-E070
             ]);

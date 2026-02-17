@@ -39,6 +39,7 @@ class CreateBundle extends CreateRecord
     public function form(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 Wizard::make($this->getSteps())
                     ->submitAction(new HtmlString(

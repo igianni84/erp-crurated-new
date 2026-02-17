@@ -470,6 +470,7 @@ class ViewVoucher extends ViewRecord
     public function infolist(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->schema([
                 // Header: Lifecycle state banner
                 $this->getHeaderSection(),
