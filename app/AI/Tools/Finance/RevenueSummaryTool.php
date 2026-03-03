@@ -20,6 +20,7 @@ class RevenueSummaryTool extends BaseTool implements Tool
         return 'Get revenue summary for a given period, optionally grouped by invoice type.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

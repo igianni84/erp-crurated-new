@@ -19,6 +19,7 @@ class VoucherCountsByStateTool extends BaseTool implements Tool
         return 'Get voucher distribution across lifecycle states.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

@@ -234,6 +234,7 @@ class PartyResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Customer\Party> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

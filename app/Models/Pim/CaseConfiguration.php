@@ -14,7 +14,10 @@ class CaseConfiguration extends Model
 {
     use Auditable;
     use AuditLoggable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
     use SoftDeletes;
 
@@ -48,6 +51,8 @@ class CaseConfiguration extends Model
 
     /**
      * Get the format that this case configuration belongs to.
+     *
+     * @return BelongsTo<Format, $this>
      */
     public function format(): BelongsTo
     {

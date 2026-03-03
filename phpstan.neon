@@ -2,8 +2,10 @@ includes:
     - vendor/larastan/larastan/extension.neon
 
 parameters:
-    level: 5
+    level: 6
     paths:
         - app/
     ignoreErrors:
         - identifier: trait.unused
+        -
+            message: '#Unable to resolve the template type T(Key|Value) in call to function collect#'

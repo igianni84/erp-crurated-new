@@ -19,6 +19,7 @@ class OutstandingInvoicesTool extends BaseTool implements Tool
         return 'Get invoices with outstanding balances, ordered by amount owed.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

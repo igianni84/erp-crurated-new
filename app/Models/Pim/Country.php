@@ -14,7 +14,10 @@ class Country extends Model
 {
     use Auditable;
     use AuditLoggable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
     use SoftDeletes;
 

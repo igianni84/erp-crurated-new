@@ -62,7 +62,7 @@
 - **Admin UI:** Filament 5 (45 resources, 33 custom pages, 11 widgets)
 - **Frontend:** Tailwind CSS 4, Vite 7
 - **Integrations:** Stripe (payments), Xero (accounting), WMS (warehouse), Liv-ex (wine data)
-- **Quality:** PHPStan level 5, Laravel Pint, PHPUnit
+- **Quality:** PHPStan level 6, Laravel Pint, PHPUnit
 
 ### Module Map (dependency order)
 | Code | Module | Purpose | Status |

@@ -233,6 +233,7 @@ class AllocationResource extends Resource
         return ['id', 'wineVariant.wineMaster.name'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Allocation\Allocation> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['wineVariant.wineMaster', 'format']);
@@ -276,6 +277,7 @@ class AllocationResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Allocation\Allocation> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

@@ -28,7 +28,10 @@ use InvalidArgumentException;
 class AllocationConstraint extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     /**

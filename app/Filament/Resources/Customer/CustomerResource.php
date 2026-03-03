@@ -264,6 +264,7 @@ class CustomerResource extends Resource
         return ['name', 'email', 'party.legal_name', 'party.tax_id'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Customer\Customer> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['party']);
@@ -290,6 +291,7 @@ class CustomerResource extends Resource
         return static::getUrl('view', ['record' => $record]);
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Customer\Customer> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

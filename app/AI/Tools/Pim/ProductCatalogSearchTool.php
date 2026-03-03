@@ -18,6 +18,7 @@ class ProductCatalogSearchTool extends BaseTool implements Tool
         return 'Search the product catalog by name, producer, appellation, or SKU code.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

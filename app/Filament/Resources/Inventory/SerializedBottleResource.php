@@ -219,6 +219,7 @@ class SerializedBottleResource extends Resource
         return ['serial_number'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\SerializedBottle> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['wineVariant.wineMaster', 'currentLocation']);
@@ -269,6 +270,7 @@ class SerializedBottleResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\SerializedBottle> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

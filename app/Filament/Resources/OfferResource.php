@@ -352,6 +352,7 @@ class OfferResource extends Resource
         return ['name', 'campaign_tag', 'sellableSku.sku_code'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\Offer> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['sellableSku', 'channel']);
@@ -389,6 +390,7 @@ class OfferResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\Offer> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

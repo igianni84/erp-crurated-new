@@ -11,7 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class CompositeSkuItem extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     /**

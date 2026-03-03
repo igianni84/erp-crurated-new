@@ -54,7 +54,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Customer extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
     use SoftDeletes;
 

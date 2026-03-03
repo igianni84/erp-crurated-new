@@ -19,6 +19,7 @@ class StockLevelsByLocationTool extends BaseTool implements Tool
         return 'Get current stock levels per warehouse location, optionally filtered by bottle state.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

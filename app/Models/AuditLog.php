@@ -20,8 +20,8 @@ use InvalidArgumentException;
  * @property string $auditable_type
  * @property string $auditable_id
  * @property string $event
- * @property array|null $old_values
- * @property array|null $new_values
+ * @property array<string, mixed>|null $old_values
+ * @property array<string, mixed>|null $new_values
  * @property int|null $user_id
  * @property Carbon $created_at
  */

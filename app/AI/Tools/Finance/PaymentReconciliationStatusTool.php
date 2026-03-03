@@ -19,6 +19,7 @@ class PaymentReconciliationStatusTool extends BaseTool implements Tool
         return 'Get payment reconciliation status with breakdown by state.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

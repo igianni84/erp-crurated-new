@@ -335,6 +335,7 @@ class ShippingOrderExceptionResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Fulfillment\ShippingOrderException> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

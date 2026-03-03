@@ -218,6 +218,7 @@ class PricingPolicyResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\PricingPolicy> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

@@ -19,6 +19,7 @@ class AllocationStatusOverviewTool extends BaseTool implements Tool
         return 'Get an overview of allocations by status with utilization metrics.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [];

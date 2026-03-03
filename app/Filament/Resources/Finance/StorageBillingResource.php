@@ -251,6 +251,7 @@ class StorageBillingResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\StorageBillingPeriod> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

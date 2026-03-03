@@ -18,6 +18,7 @@ class PriceBookCoverageTool extends BaseTool implements Tool
         return 'Get price book coverage vs total active sellable SKUs.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

@@ -18,6 +18,7 @@ class EmpAlertsTool extends BaseTool implements Tool
         return 'Identify products priced significantly above or below estimated market price.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

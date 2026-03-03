@@ -20,6 +20,7 @@ class CustomerStatusSummaryTool extends BaseTool implements Tool
         return 'Get a summary of customers by status and type.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [];

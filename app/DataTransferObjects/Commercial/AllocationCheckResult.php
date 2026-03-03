@@ -47,6 +47,8 @@ class AllocationCheckResult
 
     /**
      * Create a success result.
+     *
+     * @param  array<string, mixed>  $details
      */
     public static function success(Allocation $allocation, string $message, array $details = []): self
     {
@@ -55,6 +57,8 @@ class AllocationCheckResult
 
     /**
      * Create a warning result.
+     *
+     * @param  array<string, mixed>  $details
      */
     public static function warning(string $message, ?Allocation $allocation = null, array $details = []): self
     {
@@ -63,6 +67,8 @@ class AllocationCheckResult
 
     /**
      * Create an error result.
+     *
+     * @param  array<string, mixed>  $details
      */
     public static function error(string $message, array $details = []): self
     {
@@ -71,6 +77,8 @@ class AllocationCheckResult
 
     /**
      * Create a pending result (for placeholder when SimulationService is not yet implemented).
+     *
+     * @param  array<string, mixed>  $details
      */
     public static function pending(string $message = 'Allocation check pending', array $details = []): self
     {

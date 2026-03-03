@@ -226,6 +226,7 @@ class PriceBookResource extends Resource
         return ['name', 'market'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\PriceBook> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['channel']);
@@ -262,6 +263,7 @@ class PriceBookResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\PriceBook> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

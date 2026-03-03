@@ -28,7 +28,9 @@ use Illuminate\Support\Carbon;
  */
 class BundleComponent extends Model
 {
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     /**

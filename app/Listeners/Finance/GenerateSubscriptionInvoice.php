@@ -5,6 +5,7 @@ namespace App\Listeners\Finance;
 use App\Enums\Finance\InvoiceType;
 use App\Events\Finance\SubscriptionBillingDue;
 use App\Models\Finance\Invoice;
+use App\Models\Finance\Subscription;
 use App\Services\Finance\InvoiceService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
@@ -114,7 +115,7 @@ class GenerateSubscriptionInvoice implements ShouldQueue
      *
      * @return array<int, array{description: string, quantity: string, unit_price: string, tax_rate: string, metadata: array<string, mixed>}>
      */
-    protected function buildInvoiceLines($subscription): array
+    protected function buildInvoiceLines(Subscription $subscription): array
     {
         $description = $this->buildLineDescription($subscription);
 
@@ -132,8 +133,8 @@ class GenerateSubscriptionInvoice implements ShouldQueue
                     'plan_type' => $subscription->plan_type->value,
                     'plan_name' => $subscription->plan_name,
                     'billing_cycle' => $subscription->billing_cycle->value,
-                    'billing_period_start' => $subscription->next_billing_date?->toDateString(),
-                    'billing_period_end' => $subscription->calculateNextBillingDate()?->subDay()->toDateString(),
+                    'billing_period_start' => $subscription->next_billing_date->toDateString(),
+                    'billing_period_end' => $subscription->calculateNextBillingDate()->subDay()->toDateString(),
                 ],
             ],
         ];
@@ -142,14 +143,14 @@ class GenerateSubscriptionInvoice implements ShouldQueue
     /**
      * Build the line description from subscription details.
      */
-    protected function buildLineDescription($subscription): string
+    protected function buildLineDescription(Subscription $subscription): string
     {
         $planName = $subscription->plan_name;
         $billingCycleLabel = $subscription->billing_cycle->label();
 
         // Format billing period
-        $periodStart = $subscription->next_billing_date?->format('M d, Y') ?? 'N/A';
-        $periodEnd = $subscription->calculateNextBillingDate()?->subDay()->format('M d, Y') ?? 'N/A';
+        $periodStart = $subscription->next_billing_date->format('M d, Y');
+        $periodEnd = $subscription->calculateNextBillingDate()->subDay()->format('M d, Y');
 
         return "{$planName} ({$billingCycleLabel}) - {$periodStart} to {$periodEnd}";
     }
@@ -157,7 +158,7 @@ class GenerateSubscriptionInvoice implements ShouldQueue
     /**
      * Build notes for the invoice.
      */
-    protected function buildInvoiceNotes($subscription): string
+    protected function buildInvoiceNotes(Subscription $subscription): string
     {
         $notes = "Subscription billing for {$subscription->plan_name}.";
 
@@ -174,13 +175,8 @@ class GenerateSubscriptionInvoice implements ShouldQueue
      * This prevents duplicate invoices for the same billing period while
      * allowing new invoices for subsequent periods.
      */
-    protected function isRecentBillingPeriod(Invoice $invoice, $subscription): bool
+    protected function isRecentBillingPeriod(Invoice $invoice, Subscription $subscription): bool
     {
-        // If no next_billing_date on subscription, consider recent
-        if ($subscription->next_billing_date === null) {
-            return true;
-        }
-
         // Invoice created within the last billing cycle is considered recent
         $billingCycleMonths = $subscription->getBillingCycleMonths();
         $cutoffDate = now()->subMonths($billingCycleMonths)->startOfDay();

@@ -36,6 +36,8 @@ use InvalidArgumentException;
 class InvoicePayment extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
 
     protected $table = 'invoice_payments';

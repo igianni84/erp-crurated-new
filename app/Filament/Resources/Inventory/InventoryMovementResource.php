@@ -19,6 +19,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class InventoryMovementResource extends Resource
 {
@@ -236,6 +237,7 @@ class InventoryMovementResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\InventoryMovement> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
@@ -252,16 +254,20 @@ class InventoryMovementResource extends Resource
 
     /**
      * Movements are immutable - prevent editing.
+     *
+     * @param  InventoryMovement  $record
      */
-    public static function canEdit($record): bool
+    public static function canEdit(Model $record): bool
     {
         return false;
     }
 
     /**
      * Movements are immutable - prevent deleting.
+     *
+     * @param  InventoryMovement  $record
      */
-    public static function canDelete($record): bool
+    public static function canDelete(Model $record): bool
     {
         return false;
     }

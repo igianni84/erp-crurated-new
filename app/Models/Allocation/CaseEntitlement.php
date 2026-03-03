@@ -34,7 +34,10 @@ use Illuminate\Support\Carbon;
 class CaseEntitlement extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     /**

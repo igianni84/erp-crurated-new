@@ -19,6 +19,7 @@ class DataQualityIssuesTool extends BaseTool implements Tool
         return 'Identify data quality issues in the PIM (orphaned records, missing fields).';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [];

@@ -348,6 +348,7 @@ class WineMasterResource extends Resource
         return ['name', 'producerRelation.name', 'appellationRelation.name', 'liv_ex_code'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Pim\WineMaster> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['producerRelation', 'appellationRelation']);

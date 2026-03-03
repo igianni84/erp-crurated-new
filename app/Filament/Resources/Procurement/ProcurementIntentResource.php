@@ -295,6 +295,7 @@ class ProcurementIntentResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Procurement\ProcurementIntent> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

@@ -19,6 +19,7 @@ class CreditNoteSummaryTool extends BaseTool implements Tool
         return 'Get a summary of credit notes for a given period, grouped by status.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

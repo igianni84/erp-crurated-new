@@ -19,6 +19,7 @@ class PendingShippingOrdersTool extends BaseTool implements Tool
         return 'Get active (non-terminal) shipping orders to monitor fulfillment progress.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

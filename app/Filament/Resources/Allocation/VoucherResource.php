@@ -227,6 +227,7 @@ class VoucherResource extends Resource
         return ['id', 'customer.name', 'customer.email', 'allocation_id'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Allocation\Voucher> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['customer', 'wineVariant.wineMaster']);
@@ -268,6 +269,7 @@ class VoucherResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Allocation\Voucher> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

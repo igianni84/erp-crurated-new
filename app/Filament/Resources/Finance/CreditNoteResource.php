@@ -252,6 +252,7 @@ class CreditNoteResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\CreditNote> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
@@ -265,6 +266,7 @@ class CreditNoteResource extends Resource
         return ['credit_note_number', 'invoice.invoice_number', 'customer.name'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\CreditNote> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['customer', 'invoice']);

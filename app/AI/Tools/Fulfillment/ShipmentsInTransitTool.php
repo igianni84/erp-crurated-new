@@ -19,6 +19,7 @@ class ShipmentsInTransitTool extends BaseTool implements Tool
         return 'Get count and details of shipments currently in transit (non-terminal states).';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [];

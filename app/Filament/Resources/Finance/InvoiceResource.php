@@ -306,6 +306,7 @@ class InvoiceResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Invoice> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
@@ -319,6 +320,7 @@ class InvoiceResource extends Resource
         return ['invoice_number', 'xero_invoice_id', 'customer.name', 'customer.email'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Invoice> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['customer']);

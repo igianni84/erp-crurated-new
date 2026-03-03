@@ -30,6 +30,7 @@ use InvalidArgumentException;
  */
 class StripeWebhook extends Model
 {
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
 
     /**

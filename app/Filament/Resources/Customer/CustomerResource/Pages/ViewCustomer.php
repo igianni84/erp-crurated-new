@@ -1408,6 +1408,8 @@ class ViewCustomer extends ViewRecord
 
     /**
      * Create a new address for the customer.
+     *
+     * @param  array<string, mixed>  $data
      */
     protected function createAddress(Customer $customer, AddressType $type, array $data): void
     {
@@ -1521,6 +1523,8 @@ class ViewCustomer extends ViewRecord
 
     /**
      * Get a card displaying eligibility status and factors for a channel.
+     *
+     * @param  array<string, mixed>  $eligibilityData
      */
     protected function getChannelEligibilityCard(ChannelScope $channel, array $eligibilityData): Group
     {

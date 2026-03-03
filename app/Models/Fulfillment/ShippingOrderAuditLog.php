@@ -29,7 +29,9 @@ use InvalidArgumentException;
  */
 class ShippingOrderAuditLog extends Model
 {
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     /**

@@ -47,7 +47,10 @@ use InvalidArgumentException;
 class Subscription extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
     use SoftDeletes;
 

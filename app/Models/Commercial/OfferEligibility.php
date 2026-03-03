@@ -35,7 +35,10 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 class OfferEligibility extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     /**

@@ -523,6 +523,7 @@ class DiscountRuleResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\DiscountRule> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery();

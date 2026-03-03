@@ -472,6 +472,7 @@ class InboundBatchResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\InboundBatch> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

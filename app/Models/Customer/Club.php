@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $id
  * @property string $partner_name
  * @property ClubStatus $status
- * @property array|null $branding_metadata
+ * @property array<string, mixed>|null $branding_metadata
  * @property int|null $created_by
  * @property int|null $updated_by
  * @property Carbon $created_at

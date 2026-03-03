@@ -275,6 +275,8 @@ class SerializationQueue extends Page implements HasTable
      * - Have pending_serialization or partially_serialized status
      * - Are at locations with serialization_authorized = true
      * - Have remaining unserialized bottles
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\InboundBatch>
      */
     protected function getTableQuery(): Builder
     {

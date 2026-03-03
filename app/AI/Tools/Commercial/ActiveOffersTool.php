@@ -18,6 +18,7 @@ class ActiveOffersTool extends BaseTool implements Tool
         return 'Get the list of currently active offers, optionally filtered by channel.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

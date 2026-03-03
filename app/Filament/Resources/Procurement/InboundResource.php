@@ -272,6 +272,7 @@ class InboundResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Procurement\Inbound> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

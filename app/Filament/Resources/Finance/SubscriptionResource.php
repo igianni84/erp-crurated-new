@@ -229,6 +229,7 @@ class SubscriptionResource extends Resource
         return ['stripe_subscription_id', 'plan_name', 'customer.name', 'customer.email'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Subscription> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['customer']);
@@ -270,6 +271,7 @@ class SubscriptionResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Subscription> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

@@ -256,6 +256,7 @@ class PaymentResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Payment> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
@@ -269,6 +270,7 @@ class PaymentResource extends Resource
         return ['payment_reference', 'stripe_payment_intent_id', 'customer.name', 'customer.email'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Payment> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['customer']);

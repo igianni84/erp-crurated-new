@@ -19,6 +19,7 @@ class ProcurementIntentsStatusTool extends BaseTool implements Tool
         return 'Get procurement intents distribution by status and orphaned demand count.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [];

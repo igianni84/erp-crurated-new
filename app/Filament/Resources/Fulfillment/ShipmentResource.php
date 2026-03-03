@@ -354,6 +354,7 @@ class ShipmentResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Fulfillment\Shipment> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

@@ -19,6 +19,7 @@ class BottlesSoldByProducerTool extends BaseTool implements Tool
         return 'Get how many bottles of a specific producer (or top producers) have been sold.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

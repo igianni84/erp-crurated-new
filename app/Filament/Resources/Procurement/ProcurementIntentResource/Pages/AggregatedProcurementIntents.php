@@ -152,6 +152,8 @@ class AggregatedProcurementIntents extends Page implements HasTable
 
     /**
      * Get the aggregated query for intents grouped by product reference.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\Procurement\ProcurementIntent>
      */
     protected function getAggregatedQuery(): Builder
     {

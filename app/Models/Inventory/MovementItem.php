@@ -30,6 +30,7 @@ use InvalidArgumentException;
  */
 class MovementItem extends Model
 {
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
 
     // NO SoftDeletes trait - items are immutable and never deleted

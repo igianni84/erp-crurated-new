@@ -19,6 +19,7 @@ class CustomerVoucherCountTool extends BaseTool implements Tool
         return 'Get voucher counts for a specific customer, grouped by lifecycle state.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

@@ -80,6 +80,10 @@ abstract class BaseTool
      *
      * Returns null on exactly 1 match (proceed), or a message string
      * listing matches (>1) or indicating not found (0).
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  Collection<int, TModel>  $results
      */
     public function disambiguateResults(Collection $results, string $searchTerm, string $displayField): ?string
     {
@@ -113,6 +117,11 @@ abstract class BaseTool
     /**
      * Scope query for the given user (v2 hook for data isolation).
      * Default implementation returns the query unchanged.
+     *
+     * @template TModel of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<TModel>  $query
+     * @return \Illuminate\Database\Eloquent\Builder<TModel>
      */
     public function scopeQuery(Builder $query, User $user): Builder
     {

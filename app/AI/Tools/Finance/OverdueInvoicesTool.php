@@ -19,6 +19,7 @@ class OverdueInvoicesTool extends BaseTool implements Tool
         return 'Get overdue invoices to prioritize collection efforts.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

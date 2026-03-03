@@ -199,6 +199,7 @@ class CaseResource extends Resource
         return ['id'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\InventoryCase> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['caseConfiguration', 'currentLocation']);
@@ -242,6 +243,7 @@ class CaseResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\InventoryCase> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

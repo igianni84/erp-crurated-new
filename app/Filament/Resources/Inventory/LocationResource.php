@@ -289,6 +289,7 @@ class LocationResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Inventory\Location> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

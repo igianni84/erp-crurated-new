@@ -368,6 +368,7 @@ class PurchaseOrderResource extends Resource
         return ['id', 'supplier.legal_name'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Procurement\PurchaseOrder> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['supplier']);
@@ -410,6 +411,7 @@ class PurchaseOrderResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Procurement\PurchaseOrder> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

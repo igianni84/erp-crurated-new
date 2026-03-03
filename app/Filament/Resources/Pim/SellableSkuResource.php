@@ -256,6 +256,7 @@ class SellableSkuResource extends Resource
         return ['sku_code', 'barcode', 'wineVariant.wineMaster.name'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Pim\SellableSku> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['wineVariant.wineMaster', 'format']);

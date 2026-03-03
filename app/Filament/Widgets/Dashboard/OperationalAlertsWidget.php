@@ -155,6 +155,7 @@ class OperationalAlertsWidget extends Widget
         return count($this->getAlerts()) > 0;
     }
 
+    /** @param  array<string, mixed>  $params */
     protected function getResourceUrl(string $slug, array $params = []): string
     {
         $url = '/admin/'.$slug;

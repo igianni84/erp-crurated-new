@@ -435,6 +435,8 @@ class InventoryAudit extends Page implements HasForms, HasTable
 
     /**
      * Get the base query for audit logs.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<\App\Models\AuditLog>
      */
     protected function getTableQuery(): Builder
     {

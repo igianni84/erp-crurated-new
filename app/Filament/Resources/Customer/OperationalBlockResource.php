@@ -256,6 +256,7 @@ class OperationalBlockResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Customer\OperationalBlock> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

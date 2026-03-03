@@ -20,6 +20,7 @@ class TotalBottlesCountTool extends BaseTool implements Tool
         return 'Get total bottles count in inventory with breakdown by state and ownership type.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [];

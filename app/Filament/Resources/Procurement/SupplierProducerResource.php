@@ -198,6 +198,7 @@ class SupplierProducerResource extends Resource
         return false;
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Customer\Party> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

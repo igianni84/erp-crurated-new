@@ -46,7 +46,9 @@ use InvalidArgumentException;
  */
 class InventoryMovement extends Model
 {
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
 
     // NO SoftDeletes trait - movements are immutable and never deleted

@@ -18,6 +18,7 @@ class ShipmentStatusTool extends BaseTool implements Tool
         return 'Check shipment status by tracking number or get overview filtered by status and period.';
     }
 
+    /** @return array<string, mixed> */
     public function schema(JsonSchema $schema): array
     {
         return [

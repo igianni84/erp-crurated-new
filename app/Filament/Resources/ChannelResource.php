@@ -170,6 +170,7 @@ class ChannelResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\Channel> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

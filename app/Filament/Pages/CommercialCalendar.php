@@ -392,7 +392,7 @@ class CommercialCalendar extends Page
     /**
      * Get the days for the current view period.
      *
-     * @return array<array{date: Carbon, isCurrentMonth: bool, isToday: bool, events: array}>
+     * @return array<array{date: Carbon, isCurrentMonth: bool, isToday: bool, events: array<int, mixed>}>
      */
     public function getCalendarDays(): array
     {

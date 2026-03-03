@@ -36,7 +36,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class ShippingOrderException extends Model
 {
     use Auditable;
+
+    /** @use HasFactory<\Illuminate\Database\Eloquent\Factories\Factory<static>> */
     use HasFactory;
+
     use HasUuid;
     use SoftDeletes;
 

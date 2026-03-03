@@ -285,6 +285,7 @@ class BundleResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Commercial\Bundle> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()

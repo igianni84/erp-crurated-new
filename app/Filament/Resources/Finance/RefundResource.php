@@ -268,6 +268,7 @@ class RefundResource extends Resource
         ];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Refund> */
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
@@ -281,6 +282,7 @@ class RefundResource extends Resource
         return ['invoice.invoice_number', 'stripe_refund_id'];
     }
 
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\Refund> */
     public static function getGlobalSearchEloquentQuery(): Builder
     {
         return parent::getGlobalSearchEloquentQuery()->with(['invoice', 'payment']);
