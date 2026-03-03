@@ -62,11 +62,13 @@ class User extends Authenticatable implements FilamentUser
 
     /**
      * Determine if the user can access the Filament admin panel.
+     *
+     * Requires the user to have a valid role assigned.
+     * Users without a role (e.g., newly created, incomplete setup) are denied access.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        // All authenticated users can access the admin panel
-        return true;
+        return $this->role !== null;
     }
 
     /**

@@ -231,6 +231,17 @@ class LateBindingService
         }
 
         return DB::transaction(function () use ($line, $bottle, $serialNumber): ShippingOrderLine {
+            // Lock the bottle row to prevent concurrent binding
+            $bottle = SerializedBottle::lockForUpdate()->findOrFail($bottle->id);
+
+            // Re-validate inside the lock (TOCTOU guard)
+            if ($bottle->state !== BottleState::Stored) {
+                throw new InvalidArgumentException(
+                    "Bottle state changed during binding. Current state: '{$bottle->state->label()}'. "
+                    .'Another process may have bound or modified this bottle.'
+                );
+            }
+
             // Update bottle state to reserved_for_picking
             $bottle->state = BottleState::ReservedForPicking;
             $bottle->save();

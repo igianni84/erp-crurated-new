@@ -35,6 +35,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Table;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -57,6 +58,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Enforce model strictness in non-production environments
+        Model::preventLazyLoading(! app()->isProduction());
+        Model::preventSilentlyDiscardingAttributes(! app()->isProduction());
+
+        // Log lazy loading violations instead of throwing exceptions
+        // This allows detecting N+1 issues without breaking the app
+        Model::handleLazyLoadingViolationUsing(function (Model $model, string $relation): void {
+            logger()->warning("Lazy loading [{$relation}] on model [".$model::class.'].');
+        });
+
         // Register morph map for polymorphic relationships
         // This maps the short alias stored in DB to the full class names
         Relation::morphMap([
@@ -96,8 +107,8 @@ class AppServiceProvider extends ServiceProvider
         });
 
         // Filament v4 global configuration
-        FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('public'));
-        ImageColumn::configureUsing(fn (ImageColumn $ic) => $ic->visibility('public'));
+        FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('private'));
+        ImageColumn::configureUsing(fn (ImageColumn $ic) => $ic->visibility('private'));
         Table::configureUsing(fn (Table $table) => $table->deferFilters(false));
     }
 }

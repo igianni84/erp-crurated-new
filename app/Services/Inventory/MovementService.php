@@ -226,6 +226,16 @@ class MovementService
             : MovementTrigger::ErpOperator;
 
         return DB::transaction(function () use ($bottle, $destination, $sourceLocation, $executor, $reason, $wmsEventId, $trigger) {
+            // Lock the bottle row to prevent concurrent modifications
+            $bottle = SerializedBottle::lockForUpdate()->findOrFail($bottle->id);
+
+            // Re-validate inside the lock (TOCTOU guard)
+            if ($bottle->isInTerminalState()) {
+                throw new InvalidArgumentException(
+                    'Bottle entered terminal state during transfer: '.$bottle->state->label()
+                );
+            }
+
             // Create the movement
             $movement = $this->createMovement([
                 'movement_type' => MovementType::InternalTransfer,
@@ -366,6 +376,16 @@ class MovementService
         }
 
         return DB::transaction(function () use ($bottle, $executor, $reasonText, $location) {
+            // Lock the bottle row to prevent concurrent modifications
+            $bottle = SerializedBottle::lockForUpdate()->findOrFail($bottle->id);
+
+            // Re-validate inside the lock (TOCTOU guard)
+            if ($bottle->isInTerminalState()) {
+                throw new InvalidArgumentException(
+                    'Bottle entered terminal state during destruction: '.$bottle->state->label()
+                );
+            }
+
             // Create the movement (consumption movement type with destruction reason)
             $movement = $this->createMovement([
                 'movement_type' => MovementType::EventConsumption,
@@ -569,6 +589,16 @@ class MovementService
         }
 
         return DB::transaction(function () use ($bottle, $reason, $executor, $reasonText, $location) {
+            // Lock the bottle row to prevent concurrent modifications
+            $bottle = SerializedBottle::lockForUpdate()->findOrFail($bottle->id);
+
+            // Re-validate inside the lock (TOCTOU guard)
+            if (! $bottle->isStored()) {
+                throw new InvalidArgumentException(
+                    'Bottle state changed during consumption. Current state: '.$bottle->state->label()
+                );
+            }
+
             // Determine movement type based on reason
             $movementType = $reason === ConsumptionReason::EventConsumption
                 ? MovementType::EventConsumption

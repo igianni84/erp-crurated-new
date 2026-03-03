@@ -33,7 +33,7 @@ class PaymentPolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -41,7 +41,7 @@ class PaymentPolicy
      */
     public function update(User $user, Payment $payment): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**

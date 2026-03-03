@@ -160,7 +160,7 @@ class CreateAllocation extends CreateRecord
                                     ])
                                     ->toArray();
                             })
-                            ->getOptionLabelUsing(function (int $value): ?string {
+                            ->getOptionLabelUsing(function (string $value): ?string {
                                 $wineMaster = WineMaster::find($value);
 
                                 return $wineMaster !== null ? self::formatWineMasterOption($wineMaster) : null;

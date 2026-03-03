@@ -33,7 +33,7 @@ class StorageBillingPeriodPolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -41,7 +41,7 @@ class StorageBillingPeriodPolicy
      */
     public function update(User $user, StorageBillingPeriod $storageBillingPeriod): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**

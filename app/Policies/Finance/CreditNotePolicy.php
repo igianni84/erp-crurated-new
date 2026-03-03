@@ -34,7 +34,7 @@ class CreditNotePolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -42,8 +42,7 @@ class CreditNotePolicy
      */
     public function update(User $user, CreditNote $creditNote): bool
     {
-        // Only draft credit notes can be updated
-        return $creditNote->status === CreditNoteStatus::Draft;
+        return $user->canEdit() && $creditNote->status === CreditNoteStatus::Draft;
     }
 
     /**
@@ -51,8 +50,7 @@ class CreditNotePolicy
      */
     public function delete(User $user, CreditNote $creditNote): bool
     {
-        // Only draft credit notes can be deleted
-        return $creditNote->status === CreditNoteStatus::Draft;
+        return $user->isAdmin() && $creditNote->status === CreditNoteStatus::Draft;
     }
 
     /**

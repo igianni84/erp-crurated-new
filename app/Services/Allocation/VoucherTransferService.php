@@ -161,6 +161,26 @@ class VoucherTransferService
         }
 
         return DB::transaction(function () use ($transfer, $voucher): VoucherTransfer {
+            // Lock the voucher row to prevent concurrent modifications (race condition guard)
+            $voucher = Voucher::lockForUpdate()->findOrFail($voucher->id);
+
+            // Re-validate inside the lock to prevent TOCTOU race conditions
+            if ($voucher->isLocked()) {
+                throw new InvalidArgumentException(
+                    'Voucher was locked by another process during transfer acceptance.'
+                );
+            }
+            if ($voucher->suspended) {
+                throw new InvalidArgumentException(
+                    'Voucher was suspended by another process during transfer acceptance.'
+                );
+            }
+            if ($voucher->isTerminal()) {
+                throw new InvalidArgumentException(
+                    "Voucher entered terminal state '{$voucher->lifecycle_state->label()}' during transfer acceptance."
+                );
+            }
+
             $oldCustomerId = $voucher->customer_id;
             $newCustomerId = $transfer->to_customer_id;
 

@@ -33,7 +33,7 @@ class SubscriptionPolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -41,7 +41,7 @@ class SubscriptionPolicy
      */
     public function update(User $user, Subscription $subscription): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**

@@ -31,7 +31,7 @@ class AllocationPolicy
      */
     public function create(User $user): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -39,7 +39,7 @@ class AllocationPolicy
      */
     public function update(User $user, Allocation $allocation): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -47,24 +47,17 @@ class AllocationPolicy
      */
     public function delete(User $user, Allocation $allocation): bool
     {
-        return true;
+        return $user->isAdmin();
     }
 
     /**
      * Determine if the user can activate the allocation.
      *
-     * This permission controls whether the "Create and Activate" button
-     * is visible in the allocation creation wizard.
-     *
-     * Currently allows all authenticated users. Can be refined with
-     * role-based checks in future iterations.
+     * Requires at least Editor role to activate allocations.
      */
     public function activate(User $user, ?Allocation $allocation = null): bool
     {
-        // Allow all authenticated users to activate allocations
-        // This can be refined with role-based permissions later
-        // e.g., return $user->hasRole('admin') || $user->hasRole('operator');
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -72,6 +65,6 @@ class AllocationPolicy
      */
     public function close(User $user, Allocation $allocation): bool
     {
-        return true;
+        return $user->isAdmin();
     }
 }
