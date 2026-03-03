@@ -619,3 +619,27 @@ Tutti i 16 step del piano sono stati implementati correttamente. Verifica esegui
 
 - **ShippingOrderLineSeeder.php ELIMINATO** — file orphano, non referenziato da DatabaseSeeder
 - **18 fix PHPStan** applicati per pulizia codice
+
+---
+---
+
+# Livewire Tests per Filament Pages Critiche
+
+**Data inizio:** 2026-03-03
+**Stato:** Pianificato
+**Piano dettagliato:** `tasks/livewire-tests-plan.md`
+
+## Obiettivo
+
+Aggiungere test Livewire per le pagine Filament critiche (Create, Edit, View, List) per intercettare errori PRIMA del deploy. Attualmente 1/45 risorse testate (UserResource).
+
+## Riepilogo Fasi
+
+- [x] **FASE 0 — Infrastruttura:** Trait `FilamentTestHelpers` + 8 factory base — **COMPLETATA 2026-03-03**
+- [x] **FASE 1 — Tier 1 (61 test):** AllocationResource, CustomerResource, ShippingOrderResource, InvoiceResource, WineVariantResource + 3 factory — **COMPLETATA 2026-03-03**
+- [ ] **FASE 2 — Tier 2 (~40 test):** PurchaseOrderResource, ProcurementIntentResource, InboundResource, VoucherResource, PaymentResource + 5 factory
+- [ ] **FASE 3 — Tier 3 (~70 test):** 10 risorse CRUD standard (Party, Club, Location, InboundBatch, Channel, PriceBook, PricingPolicy, Offer, Bundle, DiscountRule) + 8 factory
+- [ ] **FASE 4 — Tier 4 (~55 test):** ~15 risorse read-only/semplici + 2 factory
+
+**Totale stimato:** 26 factory, ~35 file test, ~225 test methods
+**Completati finora:** 11 factory, 5 file test, 61 test methods (suite totale: 412 test, 0 failures)
