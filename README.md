@@ -1,261 +1,127 @@
 # Crurated ERP
 
-Enterprise Resource Planning system built with Laravel 12 and Filament 5.
+Enterprise Resource Planning system for fine wine and luxury goods trading. Built with Laravel 12, Filament 5, and PHP 8.5.
+
+> **New here?** Start with the [Onboarding Guide](docs/ONBOARDING.md).
 
 ## Requirements
 
-- PHP 8.2+
+- PHP 8.5+
 - MySQL 8.0+
 - Composer 2.x
-- Node.js 18+ (for asset compilation)
+- Node.js 22+ (for Vite asset compilation)
 
-## Setup
-
-```bash
-# Install dependencies
-composer install
-
-# Copy environment file
-cp .env.example .env
-
-# Generate application key
-php artisan key:generate
-
-# Run migrations
-php artisan migrate
-
-# Start development server
-php artisan serve
-```
-
-## Environment Configuration
-
-The `.env.example` file contains all available environment variables with comments explaining recommended values for each environment.
-
-### Development Environment
-
-Optimized for local development with minimal setup:
+## Quick Start
 
 ```bash
-APP_ENV=local
-APP_DEBUG=true
-LOG_STACK=single
-LOG_LEVEL=debug
-CACHE_STORE=file        # No Redis required
-QUEUE_CONNECTION=sync   # Jobs run immediately (easier debugging)
-MAIL_MAILER=log         # Emails written to log file
+# 1. Clone and install everything
+git clone git@github.com:igianni84/erp-crurated-new.git
+cd erp-crurated-new
+composer setup
+
+# 2. Configure .env (edit DB credentials)
+# 3. Seed the database with test data for all modules
+php artisan migrate:fresh --seed
+
+# 4. Start the dev environment
+composer run dev
 ```
 
-### Staging Environment
+`composer run dev` starts 4 concurrent processes: Laravel server (`localhost:8000`), queue worker, Pail log viewer, and Vite HMR.
 
-Similar to production but with more verbose logging:
-
-```bash
-APP_ENV=staging
-APP_DEBUG=false
-LOG_STACK=daily
-LOG_LEVEL=debug
-CACHE_STORE=database    # Uses existing MySQL
-QUEUE_CONNECTION=database
-SESSION_DRIVER=database
-```
-
-Run queue workers in staging to test async behavior:
-
-```bash
-php artisan queue:work --tries=3
-```
-
-### Production Environment
-
-Optimized for performance and security:
-
-```bash
-APP_ENV=production
-APP_DEBUG=false
-LOG_STACK=daily,slack   # Daily files + Slack alerts
-LOG_LEVEL=warning       # Only warnings and above
-CACHE_STORE=redis       # Fast in-memory cache
-QUEUE_CONNECTION=redis  # Fast async processing
-SESSION_DRIVER=redis    # Fast session handling
-SESSION_ENCRYPT=true    # Encrypt session data
-```
-
-**Production requirements:**
-- Redis server for cache, queue, and sessions
-- Queue worker process (use Supervisor)
-- Proper SSL certificate (HTTPS)
-- Strong `APP_KEY` (never share between environments)
-- Database credentials in secrets manager (not in `.env`)
-
-### Queue Workers
-
-For staging/production environments using database or redis queues:
-
-```bash
-# Run a single worker (development/testing)
-php artisan queue:work --tries=3
-
-# Run with timeout and memory limits (production)
-php artisan queue:work --tries=3 --timeout=60 --memory=128
-
-# Process specific queue
-php artisan queue:work --queue=high,default,low
-```
-
-For production, use [Supervisor](https://laravel.com/docs/queues#supervisor-configuration) to manage workers.
-
-## Code Quality
-
-```bash
-# Run all quality checks
-composer quality
-
-# Individual commands
-composer lint        # Fix code style
-composer lint:test   # Check code style (no fix)
-composer analyse     # Run PHPStan
-composer test        # Run tests
-```
+**Login:** `admin@crurated.com` / `password`
 
 ## Project Structure
 
 ```
 app/
-├── Enums/              # Application enumerations
-├── Filament/
-│   └── Resources/
-│       └── Pim/        # PIM module Filament resources
 ├── Models/
-│   └── Pim/            # PIM module models
-├── Services/           # Business logic services
-└── Traits/             # Reusable model traits
+│   ├── Pim/              # Wine catalog: WineMaster, WineVariant, SellableSku
+│   ├── Allocation/       # Allocations, Vouchers, Transfers
+│   ├── Commercial/       # Channels, PriceBooks, Offers, Bundles
+│   ├── Customer/         # Party, Customer, Account, Membership
+│   ├── Procurement/      # ProcurementIntent, PurchaseOrder, Inbound
+│   ├── Inventory/        # Location, SerializedBottle, InventoryCase
+│   ├── Fulfillment/      # ShippingOrder, Shipment
+│   ├── Finance/          # Invoice, Payment, CreditNote, Subscription
+│   └── AI/               # AI assistant audit logs
+├── Services/{Module}/    # Business logic (41 services)
+├── Enums/{Module}/       # String-backed enums (95 enums)
+├── Events/{Module}/      # Domain events for cross-module communication
+├── Listeners/{Module}/   # Event handlers
+├── Jobs/{Module}/        # Queued and scheduled jobs
+├── Filament/
+│   ├── Resources/{Module}/  # 45 admin CRUD resources
+│   ├── Pages/{Module}/      # 33 custom admin pages
+│   └── Widgets/{Module}/    # 11 dashboard widgets
+├── Traits/               # HasUuid, Auditable, AuditLoggable, etc.
+└── Providers/            # EventServiceProvider, AdminPanelProvider
 ```
 
-## Reusable Traits
+**78 models** across **10 modules**. See [Architecture Guide](docs/ARCHITECTURE.md) for the full module map and dependency diagram.
 
-### HasUuid
+## Development Commands
 
-Provides UUID as primary key functionality for Eloquent models.
+```bash
+composer run dev      # Start dev server + queue + logs + Vite
+composer quality      # Run lint + PHPStan + tests (full pipeline)
+composer lint         # Fix code style (Pint)
+composer lint:test    # Check code style without fixing
+composer analyse      # Run PHPStan (level 6)
+composer test         # Run PHPUnit tests
 
-**Usage:**
+# Specific test
+php artisan test --compact --filter=testName
 
-```php
-use App\Traits\HasUuid;
-
-class MyModel extends Model
-{
-    use HasUuid;
-}
+# Format only changed files
+vendor/bin/pint --dirty
 ```
 
-**Migration:**
+## Database Seeding
 
-```php
-$table->uuid('id')->primary();
-// Remove: $table->id();
+35 seeders populate all modules with realistic test data:
+
+```bash
+# Fresh database + seed
+php artisan migrate:fresh --seed
+
+# Seed only (after existing migration)
+php artisan db:seed
 ```
 
-### Auditable
+Seeders run in dependency order (PIM → Customers → Allocations → ... → Finance). `fakerphp/faker` is in `require` (not `require-dev`) because seeders are available in all environments.
 
-Tracks who created and last updated the model.
+## Environment Configuration
 
-**Usage:**
+Copy `.env.example` and configure at minimum:
 
-```php
-use App\Traits\Auditable;
+| Variable | Dev Default | Notes |
+|----------|-------------|-------|
+| `DB_DATABASE` | `crurated_erp` | Your local MySQL database |
+| `DB_USERNAME` | `root` | |
+| `DB_PASSWORD` | *(empty)* | |
+| `QUEUE_CONNECTION` | `sync` | Jobs run immediately (easier debugging) |
+| `MAIL_MAILER` | `log` | Emails go to `storage/logs/` |
 
-class MyModel extends Model
-{
-    use Auditable;
-}
-```
+For external integrations (optional in dev):
 
-**Migration:**
+| Integration | Variables |
+|-------------|-----------|
+| Stripe | `STRIPE_KEY`, `STRIPE_SECRET`, `STRIPE_WEBHOOK_SECRET` |
+| Xero | `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_TENANT_ID` |
+| Trading Platform | `TRADING_PLATFORM_HMAC_SECRET` |
 
-```php
-$table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
-$table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
-```
+See `.env.example` for all variables with inline documentation.
 
-**Methods:**
+## Documentation
 
-- `$model->creator` - Returns the User who created the model
-- `$model->updater` - Returns the User who last updated the model
-
-### HasLifecycleStatus
-
-Provides lifecycle status management with standard states: draft, active, inactive, archived.
-
-**Usage:**
-
-```php
-use App\Traits\HasLifecycleStatus;
-use App\Enums\LifecycleStatus;
-
-class MyModel extends Model
-{
-    use HasLifecycleStatus;
-
-    protected $casts = [
-        'status' => LifecycleStatus::class,
-    ];
-}
-```
-
-**Migration:**
-
-```php
-$table->string('status')->default('draft');
-```
-
-**Query Scopes:**
-
-```php
-MyModel::active()->get();      // Only active records
-MyModel::draft()->get();       // Only draft records
-MyModel::inactive()->get();    // Only inactive records
-MyModel::archived()->get();    // Only archived records
-MyModel::notArchived()->get(); // Exclude archived records
-```
-
-**Status Checks:**
-
-```php
-$model->isActive();
-$model->isDraft();
-$model->isInactive();
-$model->isArchived();
-```
-
-**Status Transitions:**
-
-```php
-$model->activate();       // Set to active
-$model->deactivate();     // Set to inactive
-$model->archive();        // Set to archived
-$model->restoreToDraft(); // Set to draft
-```
-
-## Enums
-
-### LifecycleStatus
-
-Standard lifecycle states for models.
-
-```php
-use App\Enums\LifecycleStatus;
-
-LifecycleStatus::Draft;    // 'draft'
-LifecycleStatus::Active;   // 'active'
-LifecycleStatus::Inactive; // 'inactive'
-LifecycleStatus::Archived; // 'archived'
-
-// Helpers for Filament UI
-$status->label(); // Human-readable label
-$status->color(); // Filament color (gray, success, warning, danger)
-$status->icon();  // Heroicon name
-```
+| Document | Purpose |
+|----------|---------|
+| [Onboarding Guide](docs/ONBOARDING.md) | First-day setup, orientation, glossary |
+| [Architecture Guide](docs/ARCHITECTURE.md) | Modules, patterns, events, invariants, scheduled jobs |
+| `docs/modules/*.md` | Per-module UX narratives and business logic |
+| `tasks/prd-module-*.md` | Product Requirements Documents (542 user stories) |
+| `CLAUDE.md` | AI agent instructions + complete project overview |
 
 ## License
 
