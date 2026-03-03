@@ -246,7 +246,7 @@ class Account extends Model
         }
 
         // Also check customer-level blocks (inherited)
-        return $this->customer->isOperationBlocked($operation);
+        return $this->customer?->isOperationBlocked($operation) ?? false;
     }
 
     /**
@@ -257,7 +257,7 @@ class Account extends Model
     {
         return $this->hasActiveBlockOfType(BlockType::Payment)
             || $this->hasActiveBlockOfType(BlockType::Compliance)
-            || $this->customer->hasPaymentOperationBlocked();
+            || ($this->customer?->hasPaymentOperationBlocked() ?? false);
     }
 
     /**
@@ -268,7 +268,7 @@ class Account extends Model
     {
         return $this->hasActiveBlockOfType(BlockType::Shipment)
             || $this->hasActiveBlockOfType(BlockType::Compliance)
-            || $this->customer->hasShipmentOperationBlocked();
+            || ($this->customer?->hasShipmentOperationBlocked() ?? false);
     }
 
     /**
@@ -279,7 +279,7 @@ class Account extends Model
     {
         return $this->hasActiveBlockOfType(BlockType::Redemption)
             || $this->hasActiveBlockOfType(BlockType::Compliance)
-            || $this->customer->hasRedemptionOperationBlocked();
+            || ($this->customer?->hasRedemptionOperationBlocked() ?? false);
     }
 
     /**
@@ -290,7 +290,7 @@ class Account extends Model
     {
         return $this->hasActiveBlockOfType(BlockType::Trading)
             || $this->hasActiveBlockOfType(BlockType::Compliance)
-            || $this->customer->hasTradingOperationBlocked();
+            || ($this->customer?->hasTradingOperationBlocked() ?? false);
     }
 
     /**

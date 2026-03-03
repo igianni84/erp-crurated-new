@@ -2119,7 +2119,7 @@ class ViewCustomer extends ViewRecord
 
                                 Notification::make()
                                     ->title('Club affiliation added')
-                                    ->body("Customer is now affiliated with club \"{$club->partner_name}\".")
+                                    ->body("Customer is now affiliated with club \"{$club?->partner_name}\".")
                                     ->success()
                                     ->send();
 
@@ -2231,7 +2231,7 @@ class ViewCustomer extends ViewRecord
                                         ->helperText('Leave empty for ongoing affiliation, or set to end the affiliation'),
                                 ])
                                 ->modalHeading('Edit Club Affiliation')
-                                ->modalDescription(fn (CustomerClub $affiliation): string => "Edit affiliation with club: {$affiliation->club->partner_name}")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Edit affiliation with club: {$affiliation->club?->partner_name}")
                                 ->modalSubmitActionLabel('Save Changes')
                                 ->action(function (array $data, CustomerClub $affiliation): void {
                                     $affiliation->update([
@@ -2241,7 +2241,7 @@ class ViewCustomer extends ViewRecord
 
                                     Notification::make()
                                         ->title('Affiliation updated')
-                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been updated.")
+                                        ->body("Affiliation with \"{$affiliation->club?->partner_name}\" has been updated.")
                                         ->success()
                                         ->send();
 
@@ -2254,7 +2254,7 @@ class ViewCustomer extends ViewRecord
                                 ->size('sm')
                                 ->requiresConfirmation()
                                 ->modalHeading('Suspend Affiliation')
-                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to suspend the affiliation with \"{$affiliation->club->partner_name}\"? This will remove Club channel eligibility from this affiliation.")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to suspend the affiliation with \"{$affiliation->club?->partner_name}\"? This will remove Club channel eligibility from this affiliation.")
                                 ->modalSubmitActionLabel('Suspend')
                                 ->visible(fn (CustomerClub $affiliation): bool => $affiliation->isActive() && ! $affiliation->hasEnded())
                                 ->action(function (CustomerClub $affiliation): void {
@@ -2262,7 +2262,7 @@ class ViewCustomer extends ViewRecord
 
                                     Notification::make()
                                         ->title('Affiliation suspended')
-                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been suspended.")
+                                        ->body("Affiliation with \"{$affiliation->club?->partner_name}\" has been suspended.")
                                         ->success()
                                         ->send();
 
@@ -2275,7 +2275,7 @@ class ViewCustomer extends ViewRecord
                                 ->size('sm')
                                 ->requiresConfirmation()
                                 ->modalHeading('Reactivate Affiliation')
-                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to reactivate the affiliation with \"{$affiliation->club->partner_name}\"?")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to reactivate the affiliation with \"{$affiliation->club?->partner_name}\"?")
                                 ->modalSubmitActionLabel('Reactivate')
                                 ->visible(fn (CustomerClub $affiliation): bool => $affiliation->isSuspended() && ! $affiliation->hasEnded())
                                 ->action(function (CustomerClub $affiliation): void {
@@ -2283,7 +2283,7 @@ class ViewCustomer extends ViewRecord
 
                                     Notification::make()
                                         ->title('Affiliation reactivated')
-                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been reactivated.")
+                                        ->body("Affiliation with \"{$affiliation->club?->partner_name}\" has been reactivated.")
                                         ->success()
                                         ->send();
 
@@ -2296,7 +2296,7 @@ class ViewCustomer extends ViewRecord
                                 ->size('sm')
                                 ->requiresConfirmation()
                                 ->modalHeading('End Affiliation')
-                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to end the affiliation with \"{$affiliation->club->partner_name}\"? This will set the end date to today.")
+                                ->modalDescription(fn (CustomerClub $affiliation): string => "Are you sure you want to end the affiliation with \"{$affiliation->club?->partner_name}\"? This will set the end date to today.")
                                 ->modalSubmitActionLabel('End Affiliation')
                                 ->visible(fn (CustomerClub $affiliation): bool => ! $affiliation->hasEnded())
                                 ->action(function (CustomerClub $affiliation): void {
@@ -2304,7 +2304,7 @@ class ViewCustomer extends ViewRecord
 
                                     Notification::make()
                                         ->title('Affiliation ended')
-                                        ->body("Affiliation with \"{$affiliation->club->partner_name}\" has been ended.")
+                                        ->body("Affiliation with \"{$affiliation->club?->partner_name}\" has been ended.")
                                         ->success()
                                         ->send();
 
@@ -2531,7 +2531,7 @@ class ViewCustomer extends ViewRecord
                                                 ->default($accountUser->role->value),
                                         ])
                                         ->modalHeading('Change User Role')
-                                        ->modalDescription(fn (AccountUser $accountUser): string => "Change role for user \"{$accountUser->user->email}\"")
+                                        ->modalDescription(fn (AccountUser $accountUser): string => "Change role for user \"{$accountUser->user?->email}\"")
                                         ->modalSubmitActionLabel('Update Role')
                                         ->action(function (array $data, AccountUser $accountUser): void {
                                             $oldRole = $accountUser->role;
@@ -2541,7 +2541,7 @@ class ViewCustomer extends ViewRecord
 
                                             Notification::make()
                                                 ->title('Role updated')
-                                                ->body("User \"{$accountUser->user->email}\" role changed from {$oldRole->label()} to {$newRole->label()}.")
+                                                ->body("User \"{$accountUser->user?->email}\" role changed from {$oldRole->label()} to {$newRole->label()}.")
                                                 ->success()
                                                 ->send();
 
@@ -2555,10 +2555,12 @@ class ViewCustomer extends ViewRecord
                                         ->visible(fn (AccountUser $accountUser): bool => ! $accountUser->isOwner())
                                         ->requiresConfirmation()
                                         ->modalHeading('Remove User Access')
-                                        ->modalDescription(fn (AccountUser $accountUser): string => "Are you sure you want to remove access for \"{$accountUser->user->email}\" from this account? They will no longer be able to access this account.")
+                                        ->modalDescription(fn (AccountUser $accountUser): string => "Are you sure you want to remove access for \"{$accountUser->user?->email}\" from this account? They will no longer be able to access this account.")
                                         ->modalSubmitActionLabel('Remove Access')
                                         ->action(function (AccountUser $accountUser): void {
-                                            $email = $accountUser->user->email;
+                                            /** @var \App\Models\User $user */
+                                            $user = $accountUser->user;
+                                            $email = $user->email;
                                             $accountUser->delete();
 
                                             Notification::make()

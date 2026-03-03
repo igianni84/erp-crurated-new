@@ -141,11 +141,17 @@ class FxImpactReport extends Page
      */
     protected function getPeriodStart(): Carbon
     {
+        /** @var \Carbon\Carbon $date */
+        $date = match ($this->periodType) {
+            'monthly' => Carbon::create($this->selectedYear, $this->selectedMonth, 1),
+            'quarterly' => Carbon::create($this->selectedYear, (($this->selectedQuarter - 1) * 3) + 1, 1),
+            'yearly' => Carbon::create($this->selectedYear, 1, 1),
+            default => Carbon::create($this->selectedYear, $this->selectedMonth, 1),
+        };
+
         return match ($this->periodType) {
-            'monthly' => Carbon::create($this->selectedYear, $this->selectedMonth, 1)->startOfMonth(),
-            'quarterly' => Carbon::create($this->selectedYear, (($this->selectedQuarter - 1) * 3) + 1, 1)->startOfMonth(),
-            'yearly' => Carbon::create($this->selectedYear, 1, 1)->startOfYear(),
-            default => Carbon::create($this->selectedYear, $this->selectedMonth, 1)->startOfMonth(),
+            'yearly' => $date->startOfYear(),
+            default => $date->startOfMonth(),
         };
     }
 
@@ -154,11 +160,18 @@ class FxImpactReport extends Page
      */
     protected function getPeriodEnd(): Carbon
     {
+        /** @var \Carbon\Carbon $date */
+        $date = match ($this->periodType) {
+            'monthly' => Carbon::create($this->selectedYear, $this->selectedMonth, 1),
+            'quarterly' => Carbon::create($this->selectedYear, (($this->selectedQuarter - 1) * 3) + 1, 1),
+            'yearly' => Carbon::create($this->selectedYear, 12, 31),
+            default => Carbon::create($this->selectedYear, $this->selectedMonth, 1),
+        };
+
         return match ($this->periodType) {
-            'monthly' => Carbon::create($this->selectedYear, $this->selectedMonth, 1)->endOfMonth(),
-            'quarterly' => Carbon::create($this->selectedYear, (($this->selectedQuarter - 1) * 3) + 1, 1)->addMonths(2)->endOfMonth(),
-            'yearly' => Carbon::create($this->selectedYear, 12, 31)->endOfYear(),
-            default => Carbon::create($this->selectedYear, $this->selectedMonth, 1)->endOfMonth(),
+            'quarterly' => $date->addMonths(2)->endOfMonth(),
+            'yearly' => $date->endOfYear(),
+            default => $date->endOfMonth(),
         };
     }
 
@@ -167,8 +180,14 @@ class FxImpactReport extends Page
      */
     public function getPeriodLabel(): string
     {
+        if ($this->periodType === 'monthly') {
+            /** @var \Carbon\Carbon $date */
+            $date = Carbon::create($this->selectedYear, $this->selectedMonth, 1);
+
+            return $date->format('F Y');
+        }
+
         return match ($this->periodType) {
-            'monthly' => Carbon::create($this->selectedYear, $this->selectedMonth, 1)->format('F Y'),
             'quarterly' => 'Q'.$this->selectedQuarter.' '.$this->selectedYear,
             'yearly' => (string) $this->selectedYear,
             default => '',
@@ -200,7 +219,9 @@ class FxImpactReport extends Page
     {
         $months = [];
         for ($month = 1; $month <= 12; $month++) {
-            $months[$month] = Carbon::create(null, $month, 1)->format('F');
+            /** @var \Carbon\Carbon $date */
+            $date = Carbon::create(null, $month, 1);
+            $months[$month] = $date->format('F');
         }
 
         return $months;

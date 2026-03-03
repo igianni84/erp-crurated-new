@@ -65,6 +65,10 @@ class VoucherTransferService
 
         $fromCustomer = $voucher->customer;
 
+        if ($fromCustomer === null) {
+            throw new InvalidArgumentException('Voucher has no assigned customer.');
+        }
+
         $transfer = VoucherTransfer::create([
             'voucher_id' => $voucher->id,
             'from_customer_id' => $fromCustomer->id,
@@ -131,6 +135,10 @@ class VoucherTransferService
         }
 
         $voucher = $transfer->voucher;
+
+        if ($voucher === null) {
+            throw new InvalidArgumentException('Transfer has no associated voucher.');
+        }
 
         // Validate voucher is not locked (race condition: locked during pending transfer)
         if ($voucher->isLocked()) {
@@ -252,8 +260,12 @@ class VoucherTransferService
         $transfer->save();
 
         // Log on the voucher
+        $voucher = $transfer->voucher;
+        if ($voucher === null) {
+            throw new InvalidArgumentException('Transfer has no associated voucher.');
+        }
         $this->logTransferEvent(
-            $transfer->voucher,
+            $voucher,
             AuditLog::EVENT_TRANSFER_CANCELLED,
             [
                 'transfer_id' => $transfer->id,
@@ -322,8 +334,12 @@ class VoucherTransferService
         $transfer->save();
 
         // Log on the voucher
+        $voucher = $transfer->voucher;
+        if ($voucher === null) {
+            throw new InvalidArgumentException('Transfer has no associated voucher.');
+        }
         $this->logTransferEvent(
-            $transfer->voucher,
+            $voucher,
             AuditLog::EVENT_TRANSFER_EXPIRED,
             [
                 'transfer_id' => $transfer->id,

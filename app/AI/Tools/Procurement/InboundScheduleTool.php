@@ -68,7 +68,7 @@ class InboundScheduleTool extends BaseTool implements Tool
         foreach ($orders as $order) {
             $orderList[] = [
                 'id' => $order->id,
-                'expected_delivery_start' => $this->formatDate($order->expected_delivery_start),
+                'expected_delivery_start' => $order->expected_delivery_start !== null ? $this->formatDate($order->expected_delivery_start) : 'N/A',
                 'expected_delivery_end' => $order->expected_delivery_end !== null ? $this->formatDate($order->expected_delivery_end) : null,
                 'supplier_name' => $order->supplier !== null ? $order->supplier->legal_name : 'Unknown',
                 'quantity' => $order->quantity,

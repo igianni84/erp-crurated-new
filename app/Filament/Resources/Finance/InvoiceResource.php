@@ -336,7 +336,7 @@ class InvoiceResource extends Resource
     {
         /** @var Invoice $record */
         return [
-            'Customer' => $record->customer !== null ? $record->customer->name : 'N/A',
+            'Customer' => $record->customer !== null ? ($record->customer->name ?? 'N/A') : 'N/A',
             'Amount' => $record->getFormattedTotal(),
             'Status' => $record->status->label(),
         ];

@@ -437,9 +437,9 @@ class DiscountRule extends Model
     {
         return match ($this->rule_type) {
             DiscountRuleType::Percentage => $this->getPercentageSummary(),
-            DiscountRuleType::FixedAmount => $this->getFixedAmountSummary($currency),
+            DiscountRuleType::FixedAmount => $this->getFixedAmountSummary($currency ?? 'EUR'),
             DiscountRuleType::Tiered => $this->getTieredSummary(),
-            DiscountRuleType::VolumeBased => $this->getVolumeBasedSummary($currency),
+            DiscountRuleType::VolumeBased => $this->getVolumeBasedSummary($currency ?? 'EUR'),
         };
     }
 

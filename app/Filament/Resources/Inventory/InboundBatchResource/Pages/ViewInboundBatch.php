@@ -646,14 +646,14 @@ class ViewInboundBatch extends ViewRecord
 
                                     $creator = $resolution->creator;
                                     $creatorName = $creator ? $creator->name : 'System';
-                                    $createdAt = $resolution->created_at->format('M d, Y H:i:s');
+                                    $createdAt = $resolution->created_at?->format('M d, Y H:i:s') ?? '-';
                                     $reason = e($resolution->reason);
 
                                     $resolutionText = '';
                                     if ($resolution->isResolved()) {
                                         $resolver = $resolution->resolver;
                                         $resolverName = $resolver ? $resolver->name : 'System';
-                                        $resolvedAt = $resolution->resolved_at->format('M d, Y H:i:s');
+                                        $resolvedAt = $resolution->resolved_at?->format('M d, Y H:i:s') ?? '-';
                                         $resolutionNote = e($resolution->resolution ?? 'No resolution notes');
                                         $resolutionText = <<<HTML
                                         <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-600">

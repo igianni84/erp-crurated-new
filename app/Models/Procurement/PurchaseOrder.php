@@ -320,7 +320,7 @@ class PurchaseOrder extends Model
             return 'From '.$this->expected_delivery_start->format('Y-m-d');
         }
 
-        return 'Until '.$this->expected_delivery_end->format('Y-m-d');
+        return 'Until '.($this->expected_delivery_end?->format('Y-m-d') ?? 'N/A');
     }
 
     /**

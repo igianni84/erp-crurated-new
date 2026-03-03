@@ -243,7 +243,7 @@ class VoucherResource extends Resource
     {
         /** @var Voucher $record */
         return [
-            'Customer' => $record->customer !== null ? $record->customer->name : 'N/A',
+            'Customer' => $record->customer !== null ? ($record->customer->name ?? 'N/A') : 'N/A',
             'Wine' => $record->getBottleSkuLabel(),
             'State' => $record->lifecycle_state->label(),
         ];

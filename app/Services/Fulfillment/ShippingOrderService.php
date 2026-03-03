@@ -160,7 +160,7 @@ class ShippingOrderService
             if (! $eligibilityResult['eligible']) {
                 $errors[] = [
                     'voucher_id' => $voucher->id,
-                    'reason' => $eligibilityResult['reason'],
+                    'reason' => $eligibilityResult['reason'] ?? 'Not eligible',
                 ];
             }
         }

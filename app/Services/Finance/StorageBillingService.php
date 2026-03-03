@@ -613,6 +613,10 @@ class StorageBillingService
         return DB::transaction(function () use ($period, $autoIssue): Invoice {
             $customer = $period->customer;
 
+            if ($customer === null) {
+                throw new \RuntimeException("StorageBillingPeriod {$period->id} has no associated customer.");
+            }
+
             // Check if we have location breakdown in metadata
             $metadata = $period->metadata ?? [];
             $locationBreakdown = $metadata['location_breakdown'] ?? null;

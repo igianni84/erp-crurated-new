@@ -935,7 +935,7 @@ class ViewInvoice extends ViewRecord
                                 TextEntry::make('fx_rate_at_issuance')
                                     ->label('FX Rate at Issuance')
                                     ->formatStateUsing(fn (Invoice $record): string => $record->hasFxRate()
-                                        ? $record->fx_rate_at_issuance
+                                        ? ($record->fx_rate_at_issuance ?? '')
                                         : 'Not captured (draft)')
                                     ->helperText(fn (Invoice $record): ?string => $record->getFxRateDescription()),
                                 TextEntry::make('total_in_eur')

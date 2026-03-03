@@ -1325,10 +1325,10 @@ class CreateShippingOrder extends CreateRecord
      */
     protected static function formatCustomerOption(Customer $customer): string
     {
-        $label = $customer->name;
+        $label = $customer->name ?? 'Unnamed Customer';
 
         $email = $customer->email;
-        if ($email !== '') {
+        if ($email !== null && $email !== '') {
             $label .= ' <'.$email.'>';
         }
 

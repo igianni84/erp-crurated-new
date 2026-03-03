@@ -257,7 +257,7 @@ class PricingPolicyService
                 count($errors),
                 $calculatedPrices,
                 $errors,
-                $execution->log_summary,
+                $execution->log_summary ?? '',
                 $execution
             );
         });

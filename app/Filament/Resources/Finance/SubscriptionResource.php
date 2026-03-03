@@ -245,7 +245,7 @@ class SubscriptionResource extends Resource
     {
         /** @var Subscription $record */
         return [
-            'Customer' => $record->customer !== null ? $record->customer->name : 'N/A',
+            'Customer' => $record->customer !== null ? ($record->customer->name ?? 'N/A') : 'N/A',
             'Type' => $record->plan_type->label(),
             'Status' => $record->status->label(),
         ];

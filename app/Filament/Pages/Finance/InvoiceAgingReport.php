@@ -223,12 +223,12 @@ class InvoiceAgingReport extends Page
             $bucket = $this->getAgingBucket($invoice, $reportDate);
 
             $agingByCustomer[$customerId][$bucket] = DecimalMath::add(
-                $agingByCustomer[$customerId][$bucket],
+                $agingByCustomer[$customerId][$bucket] ?? '0',
                 $outstanding,
                 2
             );
             $agingByCustomer[$customerId]['total'] = DecimalMath::add(
-                $agingByCustomer[$customerId]['total'],
+                $agingByCustomer[$customerId]['total'] ?? '0',
                 $outstanding,
                 2
             );
@@ -236,7 +236,7 @@ class InvoiceAgingReport extends Page
 
         // Sort by total outstanding (highest first)
         uasort($agingByCustomer, function (array $a, array $b): int {
-            return DecimalMath::comp($b['total'], $a['total'], 2);
+            return DecimalMath::comp($b['total'] ?? '0', $a['total'] ?? '0', 2);
         });
 
         $this->agingDataCache = collect(array_values($agingByCustomer));

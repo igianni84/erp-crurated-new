@@ -163,7 +163,7 @@ class IntegrationsHealth extends Page
             return null;
         }
 
-        return $lastWebhook->created_at->diffForHumans();
+        return $lastWebhook->created_at?->diffForHumans() ?? 'N/A';
     }
 
     /**

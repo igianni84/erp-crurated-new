@@ -1305,7 +1305,7 @@ class ViewShippingOrder extends ViewRecord
     /**
      * Perform all eligibility checks for a voucher.
      *
-     * @return list<array{label: string, passed: bool, reason?: string}>
+     * @return list<array{label: string, passed: bool, reason: string|null}>
      */
     protected function performEligibilityChecks(Voucher $voucher, ShippingOrder $shippingOrder): array
     {

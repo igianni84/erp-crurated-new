@@ -548,7 +548,7 @@ class PricingIntelligenceDetail extends Page
                                 }
 
                                 if (empty($outliers)) {
-                                    $avgFormatted = number_format($avg, 2);
+                                    $avgFormatted = number_format((float) $avg, 2);
 
                                     return "<div class=\"p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg\"><div class=\"flex items-center\"><svg class=\"w-5 h-5 text-green-600 dark:text-green-400 mr-2\" fill=\"none\" stroke=\"currentColor\" viewBox=\"0 0 24 24\"><path stroke-linecap=\"round\" stroke-linejoin=\"round\" stroke-width=\"2\" d=\"M5 13l4 4L19 7\"></path></svg><span class=\"text-green-800 dark:text-green-200\">No outliers detected. Average EMP value: €{$avgFormatted}</span></div></div>";
                                 }
@@ -560,8 +560,8 @@ class PricingIntelligenceDetail extends Page
                                     $directionIcon = $outlier['direction'] === 'above'
                                         ? '<svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>'
                                         : '<svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>';
-                                    $valueFormatted = number_format($outlier['value'], 2);
-                                    $avgFormatted = number_format($avg, 2);
+                                    $valueFormatted = number_format((float) $outlier['value'], 2);
+                                    $avgFormatted = number_format((float) ($avg ?? 0), 2);
 
                                     $html .= <<<HTML
                                     <div class="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">

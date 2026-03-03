@@ -298,7 +298,7 @@ class RefundResource extends Resource
     {
         /** @var Refund $record */
         return [
-            'Invoice' => $record->invoice !== null ? $record->invoice->invoice_number : 'N/A',
+            'Invoice' => $record->invoice !== null ? ($record->invoice->invoice_number ?? 'N/A') : 'N/A',
             'Amount' => $record->getFormattedAmount(),
             'Method' => $record->method->label(),
             'Status' => $record->status->label(),

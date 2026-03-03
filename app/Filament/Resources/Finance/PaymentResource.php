@@ -286,7 +286,7 @@ class PaymentResource extends Resource
     {
         /** @var Payment $record */
         return [
-            'Customer' => $record->customer !== null ? $record->customer->name : 'Unassigned',
+            'Customer' => $record->customer !== null ? ($record->customer->name ?? 'Unassigned') : 'Unassigned',
             'Amount' => $record->getFormattedAmount(),
             'Status' => $record->status->label(),
         ];

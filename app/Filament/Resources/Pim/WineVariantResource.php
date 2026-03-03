@@ -1135,6 +1135,10 @@ class WineVariantResource extends Resource
                                 $format = $sku->format;
                                 $caseConfig = $sku->caseConfiguration;
 
+                                if ($format === null || $caseConfig === null) {
+                                    continue;
+                                }
+
                                 /** @var 'owc'|'oc'|'none' $caseTypeValue */
                                 $caseTypeValue = $caseConfig->case_type;
                                 $caseTypeLabel = match ($caseTypeValue) {
@@ -1165,7 +1169,7 @@ class WineVariantResource extends Resource
 
                                 $html .= '<tr>';
                                 $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">'.htmlspecialchars($sku->sku_code).'</td>';
-                                $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">'.htmlspecialchars($format->name).' ('.$format->volume_ml.'ml)</td>';
+                                $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">'.htmlspecialchars((string) $format->name).' ('.$format->volume_ml.'ml)</td>';
                                 $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">'.$caseConfig->bottles_per_case.'x '.$caseTypeLabel.'</td>';
                                 $html .= '<td class="px-4 py-2 whitespace-nowrap text-sm">'.$flagsHtml.'</td>';
                                 $html .= '<td class="px-4 py-2 whitespace-nowrap"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium '.$statusBgClass.'">'.$sku->getStatusLabel().'</span></td>';

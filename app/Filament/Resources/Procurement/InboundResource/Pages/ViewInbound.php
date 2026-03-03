@@ -645,7 +645,7 @@ class ViewInbound extends ViewRecord
                             ->schema([
                                 TextEntry::make('recorded_event')
                                     ->label('Recorded')
-                                    ->getStateUsing(fn (Inbound $record): string => $record->created_at->format('Y-m-d H:i'))
+                                    ->getStateUsing(fn (Inbound $record): string => $record->created_at?->format('Y-m-d H:i') ?? '-')
                                     ->icon('heroicon-o-inbox-arrow-down'),
                                 TextEntry::make('routed_event')
                                     ->label('Routed')

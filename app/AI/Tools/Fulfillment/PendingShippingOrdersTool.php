@@ -76,7 +76,7 @@ class PendingShippingOrdersTool extends BaseTool implements Tool
                 'customer_name' => $order->customer !== null ? $order->customer->getName() : 'Unknown',
                 'status' => $order->status->label(),
                 'line_count' => (int) $order->getAttribute('lines_count'),
-                'created_at' => $this->formatDate($order->created_at),
+                'created_at' => $order->created_at !== null ? $this->formatDate($order->created_at) : 'N/A',
                 'requested_ship_date' => $order->requested_ship_date !== null ? $this->formatDate($order->requested_ship_date) : null,
             ];
         }

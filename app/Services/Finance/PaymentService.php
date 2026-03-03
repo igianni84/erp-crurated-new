@@ -136,7 +136,7 @@ class PaymentService
             // Attempt auto-reconciliation
             $this->autoReconcile($payment);
 
-            return $payment->fresh();
+            return $payment->fresh() ?? $payment;
         });
     }
 
@@ -364,6 +364,10 @@ class PaymentService
 
         // Exactly one match - apply payment and mark as matched
         $invoice = $matchingInvoices->first();
+
+        if ($invoice === null) {
+            return false;
+        }
 
         return DB::transaction(function () use ($payment, $invoice): bool {
             try {
@@ -714,7 +718,7 @@ class PaymentService
                 'created_by' => Auth::id(),
             ]);
 
-            return $payment->fresh();
+            return $payment->fresh() ?? $payment;
         });
     }
 
@@ -780,7 +784,7 @@ class PaymentService
                 'requested_by' => Auth::id(),
             ]);
 
-            return $payment->fresh();
+            return $payment->fresh() ?? $payment;
         });
     }
 
@@ -911,6 +915,10 @@ class PaymentService
 
             $invoice = $invoices->get($invoiceId);
 
+            if ($invoice === null) {
+                throw new InvalidArgumentException("Invoice with ID {$invoiceId} not found.");
+            }
+
             // Validate currency matches
             if ($invoice->currency !== $payment->currency) {
                 throw new InvalidArgumentException(
@@ -935,6 +943,10 @@ class PaymentService
                 $invoiceId = $application['invoice_id'];
                 $amount = $application['amount'];
                 $invoice = $invoices->get($invoiceId);
+
+                if ($invoice === null) {
+                    throw new InvalidArgumentException("Invoice with ID {$invoiceId} not found.");
+                }
 
                 $invoicePayment = $this->invoiceService->applyPayment($invoice, $payment, $amount);
                 $invoicePayments[] = $invoicePayment;
@@ -1029,7 +1041,7 @@ class PaymentService
                 'confirmed_by' => Auth::id(),
             ]);
 
-            return $payment->fresh();
+            return $payment->fresh() ?? $payment;
         });
     }
 
@@ -1119,7 +1131,7 @@ class PaymentService
                 $this->markForRefund($payment, $refundReason);
             }
 
-            return $payment->fresh();
+            return $payment->fresh() ?? $payment;
         });
     }
 

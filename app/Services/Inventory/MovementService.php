@@ -76,7 +76,7 @@ class MovementService
                 MovementItem::create($itemData);
             }
 
-            return $movement->fresh(['movementItems']);
+            return $movement->fresh(['movementItems']) ?? $movement;
         });
     }
 
@@ -542,7 +542,7 @@ class MovementService
                 ],
             ]);
 
-            return $case->fresh();
+            return $case->fresh() ?? $case;
         });
     }
 

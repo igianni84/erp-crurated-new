@@ -41,6 +41,10 @@ class EligibilityEngine
         $customer = $entity instanceof Account ? $entity->customer : $entity;
         $account = $entity instanceof Account ? $entity : null;
 
+        if ($customer === null) {
+            return [];
+        }
+
         $eligibility = [];
 
         foreach (ChannelScope::cases() as $channel) {

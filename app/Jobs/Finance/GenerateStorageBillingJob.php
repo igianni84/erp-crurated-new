@@ -334,6 +334,9 @@ class GenerateStorageBillingJob implements ShouldQueue
     ): ?Invoice {
         return DB::transaction(function () use ($billingPeriod, $invoiceService) {
             $customer = $billingPeriod->customer;
+            if ($customer === null) {
+                throw new \RuntimeException("StorageBillingPeriod {$billingPeriod->id} has no associated customer.");
+            }
 
             // Build invoice line description
             $description = $this->buildInvoiceLineDescription($billingPeriod);

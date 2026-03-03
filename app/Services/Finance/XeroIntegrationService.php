@@ -389,7 +389,7 @@ class XeroIntegrationService
                     'Description' => $creditNote->reason,
                     'Quantity' => '1',
                     'UnitAmount' => $creditNote->amount,
-                    'AccountCode' => $this->getAccountCodeForInvoiceType($invoice),
+                    'AccountCode' => $invoice !== null ? $this->getAccountCodeForInvoiceType($invoice) : '200',
                 ],
             ],
             'Metadata' => [

@@ -108,7 +108,7 @@ class InvoiceService
                 ]
             );
 
-            return $invoice->fresh();
+            return $invoice->fresh() ?? $invoice;
         });
     }
 
@@ -383,6 +383,11 @@ class InvoiceService
 
             // Create customer credit for the excess
             $customer = $invoice->customer;
+
+            if ($customer === null) {
+                throw new \RuntimeException("Invoice {$invoice->id} has no associated customer.");
+            }
+
             $customerCredit = CustomerCredit::createFromOverpayment(
                 customer: $customer,
                 payment: $payment,
@@ -593,7 +598,7 @@ class InvoiceService
             $this->recalculateTotals($invoice);
         });
 
-        return $invoice->fresh();
+        return $invoice->fresh() ?? $invoice;
     }
 
     /**

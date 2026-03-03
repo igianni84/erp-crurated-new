@@ -446,11 +446,14 @@ class CommercialOverview extends Page
                 $daysUntilExpiry = (int) now()->diffInDays($offer->valid_to, false);
                 $urgency = $this->getExpirationUrgency($daysUntilExpiry);
 
+                /** @var \Carbon\Carbon $validTo */
+                $validTo = $offer->valid_to;
+
                 return [
                     'id' => $offer->id,
                     'name' => $offer->name,
                     'type' => 'offer',
-                    'valid_to' => $offer->valid_to->format('M j, Y H:i'),
+                    'valid_to' => $validTo->format('M j, Y H:i'),
                     'days_until_expiry' => $daysUntilExpiry,
                     'urgency' => $urgency,
                     'url' => OfferResource::getUrl('view', ['record' => $offer->id]),
@@ -471,11 +474,14 @@ class CommercialOverview extends Page
                 $daysUntilExpiry = (int) now()->diffInDays($priceBook->valid_to, false);
                 $urgency = $this->getExpirationUrgency($daysUntilExpiry);
 
+                /** @var \Carbon\Carbon $validTo */
+                $validTo = $priceBook->valid_to;
+
                 return [
                     'id' => $priceBook->id,
                     'name' => $priceBook->name,
                     'type' => 'price_book',
-                    'valid_to' => $priceBook->valid_to->format('M j, Y'),
+                    'valid_to' => $validTo->format('M j, Y'),
                     'days_until_expiry' => $daysUntilExpiry,
                     'urgency' => $urgency,
                     'url' => PriceBookResource::getUrl('view', ['record' => $priceBook->id]),

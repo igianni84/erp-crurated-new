@@ -442,7 +442,7 @@ class AuditLog extends Model
         }
 
         $changes = [];
-        foreach ($this->new_values as $field => $newValue) {
+        foreach ($this->new_values ?? [] as $field => $newValue) {
             $oldValue = $this->old_values[$field] ?? null;
             $oldDisplay = $oldValue === null ? 'null' : (is_array($oldValue) ? json_encode($oldValue) : (string) $oldValue);
             $newDisplay = $newValue === null ? 'null' : (is_array($newValue) ? json_encode($newValue) : (string) $newValue);

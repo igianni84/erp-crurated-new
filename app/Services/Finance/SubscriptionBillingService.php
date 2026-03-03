@@ -235,6 +235,11 @@ class SubscriptionBillingService
     ): Invoice {
         $subscription->loadMissing('customer');
 
+        $customer = $subscription->customer;
+        if ($customer === null) {
+            throw new \RuntimeException("Subscription {$subscription->id} has no associated customer.");
+        }
+
         // Build invoice line
         $lines = [
             [
@@ -249,7 +254,7 @@ class SubscriptionBillingService
         // Create the invoice
         $invoice = $this->invoiceService->createDraft(
             InvoiceType::MembershipService,
-            $subscription->customer,
+            $customer,
             $lines,
             'subscription',
             $subscription->id,

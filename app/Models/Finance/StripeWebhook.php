@@ -79,7 +79,7 @@ class StripeWebhook extends Model
         static::creating(function (StripeWebhook $webhook): void {
             if (isset($webhook->attributes['payload'])) {
                 $sanitizer = app(LogSanitizer::class);
-                $webhook->payload = $sanitizer->sanitize($webhook->payload);
+                $webhook->payload = $sanitizer->sanitize($webhook->payload) ?? $webhook->payload;
             }
         });
 

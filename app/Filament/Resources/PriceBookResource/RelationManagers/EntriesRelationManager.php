@@ -160,8 +160,11 @@ class EntriesRelationManager extends RelationManager
                             ->where('market', $priceBook->market)
                             ->first();
 
+                        if ($emp === null) {
+                            return '—';
+                        }
                         $empValue = (float) $emp->emp_value;
-                        if ($emp === null || $empValue <= 0) {
+                        if ($empValue <= 0) {
                             return '—';
                         }
 

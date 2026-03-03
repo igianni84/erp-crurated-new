@@ -259,8 +259,12 @@ class LateBindingService
             $line->save();
 
             // Log the binding
+            $shippingOrder = $line->shippingOrder;
+            if ($shippingOrder === null) {
+                throw new \RuntimeException("ShippingOrderLine {$line->id} has no shipping order.");
+            }
             $this->logEvent(
-                $line->shippingOrder,
+                $shippingOrder,
                 self::EVENT_BINDING_EXECUTED,
                 "Voucher bound to bottle serial {$serialNumber}",
                 null,
@@ -334,8 +338,13 @@ class LateBindingService
         $valid = $errors === [];
         $line->load('shippingOrder');
 
+        $shippingOrder = $line->shippingOrder;
+        if ($shippingOrder === null) {
+            throw new \RuntimeException("ShippingOrderLine {$line->id} has no shipping order.");
+        }
+
         $this->logEvent(
-            $line->shippingOrder,
+            $shippingOrder,
             $valid ? self::EVENT_BINDING_VALIDATED : self::EVENT_BINDING_FAILED,
             $valid ? 'Binding validation passed' : 'Binding validation failed',
             null,
@@ -408,8 +417,13 @@ class LateBindingService
         $valid = $errors === [];
         $line->load('shippingOrder');
 
+        $shippingOrder = $line->shippingOrder;
+        if ($shippingOrder === null) {
+            throw new \RuntimeException("ShippingOrderLine {$line->id} has no shipping order.");
+        }
+
         $this->logEvent(
-            $line->shippingOrder,
+            $shippingOrder,
             $valid ? self::EVENT_EARLY_BINDING_VALIDATED : self::EVENT_EARLY_BINDING_FAILED,
             $valid ? 'Early binding validation passed' : 'Early binding validation failed - NO FALLBACK',
             null,
@@ -477,8 +491,13 @@ class LateBindingService
             // Log the unbind
             $line->load('shippingOrder');
 
+            $shippingOrder = $line->shippingOrder;
+            if ($shippingOrder === null) {
+                throw new \RuntimeException("ShippingOrderLine {$line->id} has no shipping order.");
+            }
+
             $this->logEvent(
-                $line->shippingOrder,
+                $shippingOrder,
                 self::EVENT_UNBIND_EXECUTED,
                 'Binding removed from line, bottle returned to stored state',
                 [
@@ -635,8 +654,13 @@ class LateBindingService
     {
         $line->load('shippingOrder');
 
+        $shippingOrder = $line->shippingOrder;
+        if ($shippingOrder === null) {
+            throw new \RuntimeException("ShippingOrderLine {$line->id} has no shipping order.");
+        }
+
         ShippingOrderException::create([
-            'shipping_order_id' => $line->shippingOrder->id,
+            'shipping_order_id' => $shippingOrder->id,
             'shipping_order_line_id' => $line->id,
             'exception_type' => ShippingOrderExceptionType::EarlyBindingFailed,
             'description' => "Early binding validation failed for voucher {$line->voucher_id}: {$reason}. "

@@ -318,6 +318,6 @@ class CommittedInventoryOverrideService
             'resolved_by' => $resolver->id,
         ]);
 
-        return $exception->fresh();
+        return $exception->fresh() ?? $exception;
     }
 }

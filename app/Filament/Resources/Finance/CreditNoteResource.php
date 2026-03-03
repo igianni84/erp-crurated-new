@@ -282,8 +282,8 @@ class CreditNoteResource extends Resource
     {
         /** @var CreditNote $record */
         return [
-            'Invoice' => $record->invoice !== null ? $record->invoice->invoice_number : 'N/A',
-            'Customer' => $record->customer !== null ? $record->customer->name : 'N/A',
+            'Invoice' => $record->invoice !== null ? ($record->invoice->invoice_number ?? 'N/A') : 'N/A',
+            'Customer' => $record->customer !== null ? ($record->customer->name ?? 'N/A') : 'N/A',
             'Amount' => $record->getFormattedAmount(),
             'Status' => $record->status->label(),
         ];
