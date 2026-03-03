@@ -45,7 +45,7 @@ jobs:
         uses: ramsey/composer-install@v3
 
       - name: Run PHPStan
-        run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+        run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
 
   tests:
     name: Tests
@@ -61,6 +61,15 @@ jobs:
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Build frontend assets
+        run: npm ci && npm run build
 
       - name: Prepare environment
         run: |
