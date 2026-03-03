@@ -6,6 +6,7 @@ use App\Enums\Finance\StorageBillingStatus;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Models\Inventory\Location;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
@@ -280,7 +281,7 @@ class StorageBillingPeriod extends Model
      */
     public function recalculateAmount(): void
     {
-        $this->calculated_amount = bcmul((string) $this->bottle_days, (string) $this->unit_rate, 2);
+        $this->calculated_amount = DecimalMath::mul((string) $this->bottle_days, (string) $this->unit_rate, 2);
     }
 
     // =========================================================================

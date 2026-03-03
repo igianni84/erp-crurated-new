@@ -19,6 +19,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\Subscription;
 use App\Models\Fulfillment\Shipment;
 use App\Models\Fulfillment\ShippingOrder;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
@@ -225,7 +226,7 @@ class Customer extends Model
      */
     public function hasAvailableCredit(): bool
     {
-        return bccomp($this->getTotalAvailableCredit(), '0', 2) > 0;
+        return DecimalMath::comp($this->getTotalAvailableCredit(), '0', 2) > 0;
     }
 
     /**

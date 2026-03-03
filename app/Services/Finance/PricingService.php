@@ -4,6 +4,7 @@ namespace App\Services\Finance;
 
 use App\Models\Customer\Customer;
 use App\Models\Pim\SellableSku;
+use App\Support\DecimalMath;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -222,8 +223,8 @@ class PricingService
     ): bool {
         $expected = $this->getPricingForSale($sellableSku, $customer, $channel, $currency);
 
-        $priceMatch = bccomp($providedPrice, $expected['unit_price'], 2) === 0;
-        $taxMatch = bccomp($providedTaxRate, $expected['tax_rate'], 2) === 0;
+        $priceMatch = DecimalMath::comp($providedPrice, $expected['unit_price'], 2) === 0;
+        $taxMatch = DecimalMath::comp($providedTaxRate, $expected['tax_rate'], 2) === 0;
 
         if (! $priceMatch || ! $taxMatch) {
             Log::channel('finance')->warning('Pricing validation mismatch', [

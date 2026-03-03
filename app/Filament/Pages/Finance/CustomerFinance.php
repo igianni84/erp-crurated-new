@@ -11,6 +11,7 @@ use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
 use App\Models\Finance\Refund;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -172,11 +173,11 @@ class CustomerFinance extends Page
         $overdueCount = 0;
 
         foreach ($openInvoices as $invoice) {
-            $outstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-            $totalOutstanding = bcadd($totalOutstanding, $outstanding, 2);
+            $outstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+            $totalOutstanding = DecimalMath::add($totalOutstanding, $outstanding, 2);
 
             if ($invoice->isOverdue()) {
-                $overdueAmount = bcadd($overdueAmount, $outstanding, 2);
+                $overdueAmount = DecimalMath::add($overdueAmount, $outstanding, 2);
                 $overdueCount++;
             }
         }
@@ -230,7 +231,7 @@ class CustomerFinance extends Page
      */
     public function getInvoiceOutstanding(Invoice $invoice): string
     {
-        return bcsub($invoice->total_amount, $invoice->amount_paid, 2);
+        return DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
     }
 
     // =========================================================================
@@ -344,7 +345,7 @@ class CustomerFinance extends Page
         return [
             'credit_notes_total' => (string) $creditNotesTotal,
             'refunds_total' => (string) $refundsTotal,
-            'combined_total' => bcadd((string) $creditNotesTotal, (string) $refundsTotal, 2),
+            'combined_total' => DecimalMath::add((string) $creditNotesTotal, (string) $refundsTotal, 2),
         ];
     }
 
@@ -391,10 +392,10 @@ class CustomerFinance extends Page
         // If we had a credit limit defined:
         // $customer = $this->getSelectedCustomer();
         // $creditLimit = $customer?->credit_limit;
-        // if ($creditLimit !== null && bccomp($creditLimit, '0', 2) > 0) {
-        //     $availableCredit = bcsub($creditLimit, $totalOutstanding, 2);
-        //     $exposurePercentage = (float) bcdiv(bcmul($totalOutstanding, '100', 2), $creditLimit, 2);
-        //     $isOverLimit = bccomp($totalOutstanding, $creditLimit, 2) > 0;
+        // if ($creditLimit !== null && DecimalMath::comp($creditLimit, '0', 2) > 0) {
+        //     $availableCredit = DecimalMath::sub($creditLimit, $totalOutstanding, 2);
+        //     $exposurePercentage = (float) DecimalMath::div(DecimalMath::mul($totalOutstanding, '100', 2), $creditLimit, 2);
+        //     $isOverLimit = DecimalMath::comp($totalOutstanding, $creditLimit, 2) > 0;
         // }
 
         return [
@@ -445,8 +446,8 @@ class CustomerFinance extends Page
                 ->where('received_at', '<=', $monthEnd)
                 ->sum('amount');
 
-            $outstanding = bcsub((string) $invoicedAmount, (string) $paidAmount, 2);
-            if (bccomp($outstanding, '0', 2) < 0) {
+            $outstanding = DecimalMath::sub((string) $invoicedAmount, (string) $paidAmount, 2);
+            if (DecimalMath::comp($outstanding, '0', 2) < 0) {
                 $outstanding = '0.00';
             }
 

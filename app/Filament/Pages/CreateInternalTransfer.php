@@ -126,6 +126,7 @@ class CreateInternalTransfer extends Page implements HasForms
                                                 return new HtmlString('');
                                             }
 
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('');
@@ -355,6 +356,7 @@ class CreateInternalTransfer extends Page implements HasForms
                                                 return new HtmlString('');
                                             }
 
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('');
@@ -407,7 +409,9 @@ class CreateInternalTransfer extends Page implements HasForms
                                             $cases = $get('selected_cases') ?? [];
                                             $reason = $get('reason') ?? '';
 
+                                            /** @var Location|null $source */
                                             $source = $sourceId ? Location::find($sourceId) : null;
+                                            /** @var Location|null $dest */
                                             $dest = $destId ? Location::find($destId) : null;
 
                                             $sourceName = $source ? "{$source->name} ({$source->country})" : 'Not selected';
@@ -535,6 +539,7 @@ class CreateInternalTransfer extends Page implements HasForms
             return;
         }
 
+        /** @var Location|null $destination */
         $destination = Location::find($destinationLocationId);
         if (! $destination) {
             Notification::make()
@@ -568,6 +573,7 @@ class CreateInternalTransfer extends Page implements HasForms
                 // Transfer individual bottles
                 foreach ($selectedBottles as $bottleId) {
                     try {
+                        /** @var SerializedBottle|null $bottle */
                         $bottle = SerializedBottle::find($bottleId);
                         if ($bottle) {
                             $movement = $movementService->transferBottle($bottle, $destination, $user, $reason);
@@ -582,6 +588,7 @@ class CreateInternalTransfer extends Page implements HasForms
                 // Transfer cases (with contained bottles)
                 foreach ($selectedCases as $caseId) {
                     try {
+                        /** @var InventoryCase|null $case */
                         $case = InventoryCase::find($caseId);
                         if ($case) {
                             $movement = $movementService->transferCase($case, $destination, $user, $reason);

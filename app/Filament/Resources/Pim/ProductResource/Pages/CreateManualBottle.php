@@ -116,6 +116,7 @@ class CreateManualBottle extends Page
                             )
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 if ($state !== null) {
+                                    /** @var Producer|null $producer */
                                     $producer = Producer::find($state);
                                     if ($producer !== null) {
                                         $set('country_id', $producer->country_id);
@@ -282,9 +283,13 @@ class CreateManualBottle extends Page
             }
         } else {
             // Look up related records for legacy string fields
+            /** @var Producer|null $producer */
             $producer = isset($data['producer_id']) ? Producer::find($data['producer_id']) : null;
+            /** @var Country|null $country */
             $country = isset($data['country_id']) ? Country::find($data['country_id']) : null;
+            /** @var Region|null $region */
             $region = isset($data['region_id']) ? Region::find($data['region_id']) : null;
+            /** @var Appellation|null $appellation */
             $appellation = isset($data['appellation_id']) ? Appellation::find($data['appellation_id']) : null;
 
             // Create new Wine Master with FK IDs and legacy string fields
@@ -311,6 +316,7 @@ class CreateManualBottle extends Page
             ->first();
 
         if ($existingVariant !== null) {
+            /** @var WineMaster|null $wineMaster */
             $wineMaster = WineMaster::find($wineMasterId);
             $wineName = $wineMaster !== null ? $wineMaster->name : 'this wine';
 
@@ -335,6 +341,7 @@ class CreateManualBottle extends Page
             'data_source' => DataSource::Manual,
         ]);
 
+        /** @var WineMaster|null $wineMaster */
         $wineMaster = WineMaster::find($wineMasterId);
         $wineName = $wineMaster !== null ? $wineMaster->name : 'Wine';
 

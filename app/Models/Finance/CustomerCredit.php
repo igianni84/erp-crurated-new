@@ -6,6 +6,7 @@ use App\Enums\Finance\CustomerCreditStatus;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
 use App\Models\User;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
@@ -119,13 +120,13 @@ class CustomerCredit extends Model
 
             // Validate amounts
             if ($credit->isDirty('remaining_amount')) {
-                if (bccomp($credit->remaining_amount, '0', 2) < 0) {
+                if (DecimalMath::comp($credit->remaining_amount, '0', 2) < 0) {
                     throw new InvalidArgumentException(
                         'Remaining amount cannot be negative.'
                     );
                 }
 
-                if (bccomp($credit->remaining_amount, $credit->original_amount, 2) > 0) {
+                if (DecimalMath::comp($credit->remaining_amount, $credit->original_amount, 2) > 0) {
                     throw new InvalidArgumentException(
                         'Remaining amount cannot exceed original amount.'
                     );
@@ -238,7 +239,7 @@ class CustomerCredit extends Model
         }
 
         // Check has remaining amount
-        return bccomp($this->remaining_amount, '0', 2) > 0;
+        return DecimalMath::comp($this->remaining_amount, '0', 2) > 0;
     }
 
     /**
@@ -258,7 +259,7 @@ class CustomerCredit extends Model
      */
     public function getUsedAmount(): string
     {
-        return bcsub($this->original_amount, $this->remaining_amount, 2);
+        return DecimalMath::sub($this->original_amount, $this->remaining_amount, 2);
     }
 
     /**
@@ -274,24 +275,24 @@ class CustomerCredit extends Model
             );
         }
 
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Amount must be greater than zero.'
             );
         }
 
-        if (bccomp($amount, $this->remaining_amount, 2) > 0) {
+        if (DecimalMath::comp($amount, $this->remaining_amount, 2) > 0) {
             throw new InvalidArgumentException(
                 "Amount ({$amount}) exceeds remaining credit ({$this->remaining_amount})."
             );
         }
 
-        $this->remaining_amount = bcsub($this->remaining_amount, $amount, 2);
+        $this->remaining_amount = DecimalMath::sub($this->remaining_amount, $amount, 2);
 
         // Update status based on remaining amount
-        if (bccomp($this->remaining_amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($this->remaining_amount, '0', 2) <= 0) {
             $this->status = CustomerCreditStatus::FullyUsed;
-        } elseif (bccomp($this->remaining_amount, $this->original_amount, 2) < 0) {
+        } elseif (DecimalMath::comp($this->remaining_amount, $this->original_amount, 2) < 0) {
             $this->status = CustomerCreditStatus::PartiallyUsed;
         }
 

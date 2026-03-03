@@ -12,6 +12,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Services\Finance\PaymentService;
+use App\Support\DecimalMath;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -135,7 +136,7 @@ class ViewPayment extends ViewRecord
                                 ->label('Unapplied Amount')
                                 ->getStateUsing(fn (Payment $record): string => $record->getUnappliedAmount())
                                 ->money(fn (Payment $record): string => $record->currency)
-                                ->color(fn (Payment $record): string => bccomp($record->getUnappliedAmount(), '0', 2) > 0 ? 'warning' : 'gray'),
+                                ->color(fn (Payment $record): string => DecimalMath::comp($record->getUnappliedAmount(), '0', 2) > 0 ? 'warning' : 'gray'),
                             TextEntry::make('application_status')
                                 ->label('Application Status')
                                 ->getStateUsing(fn (Payment $record): string => $record->isFullyApplied() ? 'Fully Applied' : 'Partially Applied')
@@ -386,7 +387,7 @@ class ViewPayment extends ViewRecord
                             ->label('Remaining')
                             ->getStateUsing(fn (Payment $record): string => $record->getUnappliedAmount())
                             ->money(fn (Payment $record): string => $record->currency)
-                            ->color(fn (Payment $record): string => bccomp($record->getUnappliedAmount(), '0', 2) > 0 ? 'warning' : 'success')
+                            ->color(fn (Payment $record): string => DecimalMath::comp($record->getUnappliedAmount(), '0', 2) > 0 ? 'warning' : 'success')
                             ->weight(FontWeight::Bold),
                     ]),
 
@@ -527,9 +528,9 @@ class ViewPayment extends ViewRecord
 
             foreach ($mismatchDetails as $key => $value) {
                 $displayKey = ucfirst(str_replace('_', ' ', $key));
-                $displayValue = is_array($value) ? json_encode($value) : (string) $value;
-                $lines[] = '<dt class="text-gray-600 dark:text-gray-400">'.e($displayKey).':</dt>';
-                $lines[] = '<dd class="font-mono">'.e($displayValue).'</dd>';
+                $displayValue = is_array($value) ? (string) json_encode($value) : (string) $value;
+                $lines[] = '<dt class="text-gray-600 dark:text-gray-400">'.(string) e($displayKey).':</dt>';
+                $lines[] = '<dd class="font-mono">'.(string) e($displayValue).'</dd>';
             }
 
             $lines[] = '</dl>';
@@ -650,7 +651,7 @@ class ViewPayment extends ViewRecord
         $lines = [];
         $lines[] = '<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">';
         $lines[] = '<pre class="text-sm font-mono overflow-x-auto whitespace-pre-wrap">';
-        $lines[] = e(json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        $lines[] = (string) e((string) json_encode($metadata, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
         $lines[] = '</pre>';
         $lines[] = '</div>';
 
@@ -810,6 +811,7 @@ class ViewPayment extends ViewRecord
                     ->columnSpanFull(),
             ])
             ->action(function (array $data): void {
+                /** @var array{invoice_id: string, amount: string} $data */
                 $this->applyPaymentToInvoice($data);
             });
     }
@@ -827,7 +829,7 @@ class ViewPayment extends ViewRecord
         }
 
         // Must have unapplied amount
-        if (bccomp($payment->getUnappliedAmount(), '0', 2) <= 0) {
+        if (DecimalMath::comp($payment->getUnappliedAmount(), '0', 2) <= 0) {
             return false;
         }
 
@@ -945,7 +947,7 @@ class ViewPayment extends ViewRecord
         $outstanding = $invoice->getOutstandingAmount();
         $unapplied = $payment->getUnappliedAmount();
 
-        $defaultAmount = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+        $defaultAmount = DecimalMath::comp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
         $set('amount', $defaultAmount);
     }
 
@@ -1003,10 +1005,10 @@ class ViewPayment extends ViewRecord
         }
 
         $outstanding = $invoice->getOutstandingAmount();
-        $max = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+        $max = DecimalMath::comp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
 
         return "Maximum: {$payment->currency} {$max} (limited by ".
-            (bccomp($outstanding, $unapplied, 2) <= 0 ? 'invoice outstanding' : 'unapplied payment balance').')';
+            (DecimalMath::comp($outstanding, $unapplied, 2) <= 0 ? 'invoice outstanding' : 'unapplied payment balance').')';
     }
 
     /**
@@ -1023,7 +1025,7 @@ class ViewPayment extends ViewRecord
 
         // Check against unapplied payment amount
         $unapplied = $payment->getUnappliedAmount();
-        if (bccomp($amount, $unapplied, 2) > 0) {
+        if (DecimalMath::comp($amount, $unapplied, 2) > 0) {
             $fail("Amount cannot exceed the unapplied payment balance ({$payment->currency} {$unapplied}).");
 
             return;
@@ -1034,7 +1036,7 @@ class ViewPayment extends ViewRecord
             $invoice = Invoice::find($invoiceId);
             if ($invoice !== null) {
                 $outstanding = $invoice->getOutstandingAmount();
-                if (bccomp($amount, $outstanding, 2) > 0) {
+                if (DecimalMath::comp($amount, $outstanding, 2) > 0) {
                     $fail("Amount cannot exceed the invoice outstanding amount ({$invoice->currency} {$outstanding}).");
                 }
             }
@@ -1057,7 +1059,7 @@ class ViewPayment extends ViewRecord
 
         $outstanding = $invoice->getOutstandingAmount();
 
-        return bccomp((string) $amount, $outstanding, 2) < 0;
+        return DecimalMath::comp((string) $amount, $outstanding, 2) < 0;
     }
 
     /**
@@ -1075,7 +1077,7 @@ class ViewPayment extends ViewRecord
         }
 
         $outstanding = $invoice->getOutstandingAmount();
-        $remaining = bcsub($outstanding, (string) $amount, 2);
+        $remaining = DecimalMath::sub($outstanding, (string) $amount, 2);
 
         $lines = [];
         $lines[] = '<div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">';
@@ -1223,6 +1225,7 @@ class ViewPayment extends ViewRecord
                     ->columnSpanFull(),
             ])
             ->action(function (array $data): void {
+                /** @var array{applications: array<int, array{invoice_id: string, amount: string}>} $data */
                 $this->applyPaymentToMultipleInvoices($data);
             });
     }
@@ -1240,7 +1243,7 @@ class ViewPayment extends ViewRecord
         }
 
         // Must have unapplied amount
-        if (bccomp($payment->getUnappliedAmount(), '0', 2) <= 0) {
+        if (DecimalMath::comp($payment->getUnappliedAmount(), '0', 2) <= 0) {
             return false;
         }
 
@@ -1325,17 +1328,17 @@ class ViewPayment extends ViewRecord
             foreach ($applications as $app) {
                 // Skip the current item (don't count its amount)
                 if (($app['invoice_id'] ?? null) !== $invoiceId && isset($app['amount']) && $app['amount'] !== '') {
-                    $otherApplicationsTotal = bcadd($otherApplicationsTotal, (string) $app['amount'], 2);
+                    $otherApplicationsTotal = DecimalMath::add($otherApplicationsTotal, (string) $app['amount'], 2);
                 }
             }
         }
 
-        $remaining = bcsub($payment->getUnappliedAmount(), $otherApplicationsTotal, 2);
+        $remaining = DecimalMath::sub($payment->getUnappliedAmount(), $otherApplicationsTotal, 2);
         $outstanding = $invoice->getOutstandingAmount();
 
         // Set default to the lesser of: invoice outstanding or remaining unapplied
-        $defaultAmount = bccomp($outstanding, $remaining, 2) <= 0 ? $outstanding : $remaining;
-        $defaultAmount = bccomp($defaultAmount, '0', 2) > 0 ? $defaultAmount : '0';
+        $defaultAmount = DecimalMath::comp($outstanding, $remaining, 2) <= 0 ? $outstanding : $remaining;
+        $defaultAmount = DecimalMath::comp($defaultAmount, '0', 2) > 0 ? $defaultAmount : '0';
 
         $set('amount', $defaultAmount);
     }
@@ -1366,15 +1369,15 @@ class ViewPayment extends ViewRecord
         if ($applications !== null) {
             foreach ($applications as $application) {
                 $amount = $application['amount'] ?? '';
-                if ($amount !== '' && bccomp((string) $amount, '0', 2) > 0) {
-                    $totalApplying = bcadd($totalApplying, (string) $amount, 2);
+                if ($amount !== '' && DecimalMath::comp((string) $amount, '0', 2) > 0) {
+                    $totalApplying = DecimalMath::add($totalApplying, (string) $amount, 2);
                     $validCount++;
                 }
             }
         }
 
-        $remaining = bcsub($unapplied, $totalApplying, 2);
-        $isOverBudget = bccomp($totalApplying, $unapplied, 2) > 0;
+        $remaining = DecimalMath::sub($unapplied, $totalApplying, 2);
+        $isOverBudget = DecimalMath::comp($totalApplying, $unapplied, 2) > 0;
 
         $lines = [];
         $lines[] = '<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 mt-4">';
@@ -1395,7 +1398,7 @@ class ViewPayment extends ViewRecord
         $lines[] = '</div>';
 
         // Remaining
-        $remainingColor = bccomp($remaining, '0', 2) < 0 ? 'text-red-600' : (bccomp($remaining, '0', 2) > 0 ? 'text-amber-600' : 'text-success-600');
+        $remainingColor = DecimalMath::comp($remaining, '0', 2) < 0 ? 'text-red-600' : (DecimalMath::comp($remaining, '0', 2) > 0 ? 'text-amber-600' : 'text-success-600');
         $lines[] = '<div class="text-center p-3 bg-white dark:bg-gray-700 rounded">';
         $lines[] = '<div class="text-gray-500 dark:text-gray-400 text-xs uppercase tracking-wide">Remaining</div>';
         $lines[] = '<div class="font-bold text-lg '.$remainingColor.'">'.e($payment->currency).' '.e($remaining).'</div>';
@@ -1432,11 +1435,11 @@ class ViewPayment extends ViewRecord
         foreach ($applications as $application) {
             $amount = $application['amount'] ?? '';
             if ($amount !== '') {
-                $totalApplying = bcadd($totalApplying, (string) $amount, 2);
+                $totalApplying = DecimalMath::add($totalApplying, (string) $amount, 2);
             }
         }
 
-        if (bccomp($totalApplying, $unapplied, 2) > 0) {
+        if (DecimalMath::comp($totalApplying, $unapplied, 2) > 0) {
             return true;
         }
 
@@ -1475,12 +1478,12 @@ class ViewPayment extends ViewRecord
         foreach ($applications as $application) {
             $amount = $application['amount'] ?? '';
             if ($amount !== '') {
-                $totalApplying = bcadd($totalApplying, (string) $amount, 2);
+                $totalApplying = DecimalMath::add($totalApplying, (string) $amount, 2);
             }
         }
 
-        if (bccomp($totalApplying, $unapplied, 2) > 0) {
-            $over = bcsub($totalApplying, $unapplied, 2);
+        if (DecimalMath::comp($totalApplying, $unapplied, 2) > 0) {
+            $over = DecimalMath::sub($totalApplying, $unapplied, 2);
             $warnings[] = "Total amount ({$payment->currency} {$totalApplying}) exceeds available balance ({$payment->currency} {$unapplied}) by {$payment->currency} {$over}.";
         }
 
@@ -1546,7 +1549,7 @@ class ViewPayment extends ViewRecord
                 $amount !== null &&
                 $invoiceId !== '' &&
                 $amount !== '' &&
-                bccomp((string) $amount, '0', 2) > 0
+                DecimalMath::comp((string) $amount, '0', 2) > 0
             ) {
                 $validApplications[] = [
                     'invoice_id' => (string) $invoiceId,
@@ -1592,7 +1595,7 @@ class ViewPayment extends ViewRecord
 
             $totalApplied = array_reduce(
                 $validApplications,
-                fn ($carry, $app) => bcadd($carry, $app['amount'], 2),
+                fn ($carry, $app) => DecimalMath::add($carry, $app['amount'], 2),
                 '0'
             );
 
@@ -1679,6 +1682,7 @@ class ViewPayment extends ViewRecord
                     ->accepted(),
             ])
             ->action(function (array $data): void {
+                /** @var array{invoice_id: string, amount: string, reason: string, confirm_override: bool} $data */
                 $this->executeForceMatch($data);
             });
     }
@@ -1692,7 +1696,7 @@ class ViewPayment extends ViewRecord
 
         return $payment->hasMismatch()
             && $payment->canBeAppliedToInvoice()
-            && bccomp($payment->getUnappliedAmount(), '0', 2) > 0;
+            && DecimalMath::comp($payment->getUnappliedAmount(), '0', 2) > 0;
     }
 
     /**
@@ -1794,7 +1798,7 @@ class ViewPayment extends ViewRecord
         $outstanding = $invoice->getOutstandingAmount();
         $unapplied = $payment->getUnappliedAmount();
 
-        $defaultAmount = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+        $defaultAmount = DecimalMath::comp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
         $set('amount', $defaultAmount);
     }
 
@@ -1875,6 +1879,7 @@ class ViewPayment extends ViewRecord
                     ->accepted(),
             ])
             ->action(function (array $data): void {
+                /** @var array{exception_type: string, reason: string, confirm_exception: bool} $data */
                 $this->executeCreateException($data);
             });
     }
@@ -1994,6 +1999,7 @@ class ViewPayment extends ViewRecord
                     ->accepted(),
             ])
             ->action(function (array $data): void {
+                /** @var array{reason: string, confirm_refund: bool} $data */
                 $this->executeMarkForRefund($data);
             });
     }
@@ -2135,6 +2141,7 @@ class ViewPayment extends ViewRecord
                     ->accepted(),
             ])
             ->action(function (array $data): void {
+                /** @var array{reason?: string, confirm: bool} $data */
                 $this->executeConfirmNotDuplicate($data);
             });
     }
@@ -2256,6 +2263,7 @@ class ViewPayment extends ViewRecord
                     ->accepted(),
             ])
             ->action(function (array $data): void {
+                /** @var array{original_payment_id: string, reason: string, initiate_refund: bool, confirm: bool} $data */
                 $this->executeMarkAsDuplicate($data);
             });
     }

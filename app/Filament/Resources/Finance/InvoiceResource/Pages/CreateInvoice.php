@@ -9,6 +9,7 @@ use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Services\Finance\InvoiceService;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -153,6 +154,7 @@ class CreateInvoice extends CreateRecord
                                     ->toArray();
                             })
                             ->getOptionLabelUsing(function (string $value): ?string {
+                                /** @var Customer|null $customer */
                                 $customer = Customer::find($value);
 
                                 return $customer !== null ? self::formatCustomerOption($customer) : null;
@@ -171,6 +173,7 @@ class CreateInvoice extends CreateRecord
                                     return new HtmlString('');
                                 }
 
+                                /** @var Customer|null $customer */
                                 $customer = Customer::find($customerId);
                                 if (! $customer) {
                                     return new HtmlString('<p class="text-red-500">Customer not found</p>');
@@ -356,6 +359,7 @@ class CreateInvoice extends CreateRecord
                 // Validate customer is still active
                 $customerId = $get('customer_id');
                 if ($customerId) {
+                    /** @var Customer|null $customer */
                     $customer = Customer::find($customerId);
                     if ($customer === null || ! $customer->isActive()) {
                         Notification::make()
@@ -628,6 +632,7 @@ class CreateInvoice extends CreateRecord
                                 // Customer info
                                 $customerHtml = '<span class="text-gray-400">Not selected</span>';
                                 if ($customerId) {
+                                    /** @var Customer|null $customer */
                                     $customer = Customer::find($customerId);
                                     if ($customer) {
                                         $customerHtml = '<span class="font-medium text-gray-900 dark:text-gray-100">'.e($customer->name).'</span>';
@@ -880,9 +885,9 @@ class CreateInvoice extends CreateRecord
             $taxRate = (string) ($lineData['tax_rate'] ?? '0');
 
             // Calculate tax amount for this line
-            $lineSubtotal = bcmul($quantity, $unitPrice, 2);
-            $lineTaxAmount = bcmul($lineSubtotal, bcdiv($taxRate, '100', 4), 2);
-            $lineTotal = bcadd($lineSubtotal, $lineTaxAmount, 2);
+            $lineSubtotal = DecimalMath::mul($quantity, $unitPrice, 2);
+            $lineTaxAmount = DecimalMath::mul($lineSubtotal, DecimalMath::div($taxRate, '100', 4), 2);
+            $lineTotal = DecimalMath::add($lineSubtotal, $lineTaxAmount, 2);
 
             InvoiceLine::create([
                 'invoice_id' => $invoice->id,
@@ -894,12 +899,12 @@ class CreateInvoice extends CreateRecord
                 'line_total' => $lineTotal,
             ]);
 
-            $subtotal = bcadd($subtotal, $lineSubtotal, 2);
-            $taxAmount = bcadd($taxAmount, $lineTaxAmount, 2);
+            $subtotal = DecimalMath::add($subtotal, $lineSubtotal, 2);
+            $taxAmount = DecimalMath::add($taxAmount, $lineTaxAmount, 2);
         }
 
         // Update invoice totals
-        $totalAmount = bcadd($subtotal, $taxAmount, 2);
+        $totalAmount = DecimalMath::add($subtotal, $taxAmount, 2);
 
         $invoice->update([
             'subtotal' => $subtotal,

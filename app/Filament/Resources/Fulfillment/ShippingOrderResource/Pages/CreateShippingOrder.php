@@ -137,6 +137,7 @@ class CreateShippingOrder extends CreateRecord
                                     ->toArray();
                             })
                             ->getOptionLabelUsing(function (string $value): ?string {
+                                /** @var Customer|null $customer */
                                 $customer = Customer::find($value);
 
                                 return $customer !== null ? self::formatCustomerOption($customer) : null;
@@ -159,6 +160,7 @@ class CreateShippingOrder extends CreateRecord
                                     return new HtmlString('');
                                 }
 
+                                /** @var Customer|null $customer */
                                 $customer = Customer::find($customerId);
                                 if (! $customer) {
                                     return new HtmlString('<p class="text-red-500">Customer not found</p>');
@@ -202,12 +204,14 @@ class CreateShippingOrder extends CreateRecord
                                     return false;
                                 }
 
+                                /** @var Customer|null $customer */
                                 $customer = Customer::find($customerId);
 
                                 return $customer !== null && ! $customer->isActive();
                             })
                             ->content(function (Get $get): HtmlString {
                                 $customerId = $get('customer_id');
+                                /** @var Customer|null $customer */
                                 $customer = $customerId ? Customer::find($customerId) : null;
 
                                 if (! $customer) {
@@ -279,6 +283,7 @@ class CreateShippingOrder extends CreateRecord
                     return;
                 }
 
+                /** @var Customer|null $customer */
                 $customer = Customer::find($customerId);
                 if (! $customer) {
                     Notification::make()
@@ -824,6 +829,7 @@ class CreateShippingOrder extends CreateRecord
                                     return new HtmlString('<p class="text-gray-500">No customer selected</p>');
                                 }
 
+                                /** @var Customer|null $customer */
                                 $customer = Customer::find($customerId);
                                 if (! $customer) {
                                     return new HtmlString('<p class="text-red-500">Customer not found</p>');

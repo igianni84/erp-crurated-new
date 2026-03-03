@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Finance;
 use App\Enums\Finance\PaymentSource;
 use App\Enums\Finance\ReconciliationStatus;
 use App\Models\Finance\Payment;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Database\Eloquent\Builder;
@@ -122,17 +123,7 @@ class ReconciliationStatusReport extends Page
     /**
      * Get summary data for reconciliation status.
      *
-     * @return array{
-     *     total_payments: int,
-     *     total_amount: string,
-     *     by_status: array<string, array{count: int, amount: string, percentage: float}>,
-     *     pending_count: int,
-     *     pending_amount: string,
-     *     mismatched_count: int,
-     *     mismatched_amount: string,
-     *     matched_count: int,
-     *     matched_amount: string
-     * }
+     * @return array<string, mixed>
      */
     public function getSummary(): array
     {
@@ -157,10 +148,10 @@ class ReconciliationStatusReport extends Page
         }
 
         foreach ($payments as $payment) {
-            $totalAmount = bcadd($totalAmount, $payment->amount, 2);
+            $totalAmount = DecimalMath::add($totalAmount, $payment->amount, 2);
             $statusValue = $payment->reconciliation_status->value;
             $byStatus[$statusValue]['count']++;
-            $byStatus[$statusValue]['amount'] = bcadd($byStatus[$statusValue]['amount'], $payment->amount, 2);
+            $byStatus[$statusValue]['amount'] = DecimalMath::add($byStatus[$statusValue]['amount'] ?? '0.00', $payment->amount, 2);
         }
 
         // Calculate percentages

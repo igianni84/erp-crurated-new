@@ -161,6 +161,7 @@ class CreateAllocation extends CreateRecord
                                     ->toArray();
                             })
                             ->getOptionLabelUsing(function (string $value): ?string {
+                                /** @var WineMaster|null $wineMaster */
                                 $wineMaster = WineMaster::find($value);
 
                                 return $wineMaster !== null ? self::formatWineMasterOption($wineMaster) : null;
@@ -235,7 +236,9 @@ class CreateAllocation extends CreateRecord
                                     return 'Complete the selections above to see the Bottle SKU';
                                 }
 
+                                /** @var WineVariant|null $wineVariant */
                                 $wineVariant = WineVariant::with('wineMaster')->find($wineVariantId);
+                                /** @var Format|null $format */
                                 $format = Format::find($formatId);
 
                                 if ($wineVariant === null || $format === null) {
@@ -567,7 +570,9 @@ class CreateAllocation extends CreateRecord
                                     return 'Not selected';
                                 }
 
+                                /** @var WineVariant|null $wineVariant */
                                 $wineVariant = WineVariant::with('wineMaster')->find($wineVariantId);
+                                /** @var Format|null $format */
                                 $format = Format::find($formatId);
 
                                 if ($wineVariant === null || $format === null) {

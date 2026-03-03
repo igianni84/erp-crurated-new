@@ -13,6 +13,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoiceLine;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Exception;
 use Illuminate\Support\Facades\Auth;
@@ -135,7 +136,7 @@ class InvoiceService
         }
 
         // Validate total amount is positive
-        if (bccomp($invoice->total_amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($invoice->total_amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Cannot issue invoice: total amount must be greater than zero.'
             );
@@ -218,7 +219,7 @@ class InvoiceService
         }
 
         // Validate amount is positive
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Cannot apply payment: amount must be greater than zero.'
             );
@@ -226,7 +227,7 @@ class InvoiceService
 
         // Validate amount doesn't exceed outstanding
         $outstanding = $this->getOutstandingAmount($invoice);
-        if (bccomp($amount, $outstanding, 2) > 0) {
+        if (DecimalMath::comp($amount, $outstanding, 2) > 0) {
             throw new InvalidArgumentException(
                 "Cannot apply payment: amount ({$amount}) exceeds outstanding balance ({$outstanding})."
             );
@@ -250,7 +251,7 @@ class InvoiceService
             ]);
 
             // Update invoice amount_paid
-            $invoice->amount_paid = bcadd($invoice->amount_paid, $amount, 2);
+            $invoice->amount_paid = DecimalMath::add($invoice->amount_paid, $amount, 2);
             $invoice->save();
 
             // Update status based on payment
@@ -261,7 +262,7 @@ class InvoiceService
                 $invoice,
                 'payment_applied',
                 [
-                    'amount_paid' => bcsub($invoice->amount_paid, $amount, 2),
+                    'amount_paid' => DecimalMath::sub($invoice->amount_paid, $amount, 2),
                 ],
                 [
                     'amount_paid' => $invoice->amount_paid,
@@ -303,7 +304,7 @@ class InvoiceService
         }
 
         // Validate amount is positive
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Cannot apply payment: amount must be greater than zero.'
             );
@@ -317,7 +318,7 @@ class InvoiceService
         }
 
         $outstanding = $this->getOutstandingAmount($invoice);
-        $isOverpayment = bccomp($amount, $outstanding, 2) > 0;
+        $isOverpayment = DecimalMath::comp($amount, $outstanding, 2) > 0;
 
         // If not an overpayment, use regular applyPayment
         if (! $isOverpayment) {
@@ -374,7 +375,7 @@ class InvoiceService
         string $requestedAmount,
         string $outstanding
     ): array {
-        $creditAmount = bcsub($requestedAmount, $outstanding, 2);
+        $creditAmount = DecimalMath::sub($requestedAmount, $outstanding, 2);
 
         return DB::transaction(function () use ($invoice, $payment, $outstanding, $creditAmount): array {
             // Apply the outstanding amount to the invoice
@@ -387,7 +388,7 @@ class InvoiceService
                 payment: $payment,
                 invoice: $invoice,
                 amount: $creditAmount,
-                createdBy: Auth::id()
+                createdBy: (int) Auth::id()
             );
 
             // Log the credit creation
@@ -432,7 +433,7 @@ class InvoiceService
     {
         $outstanding = $this->getOutstandingAmount($invoice);
 
-        return bccomp($amount, $outstanding, 2) > 0;
+        return DecimalMath::comp($amount, $outstanding, 2) > 0;
     }
 
     /**
@@ -445,11 +446,11 @@ class InvoiceService
     {
         $outstanding = $this->getOutstandingAmount($invoice);
 
-        if (bccomp($amount, $outstanding, 2) <= 0) {
+        if (DecimalMath::comp($amount, $outstanding, 2) <= 0) {
             return '0.00';
         }
 
-        return bcsub($amount, $outstanding, 2);
+        return DecimalMath::sub($amount, $outstanding, 2);
     }
 
     /**
@@ -461,7 +462,7 @@ class InvoiceService
      */
     public function markPaid(Invoice $invoice): Invoice
     {
-        if (bccomp($invoice->amount_paid, $invoice->total_amount, 2) < 0) {
+        if (DecimalMath::comp($invoice->amount_paid, $invoice->total_amount, 2) < 0) {
             $outstanding = $this->getOutstandingAmount($invoice);
             throw new InvalidArgumentException(
                 "Cannot mark invoice as paid: outstanding balance of {$outstanding} remains."
@@ -531,7 +532,7 @@ class InvoiceService
      */
     public function getOutstandingAmount(Invoice $invoice): string
     {
-        return bcsub($invoice->total_amount, $invoice->amount_paid, 2);
+        return DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
     }
 
     /**
@@ -639,12 +640,12 @@ class InvoiceService
         $taxAmount = '0.00';
 
         foreach ($lines as $line) {
-            $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
-            $subtotal = bcadd($subtotal, $lineSubtotal, 2);
-            $taxAmount = bcadd($taxAmount, $line->tax_amount, 2);
+            $lineSubtotal = DecimalMath::mul($line->quantity, $line->unit_price, 2);
+            $subtotal = DecimalMath::add($subtotal, $lineSubtotal, 2);
+            $taxAmount = DecimalMath::add($taxAmount, $line->tax_amount, 2);
         }
 
-        $totalAmount = bcadd($subtotal, $taxAmount, 2);
+        $totalAmount = DecimalMath::add($subtotal, $taxAmount, 2);
 
         $invoice->subtotal = $subtotal;
         $invoice->tax_amount = $taxAmount;
@@ -715,7 +716,7 @@ class InvoiceService
     {
         $outstanding = $this->getOutstandingAmount($invoice);
 
-        if (bccomp($outstanding, '0', 2) <= 0) {
+        if (DecimalMath::comp($outstanding, '0', 2) <= 0) {
             // Fully paid
             if ($invoice->status !== InvoiceStatus::Paid) {
                 $oldStatus = $invoice->status;
@@ -732,7 +733,7 @@ class InvoiceService
                 // Emit InvoicePaid event for downstream modules
                 $this->emitInvoicePaidEvent($invoice);
             }
-        } elseif (bccomp($invoice->amount_paid, '0', 2) > 0 && $invoice->status === InvoiceStatus::Issued) {
+        } elseif (DecimalMath::comp($invoice->amount_paid, '0', 2) > 0 && $invoice->status === InvoiceStatus::Issued) {
             // Partially paid
             $oldStatus = $invoice->status;
             $invoice->status = InvoiceStatus::PartiallyPaid;
@@ -1020,7 +1021,7 @@ class InvoiceService
         }
 
         // 1. Base Shipping Cost (required)
-        if (isset($shippingOrder['base_shipping_cost']) && bccomp($shippingOrder['base_shipping_cost'], '0', 2) > 0) {
+        if (isset($shippingOrder['base_shipping_cost']) && DecimalMath::comp($shippingOrder['base_shipping_cost'], '0', 2) > 0) {
             $lines[] = $this->buildShippingLine(
                 description: $this->buildShippingDescription($shippingOrder),
                 unitPrice: $shippingOrder['base_shipping_cost'],
@@ -1031,7 +1032,7 @@ class InvoiceService
         }
 
         // 2. Insurance Cost (optional)
-        if (isset($shippingOrder['insurance_cost']) && bccomp($shippingOrder['insurance_cost'], '0', 2) > 0) {
+        if (isset($shippingOrder['insurance_cost']) && DecimalMath::comp($shippingOrder['insurance_cost'], '0', 2) > 0) {
             $lines[] = $this->buildShippingLine(
                 description: 'Shipping Insurance',
                 unitPrice: $shippingOrder['insurance_cost'],
@@ -1042,7 +1043,7 @@ class InvoiceService
         }
 
         // 3. Packaging Cost (optional)
-        if (isset($shippingOrder['packaging_cost']) && bccomp($shippingOrder['packaging_cost'], '0', 2) > 0) {
+        if (isset($shippingOrder['packaging_cost']) && DecimalMath::comp($shippingOrder['packaging_cost'], '0', 2) > 0) {
             $lines[] = $this->buildShippingLine(
                 description: 'Special Packaging & Materials',
                 unitPrice: $shippingOrder['packaging_cost'],
@@ -1053,7 +1054,7 @@ class InvoiceService
         }
 
         // 4. Handling Cost (optional - warehouse operations)
-        if (isset($shippingOrder['handling_cost']) && bccomp($shippingOrder['handling_cost'], '0', 2) > 0) {
+        if (isset($shippingOrder['handling_cost']) && DecimalMath::comp($shippingOrder['handling_cost'], '0', 2) > 0) {
             $lines[] = $this->buildShippingLine(
                 description: 'Handling & Warehouse Operations',
                 unitPrice: $shippingOrder['handling_cost'],
@@ -1064,7 +1065,7 @@ class InvoiceService
         }
 
         // 5. Customs Duties (for cross-border shipments)
-        if (isset($shippingOrder['duties_amount']) && bccomp($shippingOrder['duties_amount'], '0', 2) > 0) {
+        if (isset($shippingOrder['duties_amount']) && DecimalMath::comp($shippingOrder['duties_amount'], '0', 2) > 0) {
             $dutiesDescription = 'Customs Duties';
             if ($isCrossBorder) {
                 $dutiesDescription .= " ({$originCountry} → {$destinationCountry})";
@@ -1080,7 +1081,7 @@ class InvoiceService
         }
 
         // 6. Import Taxes (for cross-border shipments)
-        if (isset($shippingOrder['taxes_amount']) && bccomp($shippingOrder['taxes_amount'], '0', 2) > 0) {
+        if (isset($shippingOrder['taxes_amount']) && DecimalMath::comp($shippingOrder['taxes_amount'], '0', 2) > 0) {
             $taxesDescription = 'Import Taxes';
             if ($destinationCountry !== null) {
                 $taxesDescription .= " ({$destinationCountry})";
@@ -1096,7 +1097,7 @@ class InvoiceService
         }
 
         // 7. Redemption Fee (if applicable - voucher redemption shipments)
-        if (isset($shippingOrder['redemption_fee']) && bccomp($shippingOrder['redemption_fee']['amount'], '0', 2) > 0) {
+        if (isset($shippingOrder['redemption_fee']) && DecimalMath::comp($shippingOrder['redemption_fee']['amount'], '0', 2) > 0) {
             $redemptionFee = $shippingOrder['redemption_fee'];
             $redemptionMetadata = array_merge($baseMetadata, [
                 'line_type' => 'redemption',
@@ -1208,13 +1209,13 @@ class InvoiceService
 
         foreach ($costFields as $field) {
             if (isset($shippingOrder[$field])) {
-                $total = bcadd($total, $shippingOrder[$field], 2);
+                $total = DecimalMath::add($total, $shippingOrder[$field], 2);
             }
         }
 
         // Add redemption fee if present
         if (isset($shippingOrder['redemption_fee']['amount'])) {
-            $total = bcadd($total, $shippingOrder['redemption_fee']['amount'], 2);
+            $total = DecimalMath::add($total, $shippingOrder['redemption_fee']['amount'], 2);
         }
 
         return $total;
@@ -1227,8 +1228,8 @@ class InvoiceService
      */
     public function hasShippingDutiesOrTaxes(array $shippingOrder): bool
     {
-        $hasDuties = isset($shippingOrder['duties_amount']) && bccomp($shippingOrder['duties_amount'], '0', 2) > 0;
-        $hasTaxes = isset($shippingOrder['taxes_amount']) && bccomp($shippingOrder['taxes_amount'], '0', 2) > 0;
+        $hasDuties = isset($shippingOrder['duties_amount']) && DecimalMath::comp($shippingOrder['duties_amount'], '0', 2) > 0;
+        $hasTaxes = isset($shippingOrder['taxes_amount']) && DecimalMath::comp($shippingOrder['taxes_amount'], '0', 2) > 0;
 
         return $hasDuties || $hasTaxes;
     }
@@ -1244,7 +1245,7 @@ class InvoiceService
     public function hasRedemptionFee(array $shippingOrder): bool
     {
         return isset($shippingOrder['redemption_fee']['amount'])
-            && bccomp($shippingOrder['redemption_fee']['amount'], '0', 2) > 0;
+            && DecimalMath::comp($shippingOrder['redemption_fee']['amount'], '0', 2) > 0;
     }
 
     /**

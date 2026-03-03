@@ -233,7 +233,7 @@ class ProcurementIntentService
 
         $intent->status = ProcurementIntentStatus::Approved;
         $intent->approved_at = now();
-        $intent->approved_by = Auth::id();
+        $intent->approved_by = (int) Auth::id();
         $intent->save();
 
         $this->logStatusTransition($intent, $oldStatus, ProcurementIntentStatus::Approved);

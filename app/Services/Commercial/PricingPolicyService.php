@@ -385,6 +385,7 @@ class PricingPolicyService
             return null;
         }
 
+        /** @var PriceBook|null $sourcePriceBook */
         $sourcePriceBook = PriceBook::find($sourcePriceBookId);
         if ($sourcePriceBook === null) {
             return null;

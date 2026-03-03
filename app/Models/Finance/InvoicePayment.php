@@ -4,6 +4,7 @@ namespace App\Models\Finance;
 
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -156,11 +157,11 @@ class InvoicePayment extends Model
         $existingApplied = $query->sum('amount_applied');
 
         // Calculate total after this application
-        $totalAfterApplication = bcadd((string) $existingApplied, $this->amount_applied, 2);
+        $totalAfterApplication = DecimalMath::add((string) $existingApplied, $this->amount_applied, 2);
 
         // Compare with invoice total
-        if (bccomp($totalAfterApplication, $invoice->total_amount, 2) > 0) {
-            $maxAllowed = bcsub($invoice->total_amount, (string) $existingApplied, 2);
+        if (DecimalMath::comp($totalAfterApplication, $invoice->total_amount, 2) > 0) {
+            $maxAllowed = DecimalMath::sub($invoice->total_amount, (string) $existingApplied, 2);
             throw new InvalidArgumentException(
                 "Amount applied ({$this->amount_applied}) would exceed invoice total. ".
                 "Maximum allowed: {$maxAllowed}"
@@ -188,11 +189,11 @@ class InvoicePayment extends Model
         $existingApplied = $query->sum('amount_applied');
 
         // Calculate total after this application
-        $totalAfterApplication = bcadd((string) $existingApplied, $this->amount_applied, 2);
+        $totalAfterApplication = DecimalMath::add((string) $existingApplied, $this->amount_applied, 2);
 
         // Compare with payment amount
-        if (bccomp($totalAfterApplication, $payment->amount, 2) > 0) {
-            $maxAllowed = bcsub($payment->amount, (string) $existingApplied, 2);
+        if (DecimalMath::comp($totalAfterApplication, $payment->amount, 2) > 0) {
+            $maxAllowed = DecimalMath::sub($payment->amount, (string) $existingApplied, 2);
             throw new InvalidArgumentException(
                 "Amount applied ({$this->amount_applied}) would exceed payment amount. ".
                 "Maximum allowed: {$maxAllowed}"
@@ -231,7 +232,7 @@ class InvoicePayment extends Model
     {
         $totalApplied = self::getTotalAppliedToInvoice($invoice->id);
 
-        return bcsub($invoice->total_amount, $totalApplied, 2);
+        return DecimalMath::sub($invoice->total_amount, $totalApplied, 2);
     }
 
     /**
@@ -241,7 +242,7 @@ class InvoicePayment extends Model
     {
         $totalApplied = self::getTotalAppliedFromPayment($payment->id);
 
-        return bcsub($payment->amount, $totalApplied, 2);
+        return DecimalMath::sub($payment->amount, $totalApplied, 2);
     }
 
     // =========================================================================

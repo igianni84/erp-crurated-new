@@ -313,6 +313,7 @@ class BulkCreateOffers extends Page implements HasForms
                                     return new HtmlString('');
                                 }
 
+                                /** @var Channel|null $channel */
                                 $channel = Channel::find($channelId);
                                 if ($channel === null) {
                                     return new HtmlString('<div class="text-gray-500">Channel not found</div>');
@@ -334,6 +335,7 @@ class BulkCreateOffers extends Page implements HasForms
                                     return new HtmlString('');
                                 }
 
+                                /** @var Channel|null $channel */
                                 $channel = Channel::find($channelId);
                                 if ($channel === null) {
                                     return new HtmlString('');
@@ -431,6 +433,7 @@ class BulkCreateOffers extends Page implements HasForms
                                     return new HtmlString('');
                                 }
 
+                                /** @var PriceBook|null $priceBook */
                                 $priceBook = PriceBook::find($priceBookId);
                                 if ($priceBook === null) {
                                     return new HtmlString('<div class="text-gray-500">Price Book not found</div>');
@@ -696,6 +699,7 @@ class BulkCreateOffers extends Page implements HasForms
         $this->creationErrors = [];
 
         // Get channel for validation
+        /** @var Channel|null $channel */
         $channel = Channel::find($channelId);
         if ($channel === null) {
             Notification::make()
@@ -870,6 +874,7 @@ class BulkCreateOffers extends Page implements HasForms
         $validIds = [];
 
         foreach ($skuIds as $skuId) {
+            /** @var SellableSku|null $sku */
             $sku = SellableSku::find($skuId);
             if ($sku === null) {
                 continue;
@@ -1037,6 +1042,7 @@ class BulkCreateOffers extends Page implements HasForms
         $invalidSkus = [];
 
         foreach ($skuIds as $skuId) {
+            /** @var SellableSku|null $sku */
             $sku = SellableSku::find($skuId);
             if ($sku === null) {
                 continue;
@@ -1172,6 +1178,7 @@ class BulkCreateOffers extends Page implements HasForms
             return '<div class="text-gray-500">Please complete all previous steps to see the summary.</div>';
         }
 
+        /** @var Channel|null $channel */
         $channel = Channel::find($channelId);
         if ($channel === null) {
             return '<div class="text-gray-500">Channel not found.</div>';
@@ -1256,12 +1263,14 @@ class BulkCreateOffers extends Page implements HasForms
         $channel = null;
         $channelId = $get('channel_id');
         if ($channelId !== null) {
+            /** @var Channel|null $channel */
             $channel = Channel::find($channelId);
         }
 
         $priceBook = null;
         $priceBookId = $get('price_book_id');
         if ($priceBookId !== null) {
+            /** @var PriceBook|null $priceBook */
             $priceBook = PriceBook::find($priceBookId);
         }
 
@@ -1289,8 +1298,8 @@ class BulkCreateOffers extends Page implements HasForms
         $validFrom = $get('valid_from');
         $validTo = $get('valid_to');
 
-        $validFromDisplay = $validFrom !== null ? date('Y-m-d H:i', strtotime((string) $validFrom)) : '-';
-        $validToDisplay = $validTo !== null ? date('Y-m-d H:i', strtotime((string) $validTo)) : 'Indefinite';
+        $validFromDisplay = $validFrom !== null ? date('Y-m-d H:i', strtotime((string) $validFrom) ?: 0) : '-';
+        $validToDisplay = $validTo !== null ? date('Y-m-d H:i', strtotime((string) $validTo) ?: 0) : 'Indefinite';
 
         $campaignTag = $get('campaign_tag');
         $campaignDisplay = ! empty($campaignTag) ? $campaignTag : '-';

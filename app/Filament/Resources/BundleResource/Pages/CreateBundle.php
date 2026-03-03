@@ -189,6 +189,7 @@ class CreateBundle extends CreateRecord
                                     return;
                                 }
 
+                                /** @var SellableSku|null $sku */
                                 $sku = SellableSku::with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])->find($state);
                                 if ($sku !== null) {
                                     $wineVariant = $sku->wineVariant;
@@ -233,6 +234,7 @@ class CreateBundle extends CreateRecord
                         if (! isset($state['sellable_sku_id'])) {
                             return 'New Component';
                         }
+                        /** @var SellableSku|null $sku */
                         $sku = SellableSku::find($state['sellable_sku_id']);
 
                         return 'Component: '.($sku !== null ? $sku->sku_code : 'Unknown');
@@ -485,6 +487,7 @@ class CreateBundle extends CreateRecord
                                 $totalQuantity = 0;
                                 foreach ($validComponents as $component) {
                                     /** @var array{sellable_sku_id: string, quantity?: int} $component */
+                                    /** @var SellableSku|null $sku */
                                     $sku = SellableSku::with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])->find($component['sellable_sku_id']);
                                     if ($sku === null) {
                                         continue;

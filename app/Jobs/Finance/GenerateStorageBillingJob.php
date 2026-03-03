@@ -10,6 +10,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\StorageBillingPeriod;
 use App\Models\Inventory\SerializedBottle;
 use App\Services\Finance\InvoiceService;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -149,7 +150,7 @@ class GenerateStorageBillingJob implements ShouldQueue
                 ]);
 
                 // Optionally create INV3 invoice
-                if ($this->autoGenerateInvoices && bccomp($usageData['calculated_amount'], '0', 2) > 0) {
+                if ($this->autoGenerateInvoices && DecimalMath::comp($usageData['calculated_amount'], '0', 2) > 0) {
                     $invoice = $this->createStorageInvoice($billingPeriod, $invoiceService);
 
                     if ($invoice !== null) {
@@ -246,7 +247,7 @@ class GenerateStorageBillingJob implements ShouldQueue
         $unitRate = $this->getUnitRate($customerId, $bottleCount);
 
         // Calculate the amount
-        $calculatedAmount = bcmul((string) $bottleDays, $unitRate, 2);
+        $calculatedAmount = DecimalMath::mul((string) $bottleDays, $unitRate, 2);
 
         return [
             'bottle_count' => $bottleCount,
@@ -523,7 +524,7 @@ class GenerateStorageBillingJob implements ShouldQueue
 
         $totalBottleDays = $previewData->sum('bottle_days');
         $totalAmount = $previewData->reduce(function (string $carry, array $item): string {
-            return bcadd($carry, $item['calculated_amount'], 2);
+            return DecimalMath::add($carry, $item['calculated_amount'], 2);
         }, '0.00');
 
         return [

@@ -2217,7 +2217,7 @@ class ViewShippingOrder extends ViewRecord
             $html .= '<div class="font-medium text-gray-600 dark:text-gray-400 mb-1">Previous Values</div>';
             $html .= '<div class="bg-danger-50 dark:bg-danger-900/20 rounded p-2 text-danger-700 dark:text-danger-300">';
             $html .= '<pre class="whitespace-pre-wrap font-mono text-xs">';
-            $html .= e(json_encode($log->old_values, JSON_PRETTY_PRINT));
+            $html .= (string) e((string) json_encode($log->old_values, JSON_PRETTY_PRINT));
             $html .= '</pre>';
             $html .= '</div>';
             $html .= '</div>';
@@ -2229,7 +2229,7 @@ class ViewShippingOrder extends ViewRecord
             $html .= '<div class="font-medium text-gray-600 dark:text-gray-400 mb-1">New Values</div>';
             $html .= '<div class="bg-success-50 dark:bg-success-900/20 rounded p-2 text-success-700 dark:text-success-300">';
             $html .= '<pre class="whitespace-pre-wrap font-mono text-xs">';
-            $html .= e(json_encode($log->new_values, JSON_PRETTY_PRINT));
+            $html .= (string) e((string) json_encode($log->new_values, JSON_PRETTY_PRINT));
             $html .= '</pre>';
             $html .= '</div>';
             $html .= '</div>';
@@ -2599,6 +2599,7 @@ class ViewShippingOrder extends ViewRecord
                     return;
                 }
 
+                /** @var ShippingOrderLine|null $line */
                 $line = ShippingOrderLine::find($lineId);
                 if ($line === null || $line->shipping_order_id !== $record->id) {
                     Notification::make()

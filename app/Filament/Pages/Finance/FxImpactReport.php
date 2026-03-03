@@ -6,6 +6,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\PaymentStatus;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -255,16 +256,16 @@ class FxImpactReport extends Page
             $hasFxRate = false;
 
             foreach ($currencyInvoices as $invoice) {
-                $totalAmount = bcadd($totalAmount, $invoice->total_amount, 2);
+                $totalAmount = DecimalMath::add($totalAmount, $invoice->total_amount, 2);
 
                 // Calculate base currency equivalent
                 if ($invoice->currency === $this->baseCurrency) {
-                    $totalInBase = bcadd($totalInBase, $invoice->total_amount, 2);
+                    $totalInBase = DecimalMath::add($totalInBase, $invoice->total_amount, 2);
                 } elseif ($invoice->fx_rate_at_issuance !== null) {
                     $hasFxRate = true;
                     // FX rate is stored as "1 {currency} = X EUR"
-                    $amountInBase = bcmul($invoice->total_amount, $invoice->fx_rate_at_issuance, 2);
-                    $totalInBase = bcadd($totalInBase, $amountInBase, 2);
+                    $amountInBase = DecimalMath::mul($invoice->total_amount, $invoice->fx_rate_at_issuance, 2);
+                    $totalInBase = DecimalMath::add($totalInBase, $amountInBase, 2);
                 }
             }
 
@@ -313,7 +314,7 @@ class FxImpactReport extends Page
             $totalAmount = '0.00';
 
             foreach ($currencyPayments as $payment) {
-                $totalAmount = bcadd($totalAmount, $payment->amount, 2);
+                $totalAmount = DecimalMath::add($totalAmount, $payment->amount, 2);
             }
 
             return [
@@ -377,12 +378,12 @@ class FxImpactReport extends Page
             $totalInvoicedBase = '0.00';
 
             foreach ($currencyInvoices as $invoice) {
-                $totalInvoiced = bcadd($totalInvoiced, $invoice->total_amount, 2);
+                $totalInvoiced = DecimalMath::add($totalInvoiced, $invoice->total_amount, 2);
 
                 // Calculate base currency equivalent at issuance rate
                 if ($invoice->fx_rate_at_issuance !== null) {
-                    $amountInBase = bcmul($invoice->total_amount, $invoice->fx_rate_at_issuance, 2);
-                    $totalInvoicedBase = bcadd($totalInvoicedBase, $amountInBase, 2);
+                    $amountInBase = DecimalMath::mul($invoice->total_amount, $invoice->fx_rate_at_issuance, 2);
+                    $totalInvoicedBase = DecimalMath::add($totalInvoicedBase, $amountInBase, 2);
                 }
             }
 
@@ -432,20 +433,20 @@ class FxImpactReport extends Page
         $baseInvoiceAmount = '0.00';
 
         foreach ($invoiceData as $row) {
-            $totalInvoicedBase = bcadd($totalInvoicedBase, $row['total_in_base'], 2);
+            $totalInvoicedBase = DecimalMath::add($totalInvoicedBase, $row['total_in_base'], 2);
 
             if ($row['is_base_currency']) {
                 $baseInvoiceCount += $row['invoice_count'];
-                $baseInvoiceAmount = bcadd($baseInvoiceAmount, $row['total_amount'], 2);
+                $baseInvoiceAmount = DecimalMath::add($baseInvoiceAmount, $row['total_amount'], 2);
             } else {
                 $foreignInvoiceCount += $row['invoice_count'];
-                $foreignInvoiceAmount = bcadd($foreignInvoiceAmount, $row['total_in_base'], 2);
+                $foreignInvoiceAmount = DecimalMath::add($foreignInvoiceAmount, $row['total_in_base'], 2);
             }
         }
 
         foreach ($paymentData as $row) {
             if ($row['is_base_currency']) {
-                $totalPaymentsBase = bcadd($totalPaymentsBase, $row['total_amount'], 2);
+                $totalPaymentsBase = DecimalMath::add($totalPaymentsBase, $row['total_amount'], 2);
             }
             // Note: For non-base currency payments, we'd need FX rates at settlement
         }
@@ -470,12 +471,12 @@ class FxImpactReport extends Page
         $summary = $this->getSummary();
         $totalBase = $summary['total_invoiced_base'];
 
-        if (bccomp($totalBase, '0', 2) === 0) {
+        if (DecimalMath::comp($totalBase, '0', 2) === 0) {
             return 0.0;
         }
 
-        return (float) bcdiv(
-            bcmul($summary['foreign_invoice_amount'], '100', 2),
+        return (float) DecimalMath::div(
+            DecimalMath::mul($summary['foreign_invoice_amount'], '100', 2),
             $totalBase,
             1
         );

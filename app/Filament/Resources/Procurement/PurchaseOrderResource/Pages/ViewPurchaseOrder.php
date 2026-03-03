@@ -810,7 +810,7 @@ class ViewPurchaseOrder extends ViewRecord
                     $oldStatus = $record->status->value;
                     $record->status = PurchaseOrderStatus::Confirmed;
                     $record->confirmed_at = now();
-                    $record->confirmed_by = auth()->id();
+                    $record->confirmed_by = (int) auth()->id();
                     $record->save();
 
                     // Create audit log

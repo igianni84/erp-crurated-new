@@ -12,6 +12,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Models\Finance\StripeWebhook;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -80,7 +81,7 @@ class PaymentService
             $metadata = $paymentIntent['metadata'] ?? [];
 
             // Convert amount from cents to currency units
-            $amount = bcdiv((string) $amountCents, '100', 2);
+            $amount = DecimalMath::div((string) $amountCents, '100', 2);
 
             // Try to find customer by Stripe customer ID
             $customer = null;
@@ -159,7 +160,7 @@ class PaymentService
         string $currency = 'EUR',
         ?Carbon $receivedAt = null
     ): Payment {
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Payment amount must be greater than zero.'
             );
@@ -224,7 +225,7 @@ class PaymentService
     public function applyToInvoice(Payment $payment, Invoice $invoice, string $amount): InvoicePayment
     {
         // Validate amount is positive
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Amount to apply must be greater than zero.'
             );
@@ -246,7 +247,7 @@ class PaymentService
 
         // Validate amount doesn't exceed unapplied payment amount
         $unapplied = $payment->getUnappliedAmount();
-        if (bccomp($amount, $unapplied, 2) > 0) {
+        if (DecimalMath::comp($amount, $unapplied, 2) > 0) {
             throw new InvalidArgumentException(
                 "Amount ({$amount}) exceeds unapplied payment balance ({$unapplied})."
             );
@@ -454,7 +455,7 @@ class PaymentService
         $matching = $openInvoices->filter(function (Invoice $invoice) use ($payment): bool {
             $outstanding = $invoice->getOutstandingAmount();
 
-            return bccomp($outstanding, $payment->amount, 2) === 0;
+            return DecimalMath::comp($outstanding, $payment->amount, 2) === 0;
         });
 
         return new Collection($matching->values()->all());
@@ -586,7 +587,7 @@ class PaymentService
 
         if ($amountToApply === null) {
             // Default to the lesser of unapplied payment and invoice outstanding
-            $amountToApply = bccomp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
+            $amountToApply = DecimalMath::comp($outstanding, $unapplied, 2) <= 0 ? $outstanding : $unapplied;
         }
 
         return DB::transaction(function () use ($payment, $invoice, $reason, $amountToApply): InvoicePayment {
@@ -882,15 +883,15 @@ class PaymentService
         $totalToApply = '0';
         foreach ($applications as $application) {
             $amount = $application['amount'];
-            if (bccomp($amount, '0', 2) <= 0) {
+            if (DecimalMath::comp($amount, '0', 2) <= 0) {
                 throw new InvalidArgumentException('All amounts must be greater than zero.');
             }
-            $totalToApply = bcadd($totalToApply, $amount, 2);
+            $totalToApply = DecimalMath::add($totalToApply, $amount, 2);
         }
 
         // Validate total doesn't exceed unapplied payment amount
         $unapplied = $payment->getUnappliedAmount();
-        if (bccomp($totalToApply, $unapplied, 2) > 0) {
+        if (DecimalMath::comp($totalToApply, $unapplied, 2) > 0) {
             throw new InvalidArgumentException(
                 "Total amount to apply ({$payment->currency} {$totalToApply}) exceeds unapplied payment balance ({$payment->currency} {$unapplied})."
             );
@@ -919,7 +920,7 @@ class PaymentService
 
             // Validate amount doesn't exceed invoice outstanding
             $outstanding = $invoice->getOutstandingAmount();
-            if (bccomp($amount, $outstanding, 2) > 0) {
+            if (DecimalMath::comp($amount, $outstanding, 2) > 0) {
                 throw new InvalidArgumentException(
                     "Amount ({$amount}) exceeds invoice {$invoice->invoice_number} outstanding amount ({$outstanding})."
                 );
@@ -946,7 +947,7 @@ class PaymentService
                 [],
                 [
                     'invoice_count' => count($applications),
-                    'total_applied' => array_reduce($applications, fn ($carry, $app) => bcadd($carry, $app['amount'], 2), '0'),
+                    'total_applied' => array_reduce($applications, fn ($carry, $app) => DecimalMath::add($carry, $app['amount'], 2), '0'),
                     'invoices' => array_map(function (array $app) use ($invoices): array {
                         $inv = $invoices->get($app['invoice_id']);
 
@@ -963,7 +964,7 @@ class PaymentService
                 'payment_id' => $payment->id,
                 'payment_reference' => $payment->payment_reference,
                 'invoice_count' => count($applications),
-                'total_applied' => array_reduce($applications, fn ($carry, $app) => bcadd($carry, $app['amount'], 2), '0'),
+                'total_applied' => array_reduce($applications, fn ($carry, $app) => DecimalMath::add($carry, $app['amount'], 2), '0'),
             ]);
 
             return $invoicePayments;
@@ -979,12 +980,12 @@ class PaymentService
     {
         $totalToApply = '0';
         foreach ($applications as $application) {
-            $totalToApply = bcadd($totalToApply, $application['amount'], 2);
+            $totalToApply = DecimalMath::add($totalToApply, $application['amount'], 2);
         }
 
         $unapplied = $payment->getUnappliedAmount();
 
-        return bcsub($unapplied, $totalToApply, 2);
+        return DecimalMath::sub($unapplied, $totalToApply, 2);
     }
 
     // =========================================================================

@@ -7,6 +7,7 @@ use App\Jobs\Finance\GenerateStorageBillingJob;
 use App\Models\Customer\Customer;
 use App\Models\Finance\StorageBillingPeriod;
 use App\Services\Finance\StorageBillingService;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
@@ -220,7 +221,7 @@ class StorageBillingPreview extends Page
 
         $totalBottleDays = $previewData->sum('bottle_days');
         $totalAmount = $previewData->reduce(function (string $carry, array $item): string {
-            return bcadd($carry, $item['calculated_amount'], 2);
+            return DecimalMath::add($carry, $item['calculated_amount'], 2);
         }, '0.00');
 
         $existingPeriods = $previewData->where('has_existing_period', true)->count();

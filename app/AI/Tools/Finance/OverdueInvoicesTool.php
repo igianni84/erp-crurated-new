@@ -6,6 +6,7 @@ use App\AI\Tools\BaseTool;
 use App\Enums\AI\ToolAccessLevel;
 use App\Enums\Finance\InvoiceStatus;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
@@ -58,7 +59,7 @@ class OverdueInvoicesTool extends BaseTool implements Tool
         foreach ($invoices as $invoice) {
             $daysOverdue = $invoice->getDaysOverdue();
             $outstanding = $invoice->getOutstandingAmount();
-            $totalAmount = bcadd($totalAmount, $outstanding, 2);
+            $totalAmount = DecimalMath::add($totalAmount, $outstanding, 2);
 
             $invoiceList[] = [
                 'invoice_number' => $invoice->invoice_number,

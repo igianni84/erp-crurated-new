@@ -11,6 +11,7 @@ use App\Models\Finance\Invoice;
 use App\Models\Finance\InvoicePayment;
 use App\Models\Finance\Payment;
 use App\Models\Finance\Refund;
+use App\Support\DecimalMath;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -72,14 +73,14 @@ class RefundService
         }
 
         // Validate amount is positive
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Cannot create refund: amount must be greater than zero.'
             );
         }
 
         // Validate amount doesn't exceed payment applied amount
-        if (bccomp($amount, $invoicePayment->amount_applied, 2) > 0) {
+        if (DecimalMath::comp($amount, $invoicePayment->amount_applied, 2) > 0) {
             throw new InvalidArgumentException(
                 "Cannot create refund: amount ({$amount}) exceeds payment applied amount ({$invoicePayment->amount_applied})."
             );
@@ -259,7 +260,7 @@ class RefundService
         }
 
         // Convert amount to cents for Stripe
-        $amountCents = (int) bcmul($refund->amount, '100', 0);
+        $amountCents = (int) DecimalMath::mul($refund->amount, '100', 0);
 
         $payload = [
             'charge' => $payment->stripe_charge_id,
@@ -414,7 +415,7 @@ class RefundService
             $refund->status = RefundStatus::Processed;
             $refund->bank_reference = $bankReference;
             $refund->processed_at = now();
-            $refund->processed_by = Auth::id();
+            $refund->processed_by = (int) Auth::id();
             $refund->save();
 
             // Log the status change
@@ -456,7 +457,7 @@ class RefundService
             $refund->status = RefundStatus::Processed;
             $refund->stripe_refund_id = $stripeRefundId;
             $refund->processed_at = now();
-            $refund->processed_by = Auth::id();
+            $refund->processed_by = (int) Auth::id();
             $refund->save();
 
             // Log the status change
@@ -619,7 +620,7 @@ class RefundService
         }
 
         // Calculate total refunded amount for this payment
-        $totalRefunded = Refund::where('payment_id', $payment->id)
+        $totalRefunded = (string) Refund::where('payment_id', $payment->id)
             ->where('status', RefundStatus::Processed)
             ->sum('amount');
 
@@ -627,7 +628,7 @@ class RefundService
         $totalApplied = $payment->getTotalAppliedAmount();
 
         // If fully refunded, update payment status
-        if (bccomp($totalRefunded, $totalApplied, 2) >= 0) {
+        if (DecimalMath::comp($totalRefunded, $totalApplied, 2) >= 0) {
             $payment->status = PaymentStatus::Refunded;
             $payment->save();
 
@@ -716,7 +717,7 @@ class RefundService
      */
     public function getTotalRefundedForInvoice(Invoice $invoice): string
     {
-        return Refund::where('invoice_id', $invoice->id)
+        return (string) Refund::where('invoice_id', $invoice->id)
             ->where('status', RefundStatus::Processed)
             ->sum('amount');
     }
@@ -726,7 +727,7 @@ class RefundService
      */
     public function getTotalRefundedForPayment(Payment $payment): string
     {
-        return Refund::where('payment_id', $payment->id)
+        return (string) Refund::where('payment_id', $payment->id)
             ->where('status', RefundStatus::Processed)
             ->sum('amount');
     }
@@ -784,7 +785,7 @@ class RefundService
         }
 
         // Convert amount from cents to currency units
-        $amount = bcdiv((string) $stripeRefundData['amount'], '100', 2);
+        $amount = DecimalMath::div((string) $stripeRefundData['amount'], '100', 2);
         $currency = strtoupper($stripeRefundData['currency']);
 
         // Determine reason from Stripe data or use default
@@ -818,7 +819,7 @@ class RefundService
         }
 
         // Determine refund type based on amount
-        $isFullRefund = bccomp($amount, $invoicePayment->amount_applied, 2) >= 0;
+        $isFullRefund = DecimalMath::comp($amount, $invoicePayment->amount_applied, 2) >= 0;
         $refundType = $isFullRefund ? RefundType::Full : RefundType::Partial;
 
         return DB::transaction(function () use (

@@ -21,6 +21,7 @@ use App\Services\Finance\InvoiceMailService;
 use App\Services\Finance\InvoicePdfService;
 use App\Services\Finance\InvoiceService;
 use App\Services\Finance\PaymentService;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -247,7 +248,7 @@ class ViewInvoice extends ViewRecord
                                     ->label('Outstanding')
                                     ->getStateUsing(fn (Invoice $record): string => $record->getOutstandingAmount())
                                     ->money(fn (Invoice $record): string => $record->currency)
-                                    ->color(fn (Invoice $record): string => bccomp($record->getOutstandingAmount(), '0', 2) > 0 ? 'warning' : 'success')
+                                    ->color(fn (Invoice $record): string => DecimalMath::comp($record->getOutstandingAmount(), '0', 2) > 0 ? 'warning' : 'success')
                                     ->weight(FontWeight::Bold),
                             ]),
                     ]),
@@ -830,8 +831,8 @@ class ViewInvoice extends ViewRecord
             $lines[] = '<strong>Additional Metadata:</strong>';
             $lines[] = '<div class="mt-2 bg-gray-50 p-3 rounded-lg text-sm font-mono">';
             foreach ($subscription->metadata as $key => $value) {
-                $displayValue = is_array($value) ? json_encode($value) : (string) $value;
-                $lines[] = '<div><span class="text-gray-600">'.$key.':</span> '.e($displayValue).'</div>';
+                $displayValue = is_array($value) ? (string) json_encode($value) : (string) $value;
+                $lines[] = '<div><span class="text-gray-600">'.$key.':</span> '.(string) e($displayValue).'</div>';
             }
             $lines[] = '</div>';
         }
@@ -843,9 +844,9 @@ class ViewInvoice extends ViewRecord
             $lines[] = '<strong>Invoice Line Metadata (Billing Period Details):</strong>';
             $lines[] = '<div class="mt-2 bg-blue-50 p-3 rounded-lg text-sm font-mono">';
             foreach ($firstLine->metadata as $key => $value) {
-                $displayValue = is_array($value) ? json_encode($value) : (string) $value;
+                $displayValue = is_array($value) ? (string) json_encode($value) : (string) $value;
                 $displayKey = str_replace('_', ' ', ucfirst($key));
-                $lines[] = '<div><span class="text-blue-600">'.$displayKey.':</span> '.e($displayValue).'</div>';
+                $lines[] = '<div><span class="text-blue-600">'.$displayKey.':</span> '.(string) e($displayValue).'</div>';
             }
             $lines[] = '</div>';
         }
@@ -1167,7 +1168,7 @@ class ViewInvoice extends ViewRecord
             $description = $rateData['description'];
 
             // Determine badge color based on rate
-            $badgeColor = bccomp($rate, '0', 2) === 0 ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800';
+            $badgeColor = DecimalMath::comp($rate, '0', 2) === 0 ? 'bg-gray-100 text-gray-800' : 'bg-blue-100 text-blue-800';
 
             $lines[] = '<tr>';
             $lines[] = '<td class="px-4 py-2 text-sm">';
@@ -1392,7 +1393,7 @@ class ViewInvoice extends ViewRecord
                         invoice: $this->getInvoice(),
                         customSubject: $data['custom_subject'] ?? null,
                         customMessage: $data['custom_message'] ?? null,
-                        sentBy: auth()->id()
+                        sentBy: (int) auth()->id()
                     );
 
                     $invoice = $this->getInvoice();
@@ -1506,8 +1507,8 @@ class ViewInvoice extends ViewRecord
                         $amount = $get('amount');
                         $outstanding = $this->getInvoice()->getOutstandingAmount();
 
-                        if ($amount !== null && bccomp((string) $amount, $outstanding, 2) < 0) {
-                            $remaining = bcsub($outstanding, (string) $amount, 2);
+                        if ($amount !== null && DecimalMath::comp((string) $amount, $outstanding, 2) < 0) {
+                            $remaining = DecimalMath::sub($outstanding, (string) $amount, 2);
                             $currency = $this->getInvoice()->currency;
 
                             return new HtmlString(
@@ -1521,7 +1522,7 @@ class ViewInvoice extends ViewRecord
                         return '';
                     })
                     ->visible(fn (Get $get): bool => $get('amount') !== null
-                        && bccomp((string) $get('amount'), $this->getInvoice()->getOutstandingAmount(), 2) < 0),
+                        && DecimalMath::comp((string) $get('amount'), $this->getInvoice()->getOutstandingAmount(), 2) < 0),
             ])
             ->requiresConfirmation()
             ->modalHeading('Record Bank Payment')
@@ -1549,7 +1550,9 @@ class ViewInvoice extends ViewRecord
                     $paymentService->markReconciled($payment, ReconciliationStatus::Matched);
 
                     // Refresh the record to show updated amounts
-                    $this->record->refresh();
+                    /** @var \App\Models\Finance\Invoice $record */
+                    $record = $this->record;
+                    $record->refresh();
 
                     Notification::make()
                         ->title('Bank Payment Recorded')
@@ -1614,7 +1617,7 @@ class ViewInvoice extends ViewRecord
 
                 // Validate amount is positive and <= invoice total
                 $amount = (string) $data['amount'];
-                if (bccomp($amount, '0', 2) <= 0) {
+                if (DecimalMath::comp($amount, '0', 2) <= 0) {
                     Notification::make()
                         ->title('Invalid Amount')
                         ->body('Credit note amount must be greater than zero.')
@@ -1624,7 +1627,7 @@ class ViewInvoice extends ViewRecord
                     return;
                 }
 
-                if (bccomp($amount, $invoice->total_amount, 2) > 0) {
+                if (DecimalMath::comp($amount, $invoice->total_amount, 2) > 0) {
                     Notification::make()
                         ->title('Invalid Amount')
                         ->body("Credit note amount cannot exceed invoice total of {$invoice->currency} {$invoice->total_amount}.")
@@ -1869,7 +1872,7 @@ class ViewInvoice extends ViewRecord
                     : (string) $data['amount'];
 
                 // Validate amount doesn't exceed payment applied amount
-                if (bccomp($amount, $invoicePayment->amount_applied, 2) > 0) {
+                if (DecimalMath::comp($amount, $invoicePayment->amount_applied, 2) > 0) {
                     Notification::make()
                         ->title('Invalid Amount')
                         ->body("Refund amount cannot exceed the payment applied amount of {$invoice->currency} {$invoicePayment->amount_applied}.")

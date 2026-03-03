@@ -216,6 +216,7 @@ class CommittedInventoryOverride extends Page implements HasForms
                                             }
 
                                             $inventoryService = app(InventoryService::class);
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('<p class="text-gray-500">Location not found.</p>');
@@ -275,6 +276,7 @@ class CommittedInventoryOverride extends Page implements HasForms
                                             }
 
                                             $inventoryService = app(InventoryService::class);
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return [];
@@ -389,6 +391,7 @@ class CommittedInventoryOverride extends Page implements HasForms
                                             $reason = $get('consumption_reason') ?? '';
                                             $eventRef = $get('event_reference') ?? '';
 
+                                            /** @var Location|null $location */
                                             $location = $locationId ? Location::find($locationId) : null;
                                             $locationName = $location ? "{$location->name} ({$location->country})" : 'Not selected';
                                             $bottleCount = count($bottles);

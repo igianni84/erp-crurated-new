@@ -45,6 +45,7 @@ class CustomerVoucherCountTool extends BaseTool implements Tool
         $customer = null;
 
         if ($customerId !== null) {
+            /** @var Customer|null $customer */
             $customer = Customer::with('party')->find($customerId);
             if ($customer === null) {
                 return (string) json_encode(['error' => "No customer found with ID '{$customerId}'."]);

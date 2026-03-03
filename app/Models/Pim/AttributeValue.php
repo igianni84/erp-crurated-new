@@ -94,13 +94,13 @@ class AttributeValue extends Model
     {
         $definition = $this->attributeDefinition;
         if ($definition === null) {
-            $this->value = is_array($value) ? json_encode($value) : (string) $value;
+            $this->value = is_array($value) ? (json_encode($value) ?: null) : (string) $value;
 
             return;
         }
 
         $this->value = match ($definition->type) {
-            'json', 'multiselect' => is_array($value) ? json_encode($value) : $value,
+            'json', 'multiselect' => is_array($value) ? (json_encode($value) ?: null) : $value,
             'boolean' => $value ? '1' : '0',
             'number' => $value !== null && $value !== '' ? (string) $value : null,
             default => $value !== '' ? (string) $value : null,

@@ -2,6 +2,7 @@
 
 namespace App\Services\Finance;
 
+use App\Support\DecimalMath;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -184,7 +185,7 @@ class ShippingTaxService
 
         // Check de minimis threshold
         $deMinimisThreshold = $this->getDeMinimisThreshold($destinationCountry, $currency);
-        if ($deMinimisThreshold !== null && bccomp($shipmentValue, $deMinimisThreshold, 2) <= 0) {
+        if ($deMinimisThreshold !== null && DecimalMath::comp($shipmentValue, $deMinimisThreshold, 2) <= 0) {
             return [
                 'duties_applicable' => false,
                 'estimated_duty_rate' => '0.00',
@@ -198,7 +199,7 @@ class ShippingTaxService
 
         // Calculate estimated duties
         $dutyRate = $this->getEstimatedDutyRate($destinationCountry, $productCategories);
-        $dutyAmount = bcmul($shipmentValue, bcdiv($dutyRate, '100', 6), 2);
+        $dutyAmount = DecimalMath::mul($shipmentValue, DecimalMath::div($dutyRate, '100', 6), 2);
 
         Log::channel('finance')->debug('Calculated customs duties', [
             'origin_country' => $originCountry,
@@ -243,18 +244,18 @@ class ShippingTaxService
         $hasDuties = false;
 
         foreach ($invoiceLines as $line) {
-            $lineSubtotal = bcmul($line['quantity'], $line['unit_price'], 2);
+            $lineSubtotal = DecimalMath::mul($line['quantity'], $line['unit_price'], 2);
             $lineTax = $line['tax_amount'];
             $taxRate = $line['tax_rate'];
 
-            $totalSubtotal = bcadd($totalSubtotal, $lineSubtotal, 2);
-            $totalTax = bcadd($totalTax, $lineTax, 2);
+            $totalSubtotal = DecimalMath::add($totalSubtotal, $lineSubtotal, 2);
+            $totalTax = DecimalMath::add($totalTax, $lineTax, 2);
 
             // Check for duty lines
             $lineType = $line['metadata']['line_type'] ?? null;
             if ($lineType === 'duties') {
                 $hasDuties = true;
-                $dutyAmount = bcadd($dutyAmount, $lineSubtotal, 2);
+                $dutyAmount = DecimalMath::add($dutyAmount, $lineSubtotal, 2);
             }
 
             // Group by tax rate
@@ -269,13 +270,13 @@ class ShippingTaxService
                 ];
             }
 
-            $taxBreakdown[$rateKey]['taxable_amount'] = bcadd($taxBreakdown[$rateKey]['taxable_amount'], $lineSubtotal, 2);
-            $taxBreakdown[$rateKey]['tax_amount'] = bcadd($taxBreakdown[$rateKey]['tax_amount'], $lineTax, 2);
+            $taxBreakdown[$rateKey]['taxable_amount'] = DecimalMath::add($taxBreakdown[$rateKey]['taxable_amount'], $lineSubtotal, 2);
+            $taxBreakdown[$rateKey]['tax_amount'] = DecimalMath::add($taxBreakdown[$rateKey]['tax_amount'], $lineTax, 2);
             $taxBreakdown[$rateKey]['line_count']++;
         }
 
         // Sort by tax rate (highest first)
-        uasort($taxBreakdown, fn (array $a, array $b): int => bccomp($b['rate'], $a['rate'], 2));
+        uasort($taxBreakdown, fn (array $a, array $b): int => DecimalMath::comp($b['rate'], $a['rate'], 2));
 
         $isCrossBorder = $originCountry !== null && $destinationCountry !== null && $originCountry !== $destinationCountry;
 
@@ -502,7 +503,7 @@ class ShippingTaxService
      */
     protected function getTaxRateDescription(string $taxRate): string
     {
-        if (bccomp($taxRate, '0', 2) === 0) {
+        if (DecimalMath::comp($taxRate, '0', 2) === 0) {
             return 'Zero-rated (0%)';
         }
 

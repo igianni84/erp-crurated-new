@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Finance;
 
 use App\Enums\Finance\InvoiceType;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -218,7 +219,7 @@ class EventToInvoiceTraceabilityReport extends Page
             $paymentReferences = [];
 
             foreach ($payments as $invoicePayment) {
-                $totalPaid = bcadd($totalPaid, $invoicePayment->amount_applied, 2);
+                $totalPaid = DecimalMath::add($totalPaid, $invoicePayment->amount_applied, 2);
                 $payment = $invoicePayment->payment;
                 if ($payment !== null) {
                     $paymentReferences[] = [
@@ -361,9 +362,9 @@ class EventToInvoiceTraceabilityReport extends Page
         $noInvoice = 0;
 
         foreach ($data as $record) {
-            $totalInvoiced = bcadd($totalInvoiced, $record['invoice_amount'], 2);
-            $totalPaid = bcadd($totalPaid, $record['total_paid'], 2);
-            $totalOutstanding = bcadd($totalOutstanding, $record['outstanding'], 2);
+            $totalInvoiced = DecimalMath::add($totalInvoiced, $record['invoice_amount'], 2);
+            $totalPaid = DecimalMath::add($totalPaid, $record['total_paid'], 2);
+            $totalOutstanding = DecimalMath::add($totalOutstanding, $record['outstanding'], 2);
 
             match ($record['traceability_status']) {
                 'complete' => $complete++,
@@ -422,9 +423,9 @@ class EventToInvoiceTraceabilityReport extends Page
             }
 
             $breakdown[$sourceType]['count']++;
-            $breakdown[$sourceType]['invoiced'] = bcadd($breakdown[$sourceType]['invoiced'], $record['invoice_amount'], 2);
-            $breakdown[$sourceType]['paid'] = bcadd($breakdown[$sourceType]['paid'], $record['total_paid'], 2);
-            $breakdown[$sourceType]['outstanding'] = bcadd($breakdown[$sourceType]['outstanding'], $record['outstanding'], 2);
+            $breakdown[$sourceType]['invoiced'] = DecimalMath::add($breakdown[$sourceType]['invoiced'], $record['invoice_amount'], 2);
+            $breakdown[$sourceType]['paid'] = DecimalMath::add($breakdown[$sourceType]['paid'], $record['total_paid'], 2);
+            $breakdown[$sourceType]['outstanding'] = DecimalMath::add($breakdown[$sourceType]['outstanding'], $record['outstanding'], 2);
 
             if ($record['traceability_status'] === 'complete') {
                 $breakdown[$sourceType]['complete']++;

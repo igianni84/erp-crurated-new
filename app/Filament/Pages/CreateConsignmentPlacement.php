@@ -135,6 +135,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                                 return new HtmlString('');
                                             }
 
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('');
@@ -369,6 +370,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                                 return new HtmlString('');
                                             }
 
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('');
@@ -421,7 +423,9 @@ class CreateConsignmentPlacement extends Page implements HasForms
                                             $cases = $get('selected_cases') ?? [];
                                             $reason = $get('reason') ?? '';
 
+                                            /** @var Location|null $source */
                                             $source = $sourceId ? Location::find($sourceId) : null;
+                                            /** @var Location|null $dest */
                                             $dest = $destId ? Location::find($destId) : null;
 
                                             $sourceName = $source ? "{$source->name} ({$source->country})" : 'Not selected';
@@ -561,6 +565,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
             return;
         }
 
+        /** @var Location|null $consigneeLocation */
         $consigneeLocation = Location::find($consigneeLocationId);
         if (! $consigneeLocation) {
             Notification::make()
@@ -594,6 +599,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                 // Place individual bottles in consignment
                 foreach ($selectedBottles as $bottleId) {
                     try {
+                        /** @var SerializedBottle|null $bottle */
                         $bottle = SerializedBottle::find($bottleId);
                         if ($bottle) {
                             $movement = $movementService->placeBottleInConsignment($bottle, $consigneeLocation, $user, $reason);
@@ -608,6 +614,7 @@ class CreateConsignmentPlacement extends Page implements HasForms
                 // Place cases in consignment (with contained bottles)
                 foreach ($selectedCases as $caseId) {
                     try {
+                        /** @var InventoryCase|null $case */
                         $case = InventoryCase::find($caseId);
                         if ($case) {
                             $movement = $movementService->placeCaseInConsignment($case, $consigneeLocation, $user, $reason);

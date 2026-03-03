@@ -7,6 +7,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Models\AuditLog;
 use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -43,7 +44,7 @@ class CreditNoteService
         }
 
         // Validate amount is positive
-        if (bccomp($amount, '0', 2) <= 0) {
+        if (DecimalMath::comp($amount, '0', 2) <= 0) {
             throw new InvalidArgumentException(
                 'Cannot create credit note: amount must be greater than zero.'
             );
@@ -51,7 +52,7 @@ class CreditNoteService
 
         // Validate amount doesn't exceed invoice outstanding
         $outstanding = $this->getInvoiceOutstanding($invoice);
-        if (bccomp($amount, $outstanding, 2) > 0) {
+        if (DecimalMath::comp($amount, $outstanding, 2) > 0) {
             throw new InvalidArgumentException(
                 "Cannot create credit note: amount ({$amount}) exceeds invoice outstanding balance ({$outstanding})."
             );
@@ -133,7 +134,7 @@ class CreditNoteService
             $creditNote->credit_note_number = $creditNoteNumber;
             $creditNote->status = CreditNoteStatus::Issued;
             $creditNote->issued_at = now();
-            $creditNote->issued_by = Auth::id();
+            $creditNote->issued_by = (int) Auth::id();
             $creditNote->save();
 
             // Log the issuance
@@ -278,7 +279,7 @@ class CreditNoteService
         $totalCredited = $this->getTotalCreditedAmount($invoice);
 
         // Check if fully credited
-        if (bccomp($totalCredited, $invoice->total_amount, 2) >= 0) {
+        if (DecimalMath::comp($totalCredited, $invoice->total_amount, 2) >= 0) {
             $oldStatus = $invoice->status;
             $invoice->status = InvoiceStatus::Credited;
             $invoice->save();
@@ -314,7 +315,7 @@ class CreditNoteService
      */
     public function getTotalCreditedAmount(Invoice $invoice): string
     {
-        return CreditNote::where('invoice_id', $invoice->id)
+        return (string) CreditNote::where('invoice_id', $invoice->id)
             ->whereIn('status', [CreditNoteStatus::Issued, CreditNoteStatus::Applied])
             ->sum('amount');
     }
@@ -325,11 +326,11 @@ class CreditNoteService
     public function getInvoiceOutstanding(Invoice $invoice): string
     {
         $totalCredited = $this->getTotalCreditedAmount($invoice);
-        $outstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-        $outstanding = bcsub($outstanding, $totalCredited, 2);
+        $outstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+        $outstanding = DecimalMath::sub($outstanding, $totalCredited, 2);
 
         // Don't return negative outstanding
-        if (bccomp($outstanding, '0', 2) < 0) {
+        if (DecimalMath::comp($outstanding, '0', 2) < 0) {
             return '0.00';
         }
 

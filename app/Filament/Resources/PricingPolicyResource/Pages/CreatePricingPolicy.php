@@ -369,6 +369,7 @@ class CreatePricingPolicy extends CreateRecord
                                     return new HtmlString('<p class="text-gray-500">Select a Price Book to see its details.</p>');
                                 }
 
+                                /** @var PriceBook|null $pb */
                                 $pb = PriceBook::withCount('entries')->find($id);
                                 if (! $pb) {
                                     return new HtmlString('<p class="text-red-500">Price Book not found.</p>');
@@ -1194,6 +1195,7 @@ class CreatePricingPolicy extends CreateRecord
                                     return new HtmlString('<p class="text-gray-500">Select a Price Book to see its details.</p>');
                                 }
 
+                                /** @var PriceBook|null $pb */
                                 $pb = PriceBook::withCount('entries')->with('channel')->find($id);
                                 if (! $pb) {
                                     return new HtmlString('<p class="text-red-500">Price Book not found.</p>');
@@ -1882,6 +1884,7 @@ class CreatePricingPolicy extends CreateRecord
                                     case PricingPolicyType::ReferencePriceBook:
                                         $pbId = $get('source_price_book_id');
                                         if ($pbId) {
+                                            /** @var PriceBook|null $pb */
                                             $pb = PriceBook::find($pbId);
                                             $items[] = ['label' => 'Reference Price Book', 'value' => $pb ? $pb->name : 'Unknown'];
                                         }
@@ -1969,6 +1972,7 @@ class CreatePricingPolicy extends CreateRecord
                                     return new HtmlString('<span class="text-gray-500">Not specified</span>');
                                 }
 
+                                /** @var PriceBook|null $pb */
                                 $pb = PriceBook::withCount('entries')->find($pbId);
                                 if (! $pb) {
                                     return new HtmlString('<span class="text-red-500">Price Book not found</span>');

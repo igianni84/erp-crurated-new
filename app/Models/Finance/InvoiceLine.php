@@ -6,6 +6,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\ServiceFeeType;
 use App\Models\Pim\SellableSku;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -167,9 +168,9 @@ class InvoiceLine extends Model
      */
     public function calculateLineTotal(): string
     {
-        $subtotal = bcmul($this->quantity ?? '0', $this->unit_price ?? '0', 2);
+        $subtotal = DecimalMath::mul($this->quantity ?? '0', $this->unit_price ?? '0', 2);
 
-        return bcadd($subtotal, $this->tax_amount ?? '0', 2);
+        return DecimalMath::add($subtotal, $this->tax_amount ?? '0', 2);
     }
 
     /**
@@ -177,7 +178,7 @@ class InvoiceLine extends Model
      */
     public function getSubtotal(): string
     {
-        return bcmul($this->quantity ?? '0', $this->unit_price ?? '0', 2);
+        return DecimalMath::mul($this->quantity ?? '0', $this->unit_price ?? '0', 2);
     }
 
     /**
@@ -187,9 +188,9 @@ class InvoiceLine extends Model
     public function calculateTaxAmount(): string
     {
         $subtotal = $this->getSubtotal();
-        $taxRate = bcdiv($this->tax_rate ?? '0', '100', 4);
+        $taxRate = DecimalMath::div($this->tax_rate ?? '0', '100', 4);
 
-        return bcmul($subtotal, $taxRate, 2);
+        return DecimalMath::mul($subtotal, $taxRate, 2);
     }
 
     /**

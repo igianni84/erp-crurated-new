@@ -164,6 +164,7 @@ class PriceSimulation extends Page implements HasForms
                                     return new HtmlString('');
                                 }
 
+                                /** @var SellableSku|null $sku */
                                 $sku = SellableSku::with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])
                                     ->find($skuId);
                                 if ($sku === null) {
@@ -279,6 +280,7 @@ class PriceSimulation extends Page implements HasForms
         $quantity = (int) ($data['quantity'] ?? 1);
 
         // Load entities with relationships
+        /** @var SellableSku|null $sku */
         $sku = $skuId !== null
             ? SellableSku::with([
                 'wineVariant.wineMaster',
@@ -287,7 +289,9 @@ class PriceSimulation extends Page implements HasForms
                 'estimatedMarketPrices',
             ])->find($skuId)
             : null;
+        /** @var Channel|null $channel */
         $channel = $channelId !== null ? Channel::find($channelId) : null;
+        /** @var Customer|null $customer */
         $customer = $customerId !== null ? Customer::find($customerId) : null;
 
         // Validate required inputs

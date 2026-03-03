@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Finance;
 use App\Enums\Finance\InvoiceStatus;
 use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -218,15 +219,15 @@ class InvoiceAgingReport extends Page
                 ];
             }
 
-            $outstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
+            $outstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
             $bucket = $this->getAgingBucket($invoice, $reportDate);
 
-            $agingByCustomer[$customerId][$bucket] = bcadd(
+            $agingByCustomer[$customerId][$bucket] = DecimalMath::add(
                 $agingByCustomer[$customerId][$bucket],
                 $outstanding,
                 2
             );
-            $agingByCustomer[$customerId]['total'] = bcadd(
+            $agingByCustomer[$customerId]['total'] = DecimalMath::add(
                 $agingByCustomer[$customerId]['total'],
                 $outstanding,
                 2
@@ -235,7 +236,7 @@ class InvoiceAgingReport extends Page
 
         // Sort by total outstanding (highest first)
         uasort($agingByCustomer, function (array $a, array $b): int {
-            return bccomp($b['total'], $a['total'], 2);
+            return DecimalMath::comp($b['total'], $a['total'], 2);
         });
 
         $this->agingDataCache = collect(array_values($agingByCustomer));
@@ -273,12 +274,12 @@ class InvoiceAgingReport extends Page
         ];
 
         foreach ($agingData as $row) {
-            $summary['current'] = bcadd($summary['current'], $row['current'], 2);
-            $summary['days_1_30'] = bcadd($summary['days_1_30'], $row['days_1_30'], 2);
-            $summary['days_31_60'] = bcadd($summary['days_31_60'], $row['days_31_60'], 2);
-            $summary['days_61_90'] = bcadd($summary['days_61_90'], $row['days_61_90'], 2);
-            $summary['days_90_plus'] = bcadd($summary['days_90_plus'], $row['days_90_plus'], 2);
-            $summary['total'] = bcadd($summary['total'], $row['total'], 2);
+            $summary['current'] = DecimalMath::add($summary['current'], $row['current'], 2);
+            $summary['days_1_30'] = DecimalMath::add($summary['days_1_30'], $row['days_1_30'], 2);
+            $summary['days_31_60'] = DecimalMath::add($summary['days_31_60'], $row['days_31_60'], 2);
+            $summary['days_61_90'] = DecimalMath::add($summary['days_61_90'], $row['days_61_90'], 2);
+            $summary['days_90_plus'] = DecimalMath::add($summary['days_90_plus'], $row['days_90_plus'], 2);
+            $summary['total'] = DecimalMath::add($summary['total'], $row['total'], 2);
         }
 
         // Count invoices
@@ -412,7 +413,7 @@ class InvoiceAgingReport extends Page
     {
         $summary = $this->getAgingSummary();
 
-        if (bccomp($summary['total'], '0', 2) === 0) {
+        if (DecimalMath::comp($summary['total'], '0', 2) === 0) {
             return [
                 'current' => 0,
                 'days_1_30' => 0,
@@ -423,11 +424,11 @@ class InvoiceAgingReport extends Page
         }
 
         return [
-            'current' => (float) bcdiv(bcmul($summary['current'], '100', 2), $summary['total'], 1),
-            'days_1_30' => (float) bcdiv(bcmul($summary['days_1_30'], '100', 2), $summary['total'], 1),
-            'days_31_60' => (float) bcdiv(bcmul($summary['days_31_60'], '100', 2), $summary['total'], 1),
-            'days_61_90' => (float) bcdiv(bcmul($summary['days_61_90'], '100', 2), $summary['total'], 1),
-            'days_90_plus' => (float) bcdiv(bcmul($summary['days_90_plus'], '100', 2), $summary['total'], 1),
+            'current' => (float) DecimalMath::div(DecimalMath::mul($summary['current'], '100', 2), $summary['total'], 1),
+            'days_1_30' => (float) DecimalMath::div(DecimalMath::mul($summary['days_1_30'], '100', 2), $summary['total'], 1),
+            'days_31_60' => (float) DecimalMath::div(DecimalMath::mul($summary['days_31_60'], '100', 2), $summary['total'], 1),
+            'days_61_90' => (float) DecimalMath::div(DecimalMath::mul($summary['days_61_90'], '100', 2), $summary['total'], 1),
+            'days_90_plus' => (float) DecimalMath::div(DecimalMath::mul($summary['days_90_plus'], '100', 2), $summary['total'], 1),
         ];
     }
 

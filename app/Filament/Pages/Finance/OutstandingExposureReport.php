@@ -6,6 +6,7 @@ use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -195,16 +196,16 @@ class OutstandingExposureReport extends Page
                 $overdue = '0.00';
 
                 foreach ($invoices as $invoice) {
-                    $invoiceOutstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-                    $outstanding = bcadd($outstanding, $invoiceOutstanding, 2);
+                    $invoiceOutstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+                    $outstanding = DecimalMath::add($outstanding, $invoiceOutstanding, 2);
 
                     if ($invoice->due_date !== null && $invoice->due_date->lt(now()->startOfDay())) {
-                        $overdue = bcadd($overdue, $invoiceOutstanding, 2);
+                        $overdue = DecimalMath::add($overdue, $invoiceOutstanding, 2);
                     }
                 }
 
-                $percentage = bccomp($totalOutstanding, '0', 2) !== 0
-                    ? (float) bcdiv(bcmul($outstanding, '100', 2), $totalOutstanding, 1)
+                $percentage = DecimalMath::comp($totalOutstanding, '0', 2) !== 0
+                    ? (float) DecimalMath::div(DecimalMath::mul($outstanding, '100', 2), $totalOutstanding, 1)
                     : 0.0;
 
                 return [
@@ -259,16 +260,16 @@ class OutstandingExposureReport extends Page
             $overdue = '0.00';
 
             foreach ($invoices as $invoice) {
-                $invoiceOutstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-                $outstanding = bcadd($outstanding, $invoiceOutstanding, 2);
+                $invoiceOutstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+                $outstanding = DecimalMath::add($outstanding, $invoiceOutstanding, 2);
 
                 if ($invoice->due_date !== null && $invoice->due_date->lt(now()->startOfDay())) {
-                    $overdue = bcadd($overdue, $invoiceOutstanding, 2);
+                    $overdue = DecimalMath::add($overdue, $invoiceOutstanding, 2);
                 }
             }
 
-            $percentage = bccomp($totalOutstanding, '0', 2) !== 0
-                ? (float) bcdiv(bcmul($outstanding, '100', 2), $totalOutstanding, 1)
+            $percentage = DecimalMath::comp($totalOutstanding, '0', 2) !== 0
+                ? (float) DecimalMath::div(DecimalMath::mul($outstanding, '100', 2), $totalOutstanding, 1)
                 : 0;
 
             $data->push([
@@ -415,11 +416,11 @@ class OutstandingExposureReport extends Page
         $customerCount = $this->getCustomersWithOutstanding();
 
         $averagePerCustomer = $customerCount > 0
-            ? bcdiv($totalOutstanding, (string) $customerCount, 2)
+            ? DecimalMath::div($totalOutstanding, (string) $customerCount, 2)
             : '0.00';
 
-        $overduePercentage = bccomp($totalOutstanding, '0', 2) !== 0
-            ? (float) bcdiv(bcmul($totalOverdue, '100', 2), $totalOutstanding, 1)
+        $overduePercentage = DecimalMath::comp($totalOutstanding, '0', 2) !== 0
+            ? (float) DecimalMath::div(DecimalMath::mul($totalOverdue, '100', 2), $totalOutstanding, 1)
             : 0;
 
         return [

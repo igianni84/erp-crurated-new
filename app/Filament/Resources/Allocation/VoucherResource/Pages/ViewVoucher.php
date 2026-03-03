@@ -343,6 +343,7 @@ class ViewVoucher extends ViewRecord
                             ->toArray();
                     })
                     ->getOptionLabelUsing(function ($value): ?string {
+                        /** @var Customer|null $customer */
                         $customer = Customer::find($value);
 
                         return $customer ? "{$customer->name} ({$customer->email})" : null;
@@ -367,6 +368,7 @@ class ViewVoucher extends ViewRecord
                     /** @var VoucherTransferService $service */
                     $service = app(VoucherTransferService::class);
 
+                    /** @var Customer $toCustomer */
                     $toCustomer = Customer::findOrFail($data['to_customer_id']);
                     $expiresAt = Carbon::parse($data['expires_at'])->endOfDay();
 

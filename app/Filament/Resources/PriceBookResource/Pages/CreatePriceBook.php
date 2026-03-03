@@ -363,6 +363,7 @@ class CreatePriceBook extends CreateRecord
                                     return 'Select a source price book to see preview';
                                 }
 
+                                /** @var PriceBook|null $source */
                                 $source = PriceBook::with('entries')->find($sourceId);
                                 if ($source === null) {
                                     return 'Source price book not found';
@@ -450,6 +451,7 @@ class CreatePriceBook extends CreateRecord
                                     return 'All Channels (channel-agnostic)';
                                 }
 
+                                /** @var Channel|null $channel */
                                 $channel = Channel::find($channelId);
 
                                 return $channel !== null ? $channel->name : 'Unknown';
@@ -496,6 +498,7 @@ class CreatePriceBook extends CreateRecord
                                     return 'N/A';
                                 }
 
+                                /** @var PriceBook|null $source */
                                 $source = PriceBook::find($sourceId);
 
                                 return $source !== null ? $source->name : 'Unknown';
@@ -575,6 +578,7 @@ class CreatePriceBook extends CreateRecord
      */
     protected function cloneEntriesFromSource(PriceBook $target, string $sourceId): void
     {
+        /** @var PriceBook|null $source */
         $source = PriceBook::with('entries')->find($sourceId);
 
         if ($source === null) {

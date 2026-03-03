@@ -2107,6 +2107,7 @@ class ViewCustomer extends ViewRecord
                             ->modalDescription('Create a new club affiliation for this customer.')
                             ->modalSubmitActionLabel('Add Affiliation')
                             ->action(function (array $data) use ($record): void {
+                                /** @var Club|null $club */
                                 $club = Club::find($data['club_id']);
 
                                 $record->clubAffiliations()->create([

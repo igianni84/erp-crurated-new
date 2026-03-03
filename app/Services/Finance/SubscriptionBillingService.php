@@ -6,6 +6,7 @@ use App\Enums\Finance\InvoiceType;
 use App\Events\Finance\SubscriptionBillingDue;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Subscription;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use InvalidArgumentException;
@@ -61,10 +62,10 @@ class SubscriptionBillingService
 
         // Calculate daily rate and pro-rata amount
         // daily_rate = subscription_amount / total_days
-        $dailyRate = bcdiv($subscription->amount, (string) $totalDays, 6);
+        $dailyRate = DecimalMath::div($subscription->amount, (string) $totalDays, 6);
 
         // pro_rata_amount = daily_rate * days_charged
-        $proRataAmount = bcmul($dailyRate, (string) $daysCharged, 2);
+        $proRataAmount = DecimalMath::mul($dailyRate, (string) $daysCharged, 2);
 
         // Build description indicating pro-rata period
         $description = $this->buildProRataDescription(
@@ -173,7 +174,7 @@ class SubscriptionBillingService
         $charge['metadata']['pro_rata_type'] = 'upgrade_charge';
 
         // Calculate net amount (charge - credit)
-        $netAmount = bcsub($charge['amount'], $credit['amount'], 2);
+        $netAmount = DecimalMath::sub($charge['amount'], $credit['amount'], 2);
 
         return [
             'credit' => $credit,

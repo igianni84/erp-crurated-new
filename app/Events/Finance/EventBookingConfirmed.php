@@ -4,6 +4,7 @@ namespace App\Events\Finance;
 
 use App\Enums\Finance\ServiceFeeType;
 use App\Models\Customer\Customer;
+use App\Support\DecimalMath;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
@@ -130,8 +131,8 @@ class EventBookingConfirmed
         $total = '0.00';
 
         foreach ($this->items as $item) {
-            $lineTotal = bcmul((string) $item['quantity'], $item['unit_price'], 2);
-            $total = bcadd($total, $lineTotal, 2);
+            $lineTotal = DecimalMath::mul((string) $item['quantity'], $item['unit_price'], 2);
+            $total = DecimalMath::add($total, $lineTotal, 2);
         }
 
         return $total;
@@ -145,9 +146,9 @@ class EventBookingConfirmed
         $totalTax = '0.00';
 
         foreach ($this->items as $item) {
-            $lineSubtotal = bcmul((string) $item['quantity'], $item['unit_price'], 2);
-            $lineTax = bcmul($lineSubtotal, bcdiv($item['tax_rate'], '100', 6), 2);
-            $totalTax = bcadd($totalTax, $lineTax, 2);
+            $lineSubtotal = DecimalMath::mul((string) $item['quantity'], $item['unit_price'], 2);
+            $lineTax = DecimalMath::mul($lineSubtotal, DecimalMath::div($item['tax_rate'], '100', 6), 2);
+            $totalTax = DecimalMath::add($totalTax, $lineTax, 2);
         }
 
         return $totalTax;

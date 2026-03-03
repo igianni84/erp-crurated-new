@@ -5,6 +5,7 @@ namespace App\Jobs\Finance;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
@@ -82,7 +83,7 @@ class AlertUnpaidImmediateInvoicesJob implements ShouldQueue
 
         // Calculate total outstanding amount
         $totalOutstanding = $unpaidInvoices->reduce(
-            fn (string $carry, Invoice $invoice): string => bcadd($carry, $invoice->getOutstandingAmount(), 2),
+            fn (string $carry, Invoice $invoice): string => DecimalMath::add($carry, $invoice->getOutstandingAmount(), 2),
             '0.00'
         );
 
@@ -94,7 +95,7 @@ class AlertUnpaidImmediateInvoicesJob implements ShouldQueue
             'breakdown_by_type' => $groupedByType->map(fn ($invoices) => [
                 'count' => $invoices->count(),
                 'total_outstanding' => $invoices->reduce(
-                    fn (string $carry, Invoice $inv): string => bcadd($carry, $inv->getOutstandingAmount(), 2),
+                    fn (string $carry, Invoice $inv): string => DecimalMath::add($carry, $inv->getOutstandingAmount(), 2),
                     '0.00'
                 ),
             ])->toArray(),

@@ -203,12 +203,13 @@ class WmsIntegrationService
                 $validation = $this->validateSerial($serialNumber, $line);
 
                 if (! $validation['valid']) {
+                    $errorMessage = $validation['error'] ?? 'Unknown validation error';
                     $discrepancyCount++;
                     $details[] = [
                         'line_id' => $lineId,
                         'serial' => $serialNumber,
                         'status' => 'invalid',
-                        'error' => $validation['error'],
+                        'error' => $errorMessage,
                     ];
 
                     // Create discrepancy exception
@@ -217,7 +218,7 @@ class WmsIntegrationService
                         'line_id' => $lineId,
                         'serial_number' => $serialNumber,
                         'expected_allocation' => $line->allocation_id,
-                        'error' => $validation['error'],
+                        'error' => $errorMessage,
                     ], $so);
 
                     continue;

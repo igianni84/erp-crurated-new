@@ -214,6 +214,7 @@ class EditWineVariant extends EditRecord
                 $mediaId = $item['id'];
                 $existingIds[] = $mediaId;
 
+                /** @var ProductMedia|null $media */
                 $media = ProductMedia::find($mediaId);
                 if ($media !== null && $media->wine_variant_id === $record->id) {
                     $media->alt_text = $item['alt_text'] ?? null;
@@ -228,6 +229,7 @@ class EditWineVariant extends EditRecord
             $originalIds = $record->manualMedia()->images()->pluck('id')->toArray();
             $deletedIds = array_diff($originalIds, $existingIds);
             foreach ($deletedIds as $deletedId) {
+                /** @var ProductMedia|null $media */
                 $media = ProductMedia::find($deletedId);
                 if ($media !== null && $media->wine_variant_id === $record->id && $media->source === DataSource::Manual) {
                     $media->delete();

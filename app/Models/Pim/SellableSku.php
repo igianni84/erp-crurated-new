@@ -110,8 +110,11 @@ class SellableSku extends Model
      */
     public function generateSkuCode(): string
     {
+        /** @var WineVariant|null $wineVariant */
         $wineVariant = $this->wineVariant ?? WineVariant::find($this->wine_variant_id);
+        /** @var Format|null $format */
         $format = $this->format ?? Format::find($this->format_id);
+        /** @var CaseConfiguration|null $caseConfig */
         $caseConfig = $this->caseConfiguration ?? CaseConfiguration::find($this->case_configuration_id);
 
         if (! $wineVariant || ! $format || ! $caseConfig) {
@@ -376,9 +379,9 @@ class SellableSku extends Model
     /**
      * Get the component SKUs for this composite.
      *
-     * @return Collection<int, SellableSku>
+     * @return \Illuminate\Support\Collection<int|string, mixed>
      */
-    public function getComponentSkus(): Collection
+    public function getComponentSkus(): \Illuminate\Support\Collection
     {
         if (! $this->isComposite()) {
             return new Collection;
@@ -419,9 +422,9 @@ class SellableSku extends Model
     /**
      * Get inactive component SKUs.
      *
-     * @return Collection<int, SellableSku>
+     * @return \Illuminate\Support\Collection<int|string, mixed>
      */
-    public function getInactiveComponents(): Collection
+    public function getInactiveComponents(): \Illuminate\Support\Collection
     {
         if (! $this->isComposite()) {
             return new Collection;

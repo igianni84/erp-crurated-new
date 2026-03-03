@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Finance;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
@@ -261,9 +262,9 @@ class RevenueByTypeReport extends Page
             $outstandingInvoices = $outstandingQuery->get();
             $outstandingAmount = '0.00';
             foreach ($outstandingInvoices as $invoice) {
-                $outstandingAmount = bcadd(
+                $outstandingAmount = DecimalMath::add(
                     $outstandingAmount,
-                    bcsub($invoice->total_amount, $invoice->amount_paid, 2),
+                    DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2),
                     2
                 );
             }
@@ -315,11 +316,11 @@ class RevenueByTypeReport extends Page
 
         foreach ($data as $row) {
             $summary['total_issued_count'] += $row['issued_count'];
-            $summary['total_issued_amount'] = bcadd($summary['total_issued_amount'], $row['issued_amount'], 2);
+            $summary['total_issued_amount'] = DecimalMath::add($summary['total_issued_amount'], $row['issued_amount'], 2);
             $summary['total_paid_count'] += $row['paid_count'];
-            $summary['total_paid_amount'] = bcadd($summary['total_paid_amount'], $row['paid_amount'], 2);
+            $summary['total_paid_amount'] = DecimalMath::add($summary['total_paid_amount'], $row['paid_amount'], 2);
             $summary['total_outstanding_count'] += $row['outstanding_count'];
-            $summary['total_outstanding_amount'] = bcadd($summary['total_outstanding_amount'], $row['outstanding_amount'], 2);
+            $summary['total_outstanding_amount'] = DecimalMath::add($summary['total_outstanding_amount'], $row['outstanding_amount'], 2);
         }
 
         return $summary;
@@ -391,7 +392,7 @@ class RevenueByTypeReport extends Page
 
         $percentages = [];
 
-        if (bccomp($summary['total_issued_amount'], '0', 2) === 0) {
+        if (DecimalMath::comp($summary['total_issued_amount'], '0', 2) === 0) {
             foreach ($data as $row) {
                 $percentages[$row['code']] = 0;
             }
@@ -400,8 +401,8 @@ class RevenueByTypeReport extends Page
         }
 
         foreach ($data as $row) {
-            $percentages[$row['code']] = (float) bcdiv(
-                bcmul($row['issued_amount'], '100', 2),
+            $percentages[$row['code']] = (float) DecimalMath::div(
+                DecimalMath::mul($row['issued_amount'], '100', 2),
                 $summary['total_issued_amount'],
                 1
             );

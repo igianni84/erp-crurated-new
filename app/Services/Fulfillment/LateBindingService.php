@@ -249,7 +249,7 @@ class LateBindingService
             // Bind the line
             $line->bound_bottle_serial = $serialNumber;
             $line->binding_confirmed_at = now();
-            $line->binding_confirmed_by = Auth::id();
+            $line->binding_confirmed_by = (int) Auth::id();
 
             // If bottle is in a case, record the case_id
             if ($bottle->case_id !== null) {
@@ -585,6 +585,7 @@ class LateBindingService
             $query->where('current_location_id', $warehouseId);
         }
 
+        /** @var list<string> $bottles */
         $bottles = $query->pluck('serial_number')->toArray();
 
         // Check for intact case availability

@@ -207,6 +207,7 @@ class CreateOffer extends CreateRecord
                                     return new HtmlString('');
                                 }
 
+                                /** @var SellableSku|null $sku */
                                 $sku = SellableSku::with([
                                     'wineVariant.wineMaster',
                                     'format',
@@ -318,6 +319,7 @@ class CreateOffer extends CreateRecord
                                 }
 
                                 // Get allowed channels from allocation constraints
+                                /** @var SellableSku|null $sku */
                                 $sku = SellableSku::find($skuId);
                                 if ($sku === null) {
                                     return [];
@@ -362,6 +364,7 @@ class CreateOffer extends CreateRecord
                                     return new HtmlString('');
                                 }
 
+                                /** @var Channel|null $channel */
                                 $channel = Channel::find($channelId);
                                 if ($channel === null) {
                                     return new HtmlString('<div class="text-gray-500">Channel not found</div>');
@@ -409,6 +412,7 @@ class CreateOffer extends CreateRecord
                                     return new HtmlString('<div class="text-gray-500">Select a SKU to see allocation constraints</div>');
                                 }
 
+                                /** @var SellableSku|null $sku */
                                 $sku = SellableSku::find($skuId);
                                 if ($sku === null) {
                                     return new HtmlString('<div class="text-gray-500">SKU not found</div>');
@@ -598,6 +602,7 @@ class CreateOffer extends CreateRecord
             return [];
         }
 
+        /** @var SellableSku|null $sku */
         $sku = SellableSku::find($skuId);
         if ($sku === null) {
             return [];
@@ -631,6 +636,7 @@ class CreateOffer extends CreateRecord
             return [];
         }
 
+        /** @var SellableSku|null $sku */
         $sku = SellableSku::find($skuId);
         if ($sku === null) {
             return [];
@@ -767,6 +773,7 @@ class CreateOffer extends CreateRecord
                                     return new HtmlString('');
                                 }
 
+                                /** @var PriceBook|null $priceBook */
                                 $priceBook = PriceBook::with('channel')->find($priceBookId);
                                 if ($priceBook === null) {
                                     return new HtmlString('<div class="text-gray-500">Price Book not found</div>');
@@ -792,7 +799,9 @@ class CreateOffer extends CreateRecord
                                     return new HtmlString('<div class="text-gray-500">Select a Price Book and SKU to see pricing</div>');
                                 }
 
+                                /** @var PriceBook|null $priceBook */
                                 $priceBook = PriceBook::find($priceBookId);
+                                /** @var SellableSku|null $sku */
                                 $sku = SellableSku::with('estimatedMarketPrices')->find($skuId);
 
                                 if ($priceBook === null || $sku === null) {
@@ -1048,6 +1057,7 @@ class CreateOffer extends CreateRecord
             return '<div class="text-gray-500">Select a Price Book and SKU to see pricing</div>';
         }
 
+        /** @var PriceBook|null $priceBook */
         $priceBook = PriceBook::find($priceBookId);
         if ($priceBook === null) {
             return '<div class="text-gray-500">Price Book not found</div>';
@@ -1831,6 +1841,7 @@ class CreateOffer extends CreateRecord
             return new HtmlString('<div class="text-gray-500">No SKU selected</div>');
         }
 
+        /** @var SellableSku|null $sku */
         $sku = SellableSku::with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])->find($skuId);
         if ($sku === null) {
             return new HtmlString('<div class="text-gray-500">SKU not found</div>');
@@ -1883,6 +1894,7 @@ class CreateOffer extends CreateRecord
             return new HtmlString('<div class="text-gray-500">No channel selected</div>');
         }
 
+        /** @var Channel|null $channel */
         $channel = Channel::find($channelId);
         if ($channel === null) {
             return new HtmlString('<div class="text-gray-500">Channel not found</div>');
@@ -1970,6 +1982,7 @@ class CreateOffer extends CreateRecord
             return new HtmlString('<div class="text-gray-500">No Price Book selected</div>');
         }
 
+        /** @var PriceBook|null $priceBook */
         $priceBook = PriceBook::with('channel')->find($priceBookId);
         if ($priceBook === null) {
             return new HtmlString('<div class="text-gray-500">Price Book not found</div>');
@@ -2324,6 +2337,7 @@ class CreateOffer extends CreateRecord
         // Get the first applicable allocation constraint ID for reference
         $skuId = $data['sellable_sku_id'] ?? null;
         if ($skuId !== null) {
+            /** @var SellableSku|null $sku */
             $sku = SellableSku::find($skuId);
             if ($sku !== null) {
                 $allocations = $this->getActiveAllocationsForSku($sku);

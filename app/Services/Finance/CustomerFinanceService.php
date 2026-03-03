@@ -7,6 +7,7 @@ use App\Enums\Finance\InvoiceType;
 use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
@@ -49,8 +50,8 @@ class CustomerFinanceService
         $totalOutstanding = '0.00';
 
         foreach ($openInvoices as $invoice) {
-            $outstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-            $totalOutstanding = bcadd($totalOutstanding, $outstanding, 2);
+            $outstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+            $totalOutstanding = DecimalMath::add($totalOutstanding, $outstanding, 2);
         }
 
         return $totalOutstanding;
@@ -70,8 +71,8 @@ class CustomerFinanceService
 
         foreach ($openInvoices as $invoice) {
             if ($invoice->isOverdue()) {
-                $outstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-                $overdueAmount = bcadd($overdueAmount, $outstanding, 2);
+                $outstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+                $overdueAmount = DecimalMath::add($overdueAmount, $outstanding, 2);
             }
         }
 
@@ -217,11 +218,11 @@ class CustomerFinanceService
         $overdueCount = 0;
 
         foreach ($openInvoices as $invoice) {
-            $outstanding = bcsub($invoice->total_amount, $invoice->amount_paid, 2);
-            $totalOutstanding = bcadd($totalOutstanding, $outstanding, 2);
+            $outstanding = DecimalMath::sub($invoice->total_amount, $invoice->amount_paid, 2);
+            $totalOutstanding = DecimalMath::add($totalOutstanding, $outstanding, 2);
 
             if ($invoice->isOverdue()) {
-                $overdueAmount = bcadd($overdueAmount, $outstanding, 2);
+                $overdueAmount = DecimalMath::add($overdueAmount, $outstanding, 2);
                 $overdueCount++;
             }
         }

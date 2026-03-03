@@ -515,7 +515,12 @@ class WineVariantResource extends Resource
 
             'select' => Select::make($fieldName)
                 ->label($label)
-                ->options(array_combine($definition->options ?? [], $definition->options ?? []))
+                ->options(function () use ($definition): array {
+                    /** @var list<string> $opts */
+                    $opts = $definition->options ?? [];
+
+                    return array_combine($opts, $opts) ?: [];
+                })
                 ->required($definition->is_required)
                 ->searchable()
                 ->helperText(fn (?WineVariant $record) => self::getAttributeHelperText($record, $definition, $baseHelperText))
@@ -526,7 +531,12 @@ class WineVariantResource extends Resource
 
             'multiselect' => Select::make($fieldName)
                 ->label($label)
-                ->options(array_combine($definition->options ?? [], $definition->options ?? []))
+                ->options(function () use ($definition): array {
+                    /** @var list<string> $opts */
+                    $opts = $definition->options ?? [];
+
+                    return array_combine($opts, $opts) ?: [];
+                })
                 ->multiple()
                 ->required($definition->is_required)
                 ->searchable()

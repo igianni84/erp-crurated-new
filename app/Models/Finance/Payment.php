@@ -7,6 +7,7 @@ use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
@@ -307,7 +308,7 @@ class Payment extends Model
      */
     public function getUnappliedAmount(): string
     {
-        return bcsub($this->amount, $this->getTotalAppliedAmount(), 2);
+        return DecimalMath::sub($this->amount, $this->getTotalAppliedAmount(), 2);
     }
 
     /**
@@ -315,7 +316,7 @@ class Payment extends Model
      */
     public function isFullyApplied(): bool
     {
-        return bccomp($this->getTotalAppliedAmount(), $this->amount, 2) >= 0;
+        return DecimalMath::comp($this->getTotalAppliedAmount(), $this->amount, 2) >= 0;
     }
 
     /**
@@ -323,7 +324,7 @@ class Payment extends Model
      */
     public function hasApplications(): bool
     {
-        return bccomp($this->getTotalAppliedAmount(), '0', 2) > 0;
+        return DecimalMath::comp($this->getTotalAppliedAmount(), '0', 2) > 0;
     }
 
     // =========================================================================

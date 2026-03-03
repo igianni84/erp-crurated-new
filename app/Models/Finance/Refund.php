@@ -7,6 +7,7 @@ use App\Enums\Finance\RefundStatus;
 use App\Enums\Finance\RefundType;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
@@ -205,7 +206,7 @@ class Refund extends Model
             ->first();
 
         if ($invoicePayment !== null) {
-            if (bccomp($this->amount, $invoicePayment->amount_applied, 2) > 0) {
+            if (DecimalMath::comp($this->amount, $invoicePayment->amount_applied, 2) > 0) {
                 throw new InvalidArgumentException(
                     'Refund amount cannot exceed the payment applied amount ('.$invoicePayment->amount_applied.').'
                 );

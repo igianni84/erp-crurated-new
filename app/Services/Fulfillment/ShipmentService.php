@@ -688,7 +688,7 @@ class ShipmentService
             // Break the case
             $case->integrity_status = CaseIntegrityStatus::Broken;
             $case->broken_at = now();
-            $case->broken_by = Auth::id();
+            $case->broken_by = (int) Auth::id();
             $case->broken_reason = "{$reason}: shipping {$caseInfo['shipping_bottles']}/{$caseInfo['total_bottles']} bottles for SO {$so->id}";
             $case->save();
 

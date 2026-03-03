@@ -135,6 +135,7 @@ class EventConsumption extends Page implements HasForms
                                                 return new HtmlString('');
                                             }
 
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('');
@@ -297,6 +298,7 @@ class EventConsumption extends Page implements HasForms
                                     }
 
                                     $inventoryService = app(InventoryService::class);
+                                    /** @var Location|null $location */
                                     $location = Location::find($locationId);
                                     if (! $location) {
                                         return false;
@@ -343,6 +345,7 @@ class EventConsumption extends Page implements HasForms
                                             }
 
                                             $inventoryService = app(InventoryService::class);
+                                            /** @var Location|null $location */
                                             $location = Location::find($locationId);
                                             if (! $location) {
                                                 return new HtmlString('<p class="text-gray-500">Location not found.</p>');
@@ -519,6 +522,7 @@ class EventConsumption extends Page implements HasForms
                                             /** @var array<int, string> $cases */
                                             $cases = $get('selected_cases') ?? [];
 
+                                            /** @var Location|null $location */
                                             $location = $locationId ? Location::find($locationId) : null;
                                             $locationName = $location ? "{$location->name} ({$location->country})" : 'Not selected';
 
@@ -641,6 +645,7 @@ class EventConsumption extends Page implements HasForms
             return;
         }
 
+        /** @var Location|null $eventLocation */
         $eventLocation = Location::find($eventLocationId);
         if (! $eventLocation) {
             Notification::make()
@@ -684,6 +689,7 @@ class EventConsumption extends Page implements HasForms
                 // Consume individual bottles
                 foreach ($selectedBottles as $bottleId) {
                     try {
+                        /** @var SerializedBottle|null $bottle */
                         $bottle = SerializedBottle::find($bottleId);
                         if ($bottle) {
                             // Double-check the bottle can still be consumed (using InventoryService.canConsume())

@@ -7,6 +7,7 @@ use App\Filament\Resources\Finance\CreditNoteResource;
 use App\Models\AuditLog;
 use App\Models\Finance\CreditNote;
 use App\Services\Finance\CreditNoteService;
+use App\Support\DecimalMath;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -604,7 +605,7 @@ class ViewCreditNote extends ViewRecord
         $invoiceTotal = $record->invoice->total_amount;
         $creditAmount = $record->amount;
 
-        return bcsub($invoiceTotal, $creditAmount, 2);
+        return DecimalMath::sub($invoiceTotal, $creditAmount, 2);
     }
 
     /**
@@ -721,9 +722,9 @@ class ViewCreditNote extends ViewRecord
             /** @var CreditNoteService $service */
             $service = app(CreditNoteService::class);
             $totalCredited = $service->getTotalCreditedAmount($invoice);
-            $newTotal = bcadd($totalCredited, $creditNote->amount, 2);
+            $newTotal = DecimalMath::add($totalCredited, $creditNote->amount, 2);
 
-            if (bccomp($newTotal, $invoice->total_amount, 2) >= 0) {
+            if (DecimalMath::comp($newTotal, $invoice->total_amount, 2) >= 0) {
                 $message .= "\n\n**Note:** This will mark the invoice as fully credited.";
             }
         }

@@ -13,6 +13,7 @@ use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Location;
 use App\Models\Inventory\MovementItem;
 use App\Models\Inventory\SerializedBottle;
+use App\Support\DecimalMath;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -115,11 +116,11 @@ class StorageBillingService
         $unitRate = $this->getApplicableRate($customer, $location, $usageDetails['average_bottle_count']);
 
         // Calculate the total amount
-        $calculatedAmount = bcmul((string) $usageDetails['bottle_days'], $unitRate, 2);
+        $calculatedAmount = DecimalMath::mul((string) $usageDetails['bottle_days'], $unitRate, 2);
 
         // Apply minimum charge if configured
         $minimumCharge = config('finance.storage.minimum_charge', '0.00');
-        if (bccomp($calculatedAmount, $minimumCharge, 2) < 0 && $usageDetails['bottle_days'] > 0) {
+        if (DecimalMath::comp($calculatedAmount, $minimumCharge, 2) < 0 && $usageDetails['bottle_days'] > 0) {
             $calculatedAmount = $minimumCharge;
         }
 
@@ -605,7 +606,7 @@ class StorageBillingService
         bool $autoIssue = true
     ): ?Invoice {
         // Skip if already invoiced or no billable amount
-        if ($period->hasInvoice() || bccomp($period->calculated_amount, '0', 2) <= 0) {
+        if ($period->hasInvoice() || DecimalMath::comp($period->calculated_amount, '0', 2) <= 0) {
             return null;
         }
 
@@ -617,6 +618,7 @@ class StorageBillingService
             $locationBreakdown = $metadata['location_breakdown'] ?? null;
 
             // Build invoice lines - either per-location or single aggregated line
+            /** @var array<int, array{description: string, quantity: string|float, unit_price: string|float, tax_rate?: string|float, tax_amount?: string|float, sellable_sku_id?: int|null, metadata?: array<string, mixed>}> $lines */
             $lines = $locationBreakdown !== null && count($locationBreakdown) > 0
                 ? $this->buildLocationBreakdownLines($period, $locationBreakdown)
                 : $this->buildSingleLine($period);

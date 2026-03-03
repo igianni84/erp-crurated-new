@@ -485,6 +485,7 @@ class WineVariant extends Model
             return false;
         }
 
+        /** @var list<string> $lockedFields */
         $lockedFields = $this->locked_fields ?? [];
 
         return in_array($field, $lockedFields, true);
@@ -501,7 +502,10 @@ class WineVariant extends Model
             return [];
         }
 
-        return $this->locked_fields ?? [];
+        /** @var list<string> $lockedFields */
+        $lockedFields = $this->locked_fields ?? [];
+
+        return $lockedFields;
     }
 
     /**

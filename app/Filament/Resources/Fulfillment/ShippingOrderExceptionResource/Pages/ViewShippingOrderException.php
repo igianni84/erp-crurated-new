@@ -154,7 +154,7 @@ class ViewShippingOrderException extends ViewRecord
                 ->action(function (ShippingOrderException $record): void {
                     $record->status = ShippingOrderExceptionStatus::Resolved;
                     $record->resolved_at = now();
-                    $record->resolved_by = Auth::id();
+                    $record->resolved_by = (int) Auth::id();
                     $record->save();
 
                     Notification::make()

@@ -7,6 +7,7 @@ use App\Enums\AI\ToolAccessLevel;
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -64,7 +65,7 @@ class OutstandingInvoicesTool extends BaseTool implements Tool
 
         foreach ($invoices as $invoice) {
             $outstanding = $invoice->getOutstandingAmount();
-            $totalOutstanding = bcadd($totalOutstanding, $outstanding, 2);
+            $totalOutstanding = DecimalMath::add($totalOutstanding, $outstanding, 2);
 
             $invoiceList[] = [
                 'invoice_number' => $invoice->invoice_number,

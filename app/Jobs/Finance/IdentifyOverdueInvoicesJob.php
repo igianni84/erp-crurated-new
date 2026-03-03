@@ -4,6 +4,7 @@ namespace App\Jobs\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Models\Finance\Invoice;
+use App\Support\DecimalMath;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
@@ -52,7 +53,7 @@ class IdentifyOverdueInvoicesJob implements ShouldQueue
         if ($overdueCount > 0) {
             // Calculate total overdue amount
             $totalOverdueAmount = $overdueInvoices->reduce(function (string $carry, Invoice $invoice): string {
-                return bcadd($carry, $invoice->getOutstandingAmount(), 2);
+                return DecimalMath::add($carry, $invoice->getOutstandingAmount(), 2);
             }, '0');
 
             Log::channel('finance')->info('Overdue invoices identified', [
@@ -88,7 +89,7 @@ class IdentifyOverdueInvoicesJob implements ShouldQueue
             Log::channel('finance')->info('Overdue invoices by age', [
                 'breakdown' => $groupedByAge->map(fn ($invoices) => [
                     'count' => $invoices->count(),
-                    'total' => $invoices->reduce(fn (string $carry, Invoice $inv): string => bcadd($carry, $inv->getOutstandingAmount(), 2), '0'),
+                    'total' => $invoices->reduce(fn (string $carry, Invoice $inv): string => DecimalMath::add($carry, $inv->getOutstandingAmount(), 2), '0'),
                 ])->toArray(),
             ]);
         } else {

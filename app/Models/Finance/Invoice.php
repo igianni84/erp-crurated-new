@@ -7,6 +7,7 @@ use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\ServiceFeeType;
 use App\Models\AuditLog;
 use App\Models\Customer\Customer;
+use App\Support\DecimalMath;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
@@ -566,7 +567,7 @@ class Invoice extends Model
      */
     public function getOutstandingAmount(): string
     {
-        return bcsub($this->total_amount, $this->amount_paid, 2);
+        return DecimalMath::sub($this->total_amount, $this->amount_paid, 2);
     }
 
     /**
@@ -574,7 +575,7 @@ class Invoice extends Model
      */
     public function isFullyPaid(): bool
     {
-        return bccomp($this->amount_paid, $this->total_amount, 2) >= 0;
+        return DecimalMath::comp($this->amount_paid, $this->total_amount, 2) >= 0;
     }
 
     /**
@@ -582,7 +583,7 @@ class Invoice extends Model
      */
     public function hasPayments(): bool
     {
-        return bccomp($this->amount_paid, '0', 2) > 0;
+        return DecimalMath::comp($this->amount_paid, '0', 2) > 0;
     }
 
     // =========================================================================
@@ -730,7 +731,7 @@ class Invoice extends Model
             return null;
         }
 
-        return bcmul($amount, $this->fx_rate_at_issuance, 2);
+        return DecimalMath::mul($amount, $this->fx_rate_at_issuance, 2);
     }
 
     /**
@@ -911,12 +912,12 @@ class Invoice extends Model
         $originCountry = null;
 
         foreach ($lines as $line) {
-            $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
+            $lineSubtotal = DecimalMath::mul($line->quantity, $line->unit_price, 2);
             $lineTax = $line->tax_amount;
             $taxRate = $line->tax_rate;
 
-            $totalSubtotal = bcadd($totalSubtotal, $lineSubtotal, 2);
-            $totalTax = bcadd($totalTax, $lineTax, 2);
+            $totalSubtotal = DecimalMath::add($totalSubtotal, $lineSubtotal, 2);
+            $totalTax = DecimalMath::add($totalTax, $lineTax, 2);
 
             // Check for duty lines and extract cross-border info from metadata
             $metadata = $line->metadata ?? [];
@@ -924,7 +925,7 @@ class Invoice extends Model
 
             if ($lineType === 'duties') {
                 $hasDuties = true;
-                $dutyAmount = bcadd($dutyAmount, $lineSubtotal, 2);
+                $dutyAmount = DecimalMath::add($dutyAmount, $lineSubtotal, 2);
             }
 
             // Extract country information
@@ -947,13 +948,13 @@ class Invoice extends Model
                 ];
             }
 
-            $taxBreakdown[$rateKey]['taxable_amount'] = bcadd($taxBreakdown[$rateKey]['taxable_amount'], $lineSubtotal, 2);
-            $taxBreakdown[$rateKey]['tax_amount'] = bcadd($taxBreakdown[$rateKey]['tax_amount'], $lineTax, 2);
+            $taxBreakdown[$rateKey]['taxable_amount'] = DecimalMath::add($taxBreakdown[$rateKey]['taxable_amount'], $lineSubtotal, 2);
+            $taxBreakdown[$rateKey]['tax_amount'] = DecimalMath::add($taxBreakdown[$rateKey]['tax_amount'], $lineTax, 2);
             $taxBreakdown[$rateKey]['line_count']++;
         }
 
         // Sort by tax rate (highest first)
-        uasort($taxBreakdown, fn (array $a, array $b): int => bccomp($b['rate'], $a['rate'], 2));
+        uasort($taxBreakdown, fn (array $a, array $b): int => DecimalMath::comp($b['rate'], $a['rate'], 2));
 
         $isCrossBorder = $originCountry !== null && $destinationCountry !== null && $originCountry !== $destinationCountry;
 
@@ -973,7 +974,7 @@ class Invoice extends Model
      */
     protected function getTaxRateDescription(string $taxRate): string
     {
-        if (bccomp($taxRate, '0', 2) === 0) {
+        if (DecimalMath::comp($taxRate, '0', 2) === 0) {
             return 'Zero-rated (0%)';
         }
 
@@ -1051,8 +1052,8 @@ class Invoice extends Model
         foreach ($lines as $line) {
             $metadata = $line->metadata ?? [];
             if (isset($metadata['line_type']) && $metadata['line_type'] === 'redemption') {
-                $lineAmount = bcmul($line->quantity, $line->unit_price, 2);
-                if (bccomp($lineAmount, '0', 2) > 0) {
+                $lineAmount = DecimalMath::mul($line->quantity, $line->unit_price, 2);
+                if (DecimalMath::comp($lineAmount, '0', 2) > 0) {
                     return true;
                 }
             }
@@ -1077,7 +1078,7 @@ class Invoice extends Model
         foreach ($lines as $line) {
             $metadata = $line->metadata ?? [];
             if (isset($metadata['line_type']) && $metadata['line_type'] === 'redemption') {
-                return bcmul($line->quantity, $line->unit_price, 2);
+                return DecimalMath::mul($line->quantity, $line->unit_price, 2);
             }
         }
 
@@ -1283,8 +1284,8 @@ class Invoice extends Model
 
         $subtotal = '0.00';
         foreach ($lines as $line) {
-            $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
-            $subtotal = bcadd($subtotal, $lineSubtotal, 2);
+            $lineSubtotal = DecimalMath::mul($line->quantity, $line->unit_price, 2);
+            $subtotal = DecimalMath::add($subtotal, $lineSubtotal, 2);
         }
 
         return $subtotal;
@@ -1300,7 +1301,7 @@ class Invoice extends Model
 
         $total = '0.00';
         foreach ($lines as $line) {
-            $total = bcadd($total, $line->line_total, 2);
+            $total = DecimalMath::add($total, $line->line_total, 2);
         }
 
         return $total;
@@ -1328,10 +1329,10 @@ class Invoice extends Model
             $total = '0.00';
 
             foreach ($lines as $line) {
-                $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
-                $subtotal = bcadd($subtotal, $lineSubtotal, 2);
-                $tax = bcadd($tax, $line->tax_amount, 2);
-                $total = bcadd($total, $line->line_total, 2);
+                $lineSubtotal = DecimalMath::mul($line->quantity, $line->unit_price, 2);
+                $subtotal = DecimalMath::add($subtotal, $lineSubtotal, 2);
+                $tax = DecimalMath::add($tax, $line->tax_amount, 2);
+                $total = DecimalMath::add($total, $line->line_total, 2);
             }
 
             $summaries[$orderId] = [
@@ -1532,10 +1533,10 @@ class Invoice extends Model
             $locationId = null;
 
             foreach ($lines as $line) {
-                $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
-                $subtotal = bcadd($subtotal, $lineSubtotal, 2);
-                $tax = bcadd($tax, $line->tax_amount, 2);
-                $total = bcadd($total, $line->line_total, 2);
+                $lineSubtotal = DecimalMath::mul($line->quantity, $line->unit_price, 2);
+                $subtotal = DecimalMath::add($subtotal, $lineSubtotal, 2);
+                $tax = DecimalMath::add($tax, $line->tax_amount, 2);
+                $total = DecimalMath::add($total, $line->line_total, 2);
 
                 $metadata = $line->metadata ?? [];
                 $bottleCount = max($bottleCount, (int) ($metadata['bottle_count'] ?? 0));
@@ -1832,10 +1833,10 @@ class Invoice extends Model
             $total = '0.00';
 
             foreach ($lines as $line) {
-                $lineSubtotal = bcmul($line->quantity, $line->unit_price, 2);
-                $subtotal = bcadd($subtotal, $lineSubtotal, 2);
-                $tax = bcadd($tax, $line->tax_amount, 2);
-                $total = bcadd($total, $line->line_total, 2);
+                $lineSubtotal = DecimalMath::mul($line->quantity, $line->unit_price, 2);
+                $subtotal = DecimalMath::add($subtotal, $lineSubtotal, 2);
+                $tax = DecimalMath::add($tax, $line->tax_amount, 2);
+                $total = DecimalMath::add($total, $line->line_total, 2);
             }
 
             $feeType = ServiceFeeType::tryFromString($typeValue);
