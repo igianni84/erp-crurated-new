@@ -830,6 +830,10 @@ class CreateAllocation extends CreateRecord
         // Remove wine_master_id as it's only used for cascading selects
         unset($data['wine_master_id']);
 
+        // Ensure status is explicitly set (DB default is 'draft' but the in-memory
+        // model needs it for the activate() call in afterCreate)
+        $data['status'] = 'draft';
+
         // Extract constraint data for later use (will be applied to AllocationConstraint after creation)
         // The constraint is auto-created by Allocation model, we just need to store the data
         if (isset($data['constraint'])) {
