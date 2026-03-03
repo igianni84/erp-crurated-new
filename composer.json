@@ -16,6 +16,7 @@
         "stripe/stripe-php": "^19.3"
     },
     "require-dev": {
+        "barryvdh/laravel-ide-helper": "^3.6",
         "larastan/larastan": "^3.0",
         "laravel/boost": "^2.1",
         "laravel/pail": "^1.2.2",
