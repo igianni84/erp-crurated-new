@@ -156,13 +156,13 @@ class ViewBottlingInstruction extends ViewRecord
                                 TextEntry::make('allowed_formats')
                                     ->label('Allowed Bottle Formats')
                                     ->badge()
-                                    ->formatStateUsing(fn (array $state): string => implode(', ', $state))
+                                    ->formatStateUsing(fn (array|string $state): string => is_array($state) ? implode(', ', $state) : $state)
                                     ->color('info')
                                     ->placeholder('None specified'),
                                 TextEntry::make('allowed_case_configurations')
                                     ->label('Allowed Case Configurations')
                                     ->badge()
-                                    ->formatStateUsing(fn (array $state): string => implode(', ', array_map(fn ($c) => $c.' bottles/case', $state)))
+                                    ->formatStateUsing(fn (array|string $state): string => is_array($state) ? implode(', ', array_map(fn ($c) => $c.' bottles/case', $state)) : $state.' bottles/case')
                                     ->color('info')
                                     ->placeholder('None specified'),
                             ]),
