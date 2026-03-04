@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Traits\Auditable;
 use App\Traits\HasUuid;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,6 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Club extends Model
 {
     use Auditable;
+    use HasFactory;
     use HasUuid;
     use SoftDeletes;
 
