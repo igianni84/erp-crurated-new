@@ -220,9 +220,22 @@ class CreateBundle extends CreateRecord
                         Placeholder::make('sku_preview')
                             ->label('SKU Details')
                             ->content(function (Get $get): string {
-                                $preview = $get('sku_preview');
+                                $skuId = $get('sellable_sku_id');
+                                if (empty($skuId)) {
+                                    return 'Select a SKU to see details';
+                                }
+                                /** @var SellableSku|null $sku */
+                                $sku = SellableSku::with(['wineVariant.wineMaster', 'format', 'caseConfiguration'])->find($skuId);
+                                if ($sku === null) {
+                                    return 'Select a SKU to see details';
+                                }
+                                $wineName = $sku->wineVariant?->wineMaster?->name ?? 'Unknown';
+                                $vintage = (string) ($sku->wineVariant?->vintage_year ?? '');
+                                $format = $sku->format !== null ? $sku->format->volume_ml.'ml' : 'N/A';
+                                $caseConfig = $sku->caseConfiguration;
+                                $packaging = $caseConfig !== null ? $caseConfig->bottles_per_case.' bottles/'.$caseConfig->case_type : 'N/A';
 
-                                return is_string($preview) ? $preview : 'Select a SKU to see details';
+                                return "{$wineName} {$vintage}\n{$format} - {$packaging}";
                             })
                             ->columnSpan(2),
                     ])

@@ -4,10 +4,13 @@ namespace Tests\Feature\Filament\Commercial;
 
 use App\Enums\Commercial\BundlePricingLogic;
 use App\Enums\Commercial\BundleStatus;
+use App\Filament\Resources\BundleResource\Pages\CreateBundle;
 use App\Filament\Resources\BundleResource\Pages\EditBundle;
 use App\Filament\Resources\BundleResource\Pages\ListBundles;
 use App\Filament\Resources\BundleResource\Pages\ViewBundle;
 use App\Models\Commercial\Bundle;
+use App\Models\Pim\SellableSku;
+use Filament\Forms\Components\Repeater;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\Support\FilamentTestHelpers;
@@ -68,6 +71,85 @@ class BundleResourceTest extends TestCase
             ->filterTable('pricing_logic', BundlePricingLogic::SumComponents->value)
             ->assertCanSeeTableRecords([$sumComponents])
             ->assertCanNotSeeTableRecords([$fixedPrice]);
+    }
+
+    // ── Create Page (Wizard) ─────────────────────────────────────
+
+    public function test_create_page_renders(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        Livewire::test(CreateBundle::class)
+            ->assertSuccessful();
+    }
+
+    public function test_can_create_bundle_via_wizard(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $undoRepeaterFake = Repeater::fake();
+
+        $sku = SellableSku::factory()->active()->create();
+
+        Livewire::test(CreateBundle::class)
+            ->fillForm([
+                'name' => 'Test Premium Bundle',
+                'bundle_components' => [
+                    ['sellable_sku_id' => $sku->id, 'quantity' => 2],
+                ],
+                'pricing_logic' => BundlePricingLogic::SumComponents->value,
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $undoRepeaterFake();
+
+        $this->assertDatabaseHas('bundles', [
+            'name' => 'Test Premium Bundle',
+            'pricing_logic' => BundlePricingLogic::SumComponents->value,
+            'status' => BundleStatus::Draft->value,
+        ]);
+    }
+
+    public function test_can_create_bundle_with_fixed_price(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $undoRepeaterFake = Repeater::fake();
+
+        $sku = SellableSku::factory()->active()->create();
+
+        Livewire::test(CreateBundle::class)
+            ->fillForm([
+                'name' => 'Fixed Price Bundle',
+                'bundle_components' => [
+                    ['sellable_sku_id' => $sku->id, 'quantity' => 1],
+                ],
+                'pricing_logic' => BundlePricingLogic::FixedPrice->value,
+                'fixed_price' => '149.99',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $undoRepeaterFake();
+
+        $this->assertDatabaseHas('bundles', [
+            'name' => 'Fixed Price Bundle',
+            'pricing_logic' => BundlePricingLogic::FixedPrice->value,
+            'fixed_price' => '149.99',
+        ]);
+    }
+
+    public function test_create_validates_required_fields(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        Livewire::test(CreateBundle::class)
+            ->fillForm([
+                'name' => null,
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['name' => 'required']);
     }
 
     // ── Edit Page ───────────────────────────────────────────────

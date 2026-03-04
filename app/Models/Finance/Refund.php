@@ -26,9 +26,9 @@ use InvalidArgumentException;
  *
  * @property int $id
  * @property string $uuid
- * @property int $invoice_id
- * @property int $payment_id
- * @property int|null $credit_note_id
+ * @property string $invoice_id
+ * @property string $payment_id
+ * @property string|null $credit_note_id
  * @property RefundType $refund_type
  * @property RefundMethod $method
  * @property string $amount
@@ -95,9 +95,9 @@ class Refund extends Model
             'amount' => 'decimal:2',
             'processed_at' => 'datetime',
             'processed_by' => 'integer',
-            'invoice_id' => 'integer',
-            'payment_id' => 'integer',
-            'credit_note_id' => 'integer',
+            'invoice_id' => 'string',
+            'payment_id' => 'string',
+            'credit_note_id' => 'string',
         ];
     }
 

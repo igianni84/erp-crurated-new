@@ -183,4 +183,22 @@ class PartyResourceTest extends TestCase
         Livewire::test(ListParties::class)
             ->assertSuccessful();
     }
+
+    public function test_viewer_cannot_create_party(): void
+    {
+        $this->actingAsViewer();
+
+        Livewire::test(CreateParty::class)
+            ->assertForbidden();
+    }
+
+    public function test_viewer_cannot_edit_party(): void
+    {
+        $this->actingAsViewer();
+
+        $party = Party::factory()->create();
+
+        Livewire::test(EditParty::class, ['record' => $party->id])
+            ->assertForbidden();
+    }
 }

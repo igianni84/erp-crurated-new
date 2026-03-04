@@ -164,4 +164,22 @@ class ClubResourceTest extends TestCase
         Livewire::test(ListClubs::class)
             ->assertSuccessful();
     }
+
+    public function test_viewer_cannot_create_club(): void
+    {
+        $this->actingAsViewer();
+
+        Livewire::test(CreateClub::class)
+            ->assertForbidden();
+    }
+
+    public function test_viewer_cannot_edit_club(): void
+    {
+        $this->actingAsViewer();
+
+        $club = Club::factory()->create();
+
+        Livewire::test(EditClub::class, ['record' => $club->id])
+            ->assertForbidden();
+    }
 }

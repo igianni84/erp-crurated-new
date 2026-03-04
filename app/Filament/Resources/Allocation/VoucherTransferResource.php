@@ -62,7 +62,7 @@ class VoucherTransferResource extends Resource
                     ->label('Voucher')
                     ->searchable()
                     ->sortable()
-                    ->url(fn (VoucherTransfer $record): string => route('filament.admin.resources.vouchers.view', ['record' => $record->voucher_id]))
+                    ->url(fn (VoucherTransfer $record): string => route('filament.admin.resources.allocation.vouchers.view', ['record' => $record->voucher_id]))
                     ->openUrlInNewTab()
                     ->color('primary'),
 

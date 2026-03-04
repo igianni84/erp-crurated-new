@@ -2,15 +2,19 @@
 
 namespace Tests\Feature\Filament\Commercial;
 
+use App\Enums\Commercial\BenefitType;
 use App\Enums\Commercial\OfferStatus;
 use App\Enums\Commercial\OfferType;
 use App\Enums\Commercial\OfferVisibility;
+use App\Filament\Resources\OfferResource\Pages\CreateOffer;
 use App\Filament\Resources\OfferResource\Pages\EditOffer;
 use App\Filament\Resources\OfferResource\Pages\ListOffers;
 use App\Filament\Resources\OfferResource\Pages\ViewOffer;
+use App\Models\Allocation\Allocation;
 use App\Models\Commercial\Channel;
 use App\Models\Commercial\Offer;
 use App\Models\Commercial\PriceBook;
+use App\Models\Pim\SellableSku;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\Support\FilamentTestHelpers;
@@ -73,10 +77,66 @@ class OfferResourceTest extends TestCase
             ->assertCanNotSeeTableRecords([$promotion]);
     }
 
+    // ── Create Page (Wizard) ─────────────────────────────────────
+
+    public function test_create_page_renders(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        Livewire::test(CreateOffer::class)
+            ->assertSuccessful();
+    }
+
+    public function test_can_create_offer_via_wizard(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $sku = SellableSku::factory()->active()->create();
+        Allocation::factory()->active()->create([
+            'wine_variant_id' => $sku->wine_variant_id,
+            'format_id' => $sku->format_id,
+        ]);
+        $channel = Channel::factory()->create();
+        $priceBook = PriceBook::factory()->active()->create();
+
+        Livewire::test(CreateOffer::class)
+            ->fillForm([
+                'sellable_sku_id' => $sku->id,
+                'channel_id' => $channel->id,
+                'price_book_id' => $priceBook->id,
+                'benefit_type' => BenefitType::None->value,
+                'name' => 'Test Wizard Offer',
+                'offer_type' => OfferType::Standard->value,
+                'visibility' => OfferVisibility::Public->value,
+                'valid_from' => now()->toDateTimeString(),
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('offers', [
+            'name' => 'Test Wizard Offer',
+            'sellable_sku_id' => $sku->id,
+            'channel_id' => $channel->id,
+            'price_book_id' => $priceBook->id,
+            'offer_type' => OfferType::Standard->value,
+            'status' => OfferStatus::Draft->value,
+        ]);
+    }
+
+    public function test_create_validates_required_fields(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        Livewire::test(CreateOffer::class)
+            ->fillForm([
+                'sellable_sku_id' => null,
+                'name' => null,
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['sellable_sku_id' => 'required', 'name' => 'required']);
+    }
+
     // ── Edit Page ───────────────────────────────────────────────
-    // NOTE: CreateOffer uses a multi-step wizard with domain-specific
-    // option filters (active SKUs with allocations, active price books in date range).
-    // Create tests are omitted as factory data cannot satisfy the wizard's constraints.
 
     public function test_edit_page_renders(): void
     {

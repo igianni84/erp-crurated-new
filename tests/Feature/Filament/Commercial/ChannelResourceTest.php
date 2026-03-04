@@ -188,4 +188,22 @@ class ChannelResourceTest extends TestCase
         Livewire::test(ListChannels::class)
             ->assertSuccessful();
     }
+
+    public function test_viewer_cannot_create_channel(): void
+    {
+        $this->actingAsViewer();
+
+        Livewire::test(CreateChannel::class)
+            ->assertForbidden();
+    }
+
+    public function test_viewer_cannot_edit_channel(): void
+    {
+        $this->actingAsViewer();
+
+        $channel = Channel::factory()->create(['allowed_commercial_models' => ['voucher_based']]);
+
+        Livewire::test(EditChannel::class, ['record' => $channel->id])
+            ->assertForbidden();
+    }
 }

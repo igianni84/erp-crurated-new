@@ -114,7 +114,7 @@ class ViewVoucherTransfer extends ViewRecord
                             ->schema([
                                 TextEntry::make('voucher_id')
                                     ->label('Voucher ID')
-                                    ->url(fn (VoucherTransfer $record): string => route('filament.admin.resources.vouchers.view', ['record' => $record->voucher_id]))
+                                    ->url(fn (VoucherTransfer $record): string => route('filament.admin.resources.allocation.vouchers.view', ['record' => $record->voucher_id]))
                                     ->openUrlInNewTab()
                                     ->color('primary')
                                     ->copyable(),
@@ -136,7 +136,7 @@ class ViewVoucherTransfer extends ViewRecord
                                     ->label('Allocation')
                                     ->getStateUsing(fn (VoucherTransfer $record): string => "#{$record->voucher?->allocation_id}")
                                     ->url(fn (VoucherTransfer $record): ?string => $record->voucher?->allocation_id
-                                        ? route('filament.admin.resources.allocations.view', ['record' => $record->voucher->allocation_id])
+                                        ? route('filament.admin.resources.allocation.allocations.view', ['record' => $record->voucher->allocation_id])
                                         : null)
                                     ->openUrlInNewTab()
                                     ->color('primary'),
@@ -319,7 +319,7 @@ class ViewVoucherTransfer extends ViewRecord
                     /** @var VoucherTransfer $record */
                     $record = $this->record;
 
-                    return route('filament.admin.resources.vouchers.view', ['record' => $record->voucher_id]);
+                    return route('filament.admin.resources.allocation.vouchers.view', ['record' => $record->voucher_id]);
                 })
                 ->openUrlInNewTab(),
         ];

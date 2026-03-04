@@ -6,9 +6,11 @@ use App\Enums\Commercial\ExecutionCadence;
 use App\Enums\Commercial\PricingPolicyInputSource;
 use App\Enums\Commercial\PricingPolicyStatus;
 use App\Enums\Commercial\PricingPolicyType;
+use App\Filament\Resources\PricingPolicyResource\Pages\CreatePricingPolicy;
 use App\Filament\Resources\PricingPolicyResource\Pages\EditPricingPolicy;
 use App\Filament\Resources\PricingPolicyResource\Pages\ListPricingPolicies;
 use App\Filament\Resources\PricingPolicyResource\Pages\ViewPricingPolicy;
+use App\Models\Commercial\PriceBook;
 use App\Models\Commercial\PricingPolicy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -70,6 +72,58 @@ class PricingPolicyResourceTest extends TestCase
             ->filterTable('policy_type', PricingPolicyType::CostPlusMargin->value)
             ->assertCanSeeTableRecords([$costPlus])
             ->assertCanNotSeeTableRecords([$rounding]);
+    }
+
+    // ── Create Page (Wizard) ─────────────────────────────────────
+
+    public function test_create_page_renders(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        Livewire::test(CreatePricingPolicy::class)
+            ->assertSuccessful();
+    }
+
+    public function test_can_create_pricing_policy_via_wizard(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $priceBook = PriceBook::factory()->create();
+
+        Livewire::test(CreatePricingPolicy::class)
+            ->fillForm([
+                'name' => 'Test Cost Plus Margin Policy',
+                'policy_type' => PricingPolicyType::CostPlusMargin->value,
+                'cost_source' => 'product_catalog',
+                'margin_type' => 'percentage',
+                'margin_percentage' => 25,
+                'target_price_book_id' => $priceBook->id,
+                'scope_type' => 'all',
+                'execution_cadence' => ExecutionCadence::Manual->value,
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $this->assertDatabaseHas('pricing_policies', [
+            'name' => 'Test Cost Plus Margin Policy',
+            'policy_type' => PricingPolicyType::CostPlusMargin->value,
+            'input_source' => PricingPolicyInputSource::Cost->value,
+            'target_price_book_id' => $priceBook->id,
+            'status' => PricingPolicyStatus::Draft->value,
+        ]);
+    }
+
+    public function test_create_validates_required_fields(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        Livewire::test(CreatePricingPolicy::class)
+            ->fillForm([
+                'name' => null,
+                'policy_type' => null,
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['name' => 'required', 'policy_type' => 'required']);
     }
 
     // ── Edit Page ───────────────────────────────────────────────

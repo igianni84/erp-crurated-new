@@ -188,4 +188,22 @@ class LocationResourceTest extends TestCase
         Livewire::test(ListLocations::class)
             ->assertSuccessful();
     }
+
+    public function test_viewer_cannot_create_location(): void
+    {
+        $this->actingAsViewer();
+
+        Livewire::test(CreateLocation::class)
+            ->assertForbidden();
+    }
+
+    public function test_viewer_cannot_edit_location(): void
+    {
+        $this->actingAsViewer();
+
+        $location = Location::factory()->create();
+
+        Livewire::test(EditLocation::class, ['record' => $location->id])
+            ->assertForbidden();
+    }
 }
