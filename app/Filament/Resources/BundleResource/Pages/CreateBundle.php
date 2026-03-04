@@ -229,8 +229,9 @@ class CreateBundle extends CreateRecord
                                 if ($sku === null) {
                                     return 'Select a SKU to see details';
                                 }
-                                $wineName = $sku->wineVariant?->wineMaster?->name ?? 'Unknown';
-                                $vintage = (string) ($sku->wineVariant?->vintage_year ?? '');
+                                $wineVariant = $sku->wineVariant;
+                                $wineName = $wineVariant !== null && $wineVariant->wineMaster !== null ? $wineVariant->wineMaster->name : 'Unknown';
+                                $vintage = $wineVariant !== null ? (string) $wineVariant->vintage_year : '';
                                 $format = $sku->format !== null ? $sku->format->volume_ml.'ml' : 'N/A';
                                 $caseConfig = $sku->caseConfiguration;
                                 $packaging = $caseConfig !== null ? $caseConfig->bottles_per_case.' bottles/'.$caseConfig->case_type : 'N/A';

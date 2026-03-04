@@ -834,8 +834,8 @@ class RefundService
         ): Refund {
             // Create the refund record directly (bypassing validation since Stripe already processed it)
             $refund = new Refund;
-            $refund->invoice_id = (int) $invoice->id;
-            $refund->payment_id = (int) $payment->id;
+            $refund->invoice_id = $invoice->id;
+            $refund->payment_id = $payment->id;
             $refund->refund_type = $refundType;
             $refund->method = RefundMethod::Stripe;
             $refund->amount = $amount;
