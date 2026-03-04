@@ -3,6 +3,8 @@
 namespace Tests\Feature\Filament\Allocation;
 
 use App\Filament\Resources\Allocation\VoucherTransferResource\Pages\ListVoucherTransfers;
+use App\Filament\Resources\Allocation\VoucherTransferResource\Pages\ViewVoucherTransfer;
+use App\Models\Allocation\VoucherTransfer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\Support\FilamentTestHelpers;
@@ -29,12 +31,27 @@ class VoucherTransferResourceTest extends TestCase
             ->assertSuccessful();
     }
 
-    /**
-     * @skip List with records and View page skipped: VoucherTransferResource
-     * references hard-coded route 'filament.admin.resources.vouchers.view'
-     * which doesn't match actual VoucherResource route name (includes module prefix).
-     * This is a known codebase bug to fix in VoucherTransferResource.php:65.
-     */
+    public function test_list_shows_voucher_transfers(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $transfers = VoucherTransfer::factory()->count(3)->create();
+
+        Livewire::test(ListVoucherTransfers::class)
+            ->assertCanSeeTableRecords($transfers);
+    }
+
+    // ── View Page ────────────────────────────────────────────────
+
+    public function test_view_page_renders(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $transfer = VoucherTransfer::factory()->create();
+
+        Livewire::test(ViewVoucherTransfer::class, ['record' => $transfer->id])
+            ->assertSuccessful();
+    }
 
     // ── Authorization ───────────────────────────────────────────
 

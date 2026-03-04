@@ -12,8 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('refunds', function (Blueprint $table) {
-            $table->id();
-            $table->uuid('uuid')->unique();
+            $table->uuid('id')->primary();
 
             // Linked entities
             $table->foreignUuid('invoice_id')->constrained('invoices')->cascadeOnDelete();

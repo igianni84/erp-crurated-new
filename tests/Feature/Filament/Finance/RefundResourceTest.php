@@ -3,6 +3,8 @@
 namespace Tests\Feature\Filament\Finance;
 
 use App\Filament\Resources\Finance\RefundResource\Pages\ListRefunds;
+use App\Filament\Resources\Finance\RefundResource\Pages\ViewRefund;
+use App\Models\Finance\Refund;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\Support\FilamentTestHelpers;
@@ -29,12 +31,27 @@ class RefundResourceTest extends TestCase
             ->assertSuccessful();
     }
 
-    /**
-     * @skip List with records and View page skipped: Refund model casts
-     * invoice_id/payment_id to 'integer' but Invoice/Payment use UUID strings.
-     * The boot validation in Refund::validateInvoicePaymentLink() queries with
-     * integer-cast UUIDs (=0) and fails. Fix: change Refund casts to 'string'.
-     */
+    public function test_list_shows_refunds(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $refunds = Refund::factory()->count(3)->create();
+
+        Livewire::test(ListRefunds::class)
+            ->assertCanSeeTableRecords($refunds);
+    }
+
+    // ── View Page ────────────────────────────────────────────────
+
+    public function test_view_page_renders(): void
+    {
+        $this->actingAsSuperAdmin();
+
+        $refund = Refund::factory()->create();
+
+        Livewire::test(ViewRefund::class, ['record' => $refund->id])
+            ->assertSuccessful();
+    }
 
     // ── Authorization ───────────────────────────────────────────
 

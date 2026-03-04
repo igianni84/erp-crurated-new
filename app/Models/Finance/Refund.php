@@ -24,8 +24,7 @@ use InvalidArgumentException;
  * Represents a refund issued for a payment linked to an invoice.
  * Refunds require both an invoice and payment to be linked.
  *
- * @property int $id
- * @property string $uuid
+ * @property string $id
  * @property string $invoice_id
  * @property string $payment_id
  * @property string|null $credit_note_id
