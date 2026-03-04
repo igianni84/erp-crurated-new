@@ -317,7 +317,7 @@ class ViewInbound extends ViewRecord
                                     ->limit(8)
                                     ->tooltip(fn (Inbound $record): ?string => $record->procurement_intent_id)
                                     ->url(fn (Inbound $record): ?string => $record->procurement_intent_id !== null
-                                        ? route('filament.admin.resources.procurement.procurement-intents.view', ['record' => $record->procurement_intent_id])
+                                        ? route('filament.admin.resources.procurement.intents.view', ['record' => $record->procurement_intent_id])
                                         : null)
                                     ->openUrlInNewTab()
                                     ->placeholder('Not linked'),
@@ -901,7 +901,7 @@ class ViewInbound extends ViewRecord
                 ->icon('heroicon-o-clipboard-document-list')
                 ->color('gray')
                 ->url(fn (Inbound $record): ?string => $record->procurement_intent_id !== null
-                    ? route('filament.admin.resources.procurement.procurement-intents.view', ['record' => $record->procurement_intent_id])
+                    ? route('filament.admin.resources.procurement.intents.view', ['record' => $record->procurement_intent_id])
                     : null)
                 ->openUrlInNewTab()
                 ->visible(fn (Inbound $record): bool => $record->procurement_intent_id !== null),

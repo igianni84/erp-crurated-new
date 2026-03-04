@@ -637,9 +637,9 @@ Aggiungere test Livewire per le pagine Filament critiche (Create, Edit, View, Li
 
 - [x] **FASE 0 — Infrastruttura:** Trait `FilamentTestHelpers` + 8 factory base — **COMPLETATA 2026-03-03**
 - [x] **FASE 1 — Tier 1 (61 test):** AllocationResource, CustomerResource, ShippingOrderResource, InvoiceResource, WineVariantResource + 3 factory — **COMPLETATA 2026-03-03**
-- [ ] **FASE 2 — Tier 2 (~40 test):** PurchaseOrderResource, ProcurementIntentResource, InboundResource, VoucherResource, PaymentResource + 5 factory
+- [x] **FASE 2 — Tier 2 (47 test):** PurchaseOrderResource, ProcurementIntentResource, InboundResource, VoucherResource, PaymentResource + 5 factory — **COMPLETATA 2026-03-04**
 - [ ] **FASE 3 — Tier 3 (~70 test):** 10 risorse CRUD standard (Party, Club, Location, InboundBatch, Channel, PriceBook, PricingPolicy, Offer, Bundle, DiscountRule) + 8 factory
 - [ ] **FASE 4 — Tier 4 (~55 test):** ~15 risorse read-only/semplici + 2 factory
 
 **Totale stimato:** 26 factory, ~35 file test, ~225 test methods
-**Completati finora:** 11 factory, 5 file test, 61 test methods (suite totale: 412 test, 0 failures)
+**Completati finora:** 16 factory, 10 file test, 108 test methods (suite totale: 459 test, 0 failures)

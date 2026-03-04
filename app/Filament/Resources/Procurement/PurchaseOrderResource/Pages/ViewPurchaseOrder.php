@@ -242,7 +242,7 @@ class ViewPurchaseOrder extends ViewRecord
                                     ->copyMessage('Intent ID copied')
                                     ->weight(FontWeight::Bold)
                                     ->url(fn (PurchaseOrder $record): ?string => $record->procurementIntent
-                                        ? route('filament.admin.resources.procurement.procurement-intents.view', ['record' => $record->procurementIntent->id])
+                                        ? route('filament.admin.resources.procurement.intents.view', ['record' => $record->procurementIntent->id])
                                         : null)
                                     ->openUrlInNewTab(),
                                 TextEntry::make('procurementIntent.status')

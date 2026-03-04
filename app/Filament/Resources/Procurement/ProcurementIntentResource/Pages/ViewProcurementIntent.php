@@ -276,7 +276,7 @@ class ViewProcurementIntent extends ViewRecord
                             ->icon('heroicon-o-plus')
                             ->color('primary')
                             ->visible(fn (ProcurementIntent $record): bool => $record->canCreateLinkedObjects())
-                            ->url(fn (ProcurementIntent $record): string => route('filament.admin.resources.procurement/purchase-orders.create', [
+                            ->url(fn (ProcurementIntent $record): string => route('filament.admin.resources.procurement.purchase-orders.create', [
                                 'procurement_intent_id' => $record->id,
                             ])),
                     ])
@@ -335,7 +335,7 @@ class ViewProcurementIntent extends ViewRecord
                             ->icon('heroicon-o-plus')
                             ->color('primary')
                             ->visible(fn (ProcurementIntent $record): bool => $record->canCreateLinkedObjects() && $record->isForLiquidProduct())
-                            ->url(fn (ProcurementIntent $record): string => route('filament.admin.resources.procurement/bottling-instructions.create', [
+                            ->url(fn (ProcurementIntent $record): string => route('filament.admin.resources.procurement.bottling-instructions.create', [
                                 'procurement_intent_id' => $record->id,
                             ])),
                     ])
@@ -392,7 +392,7 @@ class ViewProcurementIntent extends ViewRecord
                             ->icon('heroicon-o-link')
                             ->color('primary')
                             ->visible(fn (ProcurementIntent $record): bool => $record->canCreateLinkedObjects())
-                            ->url(fn (ProcurementIntent $record): string => route('filament.admin.resources.procurement/inbounds.create', [
+                            ->url(fn (ProcurementIntent $record): string => route('filament.admin.resources.procurement.inbounds.create', [
                                 'procurement_intent_id' => $record->id,
                             ])),
                     ])
@@ -877,21 +877,21 @@ class ViewProcurementIntent extends ViewRecord
                     ->label('Create Purchase Order')
                     ->icon('heroicon-o-document-plus')
                     ->visible(fn (): bool => $record->canCreateLinkedObjects())
-                    ->url(fn (): string => route('filament.admin.resources.procurement/purchase-orders.create', [
+                    ->url(fn (): string => route('filament.admin.resources.procurement.purchase-orders.create', [
                         'procurement_intent_id' => $record->id,
                     ])),
                 Action::make('create_bottling_instruction')
                     ->label('Create Bottling Instruction')
                     ->icon('heroicon-o-beaker')
                     ->visible(fn (): bool => $record->canCreateLinkedObjects() && $record->isForLiquidProduct())
-                    ->url(fn (): string => route('filament.admin.resources.procurement/bottling-instructions.create', [
+                    ->url(fn (): string => route('filament.admin.resources.procurement.bottling-instructions.create', [
                         'procurement_intent_id' => $record->id,
                     ])),
                 Action::make('link_inbound')
                     ->label('Link Inbound')
                     ->icon('heroicon-o-truck')
                     ->visible(fn (): bool => $record->canCreateLinkedObjects())
-                    ->url(fn (): string => route('filament.admin.resources.procurement/inbounds.create', [
+                    ->url(fn (): string => route('filament.admin.resources.procurement.inbounds.create', [
                         'procurement_intent_id' => $record->id,
                     ])),
             ])->label('Create Linked Object')

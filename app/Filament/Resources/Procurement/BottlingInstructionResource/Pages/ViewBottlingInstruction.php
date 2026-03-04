@@ -540,7 +540,7 @@ class ViewBottlingInstruction extends ViewRecord
                                     ->copyMessage('Intent ID copied')
                                     ->weight(FontWeight::Bold)
                                     ->url(fn (BottlingInstruction $record): ?string => $record->procurementIntent
-                                        ? route('filament.admin.resources.procurement.procurement-intents.view', ['record' => $record->procurementIntent->id])
+                                        ? route('filament.admin.resources.procurement.intents.view', ['record' => $record->procurementIntent->id])
                                         : null)
                                     ->openUrlInNewTab(),
                                 TextEntry::make('procurementIntent.status')
@@ -1047,7 +1047,7 @@ class ViewBottlingInstruction extends ViewRecord
                 ->icon('heroicon-o-clipboard-document-list')
                 ->color('gray')
                 ->url(fn (): ?string => $record->procurementIntent
-                    ? route('filament.admin.resources.procurement.procurement-intents.view', ['record' => $record->procurementIntent->id])
+                    ? route('filament.admin.resources.procurement.intents.view', ['record' => $record->procurementIntent->id])
                     : null)
                 ->openUrlInNewTab()
                 ->visible(fn (): bool => $record->procurementIntent !== null),
