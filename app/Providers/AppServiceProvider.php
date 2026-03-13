@@ -110,12 +110,17 @@ class AppServiceProvider extends ServiceProvider
         // VoucherIssued event triggers auto-creation of ProcurementIntent
         Event::listen(VoucherIssued::class, CreateProcurementIntentOnVoucherIssued::class);
 
-        // Register API rate limiters
+        // Register rate limiters
         RateLimiter::for('api', function (Request $request) {
             return Limit::perMinute(60)->by($request->ip());
         });
         RateLimiter::for('trading-api', function (Request $request) {
             return Limit::perMinute(10)->by($request->ip());
+        });
+        RateLimiter::for('login', function (Request $request) {
+            $key = str($request->input('email', ''))->lower().'|'.$request->ip();
+
+            return Limit::perMinute(5)->by($key);
         });
 
         // Filament v4 global configuration

@@ -42,7 +42,7 @@ class VoucherPolicy
      */
     public function update(User $user, Voucher $voucher): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -50,7 +50,7 @@ class VoucherPolicy
      */
     public function delete(User $user, Voucher $voucher): bool
     {
-        return true;
+        return $user->isAdmin();
     }
 
     /**
@@ -58,22 +58,15 @@ class VoucherPolicy
      *
      * This permission controls whether the flag toggle actions
      * (tradable, giftable, suspended) are visible.
-     *
-     * Currently allows all authenticated users. Can be refined with
-     * role-based checks in future iterations.
+     * Requires at least editor role to prevent viewers from modifying flags.
      */
     public function manageFlags(User $user, Voucher $voucher): bool
     {
-        // Allow all authenticated users to manage flags
-        // This can be refined with role-based permissions later
-        // e.g., return $user->hasRole('admin') || $user->hasRole('operator');
-        return true;
+        return $user->canEdit();
     }
 
     /**
      * Determine if the user can manage the tradable flag.
-     *
-     * More restrictive than general flag management if needed.
      */
     public function setTradable(User $user, Voucher $voucher): bool
     {
@@ -82,8 +75,6 @@ class VoucherPolicy
 
     /**
      * Determine if the user can manage the giftable flag.
-     *
-     * More restrictive than general flag management if needed.
      */
     public function setGiftable(User $user, Voucher $voucher): bool
     {
@@ -92,8 +83,6 @@ class VoucherPolicy
 
     /**
      * Determine if the user can suspend the voucher.
-     *
-     * May require higher privileges than other flag changes.
      */
     public function suspend(User $user, Voucher $voucher): bool
     {
@@ -102,8 +91,6 @@ class VoucherPolicy
 
     /**
      * Determine if the user can reactivate (unsuspend) the voucher.
-     *
-     * May require higher privileges than other flag changes.
      */
     public function reactivate(User $user, Voucher $voucher): bool
     {
@@ -117,7 +104,7 @@ class VoucherPolicy
      */
     public function initiateTransfer(User $user, Voucher $voucher): bool
     {
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -127,6 +114,6 @@ class VoucherPolicy
      */
     public function cancelTransfer(User $user, Voucher $voucher): bool
     {
-        return true;
+        return $user->canEdit();
     }
 }

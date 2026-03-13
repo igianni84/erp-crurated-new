@@ -383,4 +383,11 @@ class WineMasterResource extends Resource
             'edit' => EditWineMaster::route('/{record}/edit'),
         ];
     }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Pim\WineMaster> */
+    public static function getEloquentQuery(): Builder
+    {
+        return parent::getEloquentQuery()
+            ->with(['producerRelation', 'appellationRelation', 'countryRelation', 'regionRelation']);
+    }
 }

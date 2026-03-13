@@ -267,6 +267,7 @@ class PriceBookResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
+            ->with(['channel'])
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

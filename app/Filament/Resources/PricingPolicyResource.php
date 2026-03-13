@@ -222,6 +222,7 @@ class PricingPolicyResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
+            ->with(['targetPriceBook'])
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
