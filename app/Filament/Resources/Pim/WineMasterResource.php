@@ -10,6 +10,7 @@ use App\Models\Pim\Country;
 use App\Models\Pim\Producer;
 use App\Models\Pim\Region;
 use App\Models\Pim\WineMaster;
+use App\Services\Pim\PimCacheService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -66,13 +67,7 @@ class WineMasterResource extends Resource
                             ->preload()
                             ->live()
                             ->required()
-                            ->options(
-                                Producer::where('is_active', true)
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Producer $p): array => [$p->id => $p->name])
-                                    ->toArray()
-                            )
+                            ->options(app(PimCacheService::class)->getActiveProducers())
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 if ($state !== null) {
                                     $producer = Producer::find($state);
@@ -95,14 +90,7 @@ class WineMasterResource extends Resource
                                     ->maxLength(255),
                                 Select::make('country_id')
                                     ->label('Country')
-                                    ->options(
-                                        Country::where('is_active', true)
-                                            ->orderBy('sort_order')
-                                            ->orderBy('name')
-                                            ->get()
-                                            ->mapWithKeys(fn (Country $c): array => [$c->id => $c->name])
-                                            ->toArray()
-                                    )
+                                    ->options(app(PimCacheService::class)->getActiveCountries())
                                     ->searchable()
                                     ->preload()
                                     ->live(),
@@ -114,13 +102,7 @@ class WineMasterResource extends Resource
                                             return [];
                                         }
 
-                                        return Region::where('is_active', true)
-                                            ->where('country_id', $countryId)
-                                            ->orderBy('sort_order')
-                                            ->orderBy('name')
-                                            ->get()
-                                            ->mapWithKeys(fn (Region $r): array => [$r->id => $r->name])
-                                            ->toArray();
+                                        return app(PimCacheService::class)->getSimpleRegionsForCountry($countryId);
                                     })
                                     ->searchable()
                                     ->preload(),
@@ -150,14 +132,7 @@ class WineMasterResource extends Resource
                             ->preload()
                             ->live()
                             ->required()
-                            ->options(
-                                Country::where('is_active', true)
-                                    ->orderBy('sort_order')
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Country $c): array => [$c->id => $c->name])
-                                    ->toArray()
-                            )
+                            ->options(app(PimCacheService::class)->getActiveCountries())
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 $set('region_id', null);
                                 $set('appellation_id', null);
@@ -180,20 +155,7 @@ class WineMasterResource extends Resource
                                     return [];
                                 }
 
-                                return Region::where('is_active', true)
-                                    ->where('country_id', $countryId)
-                                    ->orderBy('sort_order')
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(function (Region $r): array {
-                                        $parent = $r->parentRegion;
-                                        $label = $parent !== null
-                                            ? $parent->name.' > '.$r->name
-                                            : $r->name;
-
-                                        return [$r->id => $label];
-                                    })
-                                    ->toArray();
+                                return app(PimCacheService::class)->getRegionsForCountry($countryId);
                             })
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 $set('appellation_id', null);
@@ -215,23 +177,7 @@ class WineMasterResource extends Resource
                                     return [];
                                 }
 
-                                $query = Appellation::where('is_active', true)
-                                    ->where('country_id', $countryId);
-
-                                $regionId = $get('region_id');
-                                if ($regionId !== null) {
-                                    $query->where(function ($q) use ($regionId): void {
-                                        $q->where('region_id', $regionId)
-                                            ->orWhereNull('region_id');
-                                    });
-                                }
-
-                                return $query
-                                    ->orderBy('sort_order')
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Appellation $a): array => [$a->id => $a->name])
-                                    ->toArray();
+                                return app(PimCacheService::class)->getAppellationsForCountry($countryId, $get('region_id'));
                             })
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 if ($state !== null) {

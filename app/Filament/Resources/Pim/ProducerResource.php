@@ -6,7 +6,7 @@ use App\Filament\Resources\Pim\ProducerResource\Pages\CreateProducer;
 use App\Filament\Resources\Pim\ProducerResource\Pages\EditProducer;
 use App\Filament\Resources\Pim\ProducerResource\Pages\ListProducers;
 use App\Models\Pim\Producer;
-use App\Models\Pim\Region;
+use App\Services\Pim\PimCacheService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -70,12 +70,7 @@ class ProducerResource extends Resource
                                     return [];
                                 }
 
-                                return Region::where('country_id', $countryId)
-                                    ->where('is_active', true)
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Region $r) => [$r->id => $r->name])
-                                    ->toArray();
+                                return app(PimCacheService::class)->getSimpleRegionsForCountry($countryId);
                             })
                             ->searchable(),
                         TextInput::make('website')

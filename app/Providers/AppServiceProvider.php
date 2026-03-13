@@ -20,10 +20,15 @@ use App\Models\Finance\Refund;
 use App\Models\Finance\StorageBillingPeriod;
 use App\Models\Finance\Subscription;
 use App\Models\Inventory\Location;
+use App\Models\Pim\Appellation;
+use App\Models\Pim\Country;
 use App\Models\Pim\LiquidProduct;
+use App\Models\Pim\Producer;
+use App\Models\Pim\Region;
 use App\Models\Pim\SellableSku;
 use App\Observers\Customer\CustomerObserver;
 use App\Observers\Customer\PartyRoleObserver;
+use App\Observers\Pim\PimCacheObserver;
 use App\Policies\AccountPolicy;
 use App\Policies\AllocationPolicy;
 use App\Policies\ChannelPolicy;
@@ -105,6 +110,12 @@ class AppServiceProvider extends ServiceProvider
         // Register observers for Module K
         PartyRole::observe(PartyRoleObserver::class);
         Customer::observe(CustomerObserver::class);
+
+        // Register PIM cache invalidation observer
+        Country::observe(PimCacheObserver::class);
+        Region::observe(PimCacheObserver::class);
+        Producer::observe(PimCacheObserver::class);
+        Appellation::observe(PimCacheObserver::class);
 
         // Register event listeners for Module D (Procurement)
         // VoucherIssued event triggers auto-creation of ProcurementIntent

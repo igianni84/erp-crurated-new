@@ -2,6 +2,7 @@
 
 use App\Jobs\Allocation\ExpireReservationsJob;
 use App\Jobs\Allocation\ExpireTransfersJob;
+use App\Jobs\ArchiveAuditLogsJob;
 use App\Jobs\Finance\AlertUnpaidImmediateInvoicesJob;
 use App\Jobs\Finance\BlockOverdueStorageBillingJob;
 use App\Jobs\Finance\CleanupIntegrationLogsJob;
@@ -57,3 +58,7 @@ Schedule::job(new CleanupIntegrationLogsJob)->dailyAt(config('finance.logs.clean
 
 // Schedule the job to apply bottling defaults when deadline expires (daily)
 Schedule::job(new ApplyBottlingDefaultsJob)->daily()->withoutOverlapping();
+
+// Schedule the job to archive old audit logs daily at the configured time (default 3:30 AM)
+// This removes audit_logs older than 365 days and ai_audit_logs older than 180 days
+Schedule::job(new ArchiveAuditLogsJob)->dailyAt(config('audit.archival.job_time', '03:30'))->withoutOverlapping();

@@ -7,7 +7,7 @@ use App\Filament\Resources\Pim\AppellationResource\Pages\CreateAppellation;
 use App\Filament\Resources\Pim\AppellationResource\Pages\EditAppellation;
 use App\Filament\Resources\Pim\AppellationResource\Pages\ListAppellations;
 use App\Models\Pim\Appellation;
-use App\Models\Pim\Region;
+use App\Services\Pim\PimCacheService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -71,12 +71,7 @@ class AppellationResource extends Resource
                                     return [];
                                 }
 
-                                return Region::where('country_id', $countryId)
-                                    ->where('is_active', true)
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Region $r) => [$r->id => $r->name])
-                                    ->toArray();
+                                return app(PimCacheService::class)->getSimpleRegionsForCountry($countryId);
                             })
                             ->searchable(),
                         Select::make('system')

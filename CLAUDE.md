@@ -153,6 +153,14 @@ git fetch origin main
 git reset --hard origin/main
 composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 echo "" | sudo -S service php8.5-fpm reload
+
+# Pre-migration DB backup (compressed, timestamped)
+BACKUP_FILE="/home/ploi/backups/erpcrurated_$(date +%Y%m%d_%H%M%S).sql.gz"
+mkdir -p /home/ploi/backups
+mysqldump -u "$DB_USERNAME" -p"$DB_PASSWORD" -h 127.0.0.1 erpcrurated \
+  --single-transaction --quick | gzip > "$BACKUP_FILE"
+echo "Backup saved to $BACKUP_FILE"
+
 php artisan migrate --force
 php artisan filament:optimize
 php artisan optimize

@@ -12,6 +12,7 @@ use App\Models\Pim\Producer;
 use App\Models\Pim\Region;
 use App\Models\Pim\WineMaster;
 use App\Models\Pim\WineVariant;
+use App\Services\Pim\PimCacheService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -107,13 +108,7 @@ class CreateManualBottle extends Page
                             ->live()
                             ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
                             ->required(fn (Get $get): bool => $get('wine_master_mode') === 'new')
-                            ->options(
-                                Producer::where('is_active', true)
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Producer $p): array => [$p->id => $p->name])
-                                    ->toArray()
-                            )
+                            ->options(app(PimCacheService::class)->getActiveProducers())
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 if ($state !== null) {
                                     /** @var Producer|null $producer */
@@ -133,14 +128,7 @@ class CreateManualBottle extends Page
                             ->live()
                             ->visible(fn (Get $get): bool => $get('wine_master_mode') === 'new')
                             ->required(fn (Get $get): bool => $get('wine_master_mode') === 'new')
-                            ->options(
-                                Country::where('is_active', true)
-                                    ->orderBy('sort_order')
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Country $c): array => [$c->id => $c->name])
-                                    ->toArray()
-                            )
+                            ->options(app(PimCacheService::class)->getActiveCountries())
                             ->afterStateUpdated(function (Set $set): void {
                                 $set('region_id', null);
                                 $set('appellation_id', null);
@@ -157,20 +145,7 @@ class CreateManualBottle extends Page
                                     return [];
                                 }
 
-                                return Region::where('is_active', true)
-                                    ->where('country_id', $countryId)
-                                    ->orderBy('sort_order')
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(function (Region $r): array {
-                                        $parent = $r->parentRegion;
-                                        $label = $parent !== null
-                                            ? $parent->name.' > '.$r->name
-                                            : $r->name;
-
-                                        return [$r->id => $label];
-                                    })
-                                    ->toArray();
+                                return app(PimCacheService::class)->getRegionsForCountry($countryId);
                             })
                             ->afterStateUpdated(function (Set $set): void {
                                 $set('appellation_id', null);
@@ -186,23 +161,7 @@ class CreateManualBottle extends Page
                                     return [];
                                 }
 
-                                $query = Appellation::where('is_active', true)
-                                    ->where('country_id', $countryId);
-
-                                $regionId = $get('region_id');
-                                if ($regionId !== null) {
-                                    $query->where(function ($q) use ($regionId): void {
-                                        $q->where('region_id', $regionId)
-                                            ->orWhereNull('region_id');
-                                    });
-                                }
-
-                                return $query
-                                    ->orderBy('sort_order')
-                                    ->orderBy('name')
-                                    ->get()
-                                    ->mapWithKeys(fn (Appellation $a): array => [$a->id => $a->name])
-                                    ->toArray();
+                                return app(PimCacheService::class)->getAppellationsForCountry($countryId, $get('region_id'));
                             }),
 
                         TextInput::make('classification')

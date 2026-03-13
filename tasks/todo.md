@@ -1,7 +1,44 @@
-# Refactoring Seeders per Aderenza alle Business Logic
+# Enterprise Audit Remediation Plan
+
+**Data:** 2026-03-13
+**Stato:** P1 + P2 completati, P3 in attesa
+**Test totali:** 764 (41 nuovi per P2)
+
+---
+
+## Phase 1 — Pre Go-Live (P1) — COMPLETATO
+
+- [x] 1. VoucherPolicy RBAC — `manageFlags/update/transfer` richiedono `canEdit()`, `delete` richiede `isAdmin()`
+- [x] 2. N+1 eager loading — WineMasterResource, PriceBookResource, PricingPolicyResource
+- [x] 3. Login rate limiting — 5/min by email+IP in AppServiceProvider
+- [x] 4. Composite indexes — `[lifecycle_state, deleted_at]` vouchers, `[status, deleted_at]` invoices
+- [x] 5. CVE-2026-30838 — `league/commonmark` 2.8.0 → 2.8.1
+
+## Phase 2 — Sprint 1 Post Go-Live (P2) — COMPLETATO
+
+- [x] 5. `SESSION_ENCRYPT=true` in `.env.example`
+- [x] 6. Move `laravel/tinker` to `require-dev`
+- [x] 7. Deploy script con backup DB (`mysqldump` pre-migration) in CLAUDE.md
+- [x] 8. Test coverage Finance/Fulfillment — 6 factories + 3 service test suites (30 tests)
+- [x] 9. Job archival per `audit_logs` — ArchiveAuditLogsJob + config/audit.php (7 tests)
+- [x] 10. Caching per lookup statici PIM — PimCacheService + PimCacheObserver (8 tests)
+- [x] 11. Coverage reporting in CI — pcov + coverage-clover artifact upload
+
+## Phase 3 — Backlog (P3)
+
+- [ ] 12. Global search su risorse rimanenti (27/45 mancanti)
+- [ ] 13. Authorization esplicita su piu risorse (solo 10/45 con policy)
+- [ ] 14. RelationManagers aggiuntivi (solo 6/45 risorse)
+- [ ] 15. Enum completeness (2 enum senza color/icon)
+- [ ] 16. StorageBillingService JOIN optimization
+
+---
+---
+
+# Refactoring Seeders per Aderenza alle Business Logic (COMPLETATO)
 
 **Data inizio:** 2026-02-13
-**Stato:** In corso
+**Stato:** Completato 2026-02-13
 **File toccati:** 22 seeder
 **Violazioni trovate:** 12 critiche, 14 medie, ~20 minori
 
