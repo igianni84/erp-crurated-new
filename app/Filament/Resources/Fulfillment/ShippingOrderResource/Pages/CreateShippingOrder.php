@@ -43,6 +43,56 @@ class CreateShippingOrder extends CreateRecord
 
     protected static string $resource = ShippingOrderResource::class;
 
+    /** @var Collection<int, string>|null */
+    protected ?Collection $cachedVoucherIdsInActiveSOs = null;
+
+    /** @var array{options: array<string, string>, descriptions: array<string, string>, allocationOptions: array<string, string>}|null */
+    protected ?array $cachedVoucherData = null;
+
+    protected ?string $cachedVoucherDataKey = null;
+
+    /** @var array{eligible: int, locked: int, suspended: int, other: int}|null */
+    protected ?array $cachedVoucherCounts = null;
+
+    protected ?string $cachedVoucherCountsCustomerId = null;
+
+    protected Customer|null|false $cachedCustomer = false;
+
+    protected ?string $cachedCustomerId = null;
+
+    /**
+     * Reset all cached data (called when customer changes).
+     */
+    protected function resetCaches(): void
+    {
+        $this->cachedVoucherIdsInActiveSOs = null;
+        $this->cachedVoucherData = null;
+        $this->cachedVoucherDataKey = null;
+        $this->cachedVoucherCounts = null;
+        $this->cachedVoucherCountsCustomerId = null;
+        $this->cachedCustomer = false;
+        $this->cachedCustomerId = null;
+    }
+
+    /**
+     * Get customer with caching to avoid duplicate queries within a request.
+     */
+    protected function getCachedCustomer(?string $customerId): ?Customer
+    {
+        if ($customerId === null) {
+            return null;
+        }
+
+        if ($this->cachedCustomerId === $customerId && $this->cachedCustomer !== false) {
+            return $this->cachedCustomer;
+        }
+
+        $this->cachedCustomerId = $customerId;
+        $this->cachedCustomer = Customer::find($customerId);
+
+        return $this->cachedCustomer;
+    }
+
     public function getTitle(): string|Htmlable
     {
         return 'Create Shipping Order';
@@ -146,6 +196,8 @@ class CreateShippingOrder extends CreateRecord
                             ->afterStateUpdated(function (Set $set, ?string $state): void {
                                 // Clear destination address when customer changes
                                 $set('destination_address', null);
+                                // Reset all cached data for the new customer
+                                $this->resetCaches();
                             })
                             ->required()
                             ->helperText('Type at least 2 characters to search for customers. Only active customers are shown.'),
@@ -160,8 +212,7 @@ class CreateShippingOrder extends CreateRecord
                                     return new HtmlString('');
                                 }
 
-                                /** @var Customer|null $customer */
-                                $customer = Customer::find($customerId);
+                                $customer = $this->getCachedCustomer($customerId);
                                 if (! $customer) {
                                     return new HtmlString('<p class="text-red-500">Customer not found</p>');
                                 }
@@ -176,10 +227,9 @@ class CreateShippingOrder extends CreateRecord
                                     ? '<p class="text-gray-600 dark:text-gray-300"><strong>Email:</strong> '.e($customer->email).'</p>'
                                     : '';
 
-                                $voucherCount = $customer->vouchers()
-                                    ->where('lifecycle_state', 'issued')
-                                    ->where('suspended', false)
-                                    ->count();
+                                // Use cached voucher counts to avoid extra query
+                                $voucherCounts = $this->getVoucherCounts($customerId);
+                                $voucherCount = $voucherCounts['eligible'];
 
                                 return new HtmlString(<<<HTML
                                     <div class="text-sm space-y-2">
@@ -204,15 +254,13 @@ class CreateShippingOrder extends CreateRecord
                                     return false;
                                 }
 
-                                /** @var Customer|null $customer */
-                                $customer = Customer::find($customerId);
+                                $customer = $this->getCachedCustomer($customerId);
 
                                 return $customer !== null && ! $customer->isActive();
                             })
                             ->content(function (Get $get): HtmlString {
                                 $customerId = $get('customer_id');
-                                /** @var Customer|null $customer */
-                                $customer = $customerId ? Customer::find($customerId) : null;
+                                $customer = $customerId ? $this->getCachedCustomer($customerId) : null;
 
                                 if (! $customer) {
                                     return new HtmlString('');
@@ -364,10 +412,9 @@ class CreateShippingOrder extends CreateRecord
                                     return false;
                                 }
 
-                                return Voucher::where('customer_id', $customerId)
-                                    ->where('lifecycle_state', VoucherLifecycleState::Issued)
-                                    ->where('suspended', true)
-                                    ->exists();
+                                $counts = $this->getVoucherCounts($customerId);
+
+                                return $counts['suspended'] > 0;
                             })
                             ->content(new HtmlString(<<<'HTML'
                                 <div class="p-4 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800">
@@ -405,19 +452,10 @@ class CreateShippingOrder extends CreateRecord
                                             return [];
                                         }
 
-                                        $allocationIds = Voucher::where('customer_id', $customerId)
-                                            ->where('lifecycle_state', VoucherLifecycleState::Issued)
-                                            ->where('suspended', false)
-                                            ->distinct()
-                                            ->pluck('allocation_id');
+                                        // Use unfiltered voucher data to get all allocation IDs
+                                        $data = $this->getVoucherOptionsAndDescriptions($customerId, null, null);
 
-                                        return $allocationIds
-                                            ->mapWithKeys(function ($allocationId) {
-                                                $shortId = substr((string) $allocationId, 0, 8);
-
-                                                return [$allocationId => "Allocation: {$shortId}..."];
-                                            })
-                                            ->toArray();
+                                        return $data['allocationOptions'];
                                     })
                                     ->live()
                                     ->afterStateUpdated(fn (Set $set) => $set('selected_vouchers', [])),
@@ -429,10 +467,30 @@ class CreateShippingOrder extends CreateRecord
                             ->required()
                             ->minItems(1)
                             ->options(function (Get $get): array {
-                                return $this->getEligibleVoucherOptions($get);
+                                $customerId = $get('customer_id');
+                                if (! $customerId) {
+                                    return [];
+                                }
+                                $data = $this->getVoucherOptionsAndDescriptions(
+                                    $customerId,
+                                    $get('voucher_filter_wine'),
+                                    $get('voucher_filter_allocation'),
+                                );
+
+                                return $data['options'];
                             })
                             ->descriptions(function (Get $get): array {
-                                return $this->getVoucherDescriptions($get);
+                                $customerId = $get('customer_id');
+                                if (! $customerId) {
+                                    return [];
+                                }
+                                $data = $this->getVoucherOptionsAndDescriptions(
+                                    $customerId,
+                                    $get('voucher_filter_wine'),
+                                    $get('voucher_filter_allocation'),
+                                );
+
+                                return $data['descriptions'];
                             })
                             ->searchable()
                             ->bulkToggleable()
@@ -1116,44 +1174,57 @@ class CreateShippingOrder extends CreateRecord
     }
 
     /**
-     * Get voucher counts for display.
+     * Get voucher counts for display using a single aggregate query.
      *
      * @return array{eligible: int, locked: int, suspended: int, other: int}
      */
     protected function getVoucherCounts(string $customerId): array
     {
-        $vouchers = Voucher::where('customer_id', $customerId)->get();
+        if ($this->cachedVoucherCountsCustomerId === $customerId && $this->cachedVoucherCounts !== null) {
+            return $this->cachedVoucherCounts;
+        }
 
-        $eligible = $vouchers->filter(fn (Voucher $v) => $v->lifecycle_state === VoucherLifecycleState::Issued && ! $v->suspended)->count();
+        /** @var object{eligible: int, locked: int, suspended: int, total: int} $counts */
+        $counts = Voucher::where('customer_id', $customerId)
+            ->selectRaw("
+                SUM(CASE WHEN lifecycle_state = 'issued' AND suspended = 0 THEN 1 ELSE 0 END) as eligible,
+                SUM(CASE WHEN lifecycle_state = 'locked' THEN 1 ELSE 0 END) as locked,
+                SUM(CASE WHEN lifecycle_state = 'issued' AND suspended = 1 THEN 1 ELSE 0 END) as suspended,
+                COUNT(*) as total
+            ")
+            ->first();
 
-        $locked = $vouchers->filter(fn (Voucher $v) => $v->lifecycle_state === VoucherLifecycleState::Locked)->count();
+        $eligible = (int) $counts->eligible;
+        $locked = (int) $counts->locked;
+        $suspended = (int) $counts->suspended;
 
-        $suspended = $vouchers->filter(fn (Voucher $v) => $v->lifecycle_state === VoucherLifecycleState::Issued && $v->suspended)->count();
-
-        $other = $vouchers->count() - $eligible - $locked - $suspended;
-
-        return [
+        $this->cachedVoucherCounts = [
             'eligible' => $eligible,
             'locked' => $locked,
             'suspended' => $suspended,
-            'other' => $other,
+            'other' => (int) $counts->total - $eligible - $locked - $suspended,
         ];
+        $this->cachedVoucherCountsCustomerId = $customerId;
+
+        return $this->cachedVoucherCounts;
     }
 
     /**
-     * Get eligible voucher options for the checkbox list.
+     * Get eligible voucher options AND descriptions in a single query.
+     * Results are cached by customer_id + filter combination.
      *
-     * @return array<string, string>
+     * @return array{options: array<string, string>, descriptions: array<string, string>, allocationOptions: array<string, string>}
      */
-    protected function getEligibleVoucherOptions(Get $get): array
-    {
-        $customerId = $get('customer_id');
-        if (! $customerId) {
-            return [];
-        }
+    protected function getVoucherOptionsAndDescriptions(
+        string $customerId,
+        ?string $wineFilter,
+        ?string $allocationFilter,
+    ): array {
+        $cacheKey = $customerId.'|'.($wineFilter ?? '').'|'.($allocationFilter ?? '');
 
-        $wineFilter = $get('voucher_filter_wine');
-        $allocationFilter = $get('voucher_filter_allocation');
+        if ($this->cachedVoucherDataKey === $cacheKey && $this->cachedVoucherData !== null) {
+            return $this->cachedVoucherData;
+        }
 
         $query = Voucher::query()
             ->with(['wineVariant.wineMaster', 'format', 'allocation'])
@@ -1179,61 +1250,30 @@ class CreateShippingOrder extends CreateRecord
             $query->whereNotIn('id', $vouchersInActiveSOs);
         }
 
-        return $query->get()
-            ->mapWithKeys(function (Voucher $voucher) {
-                $label = $this->formatVoucherOption($voucher);
+        $vouchers = $query->get();
 
-                return [$voucher->id => $label];
-            })
-            ->toArray();
-    }
+        $options = [];
+        $descriptions = [];
+        $allocationIds = [];
 
-    /**
-     * Get voucher descriptions for the checkbox list.
-     *
-     * @return array<string, string>
-     */
-    protected function getVoucherDescriptions(Get $get): array
-    {
-        $customerId = $get('customer_id');
-        if (! $customerId) {
-            return [];
+        foreach ($vouchers as $voucher) {
+            $options[$voucher->id] = $this->formatVoucherOption($voucher);
+            $descriptions[$voucher->id] = $this->formatVoucherDescription($voucher);
+
+            if (! isset($allocationIds[$voucher->allocation_id])) {
+                $shortId = substr((string) $voucher->allocation_id, 0, 8);
+                $allocationIds[$voucher->allocation_id] = "Allocation: {$shortId}...";
+            }
         }
 
-        $wineFilter = $get('voucher_filter_wine');
-        $allocationFilter = $get('voucher_filter_allocation');
+        $this->cachedVoucherData = [
+            'options' => $options,
+            'descriptions' => $descriptions,
+            'allocationOptions' => $allocationIds,
+        ];
+        $this->cachedVoucherDataKey = $cacheKey;
 
-        $query = Voucher::query()
-            ->with(['wineVariant.wineMaster', 'format', 'allocation'])
-            ->where('customer_id', $customerId)
-            ->where('lifecycle_state', VoucherLifecycleState::Issued)
-            ->where('suspended', false);
-
-        // Apply wine name filter
-        if ($wineFilter) {
-            $query->whereHas('wineVariant.wineMaster', function ($q) use ($wineFilter) {
-                $q->where('name', 'like', "%{$wineFilter}%");
-            });
-        }
-
-        // Apply allocation filter
-        if ($allocationFilter) {
-            $query->where('allocation_id', $allocationFilter);
-        }
-
-        // Exclude vouchers already in active SOs
-        $vouchersInActiveSOs = $this->getVoucherIdsInActiveSOs();
-        if ($vouchersInActiveSOs->isNotEmpty()) {
-            $query->whereNotIn('id', $vouchersInActiveSOs);
-        }
-
-        return $query->get()
-            ->mapWithKeys(function (Voucher $voucher) {
-                $description = $this->formatVoucherDescription($voucher);
-
-                return [$voucher->id => $description];
-            })
-            ->toArray();
+        return $this->cachedVoucherData;
     }
 
     /**
@@ -1279,13 +1319,17 @@ class CreateShippingOrder extends CreateRecord
     }
 
     /**
-     * Get IDs of vouchers that are already in active Shipping Orders.
+     * Get IDs of vouchers that are already in active Shipping Orders (cached).
      *
      * @return Collection<int, string>
      */
     protected function getVoucherIdsInActiveSOs(): Collection
     {
-        return ShippingOrderLine::query()
+        if ($this->cachedVoucherIdsInActiveSOs !== null) {
+            return $this->cachedVoucherIdsInActiveSOs;
+        }
+
+        $this->cachedVoucherIdsInActiveSOs = ShippingOrderLine::query()
             ->whereHas('shippingOrder', function ($q) {
                 $q->whereIn('status', [
                     ShippingOrderStatus::Draft,
@@ -1295,6 +1339,8 @@ class CreateShippingOrder extends CreateRecord
                 ]);
             })
             ->pluck('voucher_id');
+
+        return $this->cachedVoucherIdsInActiveSOs;
     }
 
     /**
