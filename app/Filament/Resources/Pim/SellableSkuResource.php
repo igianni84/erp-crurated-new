@@ -44,6 +44,8 @@ class SellableSkuResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Sellable SKUs';
 
+    protected static ?string $recordTitleAttribute = 'sku_code';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

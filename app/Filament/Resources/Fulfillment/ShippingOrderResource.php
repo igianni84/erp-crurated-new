@@ -52,6 +52,8 @@ class ShippingOrderResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Shipping Orders';
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

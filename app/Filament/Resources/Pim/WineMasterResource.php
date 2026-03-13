@@ -50,6 +50,8 @@ class WineMasterResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Wine Masters';
 
+    protected static ?string $recordTitleAttribute = 'name';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

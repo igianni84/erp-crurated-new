@@ -43,6 +43,8 @@ class PurchaseOrderResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Purchase Orders';
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     protected static ?string $slug = 'procurement/purchase-orders';
 
     public static function form(Schema $schema): Schema

@@ -134,7 +134,7 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(5)->by($key);
         });
 
-        // Filament v4 global configuration
+        // Filament v5 global configuration
         FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('private'));
         ImageColumn::configureUsing(fn (ImageColumn $ic) => $ic->visibility('private'));
         Table::configureUsing(fn (Table $table) => $table->deferFilters(false));

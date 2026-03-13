@@ -45,6 +45,8 @@ class AllocationResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Allocations';
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

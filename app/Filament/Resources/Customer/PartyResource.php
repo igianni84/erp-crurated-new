@@ -46,6 +46,8 @@ class PartyResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Parties';
 
+    protected static ?string $recordTitleAttribute = 'legal_name';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

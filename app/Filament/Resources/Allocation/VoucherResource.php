@@ -38,6 +38,8 @@ class VoucherResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Vouchers';
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

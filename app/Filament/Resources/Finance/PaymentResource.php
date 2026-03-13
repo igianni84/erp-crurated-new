@@ -40,6 +40,8 @@ class PaymentResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Payments';
 
+    protected static ?string $recordTitleAttribute = 'payment_reference';
+
     public static function form(Schema $schema): Schema
     {
         return $schema
