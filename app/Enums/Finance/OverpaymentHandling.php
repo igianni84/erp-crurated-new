@@ -33,6 +33,28 @@ enum OverpaymentHandling: string
     }
 
     /**
+     * Get the color for UI display (Filament-compatible).
+     */
+    public function color(): string
+    {
+        return match ($this) {
+            self::ApplyPartial => 'warning',
+            self::CreateCredit => 'success',
+        };
+    }
+
+    /**
+     * Get the icon for UI display (Filament-compatible).
+     */
+    public function icon(): string
+    {
+        return match ($this) {
+            self::ApplyPartial => 'heroicon-o-arrow-uturn-left',
+            self::CreateCredit => 'heroicon-o-credit-card',
+        };
+    }
+
+    /**
      * Get the description for this option.
      */
     public function description(): string

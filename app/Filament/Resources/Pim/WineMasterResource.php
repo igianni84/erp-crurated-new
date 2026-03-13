@@ -287,7 +287,7 @@ class WineMasterResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            WineMasterResource\RelationManagers\VariantsRelationManager::class,
         ];
     }
 

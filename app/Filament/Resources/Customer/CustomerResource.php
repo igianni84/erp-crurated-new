@@ -247,7 +247,8 @@ class CustomerResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            CustomerResource\RelationManagers\VouchersRelationManager::class,
+            CustomerResource\RelationManagers\InvoicesRelationManager::class,
         ];
     }
 

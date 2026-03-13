@@ -79,6 +79,23 @@ enum Incoterms: string
     }
 
     /**
+     * Get the icon for UI display (Filament-compatible).
+     */
+    public function icon(): string
+    {
+        return match ($this) {
+            self::EXW => 'heroicon-o-building-storefront',
+            self::FCA => 'heroicon-o-truck',
+            self::DAP => 'heroicon-o-map-pin',
+            self::DDP => 'heroicon-o-check-badge',
+            self::CIF => 'heroicon-o-globe-americas',
+            self::FOB => 'heroicon-o-cube',
+            self::CPT => 'heroicon-o-arrow-path',
+            self::CIP => 'heroicon-o-shield-check',
+        };
+    }
+
+    /**
      * Check if seller is responsible for import duties.
      */
     public function sellerPaysImportDuties(): bool

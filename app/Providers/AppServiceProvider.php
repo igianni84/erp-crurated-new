@@ -5,12 +5,19 @@ namespace App\Providers;
 use App\Events\VoucherIssued;
 use App\Listeners\Procurement\CreateProcurementIntentOnVoucherIssued;
 use App\Models\Allocation\Allocation;
+use App\Models\Allocation\CaseEntitlement;
 use App\Models\Allocation\Voucher;
 use App\Models\Allocation\VoucherTransfer;
+use App\Models\Commercial\Bundle;
 use App\Models\Commercial\Channel;
+use App\Models\Commercial\DiscountRule;
+use App\Models\Commercial\Offer;
+use App\Models\Commercial\PriceBook;
+use App\Models\Commercial\PricingPolicy;
 use App\Models\Customer\Account;
 use App\Models\Customer\Club;
 use App\Models\Customer\Customer;
+use App\Models\Customer\OperationalBlock;
 use App\Models\Customer\Party;
 use App\Models\Customer\PartyRole;
 use App\Models\Finance\CreditNote;
@@ -19,13 +26,27 @@ use App\Models\Finance\Payment;
 use App\Models\Finance\Refund;
 use App\Models\Finance\StorageBillingPeriod;
 use App\Models\Finance\Subscription;
+use App\Models\Fulfillment\Shipment;
+use App\Models\Fulfillment\ShippingOrder;
+use App\Models\Fulfillment\ShippingOrderException;
+use App\Models\Inventory\InventoryCase;
+use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\Location;
+use App\Models\Inventory\SerializedBottle;
 use App\Models\Pim\Appellation;
+use App\Models\Pim\CaseConfiguration;
 use App\Models\Pim\Country;
+use App\Models\Pim\Format;
 use App\Models\Pim\LiquidProduct;
 use App\Models\Pim\Producer;
 use App\Models\Pim\Region;
 use App\Models\Pim\SellableSku;
+use App\Models\Pim\WineMaster;
+use App\Models\Pim\WineVariant;
+use App\Models\Procurement\BottlingInstruction;
+use App\Models\Procurement\Inbound;
+use App\Models\Procurement\ProcurementIntent;
+use App\Models\Procurement\PurchaseOrder;
 use App\Observers\Customer\CustomerObserver;
 use App\Observers\Customer\PartyRoleObserver;
 use App\Observers\Pim\PimCacheObserver;
@@ -33,6 +54,13 @@ use App\Policies\AccountPolicy;
 use App\Policies\AllocationPolicy;
 use App\Policies\ChannelPolicy;
 use App\Policies\ClubPolicy;
+use App\Policies\Commercial\BundlePolicy;
+use App\Policies\Commercial\DiscountRulePolicy;
+use App\Policies\Commercial\OfferPolicy;
+use App\Policies\Commercial\PriceBookPolicy;
+use App\Policies\Commercial\PricingPolicyPolicy;
+use App\Policies\Customer\CaseEntitlementPolicy;
+use App\Policies\Customer\OperationalBlockPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\Finance\CreditNotePolicy;
 use App\Policies\Finance\InvoicePolicy;
@@ -40,8 +68,28 @@ use App\Policies\Finance\PaymentPolicy;
 use App\Policies\Finance\RefundPolicy;
 use App\Policies\Finance\StorageBillingPeriodPolicy;
 use App\Policies\Finance\SubscriptionPolicy;
+use App\Policies\Fulfillment\ShipmentPolicy;
+use App\Policies\Fulfillment\ShippingOrderExceptionPolicy;
+use App\Policies\Fulfillment\ShippingOrderPolicy;
+use App\Policies\Inventory\InventoryCasePolicy;
+use App\Policies\Inventory\InventoryMovementPolicy;
+use App\Policies\Inventory\SerializedBottlePolicy;
 use App\Policies\LocationPolicy;
 use App\Policies\PartyPolicy;
+use App\Policies\Pim\AppellationPolicy;
+use App\Policies\Pim\CaseConfigurationPolicy;
+use App\Policies\Pim\CountryPolicy;
+use App\Policies\Pim\FormatPolicy;
+use App\Policies\Pim\LiquidProductPolicy;
+use App\Policies\Pim\ProducerPolicy;
+use App\Policies\Pim\RegionPolicy;
+use App\Policies\Pim\SellableSkuPolicy;
+use App\Policies\Pim\WineMasterPolicy;
+use App\Policies\Pim\WineVariantPolicy;
+use App\Policies\Procurement\BottlingInstructionPolicy;
+use App\Policies\Procurement\InboundPolicy;
+use App\Policies\Procurement\ProcurementIntentPolicy;
+use App\Policies\Procurement\PurchaseOrderPolicy;
 use App\Policies\VoucherPolicy;
 use App\Policies\VoucherTransferPolicy;
 use Filament\Forms\Components\FileUpload;
@@ -106,6 +154,45 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Refund::class, RefundPolicy::class);
         Gate::policy(Subscription::class, SubscriptionPolicy::class);
         Gate::policy(StorageBillingPeriod::class, StorageBillingPeriodPolicy::class);
+
+        // Register PIM module policies
+        Gate::policy(Country::class, CountryPolicy::class);
+        Gate::policy(Region::class, RegionPolicy::class);
+        Gate::policy(Appellation::class, AppellationPolicy::class);
+        Gate::policy(Format::class, FormatPolicy::class);
+        Gate::policy(CaseConfiguration::class, CaseConfigurationPolicy::class);
+        Gate::policy(Producer::class, ProducerPolicy::class);
+        Gate::policy(LiquidProduct::class, LiquidProductPolicy::class);
+        Gate::policy(WineMaster::class, WineMasterPolicy::class);
+        Gate::policy(WineVariant::class, WineVariantPolicy::class);
+        Gate::policy(SellableSku::class, SellableSkuPolicy::class);
+
+        // Register Commercial module policies
+        Gate::policy(Bundle::class, BundlePolicy::class);
+        Gate::policy(DiscountRule::class, DiscountRulePolicy::class);
+        Gate::policy(Offer::class, OfferPolicy::class);
+        Gate::policy(PriceBook::class, PriceBookPolicy::class);
+        Gate::policy(PricingPolicy::class, PricingPolicyPolicy::class);
+
+        // Register Procurement module policies
+        Gate::policy(ProcurementIntent::class, ProcurementIntentPolicy::class);
+        Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
+        Gate::policy(Inbound::class, InboundPolicy::class);
+        Gate::policy(BottlingInstruction::class, BottlingInstructionPolicy::class);
+
+        // Register Customer module policies
+        Gate::policy(CaseEntitlement::class, CaseEntitlementPolicy::class);
+        Gate::policy(OperationalBlock::class, OperationalBlockPolicy::class);
+
+        // Register Inventory module policies (read-only)
+        Gate::policy(InventoryMovement::class, InventoryMovementPolicy::class);
+        Gate::policy(SerializedBottle::class, SerializedBottlePolicy::class);
+        Gate::policy(InventoryCase::class, InventoryCasePolicy::class);
+
+        // Register Fulfillment module policies
+        Gate::policy(ShippingOrder::class, ShippingOrderPolicy::class);
+        Gate::policy(Shipment::class, ShipmentPolicy::class);
+        Gate::policy(ShippingOrderException::class, ShippingOrderExceptionPolicy::class);
 
         // Register observers for Module K
         PartyRole::observe(PartyRoleObserver::class);

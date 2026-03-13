@@ -421,7 +421,7 @@ class ShippingOrderResource extends Resource
     public static function getRelations(): array
     {
         return [
-            // Relations will be implemented in later US stories
+            ShippingOrderResource\RelationManagers\LinesRelationManager::class,
         ];
     }
 

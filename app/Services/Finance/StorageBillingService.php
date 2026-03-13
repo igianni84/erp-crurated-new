@@ -183,9 +183,10 @@ class StorageBillingService
         $locationIds = $this->getCustomerLocationsDuringPeriod($customer, $periodStart, $periodEnd);
 
         $breakdown = [];
+        $locations = Location::whereIn('id', $locationIds->all())->get()->keyBy('id');
 
         foreach ($locationIds as $locationId) {
-            $location = Location::find($locationId);
+            $location = $locations->get($locationId);
             if ($location === null) {
                 continue;
             }
@@ -361,8 +362,11 @@ class StorageBillingService
             $query->where('current_location_id', $location->id);
         }
 
-        // Get all potentially relevant bottles
-        $bottles = $query->get();
+        // Get all potentially relevant bottles with eager-loaded movements for N+1 prevention
+        $bottles = $query->with(['movements' => function ($q) use ($snapshotDate) {
+            $q->whereIn('movement_type', array_map(fn ($t) => $t->value, self::OUTBOUND_MOVEMENT_TYPES))
+                ->where('executed_at', '<=', $snapshotDate);
+        }])->get();
 
         // Filter to bottles that were actually in storage at the snapshot date
         return $bottles->filter(function (SerializedBottle $bottle) use ($snapshotDate): bool {
@@ -494,24 +498,26 @@ class StorageBillingService
         $customersWithStorage = $this->getCustomersWithStorage();
         $periods = collect();
 
+        $existingPeriodCustomerIds = StorageBillingPeriod::query()
+            ->whereIn('customer_id', $customersWithStorage->all())
+            ->where('period_start', $periodStart)
+            ->where('period_end', $periodEnd->startOfDay())
+            ->pluck('customer_id')
+            ->flip();
+
+        $customers = Customer::whereIn('id', $customersWithStorage->all())->get()->keyBy('id');
+
         foreach ($customersWithStorage as $customerId) {
-            $customer = Customer::find($customerId);
+            $customer = $customers->get($customerId);
             if ($customer === null) {
                 continue;
             }
 
             try {
-                // Check if period already exists
-                $existingPeriod = StorageBillingPeriod::query()
-                    ->where('customer_id', $customerId)
-                    ->where('period_start', $periodStart)
-                    ->where('period_end', $periodEnd->startOfDay())
-                    ->first();
-
-                if ($existingPeriod !== null) {
+                // Check if period already exists (pre-loaded)
+                if ($existingPeriodCustomerIds->has($customerId)) {
                     Log::channel('finance')->info('Storage billing period already exists', [
                         'customer_id' => $customerId,
-                        'period_id' => $existingPeriod->id,
                     ]);
 
                     continue;
@@ -787,12 +793,18 @@ class StorageBillingService
 
         // If bottle is in terminal state, check when it exited
         if ($bottle->isInTerminalState()) {
-            // Find the last movement that changed state to terminal
-            $lastTerminalMovement = $bottle->movements()
-                ->whereIn('movement_type', array_map(fn ($t) => $t->value, self::OUTBOUND_MOVEMENT_TYPES))
-                ->where('executed_at', '<=', $date)
-                ->latest('executed_at')
-                ->first();
+            // Use eager-loaded movements if available, otherwise query
+            if ($bottle->relationLoaded('movements')) {
+                $lastTerminalMovement = $bottle->movements
+                    ->sortByDesc('executed_at')
+                    ->first();
+            } else {
+                $lastTerminalMovement = $bottle->movements()
+                    ->whereIn('movement_type', array_map(fn ($t) => $t->value, self::OUTBOUND_MOVEMENT_TYPES))
+                    ->where('executed_at', '<=', $date)
+                    ->latest('executed_at')
+                    ->first();
+            }
 
             // If the terminal movement happened after the date, bottle was still stored
             if ($lastTerminalMovement === null) {

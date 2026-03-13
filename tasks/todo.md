@@ -1,8 +1,8 @@
 # Enterprise Audit Remediation Plan
 
 **Data:** 2026-03-13
-**Stato:** P1 + P2 completati, P3 in attesa
-**Test totali:** 764 (41 nuovi per P2)
+**Stato:** P1 + P2 + P3a + P3b completati
+**Test totali:** 1035 (256 nuovi per P3b)
 
 ---
 
@@ -24,13 +24,19 @@
 - [x] 10. Caching per lookup statici PIM — PimCacheService + PimCacheObserver (8 tests)
 - [x] 11. Coverage reporting in CI — pcov + coverage-clover artifact upload
 
-## Phase 3 — Backlog (P3)
+## Phase 3a — Audit Hardening (P3a) — COMPLETATO
 
-- [ ] 12. Global search su risorse rimanenti (27/45 mancanti)
-- [ ] 13. Authorization esplicita su piu risorse (solo 10/45 con policy)
-- [ ] 14. RelationManagers aggiuntivi (solo 6/45 risorse)
-- [ ] 15. Enum completeness (2 enum senza color/icon)
-- [ ] 16. StorageBillingService JOIN optimization
+- [x] 12. Global search su 31 risorse rimanenti (ora 42/42 searchable)
+- [x] 13a. Finance Policies RBAC — InvoicePolicy + RefundPolicy (19 test)
+- [x] 14. Job failure alerting — 11 scheduled jobs con `->onFailure(Log::critical)`
+- [x] 15. File upload visibility — WineVariant `public` → `local` disk (6 occorrenze)
+
+## Phase 3b — Backlog Rimanente (P3b) — COMPLETATO
+
+- [x] 13b. Authorization esplicita — 27 nuove policy (10 PIM, 5 Commercial, 4 Procurement, 2 Customer, 3 Inventory, 3 Fulfillment) + 246 test
+- [x] 16. Enum completeness — Incoterms icon(), OverpaymentHandling color()+icon()
+- [x] 17. StorageBillingService N+1 optimization — 4 fix (Location/Customer/Period pre-loading + movements eager-load)
+- [x] 18. RelationManagers — 6 nuovi RM (Customer vouchers+invoices, Allocation vouchers, WineMaster variants, ShippingOrder lines, Invoice payments) + 6 test
 
 ---
 ---

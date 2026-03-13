@@ -295,7 +295,7 @@ class InvoiceResource extends Resource
     public static function getRelations(): array
     {
         return [
-            // Relations will be implemented in US-E014
+            InvoiceResource\RelationManagers\PaymentsRelationManager::class,
         ];
     }
 

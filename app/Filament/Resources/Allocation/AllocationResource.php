@@ -265,7 +265,7 @@ class AllocationResource extends Resource
     public static function getRelations(): array
     {
         return [
-            // Relations will be implemented in US-013
+            AllocationResource\RelationManagers\VouchersRelationManager::class,
         ];
     }
 

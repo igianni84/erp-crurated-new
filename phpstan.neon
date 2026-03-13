@@ -9,3 +9,8 @@ parameters:
         - identifier: trait.unused
         -
             message: '#Unable to resolve the template type T(Key|Value) in call to function collect#'
+        -
+            identifier: method.notFound
+            paths:
+                - tests/Feature/Policies/StandardPolicyTest.php
+                - tests/Feature/Policies/ReadOnlyPolicyTest.php
