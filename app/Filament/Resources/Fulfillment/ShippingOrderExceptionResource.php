@@ -32,6 +32,8 @@ class ShippingOrderExceptionResource extends Resource
 {
     protected static ?string $model = ShippingOrderException::class;
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-exclamation-triangle';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Fulfillment';
@@ -295,6 +297,12 @@ class ShippingOrderExceptionResource extends Resource
                 ->with(['shippingOrder', 'shippingOrderLine', 'createdByUser', 'resolvedByUser']))
             ->striped()
             ->recordClasses(fn (ShippingOrderException $record): string => $record->isActive() ? 'bg-danger-50 dark:bg-danger-950/20' : '');
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var ShippingOrderException $record */
+        return 'Exception #'.substr($record->id, 0, 8);
     }
 
     /**

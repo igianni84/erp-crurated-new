@@ -15,6 +15,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 /**
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class SupplierProducerResource extends Resource
 {
     protected static ?string $model = Party::class;
+
+    protected static ?string $recordTitleAttribute = 'legal_name';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-truck';
 
@@ -176,6 +179,17 @@ class SupplierProducerResource extends Resource
                     PartyRoleType::Supplier->value,
                     PartyRoleType::Producer->value,
                 ])));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['legal_name'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Party $record */
+        return $record->legal_name;
     }
 
     public static function getRelations(): array

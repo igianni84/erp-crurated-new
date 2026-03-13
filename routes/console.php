@@ -13,6 +13,7 @@ use App\Jobs\Finance\SuspendOverdueSubscriptionsJob;
 use App\Jobs\Procurement\ApplyBottlingDefaultsJob;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
@@ -20,23 +21,29 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Schedule the job to expire temporary reservations every minute
-Schedule::job(new ExpireReservationsJob)->everyMinute()->withoutOverlapping();
+Schedule::job(new ExpireReservationsJob)->everyMinute()->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: ExpireReservationsJob'));
 
 // Schedule the job to expire pending voucher transfers every minute
-Schedule::job(new ExpireTransfersJob)->everyMinute()->withoutOverlapping();
+Schedule::job(new ExpireTransfersJob)->everyMinute()->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: ExpireTransfersJob'));
 
 // Schedule the job to identify overdue invoices daily at 8:00 AM
-Schedule::job(new IdentifyOverdueInvoicesJob)->dailyAt('08:00')->withoutOverlapping();
+Schedule::job(new IdentifyOverdueInvoicesJob)->dailyAt('08:00')->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: IdentifyOverdueInvoicesJob'));
 
 // Schedule the job to process subscription billing daily at 6:00 AM (before overdue check)
-Schedule::job(new ProcessSubscriptionBillingJob(autoIssue: true))->dailyAt('06:00')->withoutOverlapping();
+Schedule::job(new ProcessSubscriptionBillingJob(autoIssue: true))->dailyAt('06:00')->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: ProcessSubscriptionBillingJob'));
 
 // Schedule the job to suspend subscriptions with overdue INV0 daily at 9:00 AM (after overdue check)
-Schedule::job(new SuspendOverdueSubscriptionsJob)->dailyAt('09:00')->withoutOverlapping();
+Schedule::job(new SuspendOverdueSubscriptionsJob)->dailyAt('09:00')->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: SuspendOverdueSubscriptionsJob'));
 
 // Schedule the job to alert on unpaid immediate invoices (INV1, INV2, INV4) hourly
 // This runs hourly to provide timely alerts for INV1 invoices that should have been paid immediately
-Schedule::job(new AlertUnpaidImmediateInvoicesJob)->hourly()->withoutOverlapping();
+Schedule::job(new AlertUnpaidImmediateInvoicesJob)->hourly()->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: AlertUnpaidImmediateInvoicesJob'));
 
 // Schedule the job to generate storage billing (INV3) on the first day of each month
 // This runs at 5:00 AM on the 1st to process the previous month's storage billing
@@ -44,21 +51,26 @@ Schedule::job(new AlertUnpaidImmediateInvoicesJob)->hourly()->withoutOverlapping
 Schedule::job(GenerateStorageBillingJob::forPreviousMonth(
     autoGenerateInvoices: config('finance.storage.auto_issue_invoices', true),
     autoIssue: config('finance.storage.auto_issue_invoices', true)
-))->monthlyOn(1, '05:00')->withoutOverlapping();
+))->monthlyOn(1, '05:00')->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: GenerateStorageBillingJob'));
 
 // Schedule the job to block storage billing periods with overdue INV3 daily at 10:00 AM
 // This runs after subscription suspension (9:00 AM) to check for overdue storage invoices
 // and block custody operations for customers with unpaid storage fees
-Schedule::job(new BlockOverdueStorageBillingJob)->dailyAt('10:00')->withoutOverlapping();
+Schedule::job(new BlockOverdueStorageBillingJob)->dailyAt('10:00')->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: BlockOverdueStorageBillingJob'));
 
 // Schedule the job to clean up old integration logs daily at the configured time (default 3:00 AM)
 // This removes Stripe webhooks and Xero sync logs older than the retention period (default 90 days)
 // Only processed/synced logs are removed; failed logs are kept for debugging
-Schedule::job(new CleanupIntegrationLogsJob)->dailyAt(config('finance.logs.cleanup_job_time', '03:00'))->withoutOverlapping();
+Schedule::job(new CleanupIntegrationLogsJob)->dailyAt(config('finance.logs.cleanup_job_time', '03:00'))->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: CleanupIntegrationLogsJob'));
 
 // Schedule the job to apply bottling defaults when deadline expires (daily)
-Schedule::job(new ApplyBottlingDefaultsJob)->daily()->withoutOverlapping();
+Schedule::job(new ApplyBottlingDefaultsJob)->daily()->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: ApplyBottlingDefaultsJob'));
 
 // Schedule the job to archive old audit logs daily at the configured time (default 3:30 AM)
 // This removes audit_logs older than 365 days and ai_audit_logs older than 180 days
-Schedule::job(new ArchiveAuditLogsJob)->dailyAt(config('audit.archival.job_time', '03:30'))->withoutOverlapping();
+Schedule::job(new ArchiveAuditLogsJob)->dailyAt(config('audit.archival.job_time', '03:30'))->withoutOverlapping()
+    ->onFailure(fn () => Log::critical('Scheduled job failed: ArchiveAuditLogsJob'));

@@ -38,8 +38,7 @@ class InvoicePolicy
      */
     public function create(User $user): bool
     {
-        // Future: check for 'finance.create' permission
-        return true;
+        return $user->canEdit();
     }
 
     /**
@@ -56,8 +55,7 @@ class InvoicePolicy
      */
     public function delete(User $user, Invoice $invoice): bool
     {
-        // Only draft invoices can be deleted
-        return $invoice->status === InvoiceStatus::Draft;
+        return $user->isAdmin() && $invoice->status === InvoiceStatus::Draft;
     }
 
     /**
@@ -65,7 +63,7 @@ class InvoicePolicy
      */
     public function restore(User $user, Invoice $invoice): bool
     {
-        return true;
+        return $user->isAdmin();
     }
 
     /**

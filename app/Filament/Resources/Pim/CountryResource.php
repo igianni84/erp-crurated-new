@@ -21,10 +21,13 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class CountryResource extends Resource
 {
     protected static ?string $model = Country::class;
+
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-globe-alt';
 
@@ -103,6 +106,17 @@ class CountryResource extends Resource
                 ]),
             ])
             ->defaultSort('sort_order');
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'iso_code', 'iso_code_3'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Country $record */
+        return $record->name;
     }
 
     public static function getRelations(): array

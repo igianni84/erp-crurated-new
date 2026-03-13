@@ -27,6 +27,8 @@ class SubscriptionResource extends Resource
 {
     protected static ?string $model = Subscription::class;
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-path';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Finance';

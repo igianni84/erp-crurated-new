@@ -27,6 +27,8 @@ class InventoryMovementResource extends Resource
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-path';
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
     protected static ?int $navigationSort = 6;
@@ -220,6 +222,17 @@ class InventoryMovementResource extends Resource
             ])
             ->defaultSort('executed_at', 'desc')
             ->poll('30s'); // Auto-refresh to show new movements
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var InventoryMovement $record */
+        return 'Movement #'.substr($record->id, 0, 8);
     }
 
     public static function getRelations(): array

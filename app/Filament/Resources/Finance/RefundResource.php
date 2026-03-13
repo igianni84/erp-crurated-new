@@ -27,6 +27,8 @@ class RefundResource extends Resource
 {
     protected static ?string $model = Refund::class;
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-uturn-left';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Finance';

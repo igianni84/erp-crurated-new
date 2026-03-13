@@ -26,10 +26,13 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class ProducerResource extends Resource
 {
     protected static ?string $model = Producer::class;
+
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-building-office-2';
 
@@ -127,6 +130,17 @@ class ProducerResource extends Resource
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Producer $record */
+        return $record->name;
     }
 
     public static function getRelations(): array

@@ -26,10 +26,13 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class LiquidProductResource extends Resource
 {
     protected static ?string $model = LiquidProduct::class;
+
+    protected static ?string $recordTitleAttribute = 'id';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-beaker';
 
@@ -201,6 +204,17 @@ class LiquidProductResource extends Resource
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var LiquidProduct $record */
+        return 'Liquid Product #'.substr($record->id, 0, 8);
     }
 
     public static function getRelations(): array

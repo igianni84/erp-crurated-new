@@ -25,10 +25,13 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class CaseConfigurationResource extends Resource
 {
     protected static ?string $model = CaseConfiguration::class;
+
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
@@ -175,6 +178,17 @@ class CaseConfigurationResource extends Resource
                 ]),
             ])
             ->defaultSort('name');
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var CaseConfiguration $record */
+        return $record->name;
     }
 
     public static function getRelations(): array

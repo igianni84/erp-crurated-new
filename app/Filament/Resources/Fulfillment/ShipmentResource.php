@@ -32,6 +32,8 @@ class ShipmentResource extends Resource
 {
     protected static ?string $model = Shipment::class;
 
+    protected static ?string $recordTitleAttribute = 'id';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-paper-airplane';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Fulfillment';
@@ -314,6 +316,12 @@ class ShipmentResource extends Resource
             ->searchPlaceholder('Search by shipment ID, SO ID, or tracking number...')
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->with(['shippingOrder', 'originWarehouse']));
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Shipment $record */
+        return 'Shipment #'.substr($record->id, 0, 8);
     }
 
     /**

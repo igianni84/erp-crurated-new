@@ -54,11 +54,14 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 class WineVariantResource extends Resource
 {
     protected static ?string $model = WineVariant::class;
+
+    protected static ?string $recordTitleAttribute = 'internal_code';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-calendar';
 
@@ -793,7 +796,7 @@ class WineVariantResource extends Resource
                     // Image Upload
                     FileUpload::make('media_images')
                         ->label('Upload Images')
-                        ->disk('public')
+                        ->disk('local')
                         ->directory('pim/product-media/images')
                         ->image()
                         ->multiple()
@@ -810,7 +813,7 @@ class WineVariantResource extends Resource
                     // Document Upload
                     FileUpload::make('media_documents')
                         ->label('Upload Documents')
-                        ->disk('public')
+                        ->disk('local')
                         ->directory('pim/product-media/documents')
                         ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
                         ->multiple()
@@ -2506,6 +2509,17 @@ class WineVariantResource extends Resource
                 ]),
             ])
             ->defaultSort('vintage_year', 'desc');
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['internal_code', 'wineMaster.name'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var WineVariant $record */
+        return $record->internal_code ?? 'Variant #'.substr($record->id, 0, 8);
     }
 
     public static function getRelations(): array

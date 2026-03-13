@@ -32,6 +32,7 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Validation\Rules\Unique;
 
@@ -40,6 +41,8 @@ class LocationResource extends Resource
     protected static ?string $model = Location::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-map-pin';
+
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
 
@@ -268,6 +271,17 @@ class LocationResource extends Resource
             ])
             ->defaultSort('name', 'asc')
             ->modifyQueryUsing(fn (Builder $query) => $query->withCount('serializedBottles'));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Location $record */
+        return $record->name;
     }
 
     public static function getRelations(): array

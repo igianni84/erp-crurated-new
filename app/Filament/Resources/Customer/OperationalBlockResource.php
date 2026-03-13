@@ -21,10 +21,13 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class OperationalBlockResource extends Resource
 {
     protected static ?string $model = OperationalBlock::class;
+
+    protected static ?string $recordTitleAttribute = 'id';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-shield-exclamation';
 
@@ -247,6 +250,17 @@ class OperationalBlockResource extends Resource
         return [
             //
         ];
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var OperationalBlock $record */
+        return 'Block #'.substr($record->id, 0, 8);
     }
 
     public static function getPages(): array

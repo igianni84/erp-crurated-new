@@ -22,10 +22,13 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class FormatResource extends Resource
 {
     protected static ?string $model = Format::class;
+
+    protected static ?string $recordTitleAttribute = 'name';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube';
 
@@ -118,6 +121,17 @@ class FormatResource extends Resource
                 ]),
             ])
             ->defaultSort('volume_ml');
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var Format $record */
+        return $record->name;
     }
 
     public static function getRelations(): array

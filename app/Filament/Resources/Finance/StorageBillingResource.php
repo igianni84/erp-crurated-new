@@ -20,12 +20,15 @@ use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class StorageBillingResource extends Resource
 {
     protected static ?string $model = StorageBillingPeriod::class;
+
+    protected static ?string $recordTitleAttribute = 'id';
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
@@ -234,6 +237,37 @@ class StorageBillingResource extends Resource
                 'invoice',
                 'location',
             ]));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id', 'customer.name'];
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Builder<\App\Models\Finance\StorageBillingPeriod> */
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return parent::getGlobalSearchEloquentQuery()->with(['customer']);
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var StorageBillingPeriod $record */
+        return 'Storage Billing #'.substr($record->id, 0, 8);
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var StorageBillingPeriod $record */
+        return [
+            'Customer' => $record->customer !== null ? ($record->customer->name ?? 'N/A') : 'N/A',
+            'Status' => $record->status->label(),
+        ];
+    }
+
+    public static function getGlobalSearchResultUrl(Model $record): ?string
+    {
+        return static::getUrl('view', ['record' => $record]);
     }
 
     public static function getRelations(): array

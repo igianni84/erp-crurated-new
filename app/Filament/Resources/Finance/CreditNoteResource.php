@@ -28,6 +28,8 @@ class CreditNoteResource extends Resource
 {
     protected static ?string $model = CreditNote::class;
 
+    protected static ?string $recordTitleAttribute = 'credit_note_number';
+
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-receipt-refund';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Finance';

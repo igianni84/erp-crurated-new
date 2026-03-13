@@ -15,12 +15,15 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class CaseEntitlementResource extends Resource
 {
     protected static ?string $model = CaseEntitlement::class;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-cube';
+
+    protected static ?string $recordTitleAttribute = 'id';
 
     protected static string|\UnitEnum|null $navigationGroup = 'Vouchers';
 
@@ -134,6 +137,17 @@ class CaseEntitlementResource extends Resource
                 'customer',
                 'sellableSku',
             ])->withCount('vouchers'));
+    }
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['id'];
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        /** @var CaseEntitlement $record */
+        return 'Case Entitlement #'.substr($record->id, 0, 8);
     }
 
     public static function getRelations(): array

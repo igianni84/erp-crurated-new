@@ -86,7 +86,7 @@ class ProductMedia extends Model
         }
 
         if ($this->file_path !== null) {
-            return Storage::disk('public')->url($this->file_path);
+            return Storage::disk('local')->url($this->file_path);
         }
 
         return null;
@@ -233,7 +233,7 @@ class ProductMedia extends Model
         // When deleting, remove the file from storage
         static::deleting(function (ProductMedia $media): void {
             if ($media->file_path !== null && $media->source !== DataSource::LivEx) {
-                Storage::disk('public')->delete($media->file_path);
+                Storage::disk('local')->delete($media->file_path);
             }
         });
     }
