@@ -100,11 +100,11 @@
 9. **ERP authorizes, WMS executes** (never the reverse)
 
 ### Codebase Numbers
-- 78 Models, 41 Services, 95 Enums, 17 Jobs, 9 Events, 6 Listeners, 12 Policies
-- 2 Observers, 2 Notifications, 1 Mailable
-- 107 migrations, 45 Filament Resources, 33 custom pages, 11 widgets, 6 RelationManagers
-- 35 seeders, 1 factory, 27 test files (11 Feature + 16 Unit), 327 tests
-- 10 scheduled tasks in routes/console.php
+- 78 Models, 42 Services, 95 Enums, 18 Jobs, 9 Events, 6 Listeners, 16 Policies
+- 3 Observers, 2 Notifications, 1 Mailable
+- 110 migrations, 45 Filament Resources, 35 custom pages, 11 widgets, 6 RelationManagers
+- 35 seeders, 48 factories, 81 test files, 764 tests
+- 11 scheduled tasks in routes/console.php
 - PRDs totali: 542 user stories across 10 modules
 
 ### Migration Numbering
