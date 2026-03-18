@@ -276,7 +276,7 @@ class InvoiceResource extends Resource
                     ->label('Retry Xero Sync')
                     ->icon('heroicon-o-arrow-path')
                     ->action(function (Collection $records): void {
-                        // TODO: Implement Xero sync retry in US-E101
+                        /** @todo Implement Xero sync retry (US-E101). */
                         Notification::make()
                             ->title('Xero sync retry queued')
                             ->body('Sync retry has been queued for '.count($records).' invoice(s).')

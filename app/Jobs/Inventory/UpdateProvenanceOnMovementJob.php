@@ -106,8 +106,7 @@ class UpdateProvenanceOnMovementJob implements ShouldQueue
         }
 
         try {
-            // Call blockchain service to update provenance
-            // TODO: Replace with actual blockchain service call
+            /** @todo Replace stub with actual blockchain service call. */
             $this->callBlockchainService($bottle);
 
             Log::debug("Provenance updated for bottle {$bottle->serial_number}");
@@ -130,17 +129,7 @@ class UpdateProvenanceOnMovementJob implements ShouldQueue
      */
     protected function callBlockchainService(SerializedBottle $bottle): void
     {
-        // TODO: Implement actual blockchain provenance update
-        // This should call a blockchain service to update the NFT metadata
-        // or append a new provenance event to the on-chain record.
-        //
-        // The update should include:
-        // - Movement type (transfer, consignment, etc.)
-        // - New location
-        // - Custody changes
-        // - Timestamp
-        //
-        // In production: $this->blockchainService->updateProvenance($bottle, $this->movement);
+        /** @todo Implement blockchain provenance update via $this->blockchainService->updateProvenance(). */
 
         // Placeholder: simulate blockchain call
         // In a real implementation, this would interact with the blockchain

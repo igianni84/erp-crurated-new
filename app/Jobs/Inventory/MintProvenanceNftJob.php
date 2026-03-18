@@ -58,8 +58,7 @@ class MintProvenanceNftJob implements ShouldQueue
         }
 
         try {
-            // Mint NFT via blockchain service
-            // TODO: Replace with actual blockchain service call
+            /** @todo Replace stub with actual blockchain service call. */
             $nftReference = $this->mintNft();
 
             // Update bottle with NFT reference
@@ -88,15 +87,7 @@ class MintProvenanceNftJob implements ShouldQueue
      */
     protected function mintNft(): string
     {
-        // TODO: Implement actual blockchain NFT minting
-        // This should call a blockchain service (e.g., Ethereum, Polygon)
-        // to mint an NFT representing this bottle's provenance.
-        //
-        // The NFT should contain:
-        // - Bottle serial number
-        // - Wine variant information
-        // - Allocation lineage
-        // - Serialization timestamp
+        /** @todo Implement blockchain NFT minting (Ethereum/Polygon). */
         // - Location of serialization
         //
         // For now, we generate a placeholder reference

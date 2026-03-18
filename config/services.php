@@ -48,6 +48,10 @@ return [
         'redirect_uri' => env('XERO_REDIRECT_URI'),
     ],
 
+    'sentry' => [
+        'dsn' => env('SENTRY_LARAVEL_DSN'),
+    ],
+
     'trading_platform' => [
         'hmac_secret' => env('TRADING_PLATFORM_HMAC_SECRET'),
     ],

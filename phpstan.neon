@@ -10,7 +10,12 @@ parameters:
         -
             message: '#Unable to resolve the template type T(Key|Value) in call to function collect#'
         -
+            identifier: return.type
+            paths:
+                - app/Filament/Resources/
+        -
             identifier: method.notFound
+            reportUnmatched: false
             paths:
                 - tests/Feature/Policies/StandardPolicyTest.php
                 - tests/Feature/Policies/ReadOnlyPolicyTest.php

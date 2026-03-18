@@ -136,17 +136,7 @@ class UpdateProvenanceOnShipmentJob implements ShouldQueue
      */
     protected function callBlockchainService(SerializedBottle $bottle, string $newOwnerId): void
     {
-        // TODO: Implement actual blockchain provenance update
-        // This should call a blockchain service to update the NFT metadata
-        // or append a new provenance event to the on-chain record.
-        //
-        // The update should include:
-        // - Event type: shipment
-        // - New owner: customer_id
-        // - Timestamp: shipped_at
-        //
-        // In production: $this->blockchainService->recordShipment($bottle, $this->shipment);
-
+        /** @todo Implement blockchain shipment provenance via $this->blockchainService->recordShipment(). */
         $shipment = $this->shipment;
 
         // Build provenance update data

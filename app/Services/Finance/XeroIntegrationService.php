@@ -218,8 +218,7 @@ class XeroIntegrationService
      */
     protected function getAccountCodeForInvoiceType(Invoice $invoice): string
     {
-        // TODO: Make this configurable via config/finance.php
-        // These are placeholder account codes
+        /** @todo Make account codes configurable via config/finance.php */
         return match ($invoice->invoice_type) {
             InvoiceType::MembershipService => '200',  // Membership Revenue
             InvoiceType::VoucherSale => '210',        // Wine Sales Revenue
@@ -242,8 +241,7 @@ class XeroIntegrationService
      */
     protected function callXeroCreateInvoice(array $payload): array
     {
-        // TODO: Implement actual Xero API integration
-        // In production, use Xero PHP SDK:
+        /** @todo Integrate Xero PHP SDK (xeroapi/xero-php-oauth2) for production. */
         //
         // $xeroTenantId = config('services.xero.tenant_id');
         // $apiInstance = new \XeroAPI\XeroPHP\Api\AccountingApi(...);

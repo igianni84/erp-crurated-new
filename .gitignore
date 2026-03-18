@@ -41,6 +41,7 @@ _ide_helper_models.php
 
 # AI/IDE tool configs (local only)
 .agents/
+.claude/
 .cursor/
 .gemini/
 .junie/

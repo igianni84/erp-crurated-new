@@ -67,10 +67,6 @@ class BundleService
             $bundle->status = BundleStatus::Active;
             $bundle->save();
 
-            // TODO: Sync with PIM to create/update composite Sellable SKU
-            // This would create a SellableSku record with source='composite'
-            // and link it to the bundle via the bundle_sku field.
-            // Implementation depends on PIM module capabilities.
             $this->syncWithPim($bundle);
 
             $this->logStatusTransition($bundle, $oldStatus, BundleStatus::Active);
@@ -445,22 +441,11 @@ class BundleService
     /**
      * Sync bundle with PIM to create/update the composite Sellable SKU.
      *
-     * This is a placeholder for PIM integration. When PIM module is available,
-     * this would create or update a SellableSku with source='composite' and
-     * link it to the bundle via the bundle_sku field.
+     * @todo Create SellableSku with source='composite' when PIM supports composite SKUs.
      */
     protected function syncWithPim(Bundle $bundle): void
     {
-        // TODO: Implement PIM sync when PIM module supports composite SKUs
-        // Example implementation:
-        //
-        // $sellableSku = SellableSku::firstOrNew(['sku_code' => $bundle->bundle_sku]);
-        // $sellableSku->source = 'composite';
-        // $sellableSku->composite_bundle_id = $bundle->id;
-        // $sellableSku->lifecycle_status = 'active';
-        // $sellableSku->save();
-        //
-        // For now, we just log that sync would happen
+        // Placeholder — PIM composite SKU sync not yet available
     }
 
     // =========================================================================

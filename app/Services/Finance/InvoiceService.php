@@ -787,10 +787,7 @@ class InvoiceService
      */
     protected function getFxRateForCurrency(string $currency): string
     {
-        // TODO: In production, integrate with an FX rate provider
-        // This stub provides approximate rates for development/testing
-        // These rates should be fetched from a reliable source in production
-
+        /** @todo Integrate external FX rate provider (ECB / XE) for production. */
         $stubRates = [
             'GBP' => '1.170000',  // 1 GBP ≈ 1.17 EUR
             'USD' => '0.920000',  // 1 USD ≈ 0.92 EUR

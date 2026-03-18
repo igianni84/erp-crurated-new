@@ -30,8 +30,6 @@ class InvoiceMailService
         InvoiceStatus::Credited,
     ];
 
-    public function __construct() {}
-
     /**
      * Send an invoice email to the customer.
      *

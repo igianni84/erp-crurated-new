@@ -86,10 +86,6 @@ class PricingService
         // Generate a unique pricing snapshot ID for audit trail
         $pricingSnapshotId = $this->generatePricingSnapshotId();
 
-        // TODO: When Module S is implemented, integrate with:
-        // - PriceBookService::getActiveForContext($sellableSku, $customer, $channel)
-        // - OfferService::resolvePrice($sellableSku, $customer, $priceBook)
-
         // Placeholder: Use SKU base price if available, otherwise default
         $basePrice = $this->getSkuBasePrice($sellableSku, $currency);
 
@@ -106,10 +102,10 @@ class PricingService
         return [
             'unit_price' => $basePrice,
             'currency' => $currency,
-            'price_book_id' => null, // TODO: From Module S
-            'price_book_entry_id' => null, // TODO: From Module S
-            'offer_id' => null, // TODO: From Module S
-            'discount_applied' => null, // TODO: From Module S
+            'price_book_id' => null,
+            'price_book_entry_id' => null,
+            'offer_id' => null,
+            'discount_applied' => null,
             'pricing_snapshot_id' => $pricingSnapshotId,
         ];
     }
@@ -251,7 +247,7 @@ class PricingService
     /**
      * Get the base price for a SKU.
      *
-     * TODO: When Module S is implemented, this should fetch from PriceBookEntry.
+     * @todo Delegate to PriceBookService when Module S price resolution is wired in.
      */
     protected function getSkuBasePrice(SellableSku $sellableSku, string $currency): string
     {
@@ -273,10 +269,6 @@ class PricingService
      */
     protected function getCustomerTaxCountry(Customer $customer): string
     {
-        // TODO: When Module K (Parties, Customers & Eligibility) is fully implemented,
-        // use customer's billing address country
-        // For now, default to Italy as base jurisdiction
-
         // Check if customer has a country attribute
         /** @var mixed $country */
         $country = $customer->country ?? null;
@@ -307,12 +299,11 @@ class PricingService
 
     /**
      * Determine the tax type based on product characteristics.
+     *
+     * @todo Differentiate tax categories (wine, spirits, etc.) from PIM product attributes.
      */
     protected function determineTaxType(SellableSku $sellableSku): string
     {
-        // TODO: When Module 0 (PIM) product attributes are available,
-        // check for specific product tax categories (wine, spirits, etc.)
-
         // Default to standard rate for wine
         return 'standard_rate';
     }
@@ -327,11 +318,6 @@ class PricingService
      */
     protected function shouldApplyReverseCharge(Customer $customer, string $taxCountry): bool
     {
-        // TODO: Implement when Module K has VAT number validation
-        // - Check if customer is B2B (has valid VAT number)
-        // - Check if tax country is different from seller country
-        // - Both must be within EU
-
         return false;
     }
 
