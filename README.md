@@ -1,5 +1,8 @@
 # Crurated ERP
 
+[![CI](https://github.com/igianni84/erp-crurated-new/actions/workflows/ci.yml/badge.svg)](https://github.com/igianni84/erp-crurated-new/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/igianni84/erp-crurated-new/branch/main/graph/badge.svg)](https://codecov.io/gh/igianni84/erp-crurated-new)
+
 Enterprise Resource Planning system for fine wine and luxury goods trading. Built with Laravel 12, Filament 5, and PHP 8.5.
 
 > **New here?** Start with the [Onboarding Guide](docs/ONBOARDING.md).

@@ -7,7 +7,10 @@ use App\Enums\Commercial\PriceSource;
 use App\Filament\Resources\PriceBookResource;
 use App\Models\Commercial\Channel;
 use App\Models\Commercial\PriceBook;
+use App\Services\Commercial\PriceBookCsvImportService;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
@@ -15,6 +18,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\CreateRecord\Concerns\HasWizard;
+use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Wizard;
@@ -38,6 +42,20 @@ class CreatePriceBook extends CreateRecord
      * Track the source price book ID for cloning.
      */
     public ?string $sourcePriceBookId = null;
+
+    /**
+     * Validated CSV rows ready for import.
+     *
+     * @var list<array{sellable_sku_id: string, base_price: string}>
+     */
+    public array $csvValidRows = [];
+
+    /**
+     * CSV validation errors.
+     *
+     * @var list<array{row: int, field: string, message: string}>
+     */
+    public array $csvErrors = [];
 
     /**
      * Get the form for creating a price book.
@@ -395,13 +413,58 @@ class CreatePriceBook extends CreateRecord
                             ))
                             ->columnSpanFull(),
 
-                        Placeholder::make('csv_not_implemented')
+                        Actions::make([
+                            Action::make('download_csv_template')
+                                ->label('Download CSV Template')
+                                ->icon('heroicon-o-arrow-down-tray')
+                                ->color('gray')
+                                ->action(fn () => app(PriceBookCsvImportService::class)->downloadTemplate()),
+                        ]),
+
+                        FileUpload::make('csv_file')
+                            ->label('CSV File')
+                            ->acceptedFileTypes(['text/csv', 'application/vnd.ms-excel', 'text/plain'])
+                            ->maxSize(5120) // 5 MB
+                            ->disk('local')
+                            ->directory('csv-imports')
+                            ->live()
+                            ->afterStateUpdated(function ($state): void {
+                                $this->validateCsvFile($state);
+                            })
+                            ->columnSpanFull(),
+
+                        Placeholder::make('csv_validation_result')
                             ->label('')
-                            ->content(new HtmlString(
-                                '<div class="p-4 bg-amber-50 border border-amber-200 rounded-lg">'.
-                                '<p class="text-amber-700">⚠️ CSV import is not yet implemented. Please use "Empty" or "Clone" for now, and add prices manually after creation.</p>'.
-                                '</div>'
-                            ))
+                            ->content(function (): HtmlString {
+                                if (count($this->csvValidRows) === 0 && count($this->csvErrors) === 0) {
+                                    return new HtmlString('<span class="text-gray-500">Upload a CSV file to see validation results.</span>');
+                                }
+
+                                $html = '<div class="space-y-2">';
+
+                                if (count($this->csvValidRows) > 0) {
+                                    $count = count($this->csvValidRows);
+                                    $html .= "<p class=\"text-green-600 font-medium\">{$count} valid row(s) ready for import.</p>";
+                                }
+
+                                if (count($this->csvErrors) > 0) {
+                                    $html .= '<div class="text-red-600">';
+                                    $html .= '<p class="font-medium">Errors found:</p>';
+                                    $html .= '<ul class="list-disc list-inside text-sm mt-1">';
+                                    foreach (array_slice($this->csvErrors, 0, 10) as $error) {
+                                        $html .= "<li>Row {$error['row']}: [{$error['field']}] {$error['message']}</li>";
+                                    }
+                                    if (count($this->csvErrors) > 10) {
+                                        $remaining = count($this->csvErrors) - 10;
+                                        $html .= "<li>...and {$remaining} more error(s)</li>";
+                                    }
+                                    $html .= '</ul></div>';
+                                }
+
+                                $html .= '</div>';
+
+                                return new HtmlString($html);
+                            })
                             ->columnSpanFull(),
                     ])
                     ->visible(fn (Get $get): bool => $get('import_method') === 'csv'),
@@ -504,6 +567,13 @@ class CreatePriceBook extends CreateRecord
                                 return $source !== null ? $source->name : 'Unknown';
                             })
                             ->visible(fn (Get $get): bool => $get('import_method') === 'clone'),
+
+                        Placeholder::make('review_csv_summary')
+                            ->label('CSV Import')
+                            ->content(fn (): string => count($this->csvValidRows) > 0
+                                ? count($this->csvValidRows).' price entries will be imported from CSV'
+                                : 'No valid rows to import')
+                            ->visible(fn (Get $get): bool => $get('import_method') === 'csv'),
                     ]),
 
                 // Status info
@@ -543,7 +613,12 @@ class CreatePriceBook extends CreateRecord
         if (isset($data['import_method'])) {
             session(['price_book_import_method' => $data['import_method']]);
             session(['price_book_source_id' => $data['source_price_book_id'] ?? null]);
-            unset($data['import_method'], $data['source_price_book_id']);
+
+            if ($data['import_method'] === 'csv' && count($this->csvValidRows) > 0) {
+                session(['price_book_csv_rows' => $this->csvValidRows]);
+            }
+
+            unset($data['import_method'], $data['source_price_book_id'], $data['csv_file']);
         }
 
         return $data;
@@ -559,11 +634,23 @@ class CreatePriceBook extends CreateRecord
 
         $importMethod = session('price_book_import_method', 'empty');
         $sourceId = session('price_book_source_id');
+        /** @var list<array{sellable_sku_id: string, base_price: string}> $csvRows */
+        $csvRows = session('price_book_csv_rows', []);
 
-        session()->forget(['price_book_import_method', 'price_book_source_id']);
+        session()->forget(['price_book_import_method', 'price_book_source_id', 'price_book_csv_rows']);
 
         if ($importMethod === 'clone' && $sourceId !== null) {
             $this->cloneEntriesFromSource($priceBook, $sourceId);
+        }
+
+        if ($importMethod === 'csv' && count($csvRows) > 0) {
+            $count = app(PriceBookCsvImportService::class)->createEntries($priceBook, $csvRows);
+
+            Notification::make()
+                ->success()
+                ->title('CSV Import Complete')
+                ->body("Imported {$count} price entries from CSV.")
+                ->send();
         }
 
         Notification::make()
@@ -571,6 +658,43 @@ class CreatePriceBook extends CreateRecord
             ->title('Price Book created')
             ->body("The price book \"{$priceBook->name}\" has been created as Draft. Add prices and activate when ready.")
             ->send();
+    }
+
+    /**
+     * Validate the uploaded CSV file and populate csvValidRows / csvErrors.
+     */
+    protected function validateCsvFile(mixed $state): void
+    {
+        $this->csvValidRows = [];
+        $this->csvErrors = [];
+
+        if ($state === null) {
+            return;
+        }
+
+        // Livewire TemporaryUploadedFile: get the real path
+        $filePath = null;
+        if (is_array($state)) {
+            /** @var \Livewire\Features\SupportFileUploads\TemporaryUploadedFile|string|null $firstFile */
+            $firstFile = reset($state);
+            if ($firstFile instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
+                $filePath = $firstFile->getRealPath();
+            } elseif (is_string($firstFile)) {
+                $filePath = storage_path("app/private/csv-imports/{$firstFile}");
+            }
+        } elseif ($state instanceof \Livewire\Features\SupportFileUploads\TemporaryUploadedFile) {
+            $filePath = $state->getRealPath();
+        } elseif (is_string($state)) {
+            $filePath = storage_path("app/private/csv-imports/{$state}");
+        }
+
+        if ($filePath === null || ! file_exists($filePath)) {
+            return;
+        }
+
+        $result = app(PriceBookCsvImportService::class)->parseAndValidate($filePath);
+        $this->csvValidRows = $result['valid'];
+        $this->csvErrors = $result['errors'];
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Enums\UserRole;
 use App\Events\VoucherIssued;
 use App\Listeners\Procurement\CreateProcurementIntentOnVoucherIssued;
 use App\Models\Allocation\Allocation;
@@ -47,6 +48,7 @@ use App\Models\Procurement\BottlingInstruction;
 use App\Models\Procurement\Inbound;
 use App\Models\Procurement\ProcurementIntent;
 use App\Models\Procurement\PurchaseOrder;
+use App\Models\User;
 use App\Observers\Customer\CustomerObserver;
 use App\Observers\Customer\PartyRoleObserver;
 use App\Observers\Pim\PimCacheObserver;
@@ -225,5 +227,10 @@ class AppServiceProvider extends ServiceProvider
         FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('private'));
         ImageColumn::configureUsing(fn (ImageColumn $ic) => $ic->visibility('private'));
         Table::configureUsing(fn (Table $table) => $table->deferFilters(false));
+
+        // API documentation access gate (Scramble)
+        Gate::define('viewApiDocs', function (?User $user): bool {
+            return app()->isLocal() || ($user !== null && $user->role === UserRole::SuperAdmin);
+        });
     }
 }
