@@ -57,7 +57,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          coverage: none
+          coverage: pcov
+          ini-values: max_execution_time=0
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
@@ -76,9 +77,17 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Run tests
+      - name: Run tests with coverage
         timeout-minutes: 10
-        run: php artisan test --compact
+        run: php artisan test --compact --coverage-clover=coverage.xml
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 30
 
   security:
     name: Security Audit
