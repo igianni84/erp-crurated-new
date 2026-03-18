@@ -18,7 +18,9 @@ class ChatController extends Controller
 {
     public function stream(Request $request): StreamedResponse|JsonResponse
     {
-        set_time_limit(120);
+        if (PHP_SAPI !== 'cli') {
+            set_time_limit(120);
+        }
 
         /** @var User $user */
         $user = $request->user();

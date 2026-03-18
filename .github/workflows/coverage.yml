@@ -14,8 +14,6 @@ jobs:
     name: Generate Coverage Report
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      XDEBUG_MODE: coverage
     steps:
       - uses: actions/checkout@v5
 
@@ -23,7 +21,8 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          coverage: xdebug
+          coverage: pcov
+          ini-values: pcov.directory=app
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
