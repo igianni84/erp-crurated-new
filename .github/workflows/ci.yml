@@ -77,7 +77,8 @@ jobs:
           php artisan key:generate
 
       - name: Run tests with coverage
-        run: php -d max_execution_time=300 artisan test --compact --coverage-clover=coverage.xml
+        timeout-minutes: 10
+        run: php -d max_execution_time=0 artisan test --compact --coverage-clover=coverage.xml
 
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
