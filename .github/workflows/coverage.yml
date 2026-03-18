@@ -22,6 +22,7 @@ jobs:
         with:
           php-version: '8.4'
           coverage: pcov
+          ini-values: pcov.directory=app, max_execution_time=0, memory_limit=512M
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
@@ -41,7 +42,7 @@ jobs:
           php artisan key:generate
 
       - name: Run tests with coverage
-        run: php -d max_execution_time=0 artisan test --coverage-clover=coverage.xml --compact
+        run: vendor/bin/phpunit --coverage-clover=coverage.xml
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
