@@ -14,6 +14,8 @@ jobs:
     name: Generate Coverage Report
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      XDEBUG_MODE: coverage
     steps:
       - uses: actions/checkout@v5
 
@@ -21,8 +23,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          coverage: pcov
-          ini-values: pcov.directory=app
+          coverage: xdebug
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@v4
@@ -41,22 +42,8 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Debug PHP ini
-        run: |
-          echo "max_execution_time = $(php -r "echo ini_get('max_execution_time');")"
-          echo "pcov.directory = $(php -r "echo ini_get('pcov.directory');")"
-          echo "pcov.enabled = $(php -r "echo ini_get('pcov.enabled');")"
-          echo "memory_limit = $(php -r "echo ini_get('memory_limit');")"
-          echo "php.ini loaded = $(php -r "echo php_ini_loaded_file();")"
-
-      - name: Force max_execution_time=0 in php.ini
-        run: |
-          PHP_INI=$(php -r "echo php_ini_loaded_file();")
-          echo "max_execution_time=0" >> "$PHP_INI"
-          echo "Verified: max_execution_time = $(php -r "echo ini_get('max_execution_time');")"
-
       - name: Run tests with coverage
-        run: vendor/bin/phpunit --coverage-clover=coverage.xml
+        run: vendor/bin/phpunit --coverage-clover coverage.xml
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
