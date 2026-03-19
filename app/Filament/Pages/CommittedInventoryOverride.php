@@ -74,6 +74,7 @@ class CommittedInventoryOverride extends Page implements HasForms
      */
     public static function canAccess(): bool
     {
+        /** @var \App\Models\User|null $user */
         $user = auth()->user();
 
         return $user && $user->canConsumeCommittedInventory();
@@ -506,6 +507,7 @@ class CommittedInventoryOverride extends Page implements HasForms
     {
         $data = $this->form->getState();
 
+        /** @var \App\Models\User|null $user */
         $user = auth()->user();
         if (! $user) {
             Notification::make()

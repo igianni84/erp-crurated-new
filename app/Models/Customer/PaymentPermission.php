@@ -244,6 +244,7 @@ class PaymentPermission extends Model
      */
     public function updateWithAuthorization(array $attributes, ?User $user = null): bool
     {
+        /** @var \App\Models\User|null $user */
         $user = $user ?? Auth::user();
 
         if (! self::canBeModifiedBy($user)) {

@@ -870,6 +870,7 @@ class ViewCase extends ViewRecord
             ])
             ->action(function (InventoryCase $record, array $data, MovementService $movementService): void {
                 try {
+                    /** @var \App\Models\User|null $user */
                     $user = auth()->user();
                     if ($user === null) {
                         throw new RuntimeException('No authenticated user');

@@ -59,6 +59,7 @@ class InboundBatchResource extends Resource
      */
     public static function canCreate(): bool
     {
+        /** @var \App\Models\User|null $user */
         $user = auth()->user();
 
         return $user !== null && $user->isAdmin();

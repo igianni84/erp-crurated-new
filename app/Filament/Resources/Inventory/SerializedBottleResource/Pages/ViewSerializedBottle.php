@@ -1119,6 +1119,9 @@ class ViewSerializedBottle extends ViewRecord
                     /** @var MovementService $movementService */
                     $movementService = app(MovementService::class);
 
+                    /** @var \App\Models\User $user */
+                    $user = auth()->user();
+
                     // Get the reason label
                     $reasonLabels = [
                         'breakage' => 'Breakage',
@@ -1136,7 +1139,7 @@ class ViewSerializedBottle extends ViewRecord
                     $movementService->recordDestruction(
                         bottle: $record,
                         reason: $reason,
-                        executor: auth()->user(),
+                        executor: $user,
                         evidence: $evidence
                     );
 
@@ -1145,10 +1148,10 @@ class ViewSerializedBottle extends ViewRecord
                         'exception_type' => 'bottle_destroyed',
                         'serialized_bottle_id' => $record->id,
                         'reason' => "Bottle destroyed: {$reason}".($evidence !== null && $evidence !== '' ? ". Evidence: {$evidence}" : ''),
-                        'created_by' => auth()->id(),
+                        'created_by' => $user->id,
                         'resolution' => 'Bottle marked as destroyed',
                         'resolved_at' => now(),
-                        'resolved_by' => auth()->id(),
+                        'resolved_by' => $user->id,
                     ]);
 
                     Notification::make()
@@ -1260,6 +1263,9 @@ class ViewSerializedBottle extends ViewRecord
                     /** @var MovementService $movementService */
                     $movementService = app(MovementService::class);
 
+                    /** @var \App\Models\User $user */
+                    $user = auth()->user();
+
                     /** @var string $reason */
                     $reason = $data['reason'];
                     /** @var string|null $lastKnownCustody */
@@ -1271,7 +1277,7 @@ class ViewSerializedBottle extends ViewRecord
                     $movementService->recordMissing(
                         bottle: $record,
                         reason: $reason,
-                        executor: auth()->user(),
+                        executor: $user,
                         lastKnownCustody: $lastKnownCustody,
                         agreementReference: $agreementReference
                     );
@@ -1290,7 +1296,7 @@ class ViewSerializedBottle extends ViewRecord
                         'exception_type' => 'bottle_missing',
                         'serialized_bottle_id' => $record->id,
                         'reason' => $exceptionReason,
-                        'created_by' => auth()->id(),
+                        'created_by' => $user->id,
                         // Not resolved - missing bottles stay open until found or written off
                     ]);
 

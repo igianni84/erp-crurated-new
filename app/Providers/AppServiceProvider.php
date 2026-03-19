@@ -223,6 +223,14 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by($key);
         });
+        RateLimiter::for('customer-login', function (Request $request) {
+            $key = str($request->input('email', ''))->lower().'|'.$request->ip();
+
+            return Limit::perMinute(5)->by($key);
+        });
+        RateLimiter::for('customer-api', function (Request $request) {
+            return Limit::perMinute(120)->by($request->user('customer')?->id ?: $request->ip());
+        });
 
         // Filament v5 global configuration
         FileUpload::configureUsing(fn (FileUpload $fu) => $fu->visibility('private'));

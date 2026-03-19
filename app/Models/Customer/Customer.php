@@ -121,6 +121,16 @@ class Customer extends Model
     }
 
     /**
+     * Get the customer user logins for this customer.
+     *
+     * @return HasMany<CustomerUser, $this>
+     */
+    public function customerUsers(): HasMany
+    {
+        return $this->hasMany(CustomerUser::class);
+    }
+
+    /**
      * Get the vouchers owned by this customer.
      *
      * @return HasMany<Voucher, $this>

@@ -310,6 +310,7 @@ class EventConsumption extends Page implements HasForms
                                     Placeholder::make('committed_warning')
                                         ->label('')
                                         ->content(function (): HtmlString {
+                                            /** @var \App\Models\User|null $user */
                                             $user = auth()->user();
                                             $canOverride = $user && $user->canConsumeCommittedInventory();
 
@@ -634,6 +635,7 @@ class EventConsumption extends Page implements HasForms
             return;
         }
 
+        /** @var \App\Models\User|null $user */
         $user = auth()->user();
         if (! $user) {
             Notification::make()

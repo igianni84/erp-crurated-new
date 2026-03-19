@@ -528,6 +528,7 @@ class CreateInternalTransfer extends Page implements HasForms
             return;
         }
 
+        /** @var \App\Models\User|null $user */
         $user = auth()->user();
         if (! $user) {
             Notification::make()

@@ -1304,6 +1304,7 @@ class ViewInboundBatch extends ViewRecord
             ])
             ->action(function (InboundBatch $record, array $data): void {
                 $quantity = (int) $data['quantity'];
+                /** @var \App\Models\User|null $user */
                 $user = auth()->user();
 
                 if (! $user) {

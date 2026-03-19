@@ -627,7 +627,12 @@ class ViewPriceBook extends ViewRecord
                 ->label('Activate')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->visible(fn (PriceBook $record): bool => $record->canBeActivated() && auth()->user()?->canApprovePriceBooks())
+                ->visible(function (PriceBook $record): bool {
+                    /** @var \App\Models\User|null $user */
+                    $user = auth()->user();
+
+                    return $record->canBeActivated() && ($user?->canApprovePriceBooks() ?? false);
+                })
                 ->requiresConfirmation()
                 ->modalHeading('Activate Price Book')
                 ->modalDescription(function (PriceBook $record): string {
@@ -657,6 +662,7 @@ class ViewPriceBook extends ViewRecord
                     return implode("\n", $messages);
                 })
                 ->action(function (PriceBook $record): void {
+                    /** @var \App\Models\User|null $user */
                     $user = auth()->user();
                     if ($user === null) {
                         Notification::make()
@@ -697,7 +703,12 @@ class ViewPriceBook extends ViewRecord
                 ->icon('heroicon-o-check-circle')
                 ->color('gray')
                 ->disabled()
-                ->visible(fn (PriceBook $record): bool => $record->canBeActivated() && ! auth()->user()?->canApprovePriceBooks())
+                ->visible(function (PriceBook $record): bool {
+                    /** @var \App\Models\User|null $user */
+                    $user = auth()->user();
+
+                    return $record->canBeActivated() && ! ($user?->canApprovePriceBooks() ?? false);
+                })
                 ->tooltip('You need Manager role or higher to approve price books'),
 
             Action::make('archive')
