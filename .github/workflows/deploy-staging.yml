@@ -1,0 +1,55 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            set -e
+
+            cd ${{ secrets.STAGING_PATH }}
+
+            echo "--- Fetching latest code ---"
+            git fetch origin develop
+            git reset --hard origin/develop
+
+            echo "--- Installing Composer dependencies ---"
+            composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+            echo "" | sudo -S service php8.5-fpm reload
+
+            echo "--- Pre-migration DB backup ---"
+            BACKUP_FILE="/home/ploi/backups/staging_$(date +%Y%m%d_%H%M%S).sql.gz"
+            mkdir -p /home/ploi/backups
+            mysqldump -u "$DB_USERNAME" -p"$DB_PASSWORD" -h 127.0.0.1 erpcrurated_staging \
+              --single-transaction --quick | gzip > "$BACKUP_FILE"
+            echo "Backup saved to $BACKUP_FILE"
+
+            echo "--- Running migrations ---"
+            php artisan migrate --force
+
+            echo "--- Building frontend ---"
+            npm ci && npm run build
+
+            echo "--- Optimizing ---"
+            php artisan filament:optimize
+            php artisan optimize
+
+            echo "--- Deploy complete ---"

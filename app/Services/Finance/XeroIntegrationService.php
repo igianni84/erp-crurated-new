@@ -14,6 +14,14 @@ use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
+use XeroAPI\XeroPHP\Models\Accounting\Contact;
+use XeroAPI\XeroPHP\Models\Accounting\CreditNote as XeroCreditNote;
+use XeroAPI\XeroPHP\Models\Accounting\CreditNotes;
+use XeroAPI\XeroPHP\Models\Accounting\Invoice as XeroInvoice;
+use XeroAPI\XeroPHP\Models\Accounting\Invoices;
+use XeroAPI\XeroPHP\Models\Accounting\LineItem;
+use XeroAPI\XeroPHP\Models\Accounting\Payment as XeroPayment;
+use XeroAPI\XeroPHP\Models\Accounting\Payments;
 
 /**
  * Service for Xero accounting integration.
@@ -40,8 +48,9 @@ class XeroIntegrationService
      */
     protected bool $syncEnabled;
 
-    public function __construct()
-    {
+    public function __construct(
+        protected XeroApiClient $apiClient
+    ) {
         $this->maxRetries = (int) config('finance.xero.max_retry_count', 3);
         $this->syncEnabled = (bool) config('finance.xero.sync_enabled', true);
     }
@@ -213,26 +222,25 @@ class XeroIntegrationService
     /**
      * Get the Xero account code for an invoice type.
      *
-     * Maps ERP invoice types to Xero account codes.
-     * These should be configured based on the organization's chart of accounts.
+     * Maps ERP invoice types to Xero account codes (configurable via config/finance.php).
      */
     protected function getAccountCodeForInvoiceType(Invoice $invoice): string
     {
-        /** @todo Make account codes configurable via config/finance.php */
+        $codes = config('finance.xero.account_codes', []);
+
         return match ($invoice->invoice_type) {
-            InvoiceType::MembershipService => '200',  // Membership Revenue
-            InvoiceType::VoucherSale => '210',        // Wine Sales Revenue
-            InvoiceType::ShippingRedemption => '220', // Shipping Revenue
-            InvoiceType::StorageFee => '230',         // Storage Revenue
-            InvoiceType::ServiceEvents => '240',      // Service Events Revenue
+            InvoiceType::MembershipService => (string) ($codes['membership_service'] ?? '200'),
+            InvoiceType::VoucherSale => (string) ($codes['voucher_sale'] ?? '210'),
+            InvoiceType::ShippingRedemption => (string) ($codes['shipping_redemption'] ?? '220'),
+            InvoiceType::StorageFee => (string) ($codes['storage_fee'] ?? '230'),
+            InvoiceType::ServiceEvents => (string) ($codes['service_events'] ?? '240'),
         };
     }
 
     /**
      * Call Xero API to create an invoice.
      *
-     * This is a stub implementation. In production, this should integrate
-     * with the Xero API SDK (e.g., xeroapi/xero-php-oauth2).
+     * When connected to Xero, uses the real SDK. Otherwise falls back to stub.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -241,23 +249,91 @@ class XeroIntegrationService
      */
     protected function callXeroCreateInvoice(array $payload): array
     {
-        /** @todo Integrate Xero PHP SDK (xeroapi/xero-php-oauth2) for production. */
-        //
-        // $xeroTenantId = config('services.xero.tenant_id');
-        // $apiInstance = new \XeroAPI\XeroPHP\Api\AccountingApi(...);
-        // $invoice = new \XeroAPI\XeroPHP\Models\Accounting\Invoice();
-        // $invoice->setType('ACCREC');
-        // ...
-        // $result = $apiInstance->createInvoices($xeroTenantId, $invoices);
-        // return $result->getInvoices()[0]->getInvoiceID();
+        if (! $this->apiClient->isConnected()) {
+            return $this->stubCreateInvoice($payload);
+        }
 
-        // Stub implementation for development/testing
-        // Returns a simulated Xero response with a generated invoice ID
+        try {
+            $api = $this->apiClient->getAccountingApi();
+            $tenantId = $this->apiClient->getTenantId() ?? '';
+
+            $contact = new Contact;
+            $contact->setName($payload['Contact']['Name'] ?? 'Unknown');
+            if (! empty($payload['Contact']['EmailAddress'])) {
+                $contact->setEmailAddress($payload['Contact']['EmailAddress']);
+            }
+
+            $lineItems = [];
+            foreach ($payload['LineItems'] ?? [] as $item) {
+                $lineItem = new LineItem;
+                $lineItem->setDescription($item['Description'] ?? '');
+                $lineItem->setQuantity($item['Quantity'] ?? 1);
+                $lineItem->setUnitAmount($item['UnitAmount'] ?? 0);
+                $lineItem->setAccountCode($item['AccountCode'] ?? '200');
+                $lineItems[] = $lineItem;
+            }
+
+            $xeroInvoice = new XeroInvoice;
+            $xeroInvoice->setType('ACCREC');
+            $xeroInvoice->setContact($contact);
+            $xeroInvoice->setDate($payload['Date'] ?? date('Y-m-d'));
+            if (! empty($payload['DueDate'])) {
+                $xeroInvoice->setDueDate((string) $payload['DueDate']);
+            }
+            $xeroInvoice->setInvoiceNumber($payload['InvoiceNumber'] ?? null);
+            $xeroInvoice->setReference($payload['Reference'] ?? null);
+            $xeroInvoice->setCurrencyCode($payload['CurrencyCode'] ?? 'EUR');
+            $xeroInvoice->setStatus('AUTHORISED');
+            $xeroInvoice->setLineAmountTypes('Inclusive');
+            $xeroInvoice->setLineItems($lineItems);
+
+            $invoices = new Invoices;
+            $invoices->setInvoices([$xeroInvoice]);
+
+            /** @var Invoices $result */
+            $result = $api->createInvoices($tenantId, $invoices);
+            $invoiceList = $result->getInvoices() ?? [];
+            $createdInvoice = $invoiceList[0] ?? null;
+
+            if ($createdInvoice === null) {
+                throw new RuntimeException('Xero API returned no invoice in response');
+            }
+
+            Log::channel('finance')->info('Xero API: Invoice created via SDK', [
+                'invoice_number' => $payload['InvoiceNumber'] ?? null,
+                'xero_invoice_id' => $createdInvoice->getInvoiceId(),
+            ]);
+
+            return [
+                'InvoiceID' => $createdInvoice->getInvoiceId(),
+                'InvoiceNumber' => $createdInvoice->getInvoiceNumber(),
+                'Status' => $createdInvoice->getStatus(),
+                'Type' => $createdInvoice->getType(),
+                'Total' => $createdInvoice->getTotal(),
+                'UpdatedDateUTC' => now()->toIso8601String(),
+            ];
+        } catch (Exception $e) {
+            Log::channel('finance')->error('Xero SDK invoice creation failed', [
+                'error' => $e->getMessage(),
+                'invoice_number' => $payload['InvoiceNumber'] ?? null,
+            ]);
+
+            throw new RuntimeException('Xero API error: '.$e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Stub implementation for development/testing (no Xero connection).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function stubCreateInvoice(array $payload): array
+    {
         Log::channel('finance')->info('Xero API call (STUB): Creating invoice', [
             'invoice_number' => $payload['InvoiceNumber'] ?? null,
         ]);
 
-        // Simulate successful response
         $xeroInvoiceId = 'XERO-'.strtoupper(substr(md5((string) ($payload['InvoiceNumber'] ?? uniqid())), 0, 12));
 
         return [
@@ -406,7 +482,79 @@ class XeroIntegrationService
      */
     protected function callXeroCreateCreditNote(array $payload): array
     {
-        // Stub implementation
+        if (! $this->apiClient->isConnected()) {
+            return $this->stubCreateCreditNote($payload);
+        }
+
+        try {
+            $api = $this->apiClient->getAccountingApi();
+            $tenantId = $this->apiClient->getTenantId() ?? '';
+
+            $contact = new Contact;
+            $contact->setName($payload['Contact']['Name'] ?? 'Unknown');
+
+            $lineItems = [];
+            foreach ($payload['LineItems'] ?? [] as $item) {
+                $lineItem = new LineItem;
+                $lineItem->setDescription($item['Description'] ?? '');
+                $lineItem->setQuantity($item['Quantity'] ?? 1);
+                $lineItem->setUnitAmount($item['UnitAmount'] ?? 0);
+                $lineItem->setAccountCode($item['AccountCode'] ?? '200');
+                $lineItems[] = $lineItem;
+            }
+
+            $xeroCn = new XeroCreditNote;
+            $xeroCn->setType('ACCRECCREDIT');
+            $xeroCn->setContact($contact);
+            $xeroCn->setDate($payload['Date'] ?? date('Y-m-d'));
+            $xeroCn->setCreditNoteNumber($payload['CreditNoteNumber'] ?? null);
+            $xeroCn->setReference($payload['Reference'] ?? null);
+            $xeroCn->setCurrencyCode($payload['CurrencyCode'] ?? 'EUR');
+            $xeroCn->setStatus('AUTHORISED');
+            $xeroCn->setLineItems($lineItems);
+
+            $creditNotes = new CreditNotes;
+            $creditNotes->setCreditNotes([$xeroCn]);
+
+            /** @var CreditNotes $result */
+            $result = $api->createCreditNotes($tenantId, $creditNotes);
+            $cnList = $result->getCreditNotes() ?? [];
+            $created = $cnList[0] ?? null;
+
+            if ($created === null) {
+                throw new RuntimeException('Xero API returned no credit note in response');
+            }
+
+            Log::channel('finance')->info('Xero API: Credit note created via SDK', [
+                'credit_note_number' => $payload['CreditNoteNumber'] ?? null,
+                'xero_credit_note_id' => $created->getCreditNoteId(),
+            ]);
+
+            return [
+                'CreditNoteID' => $created->getCreditNoteId(),
+                'CreditNoteNumber' => $created->getCreditNoteNumber(),
+                'Status' => $created->getStatus(),
+                'Type' => $created->getType(),
+                'Total' => $created->getTotal(),
+                'UpdatedDateUTC' => now()->toIso8601String(),
+            ];
+        } catch (Exception $e) {
+            Log::channel('finance')->error('Xero SDK credit note creation failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new RuntimeException('Xero API error: '.$e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Stub implementation for credit note (no Xero connection).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function stubCreateCreditNote(array $payload): array
+    {
         Log::channel('finance')->info('Xero API call (STUB): Creating credit note', [
             'credit_note_number' => $payload['CreditNoteNumber'] ?? null,
         ]);
@@ -518,7 +666,60 @@ class XeroIntegrationService
      */
     protected function callXeroCreatePayment(array $payload): array
     {
-        // Stub implementation
+        if (! $this->apiClient->isConnected()) {
+            return $this->stubCreatePayment($payload);
+        }
+
+        try {
+            $api = $this->apiClient->getAccountingApi();
+            $tenantId = $this->apiClient->getTenantId() ?? '';
+
+            $xeroPayment = new XeroPayment;
+            $xeroPayment->setDate($payload['Date'] ?? date('Y-m-d'));
+            $xeroPayment->setAmount($payload['Amount'] ?? 0);
+            $xeroPayment->setReference($payload['Reference'] ?? null);
+
+            $payments = new Payments;
+            $payments->setPayments([$xeroPayment]);
+
+            /** @var Payments $result */
+            $result = $api->createPayments($tenantId, $payments);
+            $pmtList = $result->getPayments() ?? [];
+            $created = $pmtList[0] ?? null;
+
+            if ($created === null) {
+                throw new RuntimeException('Xero API returned no payment in response');
+            }
+
+            Log::channel('finance')->info('Xero API: Payment created via SDK', [
+                'reference' => $payload['Reference'] ?? null,
+                'xero_payment_id' => $created->getPaymentId(),
+            ]);
+
+            return [
+                'PaymentID' => $created->getPaymentId(),
+                'Reference' => $created->getReference(),
+                'Amount' => $created->getAmount(),
+                'Date' => $payload['Date'],
+                'UpdatedDateUTC' => now()->toIso8601String(),
+            ];
+        } catch (Exception $e) {
+            Log::channel('finance')->error('Xero SDK payment creation failed', [
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new RuntimeException('Xero API error: '.$e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Stub implementation for payment (no Xero connection).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    protected function stubCreatePayment(array $payload): array
+    {
         $xeroPaymentId = 'XERO-PMT-'.strtoupper(substr(md5((string) ($payload['Reference'] ?? uniqid())), 0, 12));
 
         return [

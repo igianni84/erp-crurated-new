@@ -73,6 +73,13 @@ return [
     'xero' => [
         'max_retry_count' => env('XERO_MAX_RETRY_COUNT', 3),
         'sync_enabled' => env('XERO_SYNC_ENABLED', true),
+        'account_codes' => [
+            'membership_service' => env('XERO_ACCOUNT_CODE_INV0', '200'),
+            'voucher_sale' => env('XERO_ACCOUNT_CODE_INV1', '210'),
+            'shipping_redemption' => env('XERO_ACCOUNT_CODE_INV2', '220'),
+            'storage_fee' => env('XERO_ACCOUNT_CODE_INV3', '230'),
+            'service_events' => env('XERO_ACCOUNT_CODE_INV4', '240'),
+        ],
     ],
 
     /*

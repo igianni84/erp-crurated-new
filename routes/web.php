@@ -2,10 +2,16 @@
 
 use App\Http\Controllers\AI\ChatController;
 use App\Http\Controllers\AI\ConversationController;
+use App\Http\Controllers\Finance\XeroAuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect('/admin');
+});
+
+Route::middleware(['web', 'auth'])->prefix('admin/xero')->group(function () {
+    Route::get('/authorize', [XeroAuthController::class, 'authorize'])->name('xero.authorize');
+    Route::get('/callback', [XeroAuthController::class, 'callback'])->name('xero.callback');
 });
 
 Route::middleware(['web', 'auth'])->prefix('admin/ai')->group(function () {

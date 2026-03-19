@@ -1,5 +1,14 @@
 # Lessons Learned
 
+## Debugging Methodology (2026-03-18)
+
+### Don't Trial-and-Error — Find the Root Cause First
+- When a CI job fails, **read the full error** and reason about it before patching
+- `set_time_limit()` in application code affects the ENTIRE PHP process, including post-test coverage generation
+- Before assuming infra issues (PCOV settings, php.ini, GitHub runner), **grep the codebase for `set_time_limit`**
+- Any `set_time_limit()` in controller/job code must be guarded with `if (PHP_SAPI !== 'cli')` to avoid polluting test/CLI runs
+- When you find a best practice, **apply it immediately** — don't keep patching the old approach
+
 ## Filament v5 Testing Patterns (2026-03-03)
 
 ### Repeater in Wizard/Form Tests
@@ -35,3 +44,34 @@
 - Filament v5 docs pattern: `fillForm([...]) -> call('save') -> assertHasNoFormErrors()`
 - Avoid changing status to values that trigger Observer side-effects (e.g., Active without billing address)
 - `EditRecord::authorizeAccess()` may abort 403 — test via HTTP request `$this->get(Page::getUrl(...))->assertForbidden()`
+
+## Filament v5 Property Types (2026-03-19)
+
+### Static Property Type Declarations
+- `$navigationGroup` must be declared as `\UnitEnum|string|null` (not `?string`)
+- `$navigationIcon` must be `string|\BackedEnum|null`
+- PHPStan level 8 catches these as fatal errors — always check parent class types before overriding
+
+## Xero SDK Gotchas (2026-03-19)
+
+### Date Parameters
+- `setDate()` / `setDueDate()` expect `string|null` (e.g., `'2026-03-19'`), NOT `\DateTime` objects
+- PHPStan catches this at level 8
+
+### Return Type Unions
+- `createInvoices()` returns `Invoices|Error` — must use `@var` annotation for PHPStan
+- `getInvoices()` returns `array|null` — always null-check: `$result->getInvoices() ?? []`
+- `Payment` model has no `setCurrencyCode()` — currency is set at invoice level
+
+### OAuth2 Integration Pattern
+- Store tokens encrypted at rest (`encrypted` cast on `access_token`/`refresh_token`)
+- Singleton pattern: deactivate old tokens when storing new ones
+- Auto-refresh: check `expiresWithin(5)` before each API call
+- Graceful degradation: `isConnected()` check → fall back to stub if not connected
+
+## Laravel Auth Testing (2026-03-19)
+
+### Route `[login]` Not Defined
+- Filament handles authentication via its own panel routes, not `Route::get('/login')`
+- Testing unauthenticated access to `auth` middleware routes throws `RouteNotFoundException` for `[login]`
+- Don't use `assertRedirect()` — instead assert `$response->getStatusCode() !== 200`

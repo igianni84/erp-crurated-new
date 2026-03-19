@@ -57,6 +57,20 @@ class ImportLivex extends Page
      *
      * @return list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
      */
+    /**
+     * Whether the Liv-ex API is configured with real credentials.
+     */
+    #[Computed]
+    public function livexConfigured(): bool
+    {
+        return app(LivExService::class)->isConfigured();
+    }
+
+    /**
+     * Get search results from Liv-ex.
+     *
+     * @return list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
+     */
     #[Computed]
     public function searchResults(): array
     {
@@ -64,9 +78,7 @@ class ImportLivex extends Page
             return [];
         }
 
-        $service = new LivExService;
-
-        return $service->search($this->searchQuery);
+        return app(LivExService::class)->search($this->searchQuery);
     }
 
     /**
@@ -74,8 +86,7 @@ class ImportLivex extends Page
      */
     public function selectWine(string $lwin): void
     {
-        $service = new LivExService;
-        $wine = $service->getByLwin($lwin);
+        $wine = app(LivExService::class)->getByLwin($lwin);
 
         if ($wine === null) {
             Notification::make()

@@ -1,5 +1,21 @@
 <x-filament-panels::page>
     <div class="max-w-4xl mx-auto space-y-6">
+        {{-- Not Configured Banner --}}
+        @if (!$this->livexConfigured)
+            <div class="bg-warning-50 dark:bg-warning-500/10 border border-warning-200 dark:border-warning-500/20 rounded-xl p-4">
+                <div class="flex items-start gap-3">
+                    <x-heroicon-m-exclamation-triangle class="w-5 h-5 text-warning-600 dark:text-warning-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <h4 class="font-medium text-warning-800 dark:text-warning-200">Liv-ex API Not Configured</h4>
+                        <p class="text-sm text-warning-700 dark:text-warning-300 mt-1">
+                            The Liv-ex API key is not set. Search results are using mock data for development.
+                            Set <code class="px-1 py-0.5 bg-warning-100 dark:bg-warning-500/20 rounded text-xs font-mono">LIVEX_API_KEY</code> in your environment to connect to the real Liv-ex database.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         {{-- Search Section --}}
         @if (!$showConfirmation)
             <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 p-6">

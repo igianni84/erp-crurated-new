@@ -52,6 +52,13 @@ return [
         'dsn' => env('SENTRY_LARAVEL_DSN'),
     ],
 
+    'livex' => [
+        'api_url' => env('LIVEX_API_URL', 'https://api.liv-ex.com'),
+        'api_key' => env('LIVEX_API_KEY'),
+        'cache_search_ttl' => (int) env('LIVEX_CACHE_SEARCH_TTL', 3600),
+        'cache_detail_ttl' => (int) env('LIVEX_CACHE_DETAIL_TTL', 86400),
+    ],
+
     'trading_platform' => [
         'hmac_secret' => env('TRADING_PLATFORM_HMAC_SECRET'),
     ],

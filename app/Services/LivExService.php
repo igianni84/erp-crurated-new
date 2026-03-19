@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 /**
  * Service for interacting with Liv-ex API.
  *
- * Note: This is a mock implementation for development purposes.
- * In production, this would integrate with the actual Liv-ex API.
+ * When configured (LIVEX_API_KEY set), queries the real Liv-ex API with caching.
+ * When not configured, falls back to mock data for development.
  */
 class LivExService
 {
@@ -27,10 +30,225 @@ class LivExService
         'lwin_code',
     ];
 
+    protected string $baseUrl;
+
+    protected ?string $apiKey;
+
+    protected int $searchTtl;
+
+    protected int $detailTtl;
+
+    public function __construct()
+    {
+        $this->baseUrl = (string) config('services.livex.api_url', 'https://api.liv-ex.com');
+        $this->apiKey = config('services.livex.api_key');
+        $this->searchTtl = (int) config('services.livex.cache_search_ttl', 3600);
+        $this->detailTtl = (int) config('services.livex.cache_detail_ttl', 86400);
+    }
+
     /**
-     * Mock wine database for development.
+     * Check if the Liv-ex API is configured with credentials.
+     */
+    public function isConfigured(): bool
+    {
+        return ! empty($this->apiKey);
+    }
+
+    /**
+     * Search Liv-ex wines by LWIN code or name.
      *
-     * @var array<int, array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
+     * @return list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
+     */
+    public function search(string $query): array
+    {
+        if (empty(trim($query))) {
+            return [];
+        }
+
+        if (! $this->isConfigured()) {
+            return $this->mockSearch($query);
+        }
+
+        $cacheKey = 'livex:search:'.md5(Str::lower(trim($query)));
+
+        /** @var list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}> $results */
+        $results = Cache::remember($cacheKey, $this->searchTtl, function () use ($query): array {
+            return $this->callSearchApi($query);
+        });
+
+        return $results;
+    }
+
+    /**
+     * Get wine details by LWIN code.
+     *
+     * @return array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}|null
+     */
+    public function getByLwin(string $lwin): ?array
+    {
+        if (! $this->isConfigured()) {
+            return $this->mockGetByLwin($lwin);
+        }
+
+        $cacheKey = 'livex:detail:'.$lwin;
+
+        /** @var array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}|null $result */
+        $result = Cache::remember($cacheKey, $this->detailTtl, function () use ($lwin): ?array {
+            return $this->callDetailApi($lwin);
+        });
+
+        return $result;
+    }
+
+    /**
+     * Get the list of fields that are locked when importing from Liv-ex.
+     *
+     * @return list<string>
+     */
+    public function getLockedFields(): array
+    {
+        return self::LOCKED_FIELDS;
+    }
+
+    /**
+     * Call the Liv-ex search API.
+     *
+     * @return list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
+     */
+    protected function callSearchApi(string $query): array
+    {
+        try {
+            $response = Http::baseUrl($this->baseUrl)
+                ->withHeaders([
+                    'X-Api-Key' => $this->apiKey,
+                    'Accept' => 'application/json',
+                ])
+                ->timeout(10)
+                ->get('/v1/search', [
+                    'query' => trim($query),
+                ]);
+
+            if ($response->failed()) {
+                Log::warning('Liv-ex search API returned error', [
+                    'status' => $response->status(),
+                    'query' => $query,
+                ]);
+
+                return [];
+            }
+
+            return $this->normalizeSearchResults($response->json('results', []));
+        } catch (\Throwable $e) {
+            Log::error('Liv-ex search API call failed', [
+                'error' => $e->getMessage(),
+                'query' => $query,
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Call the Liv-ex detail API for a specific LWIN.
+     *
+     * @return array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}|null
+     */
+    protected function callDetailApi(string $lwin): ?array
+    {
+        try {
+            $response = Http::baseUrl($this->baseUrl)
+                ->withHeaders([
+                    'X-Api-Key' => $this->apiKey,
+                    'Accept' => 'application/json',
+                ])
+                ->timeout(10)
+                ->get('/v1/wines/'.$lwin);
+
+            if ($response->failed()) {
+                Log::warning('Liv-ex detail API returned error', [
+                    'status' => $response->status(),
+                    'lwin' => $lwin,
+                ]);
+
+                return null;
+            }
+
+            return $this->normalizeWineData($response->json());
+        } catch (\Throwable $e) {
+            Log::error('Liv-ex detail API call failed', [
+                'error' => $e->getMessage(),
+                'lwin' => $lwin,
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Normalize search results from the Liv-ex API response format.
+     *
+     * @param  array<int, mixed>  $results
+     * @return list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
+     */
+    protected function normalizeSearchResults(array $results): array
+    {
+        $normalized = [];
+
+        foreach ($results as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $wine = $this->normalizeWineData($item);
+            if ($wine !== null) {
+                $normalized[] = $wine;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Normalize a single wine record from the Liv-ex API.
+     *
+     * @return array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}|null
+     */
+    protected function normalizeWineData(mixed $data): ?array
+    {
+        if (! is_array($data)) {
+            return null;
+        }
+
+        $lwin = $data['lwin'] ?? $data['lwin_code'] ?? null;
+        $name = $data['name'] ?? $data['wine_name'] ?? null;
+
+        if ($lwin === null || $name === null) {
+            return null;
+        }
+
+        return [
+            'lwin' => (string) $lwin,
+            'name' => (string) $name,
+            'producer' => (string) ($data['producer'] ?? $data['producer_name'] ?? ''),
+            'vintage' => (int) ($data['vintage'] ?? $data['vintage_year'] ?? 0),
+            'appellation' => (string) ($data['appellation'] ?? $data['sub_region'] ?? ''),
+            'country' => (string) ($data['country'] ?? ''),
+            'region' => (string) ($data['region'] ?? ''),
+            'classification' => isset($data['classification']) ? (string) $data['classification'] : null,
+            'alcohol' => isset($data['alcohol']) ? (float) $data['alcohol'] : null,
+            'drinking_window_start' => isset($data['drinking_window_start']) ? (int) $data['drinking_window_start'] : null,
+            'drinking_window_end' => isset($data['drinking_window_end']) ? (int) $data['drinking_window_end'] : null,
+            'description' => isset($data['description']) ? (string) $data['description'] : null,
+            'image_url' => isset($data['image_url']) ? (string) $data['image_url'] : null,
+        ];
+    }
+
+    // =========================================================================
+    // Mock Data (fallback when API is not configured)
+    // =========================================================================
+
+    /**
+     * @var list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
      */
     private const MOCK_WINES = [
         [
@@ -186,42 +404,34 @@ class LivExService
     ];
 
     /**
-     * Search Liv-ex wines by LWIN code or name.
+     * Mock search for development.
      *
      * @return list<array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}>
      */
-    public function search(string $query): array
+    protected function mockSearch(string $query): array
     {
-        if (empty(trim($query))) {
-            return [];
-        }
-
         $query = Str::lower(trim($query));
         $results = [];
 
         foreach (self::MOCK_WINES as $wine) {
-            // Search by LWIN code (exact or partial match)
             if (Str::contains(Str::lower($wine['lwin']), $query)) {
                 $results[] = $wine;
 
                 continue;
             }
 
-            // Search by name
             if (Str::contains(Str::lower($wine['name']), $query)) {
                 $results[] = $wine;
 
                 continue;
             }
 
-            // Search by producer
             if (Str::contains(Str::lower($wine['producer']), $query)) {
                 $results[] = $wine;
 
                 continue;
             }
 
-            // Search by appellation
             if (Str::contains(Str::lower($wine['appellation']), $query)) {
                 $results[] = $wine;
 
@@ -233,11 +443,11 @@ class LivExService
     }
 
     /**
-     * Get wine details by LWIN code.
+     * Mock getByLwin for development.
      *
      * @return array{lwin: string, name: string, producer: string, vintage: int, appellation: string, country: string, region: string, classification: string|null, alcohol: float|null, drinking_window_start: int|null, drinking_window_end: int|null, description: string|null, image_url: string|null}|null
      */
-    public function getByLwin(string $lwin): ?array
+    protected function mockGetByLwin(string $lwin): ?array
     {
         foreach (self::MOCK_WINES as $wine) {
             if ($wine['lwin'] === $lwin) {
@@ -246,15 +456,5 @@ class LivExService
         }
 
         return null;
-    }
-
-    /**
-     * Get the list of fields that are locked when importing from Liv-ex.
-     *
-     * @return list<string>
-     */
-    public function getLockedFields(): array
-    {
-        return self::LOCKED_FIELDS;
     }
 }

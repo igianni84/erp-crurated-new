@@ -130,9 +130,9 @@
 
 1. **"1 engineer"** → "AI-native development: 1 engineer + Claude Code delivered 542 user stories, 78 models, 1,040 tests in 2 months. Traditional team equivalent: 4-6 engineers over 6 months. Onboarding is instant because everything is documented in PRDs and CLAUDE.md"
 
-2. **"No staging"** → Fix this before next review (Sprint 2.3). It's 2-4 hours of work
+2. **"No staging"** → ✅ **Fixed.** Staging at `cruratedstaging.giovannibroegg.it` with `develop` branch auto-deploy via GitHub Actions.
 
-3. **"Stub integrations"** → "Architecture-first approach: all integration services are complete (807-line Xero service, 848-line WMS service). API activation is configuration, not development"
+3. **"Stub integrations"** → ✅ **Fixed.** Xero SDK (`xeroapi/xero-php-oauth2`) integrated with OAuth2 flow, encrypted token storage, and Filament connection management UI. Liv-ex API client with caching. Both degrade gracefully without credentials.
 
 4. **"No consumer analytics"** → "ERP is the operational backbone. Consumer analytics layer sits above the ERP and consumes its APIs. The data model supports all queries needed for taste profiles, purchase history, geographic analysis — we demonstrated the Eloquent queries in Section 5.2"
 
@@ -174,23 +174,23 @@
 
 ## PROGRESS TRACKER
 
-_Updated: 2026-03-18_
+_Updated: 2026-03-19_
 
 ### Sprint 1 — Quick Wins
 
 | # | Item | Status | Note |
 |---|------|--------|------|
 | H5 | API Documentation (Scramble) | ✅ **Done** | `dedoc/scramble` installato, config in `config/scramble.php`, UI a `/docs/api` con gate super_admin (local: aperto). 2 test in `ApiDocumentationTest.php` passano. Auto-documenta nuove route API. |
-| H6 | Test Coverage Report | ✅ **Done** | Workflow `coverage.yml` (schedule lunedì 3AM + manual dispatch, PCOV, artifact 30gg). Upload Codecov con `codecov/codecov-action@v5`. Badge CI + Coverage nel README. **Setup richiesto:** aggiungere `CODECOV_TOKEN` come GitHub secret (da codecov.io). |
+| H6 | Test Coverage Report | ✅ **Done** | Workflow `coverage.yml` (schedule lunedì 3AM + manual dispatch, PCOV + `pcov.directory=app`, artifact 30gg). Upload Codecov con `codecov/codecov-action@v5`. Badge CI + Coverage nel README. Token Codecov configurato. |
 | M7 | Module S → 100% | ⚠️ **80%** | **CSV import: ✅ Done** — `PriceBookCsvImportService` (parse, validate, create entries, template download) + wizard 4-step in `CreatePriceBook.php` + 19 test. **PIM sync: ⏳ Pending** — `BundleService::syncWithPim()` è placeholder (richiede composite SKU in PIM). SellableSku price propagation non implementata. |
 
 ### Sprint 2 — Integration Activation
 
 | # | Item | Status | Note |
 |---|------|--------|------|
-| H1 | Staging environment | ⏳ Not started | |
-| H2 | Xero SDK integration | ⏳ Not started | |
-| H3 | Liv-ex API integration | ⏳ Not started | |
+| H1 | Staging environment | ✅ **Done** | `.env.staging.example`, `deploy-staging.yml` (auto-deploy on push to `develop`), CI updated for `develop` branch, `docs/staging-setup-runbook.md`. Site: `cruratedstaging.giovannibroegg.it`, DB: `erpcrurated_staging`. User action: DNS + Ploi setup + GitHub secrets. |
+| H2 | Xero SDK integration | ✅ **Done** | `xeroapi/xero-php-oauth2` installed. `XeroToken` model (encrypted at rest), `XeroApiClient` (OAuth2 flow, auto-refresh), `XeroAuthController` (authorize/callback routes). 3 stub methods replaced with real SDK calls + graceful fallback. Configurable account codes (`XERO_ACCOUNT_CODE_INV0-4`). `XeroConnection` Filament page for connection management. 36 new tests. Graceful degradation: works without API keys. |
+| H3 | Liv-ex API integration | ✅ **Done** | `LivExService` rewritten: real HTTP client (`Http` facade) + `Cache::remember()` (search 1h, detail 24h) + mock fallback. `isConfigured()` check, "Not Configured" banner in UI. Config in `services.livex`, env vars `LIVEX_*`. Container injection in ImportLivex. 13 new tests. Zero breaking changes. |
 
 ### Sprint 3 — Polish & Maturity
 
