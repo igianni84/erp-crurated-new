@@ -61,8 +61,9 @@
 - **Backend:** Laravel 12, PHP 8.5, MySQL (SQLite dev)
 - **Admin UI:** Filament 5 (45 resources, 33 custom pages, 11 widgets)
 - **Frontend:** Tailwind CSS 4, Vite 7
+- **Search:** Meilisearch 1.39 + Laravel Scout (typo tolerance, faceted filtering, relevance ranking)
 - **Integrations:** Stripe (payments), Xero (accounting), WMS (warehouse), Liv-ex (wine data)
-- **Quality:** PHPStan level 6, Laravel Pint, PHPUnit
+- **Quality:** PHPStan level 8, Laravel Pint, PHPUnit
 
 ### Module Map (dependency order)
 | Code | Module | Purpose | Status |
@@ -141,6 +142,7 @@
 - **DB:** MySQL, host `127.0.0.1:3306`, database `erpcrurated`
 - **Redis:** `127.0.0.1:6379` (cache, session, queue)
 - **Queue:** Redis via Laravel Horizon (daemon gestito da Ploi → Server → Daemons)
+- **Meilisearch:** `127.0.0.1:7700` (daemon gestito da Ploi → Server → Daemons, binary `/home/ploi/bin/meilisearch`, data `/home/ploi/meilisearch-data`)
 - **Horizon dashboard:** `/horizon` (solo SuperAdmin)
 - **Ploi panel:** `ploi.io/panel/servers/106731/sites/342059`
 
@@ -198,6 +200,15 @@ ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan
 
 # Health check
 curl -s https://crurated.giovannibroegg.it/api/health | python3 -m json.tool
+
+# Meilisearch health
+ssh ploi@46.224.207.175 "curl -s http://127.0.0.1:7700/health"
+
+# Meilisearch: configure indexes (after adding new Searchable models)
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan search:configure-indexes"
+
+# Meilisearch: re-import all data
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan scout:import 'App\Models\Pim\WineMaster' && php artisan scout:import 'App\Models\Pim\WineVariant' && php artisan scout:import 'App\Models\Pim\SellableSku'"
 ```
 
 ### Known Gotchas
@@ -206,6 +217,9 @@ curl -s https://crurated.giovannibroegg.it/api/health | python3 -m json.tool
 - Dopo cambio Filament version: sempre `php artisan filament:upgrade` + `php8.5-fpm reload`
 - Horizon: dopo ogni deploy serve `php artisan horizon:terminate` (Supervisor lo riavvia automaticamente). Già nel deploy script.
 - Horizon daemon gestito da Ploi → Server → Daemons (NON dalla sezione Queue del sito)
+- Meilisearch daemon gestito da Ploi → Server → Daemons. Binary in `/home/ploi/bin/meilisearch`, data in `/home/ploi/meilisearch-data`. Feature flag `CATALOG_SEARCH_ENABLED` controlla l'endpoint API
+- Scout: dev/test usa driver `collection` (in-memory), prod usa `meilisearch`. Indexing è queued via Horizon (`SCOUT_QUEUE=true`)
+- Dopo aggiunta nuovi modelli Searchable: eseguire `search:configure-indexes` + `scout:import` sul server
 
 ===
 

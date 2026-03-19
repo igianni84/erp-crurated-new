@@ -26,7 +26,7 @@ The previous investor audit (2026-03-18) identified 18 gaps. Sprints 1-3 resolve
 |---|-----|-------------------|--------|
 | **T4** | Single VPS, no HA | Single point of failure | Phase D |
 | **T5** | Queue not production-hardened | No Horizon, no queue monitoring | **Phase A** |
-| **T6** | No search engine | Catalog browsing won't scale | Phase C |
+| **T6** | No search engine | Catalog browsing won't scale | **Phase C ✅** |
 | **T7** | Blockchain/NFT placeholder | Provenance is claimed differentiator | Phase E |
 
 ### TIER 3 — Polish Items
@@ -48,7 +48,7 @@ The previous investor audit (2026-03-18) identified 18 gaps. Sprints 1-3 resolve
 - [x] B1. REST API with Sanctum Authentication (21 endpoints, CustomerUser bridge model, feature flag)
 - [x] B2. API Test Suite (71 tests, 225 assertions — auth, CRUD, scope enforcement, rate limiting)
 
-## Phase C: Search & Catalog Scale
+## Phase C: Search & Catalog Scale ✅ DONE
 - [x] C1. Install Meilisearch + Laravel Scout
 
 ## Phase D: Containerization & Deployment
