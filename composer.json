@@ -13,6 +13,7 @@
         "filament/filament": "^5.3.5",
         "laravel/ai": "0.1.5",
         "laravel/framework": "^12.0",
+        "laravel/horizon": "^5.45",
         "laravel/pennant": "^1.22",
         "stripe/stripe-php": "^19.3",
         "xeroapi/xero-php-oauth2": "^11.0"

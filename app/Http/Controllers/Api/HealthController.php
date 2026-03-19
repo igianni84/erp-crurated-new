@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -39,10 +40,27 @@ class HealthController extends Controller
             $allHealthy = false;
         }
 
+        // Queue check
+        $checks['queue'] = $this->checkQueue();
+        if ($checks['queue']['status'] === 'error') {
+            $allHealthy = false;
+        }
+
+        // Redis check
+        $checks['redis'] = $this->checkRedis();
+        if ($checks['redis']['status'] === 'error') {
+            $allHealthy = false;
+        }
+
         return response()->json([
             'status' => $allHealthy ? 'healthy' : 'degraded',
             'timestamp' => now()->toIso8601String(),
             'checks' => $checks,
+            'version' => [
+                'php' => PHP_VERSION,
+                'laravel' => app()->version(),
+                'environment' => app()->environment(),
+            ],
         ], $allHealthy ? 200 : 503);
     }
 
@@ -123,6 +141,67 @@ class HealthController extends Controller
                 throw new \RuntimeException('Storage read/write mismatch');
             }
 
+            $latencyMs = (hrtime(true) - $start) / 1_000_000;
+
+            return [
+                'status' => 'ok',
+                'latency_ms' => round($latencyMs, 2),
+            ];
+        } catch (\Throwable $e) {
+            $latencyMs = (hrtime(true) - $start) / 1_000_000;
+
+            return [
+                'status' => 'error',
+                'latency_ms' => round($latencyMs, 2),
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @return array{status: string, pending_jobs: int, failed_jobs_24h: int, error?: string}
+     */
+    protected function checkQueue(): array
+    {
+        try {
+            $pendingJobs = DB::table('jobs')->count();
+            $failedJobs24h = DB::table('failed_jobs')
+                ->where('failed_at', '>=', now()->subDay())
+                ->count();
+
+            $status = 'ok';
+            if ($failedJobs24h > 10) {
+                $status = 'warning';
+            }
+
+            return [
+                'status' => $status,
+                'pending_jobs' => $pendingJobs,
+                'failed_jobs_24h' => $failedJobs24h,
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'status' => 'error',
+                'pending_jobs' => 0,
+                'failed_jobs_24h' => 0,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @return array{status: string, latency_ms?: float, error?: string}
+     */
+    protected function checkRedis(): array
+    {
+        if (config('cache.default') !== 'redis' && config('queue.default') !== 'redis') {
+            return ['status' => 'skipped'];
+        }
+
+        $start = hrtime(true);
+
+        try {
+            Redis::ping();
             $latencyMs = (hrtime(true) - $start) / 1_000_000;
 
             return [

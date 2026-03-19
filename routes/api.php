@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\Finance\StripeWebhookController;
 use App\Http\Controllers\Api\HealthController;
+use App\Http\Controllers\Api\MetricsController;
 use App\Http\Controllers\Api\VoucherController;
 use App\Http\Middleware\VerifyHmacSignature;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,10 @@ use Illuminate\Support\Facades\Route;
 Route::get('/health', HealthController::class)
     ->middleware(['throttle:api'])
     ->name('api.health');
+
+Route::get('/metrics', MetricsController::class)
+    ->middleware(['throttle:api'])
+    ->name('api.metrics');
 
 /*
 |--------------------------------------------------------------------------

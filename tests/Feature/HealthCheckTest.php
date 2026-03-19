@@ -21,7 +21,10 @@ class HealthCheckTest extends TestCase
                 'database' => ['status', 'latency_ms'],
                 'cache' => ['status', 'latency_ms'],
                 'storage' => ['status', 'latency_ms'],
+                'queue' => ['status', 'pending_jobs', 'failed_jobs_24h'],
+                'redis' => ['status'],
             ],
+            'version' => ['php', 'laravel', 'environment'],
         ]);
         $response->assertJson(['status' => 'healthy']);
     }
@@ -74,5 +77,73 @@ class HealthCheckTest extends TestCase
         $response = $this->get('/up');
 
         $response->assertOk();
+    }
+
+    public function test_health_checks_queue_status(): void
+    {
+        $response = $this->getJson('/api/health');
+
+        $response->assertOk();
+        $data = $response->json('checks.queue');
+
+        $this->assertArrayHasKey('status', $data);
+        $this->assertArrayHasKey('pending_jobs', $data);
+        $this->assertArrayHasKey('failed_jobs_24h', $data);
+        $this->assertIsInt($data['pending_jobs']);
+        $this->assertIsInt($data['failed_jobs_24h']);
+    }
+
+    public function test_health_checks_redis_when_not_configured(): void
+    {
+        // In testing, cache/queue default to array/sync, so Redis is skipped
+        $response = $this->getJson('/api/health');
+
+        $response->assertOk();
+        $response->assertJsonPath('checks.redis.status', 'skipped');
+    }
+
+    public function test_health_returns_version_info(): void
+    {
+        $response = $this->getJson('/api/health');
+
+        $response->assertOk();
+        $data = $response->json('version');
+
+        $this->assertSame(PHP_VERSION, $data['php']);
+        $this->assertSame(app()->version(), $data['laravel']);
+        $this->assertSame('testing', $data['environment']);
+    }
+
+    public function test_metrics_endpoint_returns_correct_structure(): void
+    {
+        $response = $this->getJson('/api/metrics');
+
+        $response->assertOk();
+        $response->assertJsonStructure([
+            'timestamp',
+            'queue' => ['pending_jobs', 'failed_jobs_24h'],
+            'database' => ['connections'],
+            'storage' => ['usage_mb'],
+            'runtime' => ['php_version', 'laravel_version', 'environment', 'uptime_seconds'],
+        ]);
+    }
+
+    public function test_metrics_is_publicly_accessible(): void
+    {
+        $response = $this->getJson('/api/metrics');
+
+        $response->assertOk();
+    }
+
+    public function test_metrics_returns_valid_runtime_data(): void
+    {
+        $response = $this->getJson('/api/metrics');
+
+        $data = $response->json('runtime');
+
+        $this->assertSame(PHP_VERSION, $data['php_version']);
+        $this->assertSame(app()->version(), $data['laravel_version']);
+        $this->assertSame('testing', $data['environment']);
+        $this->assertIsInt($data['uptime_seconds']);
     }
 }

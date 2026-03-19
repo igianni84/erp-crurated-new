@@ -74,3 +74,6 @@ Schedule::job(new ApplyBottlingDefaultsJob)->daily()->withoutOverlapping()
 // This removes audit_logs older than 365 days and ai_audit_logs older than 180 days
 Schedule::job(new ArchiveAuditLogsJob)->dailyAt(config('audit.archival.job_time', '03:30'))->withoutOverlapping()
     ->onFailure(fn () => Log::critical('Scheduled job failed: ArchiveAuditLogsJob'));
+
+// Horizon metrics snapshot (every 5 minutes) — powers the Horizon dashboard graphs
+Schedule::command('horizon:snapshot')->everyFiveMinutes();
