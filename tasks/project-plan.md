@@ -2,9 +2,13 @@
 
 ## Tech Stack
 
-- **Backend**: Laravel 12
+- **Backend**: Laravel 12, PHP 8.5
 - **Admin Panel**: Filament 5
-- **Database**: MySQL
+- **Database**: MySQL (SQLite dev/test)
+- **Search**: Meilisearch + Laravel Scout
+- **Queue**: Laravel Horizon (Redis)
+- **Dev Environment**: Docker Compose via Laravel Sail (MySQL 8.4, Redis, Meilisearch + Horizon/Scheduler profiles)
+- **CI/CD**: GitHub Actions (Pint, PHPStan L8, PHPUnit, Security Audit)
 - **Approccio**: Sviluppo incrementale modulo per modulo
 
 ---

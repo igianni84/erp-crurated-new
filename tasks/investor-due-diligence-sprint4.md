@@ -24,7 +24,7 @@ The previous investor audit (2026-03-18) identified 18 gaps. Sprints 1-3 resolve
 
 | # | Gap | Why Investor Cares | Status |
 |---|-----|-------------------|--------|
-| **T4** | Single VPS, no HA | Single point of failure | Phase D |
+| **T4** | Single VPS, no HA | Single point of failure | Phase D (Docker dev ✅, prod migration planned) |
 | **T5** | Queue not production-hardened | No Horizon, no queue monitoring | **Phase A** |
 | **T6** | No search engine | Catalog browsing won't scale | **Phase C ✅** |
 | **T7** | Blockchain/NFT placeholder | Provenance is claimed differentiator | Phase E |
@@ -52,7 +52,7 @@ The previous investor audit (2026-03-18) identified 18 gaps. Sprints 1-3 resolve
 - [x] C1. Install Meilisearch + Laravel Scout
 
 ## Phase D: Containerization & Deployment
-- [ ] D1. Docker Compose for Development
+- [x] D1. Docker Compose for Development (Laravel Sail — mysql, redis, meilisearch + horizon/scheduler profiles)
 
 ## Phase E: Remaining Gaps
 - [ ] E1. Module S → 100%

@@ -211,6 +211,26 @@ ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan
 ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan scout:import 'App\Models\Pim\WineMaster' && php artisan scout:import 'App\Models\Pim\WineVariant' && php artisan scout:import 'App\Models\Pim\SellableSku'"
 ```
 
+### Docker Development (Laravel Sail)
+- **Requirements:** Docker Desktop
+- **Quick start:**
+  ```bash
+  cp .env.example .env && cat .env.sail >> .env
+  php artisan key:generate
+  ./vendor/bin/sail up -d
+  ./vendor/bin/sail artisan migrate --seed
+  ```
+- **Common commands:**
+  - `./vendor/bin/sail up -d` — Start containers (app, mysql, redis, meilisearch)
+  - `./vendor/bin/sail artisan ...` — Run Artisan commands inside container
+  - `./vendor/bin/sail test --compact` — Run test suite (SQLite in-memory)
+  - `./vendor/bin/sail npm run dev` — Vite HMR (works inside container via `host: '0.0.0.0'`)
+  - `./vendor/bin/sail down` — Stop containers
+- **Worker profiles:** `COMPOSE_PROFILES=workers ./vendor/bin/sail up -d` starts Horizon + Scheduler
+- **Data persistence:** MySQL, Redis, Meilisearch data stored in Docker named volumes (`sail-mysql`, `sail-redis`, `sail-meilisearch`)
+- **Config:** `.env.sail` has Docker-specific overrides (DB_HOST=mysql, REDIS_HOST=redis, etc.)
+- **Tests:** `phpunit.xml` forces SQLite in-memory — tests work identically inside and outside Docker
+
 ### Known Gotchas
 - Seeders usano `fake()` → `fakerphp/faker` è in `require` (non `require-dev`)
 - Deploy Ploi usa la sua config di repo, non il git remote del server — cambiare repo va fatto dal pannello Ploi

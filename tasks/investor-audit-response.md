@@ -15,7 +15,7 @@
 |--------|--------|
 | **Hosting** | Ploi-managed VPS (46.224.207.175), EU datacenter |
 | **Deployment model** | Single VM with PHP 8.5 FPM, MySQL, Nginx — managed via Ploi panel |
-| **Orchestration** | None currently — single-server deployment; architecture is containerizable (Sail config present) |
+| **Orchestration** | Docker Compose dev environment via Laravel Sail (MySQL 8.4, Redis, Meilisearch + Horizon/Scheduler worker profiles). Production containerization-ready |
 | **CI/CD** | GitHub Actions — 4 parallel jobs on push to `main` + PRs: (1) Laravel Pint code style, (2) PHPStan level 8 static analysis, (3) PHPUnit 1,040 tests, (4) Composer security audit |
 | **Environments** | Development (local SQLite), Production (Ploi/MySQL). No formal staging yet — planned |
 | **Monthly infra cost** | ~€30-50/mo (Ploi VPS + domain). Pre-scale phase |
@@ -318,7 +318,7 @@ php8.5-fpm reload
 
 **Pending infrastructure migrations:**
 - Staging environment setup
-- Potential move to containerized deployment (Docker/Sail config already present)
+- Docker Compose dev environment operational (Laravel Sail — `compose.yaml`); production container migration planned
 - Redis for cache/queue (currently database-backed, Redis config ready)
 
 ---
