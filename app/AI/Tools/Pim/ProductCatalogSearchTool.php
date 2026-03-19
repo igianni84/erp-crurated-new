@@ -4,8 +4,8 @@ namespace App\AI\Tools\Pim;
 
 use App\AI\Tools\BaseTool;
 use App\Enums\AI\ToolAccessLevel;
-use App\Models\Pim\SellableSku;
 use App\Models\Pim\WineMaster;
+use App\Services\Pim\CatalogSearchService;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Tools\Request;
@@ -42,28 +42,27 @@ class ProductCatalogSearchTool extends BaseTool implements Tool
         }
 
         $type = $request['type'] ?? 'all';
-        $like = '%'.$searchQuery.'%';
         $results = [];
 
-        if ($type === 'wine_master' || $type === 'all') {
-            $masters = WineMaster::query()
-                ->where(function ($q) use ($like): void {
-                    $q->where('name', 'LIKE', $like)
-                        ->orWhere('producer', 'LIKE', $like)
-                        ->orWhere('appellation', 'LIKE', $like);
-                })
-                ->with('wineVariants')
-                ->limit(20)
-                ->get();
+        /** @var CatalogSearchService $searchService */
+        $searchService = app(CatalogSearchService::class);
 
-            foreach ($masters as $master) {
+        if ($type === 'wine_master' || $type === 'all') {
+            $variants = WineMaster::search((string) $searchQuery)
+                ->query(function ($builder): void {
+                    $builder->with('wineVariants');
+                })
+                ->get()
+                ->take(20);
+
+            foreach ($variants as $master) {
                 foreach ($master->wineVariants as $variant) {
                     $results[] = [
                         'name' => $master->name,
                         'producer' => $master->producer_name,
-                        'appellation' => $master->appellation ?? '',
+                        'appellation' => $master->appellation_name,
                         'vintage' => $variant->vintage_year,
-                        'lifecycle_status' => $variant->lifecycle_status ?? 'unknown',
+                        'lifecycle_status' => $variant->lifecycle_status->value,
                         'type' => 'wine_master',
                     ];
                 }
@@ -72,7 +71,7 @@ class ProductCatalogSearchTool extends BaseTool implements Tool
                     $results[] = [
                         'name' => $master->name,
                         'producer' => $master->producer_name,
-                        'appellation' => $master->appellation ?? '',
+                        'appellation' => $master->appellation_name,
                         'vintage' => null,
                         'lifecycle_status' => null,
                         'type' => 'wine_master',
@@ -82,19 +81,20 @@ class ProductCatalogSearchTool extends BaseTool implements Tool
         }
 
         if ($type === 'sellable_sku' || $type === 'all') {
-            $skus = SellableSku::query()
-                ->where('sku_code', 'LIKE', $like)
-                ->with(['wineVariant.wineMaster', 'format'])
-                ->limit(20)
-                ->get();
+            $skus = $searchService->searchSkus((string) $searchQuery);
 
             foreach ($skus as $sku) {
+                /** @var \App\Models\Pim\WineVariant|null $variant */
+                $variant = $sku->wineVariant;
+                /** @var \App\Models\Pim\WineMaster|null $master */
+                $master = $variant !== null ? $variant->wineMaster : null;
+
                 $results[] = [
-                    'name' => $sku->wineVariant->wineMaster->name ?? 'Unknown',
-                    'producer' => $sku->wineVariant->wineMaster->producer_name ?? '',
-                    'appellation' => $sku->wineVariant->wineMaster->appellation ?? '',
-                    'vintage' => $sku->wineVariant->vintage_year ?? null,
-                    'format' => $sku->format->name ?? 'Unknown',
+                    'name' => $master !== null ? $master->name : 'Unknown',
+                    'producer' => $master !== null ? $master->producer_name : '',
+                    'appellation' => $master !== null ? $master->appellation_name : '',
+                    'vintage' => $variant?->vintage_year,
+                    'format' => $sku->format !== null ? $sku->format->name : 'Unknown',
                     'sku_code' => $sku->sku_code,
                     'lifecycle_status' => $sku->lifecycle_status,
                     'type' => 'sellable_sku',

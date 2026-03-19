@@ -49,7 +49,7 @@ The previous investor audit (2026-03-18) identified 18 gaps. Sprints 1-3 resolve
 - [x] B2. API Test Suite (71 tests, 225 assertions — auth, CRUD, scope enforcement, rate limiting)
 
 ## Phase C: Search & Catalog Scale
-- [ ] C1. Install Meilisearch + Laravel Scout
+- [x] C1. Install Meilisearch + Laravel Scout
 
 ## Phase D: Containerization & Deployment
 - [ ] D1. Docker Compose for Development

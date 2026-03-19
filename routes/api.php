@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\MetricsController;
 use App\Http\Controllers\Api\V1\Customer\AddressController;
 use App\Http\Controllers\Api\V1\Customer\AuthController;
+use App\Http\Controllers\Api\V1\Customer\CatalogSearchController;
 use App\Http\Controllers\Api\V1\Customer\CellarController;
 use App\Http\Controllers\Api\V1\Customer\InvoiceController;
 use App\Http\Controllers\Api\V1\Customer\OfferController;
@@ -144,6 +145,10 @@ Route::prefix('v1/customer')
                     ->name('customer.subscriptions.index');
                 Route::get('/subscriptions/{subscription}', [SubscriptionController::class, 'show'])
                     ->name('customer.subscriptions.show');
+
+                // Catalog Search
+                Route::get('/catalog/search', CatalogSearchController::class)
+                    ->name('customer.catalog.search');
 
                 // Addresses
                 Route::get('/addresses', [AddressController::class, 'index'])

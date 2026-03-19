@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Laravel\Scout\Searchable;
 use RuntimeException;
 
 class SellableSku extends Model
@@ -26,6 +27,7 @@ class SellableSku extends Model
     use HasFactory;
 
     use HasUuid;
+    use Searchable;
     use SoftDeletes;
 
     /**
@@ -489,6 +491,39 @@ class SellableSku extends Model
         }
 
         return implode(' + ', $parts);
+    }
+
+    // =========================================================================
+    // Scout Searchable
+    // =========================================================================
+
+    /**
+     * Only index active SKUs.
+     */
+    public function shouldBeSearchable(): bool
+    {
+        return $this->lifecycle_status === self::STATUS_ACTIVE;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toSearchableArray(): array
+    {
+        $variant = $this->wineVariant;
+        $master = $variant?->wineMaster;
+        $format = $this->format;
+
+        return [
+            'id' => $this->id,
+            'sku_code' => $this->sku_code,
+            'barcode' => $this->barcode,
+            'wine_name' => $master?->name,
+            'producer_name' => $master?->producer_name,
+            'vintage_year' => $variant?->vintage_year,
+            'format_name' => $format?->name,
+            'lifecycle_status' => $this->lifecycle_status,
+        ];
     }
 
     /**

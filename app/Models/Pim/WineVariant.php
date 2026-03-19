@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Scout\Searchable;
 
 /**
  * @property ProductLifecycleStatus $lifecycle_status
@@ -29,6 +30,7 @@ class WineVariant extends Model
 
     use HasProductLifecycle;
     use HasUuid;
+    use Searchable;
     use SoftDeletes;
 
     /**
@@ -540,5 +542,52 @@ class WineVariant extends Model
             }
         }
         $this->setAttribute('locked_fields', $filtered);
+    }
+
+    // =========================================================================
+    // Scout Searchable
+    // =========================================================================
+
+    /**
+     * Only index published variants.
+     */
+    public function shouldBeSearchable(): bool
+    {
+        return $this->lifecycle_status === ProductLifecycleStatus::Published;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toSearchableArray(): array
+    {
+        $master = $this->wineMaster;
+
+        return [
+            'id' => $this->id,
+            'wine_name' => $master?->name,
+            'producer_name' => $master?->producer_name,
+            'country_name' => $master?->country_name,
+            'region_name' => $master?->region_name,
+            'appellation_name' => $master?->appellation_name,
+            'classification' => $master?->classification,
+            'vintage_year' => $this->vintage_year,
+            'lifecycle_status' => $this->lifecycle_status->value,
+            'description' => $this->description ?? $master?->description,
+            'lwin_code' => $this->lwin_code,
+            'format_names' => $this->sellableSkus()
+                ->where('lifecycle_status', SellableSku::STATUS_ACTIVE)
+                ->with('format')
+                ->get()
+                ->pluck('format.name')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all(),
+            'has_active_skus' => $this->sellableSkus()
+                ->where('lifecycle_status', SellableSku::STATUS_ACTIVE)
+                ->exists(),
+            'created_at' => $this->created_at?->timestamp,
+        ];
     }
 }

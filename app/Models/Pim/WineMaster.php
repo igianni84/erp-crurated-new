@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Laravel\Scout\Searchable;
 
 class WineMaster extends Model
 {
@@ -20,6 +21,7 @@ class WineMaster extends Model
     use HasFactory;
 
     use HasUuid;
+    use Searchable;
     use SoftDeletes;
 
     /**
@@ -135,5 +137,27 @@ class WineMaster extends Model
         $relation = $this->appellationRelation;
 
         return $relation !== null ? $relation->name : ($this->appellation ?? '');
+    }
+
+    // =========================================================================
+    // Scout Searchable
+    // =========================================================================
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'producer_name' => $this->producer_name,
+            'country_name' => $this->country_name,
+            'region_name' => $this->region_name,
+            'appellation_name' => $this->appellation_name,
+            'classification' => $this->classification,
+            'description' => $this->description,
+            'liv_ex_code' => $this->liv_ex_code,
+        ];
     }
 }

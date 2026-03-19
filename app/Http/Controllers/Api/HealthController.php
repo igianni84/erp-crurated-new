@@ -52,6 +52,12 @@ class HealthController extends Controller
             $allHealthy = false;
         }
 
+        // Meilisearch check
+        $checks['meilisearch'] = $this->checkMeilisearch();
+        if ($checks['meilisearch']['status'] === 'error') {
+            // Meilisearch failure = warning only (search degraded, not full outage)
+        }
+
         return response()->json([
             'status' => $allHealthy ? 'healthy' : 'degraded',
             'timestamp' => now()->toIso8601String(),
@@ -184,6 +190,38 @@ class HealthController extends Controller
                 'status' => 'error',
                 'pending_jobs' => 0,
                 'failed_jobs_24h' => 0,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
+     * @return array{status: string, latency_ms?: float, error?: string}
+     */
+    protected function checkMeilisearch(): array
+    {
+        if (config('scout.driver') !== 'meilisearch') {
+            return ['status' => 'skipped'];
+        }
+
+        $start = hrtime(true);
+
+        try {
+            /** @var \Meilisearch\Client $client */
+            $client = app(\Meilisearch\Client::class);
+            $client->health();
+            $latencyMs = (hrtime(true) - $start) / 1_000_000;
+
+            return [
+                'status' => 'ok',
+                'latency_ms' => round($latencyMs, 2),
+            ];
+        } catch (\Throwable $e) {
+            $latencyMs = (hrtime(true) - $start) / 1_000_000;
+
+            return [
+                'status' => 'warning',
+                'latency_ms' => round($latencyMs, 2),
                 'error' => $e->getMessage(),
             ];
         }
