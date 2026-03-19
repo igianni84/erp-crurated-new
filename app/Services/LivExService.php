@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Features\LivExIntegration;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Laravel\Pennant\Feature;
 
 /**
  * Service for interacting with Liv-ex API.
@@ -51,7 +53,7 @@ class LivExService
      */
     public function isConfigured(): bool
     {
-        return ! empty($this->apiKey);
+        return ! empty($this->apiKey) && Feature::for(null)->active(LivExIntegration::class);
     }
 
     /**

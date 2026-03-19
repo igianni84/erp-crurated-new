@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Finance;
 
+use App\Features\StripeWebhooks;
 use App\Http\Controllers\Controller;
 use App\Jobs\Finance\ProcessStripeWebhookJob;
 use App\Models\Finance\StripeWebhook;
@@ -9,6 +10,7 @@ use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Laravel\Pennant\Feature;
 use Stripe\Exception\SignatureVerificationException;
 use Stripe\Webhook;
 
@@ -38,6 +40,16 @@ class StripeWebhookController extends Controller
      */
     public function handle(Request $request): JsonResponse
     {
+        // Check if Stripe webhooks are enabled via feature flag
+        if (Feature::for(null)->inactive(StripeWebhooks::class)) {
+            Log::channel('finance')->info('Stripe webhooks disabled via feature flag');
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Stripe webhooks are currently disabled',
+            ], 503);
+        }
+
         // Get the raw payload and signature header
         $payload = $request->getContent();
         $sigHeader = $request->header('Stripe-Signature');

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Finance;
 
+use App\Features\XeroSync;
 use Exception;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -9,6 +10,7 @@ use Filament\Pages\Page;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Laravel\Pennant\Feature;
 
 /**
  * Integration Configuration page for Finance module.
@@ -215,7 +217,7 @@ class IntegrationConfiguration extends Page
 
         return [
             'configured' => $oauthConfigured && $hasTenantId,
-            'sync_enabled' => (bool) config('finance.xero.sync_enabled', true),
+            'sync_enabled' => Feature::for(null)->active(XeroSync::class),
             'max_retry_count' => (int) config('finance.xero.max_retry_count', 3),
             'has_client_id' => $hasClientId,
             'has_client_secret' => $hasClientSecret,

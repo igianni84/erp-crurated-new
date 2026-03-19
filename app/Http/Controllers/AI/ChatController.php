@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\AI;
 
 use App\AI\Agents\ErpAssistantAgent;
+use App\Features\AiChat;
 use App\Http\Controllers\Controller;
 use App\Models\AI\AiAuditLog;
 use App\Models\User;
@@ -11,6 +12,7 @@ use Error;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Laravel\Pennant\Feature;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Throwable;
 
@@ -18,6 +20,13 @@ class ChatController extends Controller
 {
     public function stream(Request $request): StreamedResponse|JsonResponse
     {
+        // Check if AI Chat is enabled via feature flag
+        if (Feature::for(null)->inactive(AiChat::class)) {
+            return response()->json([
+                'message' => 'AI Chat is currently disabled',
+            ], 503);
+        }
+
         if (PHP_SAPI !== 'cli') {
             set_time_limit(120);
         }

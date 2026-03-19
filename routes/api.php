@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Finance\StripeWebhookController;
+use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\VoucherController;
 use App\Http\Middleware\VerifyHmacSignature;
 use Illuminate\Support\Facades\Route;
@@ -15,6 +16,16 @@ use Illuminate\Support\Facades\Route;
 | be assigned to the "api" middleware group. Make something great!
 |
 */
+
+/*
+|--------------------------------------------------------------------------
+| Health Check
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/health', HealthController::class)
+    ->middleware(['throttle:api'])
+    ->name('api.health');
 
 /*
 |--------------------------------------------------------------------------

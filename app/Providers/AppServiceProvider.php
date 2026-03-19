@@ -105,6 +105,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Pennant\Feature;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -232,5 +233,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('viewApiDocs', function (?User $user): bool {
             return app()->isLocal() || ($user !== null && $user->role === UserRole::SuperAdmin);
         });
+
+        // Register Pennant feature flag discovery
+        Feature::discover();
     }
 }

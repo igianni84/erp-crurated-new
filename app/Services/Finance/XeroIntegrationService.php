@@ -5,6 +5,7 @@ namespace App\Services\Finance;
 use App\Enums\Finance\InvoiceType;
 use App\Enums\Finance\XeroSyncStatus;
 use App\Enums\Finance\XeroSyncType;
+use App\Features\XeroSync;
 use App\Models\Finance\CreditNote;
 use App\Models\Finance\Invoice;
 use App\Models\Finance\Payment;
@@ -13,6 +14,7 @@ use Carbon\Carbon;
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Log;
+use Laravel\Pennant\Feature;
 use RuntimeException;
 use XeroAPI\XeroPHP\Models\Accounting\Contact;
 use XeroAPI\XeroPHP\Models\Accounting\CreditNote as XeroCreditNote;
@@ -52,7 +54,7 @@ class XeroIntegrationService
         protected XeroApiClient $apiClient
     ) {
         $this->maxRetries = (int) config('finance.xero.max_retry_count', 3);
-        $this->syncEnabled = (bool) config('finance.xero.sync_enabled', true);
+        $this->syncEnabled = Feature::for(null)->active(XeroSync::class);
     }
 
     // =========================================================================

@@ -196,9 +196,9 @@ _Updated: 2026-03-19_
 
 | # | Item | Status | Note |
 |---|------|--------|------|
-| M2 | Feature flags (Pennant) | ⏳ Not started | |
-| L4 | DR documentation | ⏳ Not started | |
-| L1 | Performance baseline | ⏳ Not started | |
+| M2 | Feature flags (Pennant) | ✅ **Done** | `laravel/pennant` v1.22 installed. 5 feature classes in `app/Features/` (XeroSync, LivExIntegration, StripeWebhooks, NftMinting, AiChat). Env/config fallbacks as defaults, Pennant DB overrides take precedence. Integrated into XeroIntegrationService, LivExService, StripeWebhookController (503), MintProvenanceNftJob (skip), ChatController (503). `FeatureFlags` Filament page (System group, sort 97) with toggle/reset. IntegrationConfiguration reads sync_enabled from Pennant. 21 tests. `PENNANT_STORE=array` in phpunit.xml. |
+| L4 | DR documentation | ✅ **Done** | `docs/disaster-recovery.md` — RPO 1h, RTO 30min, 5 recovery runbooks (DB restore, deploy rollback, queue recovery, cache clear, full server). All 11 scheduled jobs documented. `GET /api/health` endpoint with DB/cache/storage checks + per-check latency (200 healthy, 503 degraded). 7 tests in `HealthCheckTest.php`. |
+| L1 | Performance baseline | ✅ **Done** | 5 k6 scripts in `tests/performance/`: health-check.js (p95<200ms), voucher-trading.js (p95<1000ms), stripe-webhook.js (p95<300ms), admin-login.js (p95<500ms), smoke-test.js (all endpoints). Load profiles: smoke/load/stress. `README.md` with install, commands, env config, baseline table. |
 
 ### Sprint 4 — Advanced
 

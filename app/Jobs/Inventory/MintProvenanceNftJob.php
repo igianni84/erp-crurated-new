@@ -2,11 +2,13 @@
 
 namespace App\Jobs\Inventory;
 
+use App\Features\NftMinting;
 use App\Models\Inventory\SerializedBottle;
 use Exception;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Laravel\Pennant\Feature;
 use Throwable;
 
 /**
@@ -50,6 +52,13 @@ class MintProvenanceNftJob implements ShouldQueue
      */
     public function handle(): void
     {
+        // Skip if NFT minting is disabled via feature flag
+        if (Feature::for(null)->inactive(NftMinting::class)) {
+            Log::info("NFT minting disabled via feature flag, skipping bottle {$this->bottle->serial_number}");
+
+            return;
+        }
+
         // Skip if NFT already minted
         if ($this->bottle->hasNft()) {
             Log::info("NFT already minted for bottle {$this->bottle->serial_number}");
