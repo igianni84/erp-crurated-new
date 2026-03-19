@@ -41,29 +41,22 @@
 
 ## 4. Queue & Horizon Setup
 
-### Supervisor Configuration
+### Horizon Daemon (Ploi)
 
-Create `/etc/supervisor/conf.d/crurated-horizon.conf`:
+Horizon runs as a daemon managed by Ploi's Supervisor integration.
 
-```ini
-[program:crurated-horizon]
-process_name=%(program_name)s
-command=php /home/ploi/crurated.giovannibroegg.it/artisan horizon
-autostart=true
-autorestart=true
-user=ploi
-redirect_stderr=true
-stdout_logfile=/home/ploi/crurated.giovannibroegg.it/storage/logs/horizon.log
-stopwaitsecs=3600
-```
+**Ploi Panel → Server (ea-matematico-prod) → Daemons:**
 
-Then:
+| Field | Value |
+|-------|-------|
+| Command | `php8.5 /home/ploi/crurated.giovannibroegg.it/artisan horizon` |
+| Processes | `1` |
+| Directory | `/home/ploi/crurated.giovannibroegg.it` |
+| Environment file | *(empty)* |
+| System user | `ploi` |
 
-```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start crurated-horizon
-```
+> **Note:** Do NOT use Ploi's site-level Queue section — Horizon manages its own workers.
+> After deploy, `php artisan horizon:terminate` triggers a graceful restart (Supervisor auto-restarts it).
 
 ### Queue Configuration
 
@@ -122,11 +115,12 @@ Deploy script is configured in Ploi (see CLAUDE.md for full script). Key steps:
 5. `php artisan migrate --force`
 6. `php artisan filament:optimize`
 7. `php artisan optimize`
+8. `php artisan horizon:terminate` (graceful restart, Supervisor auto-restarts)
 
-### Post-Deploy (automatic via Supervisor)
+### Post-Deploy
 
-- Horizon auto-restarts on deploy (Supervisor `autorestart=true`)
-- If manual restart needed: `php artisan horizon:terminate` (graceful)
+- Horizon daemon is managed by Ploi (Server → Daemons) — auto-restarts after `horizon:terminate`
+- If Horizon doesn't restart: check Ploi → Server → Daemons, verify daemon is active (green indicator)
 
 ## 8. Post-Deployment Verification
 

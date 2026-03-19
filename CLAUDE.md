@@ -139,6 +139,9 @@
 - **URL:** `https://crurated.giovannibroegg.it`
 - **PHP:** 8.5 (FPM: `sudo -S service php8.5-fpm reload`)
 - **DB:** MySQL, host `127.0.0.1:3306`, database `erpcrurated`
+- **Redis:** `127.0.0.1:6379` (cache, session, queue)
+- **Queue:** Redis via Laravel Horizon (daemon gestito da Ploi → Server → Daemons)
+- **Horizon dashboard:** `/horizon` (solo SuperAdmin)
 - **Ploi panel:** `ploi.io/panel/servers/106731/sites/342059`
 
 ### Git Repos
@@ -164,6 +167,9 @@ echo "Backup saved to $BACKUP_FILE"
 php artisan migrate --force
 php artisan filament:optimize
 php artisan optimize
+
+# Graceful Horizon restart (picks up new code)
+php artisan horizon:terminate
 ```
 
 ### Quick SSH Commands
@@ -182,12 +188,24 @@ ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan
 
 # Clear all caches (including Filament)
 ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan filament:optimize-clear && php artisan optimize:clear"
+
+# Horizon status / restart
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan horizon:status"
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan horizon:terminate"
+
+# Queue monitor (all 3 queues)
+ssh ploi@46.224.207.175 "cd /home/ploi/crurated.giovannibroegg.it && php artisan queue:monitor redis:finance,redis:default,redis:notifications"
+
+# Health check
+curl -s https://crurated.giovannibroegg.it/api/health | python3 -m json.tool
 ```
 
 ### Known Gotchas
 - Seeders usano `fake()` → `fakerphp/faker` è in `require` (non `require-dev`)
 - Deploy Ploi usa la sua config di repo, non il git remote del server — cambiare repo va fatto dal pannello Ploi
 - Dopo cambio Filament version: sempre `php artisan filament:upgrade` + `php8.5-fpm reload`
+- Horizon: dopo ogni deploy serve `php artisan horizon:terminate` (Supervisor lo riavvia automaticamente). Già nel deploy script.
+- Horizon daemon gestito da Ploi → Server → Daemons (NON dalla sezione Queue del sito)
 
 ===
 
