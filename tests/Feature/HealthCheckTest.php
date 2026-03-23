@@ -146,4 +146,30 @@ class HealthCheckTest extends TestCase
         $this->assertSame('testing', $data['environment']);
         $this->assertIsInt($data['uptime_seconds']);
     }
+
+    public function test_health_hides_version_details_in_production(): void
+    {
+        $this->app['env'] = 'production';
+
+        $response = $this->getJson('/api/health');
+
+        $response->assertOk();
+        $response->assertJsonPath('version.status', 'current');
+        $response->assertJsonMissingPath('version.php');
+        $response->assertJsonMissingPath('version.laravel');
+        $response->assertJsonMissingPath('version.environment');
+    }
+
+    public function test_metrics_hides_version_details_in_production(): void
+    {
+        $this->app['env'] = 'production';
+
+        $response = $this->getJson('/api/metrics');
+
+        $response->assertOk();
+        $response->assertJsonMissingPath('runtime.php_version');
+        $response->assertJsonMissingPath('runtime.laravel_version');
+        $response->assertJsonMissingPath('runtime.environment');
+        $this->assertArrayHasKey('uptime_seconds', $response->json('runtime'));
+    }
 }

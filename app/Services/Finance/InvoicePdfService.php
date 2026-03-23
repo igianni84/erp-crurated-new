@@ -44,7 +44,7 @@ class InvoicePdfService
             'invoice' => $invoice,
         ])
             ->setPaper('a4', 'portrait')
-            ->setOption('isRemoteEnabled', true)
+            ->setOption('isRemoteEnabled', false)
             ->setOption('isHtml5ParserEnabled', true);
     }
 

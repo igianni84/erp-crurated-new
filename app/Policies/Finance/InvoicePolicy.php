@@ -46,8 +46,7 @@ class InvoicePolicy
      */
     public function update(User $user, Invoice $invoice): bool
     {
-        // Only draft invoices can be updated
-        return $invoice->canBeEdited();
+        return $user->canEdit() && $invoice->canBeEdited();
     }
 
     /**

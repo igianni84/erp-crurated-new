@@ -93,15 +93,21 @@ class MetricsController extends Controller
     }
 
     /**
-     * @return array{php_version: string, laravel_version: string, environment: string, uptime_seconds: int}
+     * @return array{php_version?: string, laravel_version?: string, environment?: string, uptime_seconds: int}
      */
     protected function runtimeMetrics(): array
     {
+        $uptime = defined('LARAVEL_START') ? (int) (microtime(true) - LARAVEL_START) : 0;
+
+        if (app()->environment('production')) {
+            return ['uptime_seconds' => $uptime];
+        }
+
         return [
             'php_version' => PHP_VERSION,
             'laravel_version' => app()->version(),
             'environment' => app()->environment(),
-            'uptime_seconds' => defined('LARAVEL_START') ? (int) (microtime(true) - LARAVEL_START) : 0,
+            'uptime_seconds' => $uptime,
         ];
     }
 }

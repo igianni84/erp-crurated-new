@@ -62,11 +62,13 @@ class HealthController extends Controller
             'status' => $allHealthy ? 'healthy' : 'degraded',
             'timestamp' => now()->toIso8601String(),
             'checks' => $checks,
-            'version' => [
-                'php' => PHP_VERSION,
-                'laravel' => app()->version(),
-                'environment' => app()->environment(),
-            ],
+            'version' => app()->environment('production')
+                ? ['status' => 'current']
+                : [
+                    'php' => PHP_VERSION,
+                    'laravel' => app()->version(),
+                    'environment' => app()->environment(),
+                ],
         ], $allHealthy ? 200 : 503);
     }
 

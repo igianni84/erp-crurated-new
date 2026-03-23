@@ -242,6 +242,23 @@ class LateBindingService
                 );
             }
 
+            // Re-validate existing binding inside the lock (defense-in-depth)
+            $existingBinding = ShippingOrderLine::where('bound_bottle_serial', $serialNumber)
+                ->where('id', '!=', $line->id)
+                ->whereHas('shippingOrder', function ($query) {
+                    $query->whereNotIn('status', [
+                        ShippingOrderStatus::Cancelled->value,
+                        ShippingOrderStatus::Completed->value,
+                    ]);
+                })
+                ->first();
+
+            if ($existingBinding !== null) {
+                throw new InvalidArgumentException(
+                    "Concurrent binding detected: bottle '{$serialNumber}' was bound to another active shipping order line."
+                );
+            }
+
             // Update bottle state to reserved_for_picking
             $bottle->state = BottleState::ReservedForPicking;
             $bottle->save();

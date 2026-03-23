@@ -77,6 +77,14 @@ class InvoicePolicyTest extends TestCase
         $this->assertFalse($this->policy->update($editor, $issuedInvoice));
     }
 
+    public function test_viewer_cannot_update_draft_invoice(): void
+    {
+        $viewer = User::factory()->viewer()->create();
+        $draftInvoice = Invoice::factory()->create();
+
+        $this->assertFalse($this->policy->update($viewer, $draftInvoice));
+    }
+
     public function test_admin_can_delete_draft_invoice(): void
     {
         $admin = User::factory()->admin()->create();

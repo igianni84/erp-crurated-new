@@ -314,7 +314,7 @@ class ShippingOrderResource extends Resource
                                         $record->id,
                                         $customerName,
                                         $record->status->label(),
-                                        $record->lines()->count(),
+                                        $record->lines_count ?? $record->lines()->count(),
                                         $warehouseName,
                                         $record->carrier ?? '-',
                                         $record->shipping_method ?? '-',
