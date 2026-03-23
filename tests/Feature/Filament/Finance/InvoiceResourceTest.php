@@ -4,12 +4,10 @@ namespace Tests\Feature\Filament\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
-use App\Filament\Resources\Finance\InvoiceResource\Pages\CreateInvoice;
+use App\Filament\Resources\Finance\InvoiceResource;
 use App\Filament\Resources\Finance\InvoiceResource\Pages\ListInvoices;
 use App\Filament\Resources\Finance\InvoiceResource\Pages\ViewInvoice;
-use App\Models\Customer\Customer;
 use App\Models\Finance\Invoice;
-use Filament\Forms\Components\Repeater;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use Tests\Support\FilamentTestHelpers;
@@ -72,79 +70,11 @@ class InvoiceResourceTest extends TestCase
             ->assertCanNotSeeTableRecords([$issued]);
     }
 
-    // ── Create Page (Wizard) ────────────────────────────────────
+    // ── Create Page (Disabled — invoices are system-generated) ──
 
-    public function test_create_page_renders(): void
+    public function test_create_is_disabled(): void
     {
-        $this->actingAsSuperAdmin();
-
-        Livewire::test(CreateInvoice::class)
-            ->assertSuccessful();
-    }
-
-    public function test_can_create_invoice_via_wizard(): void
-    {
-        $this->actingAsSuperAdmin();
-
-        $undoRepeaterFake = Repeater::fake();
-
-        $customer = Customer::factory()->create();
-
-        Livewire::test(CreateInvoice::class)
-            ->fillForm([
-                'customer_id' => $customer->id,
-                'invoice_type' => InvoiceType::VoucherSale->value,
-                'currency' => 'EUR',
-                'invoice_lines' => [
-                    [
-                        'description' => 'Chateau Margaux 2018 x6',
-                        'quantity' => 6,
-                        'unit_price' => 150.00,
-                        'tax_rate' => 22,
-                    ],
-                ],
-            ])
-            ->call('create')
-            ->assertHasNoFormErrors();
-
-        $undoRepeaterFake();
-
-        $this->assertDatabaseHas('invoices', [
-            'customer_id' => $customer->id,
-            'invoice_type' => InvoiceType::VoucherSale->value,
-            'currency' => 'EUR',
-            'status' => InvoiceStatus::Draft->value,
-        ]);
-    }
-
-    public function test_create_validates_required_customer(): void
-    {
-        $this->actingAsSuperAdmin();
-
-        Livewire::test(CreateInvoice::class)
-            ->fillForm([
-                'customer_id' => null,
-                'invoice_type' => InvoiceType::VoucherSale->value,
-                'currency' => 'EUR',
-            ])
-            ->call('create')
-            ->assertHasFormErrors(['customer_id']);
-    }
-
-    public function test_create_validates_required_invoice_type(): void
-    {
-        $this->actingAsSuperAdmin();
-
-        $customer = Customer::factory()->create();
-
-        Livewire::test(CreateInvoice::class)
-            ->fillForm([
-                'customer_id' => $customer->id,
-                'invoice_type' => null,
-                'currency' => 'EUR',
-            ])
-            ->call('create')
-            ->assertHasFormErrors(['invoice_type']);
+        $this->assertFalse(InvoiceResource::canCreate());
     }
 
     // ── View Page ───────────────────────────────────────────────
