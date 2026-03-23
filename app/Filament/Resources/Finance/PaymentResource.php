@@ -5,13 +5,18 @@ namespace App\Filament\Resources\Finance;
 use App\Enums\Finance\PaymentSource;
 use App\Enums\Finance\PaymentStatus;
 use App\Enums\Finance\ReconciliationStatus;
+use App\Filament\Resources\Finance\PaymentResource\Pages\EditPayment;
 use App\Filament\Resources\Finance\PaymentResource\Pages\ListPayments;
 use App\Filament\Resources\Finance\PaymentResource\Pages\ViewPayment;
 use App\Models\Finance\Payment;
 use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -42,12 +47,31 @@ class PaymentResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'payment_reference';
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in later stories
+                Section::make('Payment Edit')
+                    ->description('Only editable while payment is in Pending status.')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('customer_id')
+                            ->relationship('customer', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->disabled(fn (?Payment $record): bool => $record !== null && ! $record->isPending()),
+
+                        TextInput::make('bank_reference')
+                            ->label('Bank Reference')
+                            ->maxLength(255)
+                            ->disabled(fn (?Payment $record): bool => $record !== null && ! $record->isPending()),
+                    ]),
             ]);
     }
 
@@ -195,6 +219,8 @@ class PaymentResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (Payment $record): bool => $record->isPending()),
             ])
             ->toolbarActions([
                 BulkAction::make('export_csv')
@@ -255,6 +281,7 @@ class PaymentResource extends Resource
         return [
             'index' => ListPayments::route('/'),
             'view' => ViewPayment::route('/{record}'),
+            'edit' => EditPayment::route('/{record}/edit'),
         ];
     }
 

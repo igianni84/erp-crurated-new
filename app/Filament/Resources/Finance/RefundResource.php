@@ -4,13 +4,21 @@ namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\RefundMethod;
 use App\Enums\Finance\RefundStatus;
+use App\Enums\Finance\RefundType;
+use App\Filament\Resources\Finance\RefundResource\Pages\CreateRefund;
+use App\Filament\Resources\Finance\RefundResource\Pages\EditRefund;
 use App\Filament\Resources\Finance\RefundResource\Pages\ListRefunds;
 use App\Filament\Resources\Finance\RefundResource\Pages\ViewRefund;
 use App\Models\Finance\Refund;
 use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -46,7 +54,79 @@ class RefundResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in US-E070
+                Section::make('Refund Links')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('invoice_id')
+                            ->label('Invoice')
+                            ->relationship('invoice', 'invoice_number')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->live()
+                            ->disabled(fn (?Refund $record): bool => $record !== null),
+
+                        Select::make('payment_id')
+                            ->label('Payment')
+                            ->relationship('payment', 'payment_reference')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Refund $record): bool => $record !== null),
+
+                        Select::make('credit_note_id')
+                            ->label('Credit Note')
+                            ->relationship('creditNote', 'credit_note_number')
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled(fn (?Refund $record): bool => $record !== null && ! $record->isPending()),
+                    ]),
+
+                Section::make('Refund Details')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('refund_type')
+                            ->label('Refund Type')
+                            ->options(collect(RefundType::cases())
+                                ->mapWithKeys(fn (RefundType $e) => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Refund $record): bool => $record !== null && ! $record->isPending()),
+
+                        Select::make('method')
+                            ->label('Method')
+                            ->options(collect(RefundMethod::cases())
+                                ->mapWithKeys(fn (RefundMethod $e) => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Refund $record): bool => $record !== null && ! $record->isPending()),
+
+                        TextInput::make('amount')
+                            ->label('Amount')
+                            ->numeric()
+                            ->required()
+                            ->disabled(fn (?Refund $record): bool => $record !== null && ! $record->isPending()),
+
+                        TextInput::make('currency')
+                            ->label('Currency')
+                            ->default('EUR')
+                            ->disabled(),
+                    ]),
+
+                Section::make('Reason')
+                    ->columns(1)
+                    ->schema([
+                        Textarea::make('reason')
+                            ->label('Reason')
+                            ->required()
+                            ->maxLength(2000)
+                            ->disabled(fn (?Refund $record): bool => $record !== null && ! $record->isPending()),
+                    ]),
             ]);
     }
 
@@ -200,6 +280,8 @@ class RefundResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (Refund $record): bool => $record->isPending()),
             ])
             ->toolbarActions([
                 BulkAction::make('export_csv')
@@ -266,7 +348,9 @@ class RefundResource extends Resource
     {
         return [
             'index' => ListRefunds::route('/'),
+            'create' => CreateRefund::route('/create'),
             'view' => ViewRefund::route('/{record}'),
+            'edit' => EditRefund::route('/{record}/edit'),
         ];
     }
 

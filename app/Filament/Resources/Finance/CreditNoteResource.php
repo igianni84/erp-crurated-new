@@ -4,14 +4,22 @@ namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\CreditNoteStatus;
 use App\Enums\Finance\InvoiceType;
+use App\Filament\Resources\Finance\CreditNoteResource\Pages\CreateCreditNote;
+use App\Filament\Resources\Finance\CreditNoteResource\Pages\EditCreditNote;
 use App\Filament\Resources\Finance\CreditNoteResource\Pages\ListCreditNotes;
 use App\Filament\Resources\Finance\CreditNoteResource\Pages\ViewCreditNote;
 use App\Models\Finance\CreditNote;
+use App\Models\Finance\Invoice;
 use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -47,7 +55,61 @@ class CreditNoteResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in US-E065
+                Section::make('Credit Note Details')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('invoice_id')
+                            ->label('Invoice')
+                            ->relationship('invoice', 'invoice_number')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, ?string $state): void {
+                                if ($state === null) {
+                                    $set('customer_id', null);
+
+                                    return;
+                                }
+
+                                $invoice = Invoice::find($state);
+
+                                if ($invoice !== null) {
+                                    $set('customer_id', $invoice->customer_id);
+                                }
+                            })
+                            ->disabled(fn (?CreditNote $record): bool => $record !== null),
+
+                        Select::make('customer_id')
+                            ->label('Customer')
+                            ->relationship('customer', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled(),
+
+                        TextInput::make('amount')
+                            ->label('Amount')
+                            ->numeric()
+                            ->required()
+                            ->disabled(fn (?CreditNote $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('currency')
+                            ->label('Currency')
+                            ->default('EUR')
+                            ->disabled(),
+                    ]),
+
+                Section::make('Reason')
+                    ->columns(1)
+                    ->schema([
+                        Textarea::make('reason')
+                            ->label('Reason')
+                            ->required()
+                            ->maxLength(2000)
+                            ->disabled(fn (?CreditNote $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
             ]);
     }
 
@@ -187,6 +249,8 @@ class CreditNoteResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (CreditNote $record): bool => $record->isDraft()),
             ])
             ->toolbarActions([
                 BulkAction::make('export_csv')
@@ -250,7 +314,9 @@ class CreditNoteResource extends Resource
     {
         return [
             'index' => ListCreditNotes::route('/'),
+            'create' => CreateCreditNote::route('/create'),
             'view' => ViewCreditNote::route('/{record}'),
+            'edit' => EditCreditNote::route('/{record}/edit'),
         ];
     }
 

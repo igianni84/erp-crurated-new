@@ -5,15 +5,22 @@ namespace App\Filament\Resources\Procurement;
 use App\Enums\Procurement\BottlingInstructionStatus;
 use App\Enums\Procurement\BottlingPreferenceStatus;
 use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\CreateBottlingInstruction;
+use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\EditBottlingInstruction;
 use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\ListBottlingInstructions;
 use App\Filament\Resources\Procurement\BottlingInstructionResource\Pages\ViewBottlingInstruction;
 use App\Models\Procurement\BottlingInstruction;
+use App\Models\Procurement\ProcurementIntent;
 use Carbon\Carbon;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -51,7 +58,79 @@ class BottlingInstructionResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in wizard stories (US-029 to US-032)
+                Section::make('Procurement Linkage')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('procurement_intent_id')
+                            ->label('Procurement Intent')
+                            ->relationship('procurementIntent', 'id')
+                            ->getOptionLabelFromRecordUsing(fn (ProcurementIntent $record): string => substr($record->id, 0, 8).'... | '.$record->getProductLabel())
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null),
+
+                        Select::make('liquid_product_id')
+                            ->label('Liquid Product')
+                            ->relationship('liquidProduct', 'id')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null),
+                    ]),
+
+                Section::make('Bottling Specifications')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('bottle_equivalents')
+                            ->label('Bottle Equivalents')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TagsInput::make('allowed_formats')
+                            ->label('Allowed Formats')
+                            ->placeholder('Add format...')
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TagsInput::make('allowed_case_configurations')
+                            ->label('Allowed Case Configurations')
+                            ->placeholder('Add configuration...')
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('default_bottling_rule')
+                            ->label('Default Bottling Rule')
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Deadline & Preferences')
+                    ->columns(2)
+                    ->schema([
+                        DatePicker::make('bottling_deadline')
+                            ->label('Bottling Deadline')
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Toggle::make('personalised_bottling_required')
+                            ->label('Personalised Bottling Required')
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Toggle::make('early_binding_required')
+                            ->label('Early Binding Required')
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Delivery')
+                    ->columns(1)
+                    ->schema([
+                        TextInput::make('delivery_location')
+                            ->label('Delivery Location')
+                            ->disabled(fn (?BottlingInstruction $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
             ]);
     }
 
@@ -267,6 +346,7 @@ class BottlingInstructionResource extends Resource
             'index' => ListBottlingInstructions::route('/'),
             'create' => CreateBottlingInstruction::route('/create'),
             'view' => ViewBottlingInstruction::route('/{record}'),
+            'edit' => EditBottlingInstruction::route('/{record}/edit'),
         ];
     }
 

@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Events\Finance\EventBookingConfirmed;
 use App\Events\Finance\ShipmentExecuted;
+use App\Events\Finance\StripePaymentFailed;
 use App\Events\Finance\SubscriptionBillingDue;
 use App\Events\Finance\VoucherSaleConfirmed;
 use App\Listeners\Finance\GenerateEventServiceInvoice;
 use App\Listeners\Finance\GenerateShippingInvoice;
 use App\Listeners\Finance\GenerateSubscriptionInvoice;
 use App\Listeners\Finance\GenerateVoucherSaleInvoice;
+use App\Listeners\Finance\HandleStripePaymentFailure;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -52,6 +54,12 @@ class EventServiceProvider extends ServiceProvider
         Event::listen(
             EventBookingConfirmed::class,
             GenerateEventServiceInvoice::class
+        );
+
+        // Stripe payment failure → internal notification
+        Event::listen(
+            StripePaymentFailed::class,
+            HandleStripePaymentFailure::class
         );
 
         // InvoicePaid event (emitted by InvoiceService)

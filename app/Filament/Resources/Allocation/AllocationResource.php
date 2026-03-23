@@ -17,8 +17,12 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -52,7 +56,90 @@ class AllocationResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in US-008 through US-012
+                Section::make('Wine & Format')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('wine_variant_id')
+                            ->label('Wine Variant')
+                            ->relationship('wineVariant', 'id')
+                            ->getOptionLabelFromRecordUsing(function (WineVariant $record): string {
+                                $wineMaster = $record->wineMaster;
+                                $wineName = $wineMaster !== null ? $wineMaster->name : 'Unknown';
+                                $vintage = $record->vintage_year ?? 'NV';
+
+                                return "{$wineName} {$vintage}";
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Select::make('format_id')
+                            ->label('Format')
+                            ->relationship('format', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Supply Details')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('source_type')
+                            ->label('Source Type')
+                            ->options(collect(AllocationSourceType::cases())
+                                ->mapWithKeys(fn (AllocationSourceType $e): array => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Select::make('supply_form')
+                            ->label('Supply Form')
+                            ->options(collect(AllocationSupplyForm::cases())
+                                ->mapWithKeys(fn (AllocationSupplyForm $e): array => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('total_quantity')
+                            ->label('Total Quantity')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Toggle::make('serialization_required')
+                            ->label('Serialization Required')
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Availability')
+                    ->columns(2)
+                    ->schema([
+                        DatePicker::make('expected_availability_start')
+                            ->label('Expected Availability Start')
+                            ->native(false)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+
+                        DatePicker::make('expected_availability_end')
+                            ->label('Expected Availability End')
+                            ->native(false)
+                            ->disabled(fn (?Allocation $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Select::make('status')
+                            ->label('Status')
+                            ->options(collect(AllocationStatus::cases())
+                                ->mapWithKeys(fn (AllocationStatus $e): array => [$e->value => $e->label()])
+                                ->toArray())
+                            ->default(AllocationStatus::Draft->value)
+                            ->required()
+                            ->native(false),
+                    ]),
             ]);
     }
 

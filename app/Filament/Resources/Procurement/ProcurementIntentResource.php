@@ -7,6 +7,7 @@ use App\Enums\Procurement\ProcurementTriggerType;
 use App\Enums\Procurement\SourcingModel;
 use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\AggregatedProcurementIntents;
 use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\CreateProcurementIntent;
+use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\EditProcurementIntent;
 use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\ListProcurementIntents;
 use App\Filament\Resources\Procurement\ProcurementIntentResource\Pages\ViewProcurementIntent;
 use App\Models\Procurement\ProcurementIntent;
@@ -14,8 +15,13 @@ use App\Services\Procurement\ProcurementIntentService;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -53,7 +59,73 @@ class ProcurementIntentResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in wizard stories (US-010 to US-013)
+                Section::make('Product Reference')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('product_reference_type')
+                            ->label('Product Reference Type')
+                            ->options([
+                                'App\\Models\\Pim\\SellableSku' => 'Sellable SKU',
+                                'App\\Models\\Pim\\LiquidProduct' => 'Liquid Product',
+                            ])
+                            ->required()
+                            ->live()
+                            ->native(false)
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null),
+
+                        TextInput::make('product_reference_id')
+                            ->label('Product Reference ID')
+                            ->required()
+                            ->helperText('UUID of the referenced product')
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null),
+
+                        TextInput::make('quantity')
+                            ->label('Quantity')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null),
+                    ]),
+
+                Section::make('Sourcing Configuration')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('trigger_type')
+                            ->label('Trigger Type')
+                            ->options(collect(ProcurementTriggerType::cases())
+                                ->mapWithKeys(fn (ProcurementTriggerType $e): array => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null),
+
+                        Select::make('sourcing_model')
+                            ->label('Sourcing Model')
+                            ->options(collect(SourcingModel::cases())
+                                ->mapWithKeys(fn (SourcingModel $e): array => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('preferred_inbound_location')
+                            ->label('Preferred Inbound Location')
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Operations')
+                    ->columns(1)
+                    ->schema([
+                        Textarea::make('rationale')
+                            ->label('Rationale')
+                            ->maxLength(2000)
+                            ->columnSpanFull()
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Toggle::make('needs_ops_review')
+                            ->label('Needs Ops Review')
+                            ->disabled(fn (?ProcurementIntent $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
             ]);
     }
 
@@ -305,6 +377,7 @@ class ProcurementIntentResource extends Resource
             'index' => ListProcurementIntents::route('/'),
             'create' => CreateProcurementIntent::route('/create'),
             'view' => ViewProcurementIntent::route('/{record}'),
+            'edit' => EditProcurementIntent::route('/{record}/edit'),
             'aggregated' => AggregatedProcurementIntents::route('/aggregated'),
         ];
     }

@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
+namespace App\Filament\Resources\Finance\PaymentResource\Pages;
 
-use App\Filament\Resources\Allocation\AllocationResource;
-use App\Models\Allocation\Allocation;
+use App\Filament\Resources\Finance\PaymentResource;
+use App\Models\Finance\Payment;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditAllocation extends EditRecord
+class EditPayment extends EditRecord
 {
-    protected static string $resource = AllocationResource::class;
+    protected static string $resource = PaymentResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -28,11 +28,11 @@ class EditAllocation extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var Allocation $record */
+        /** @var Payment $record */
         $record = $this->getRecord();
 
-        if (! $record->isDraft()) {
-            $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+        if (! $record->isPending()) {
+            $this->redirect(PaymentResource::getUrl('view', ['record' => $record]));
         }
     }
 }

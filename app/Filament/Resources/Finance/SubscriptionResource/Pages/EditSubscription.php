@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
+namespace App\Filament\Resources\Finance\SubscriptionResource\Pages;
 
-use App\Filament\Resources\Allocation\AllocationResource;
-use App\Models\Allocation\Allocation;
+use App\Filament\Resources\Finance\SubscriptionResource;
+use App\Models\Finance\Subscription;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditAllocation extends EditRecord
+class EditSubscription extends EditRecord
 {
-    protected static string $resource = AllocationResource::class;
+    protected static string $resource = SubscriptionResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -28,11 +28,11 @@ class EditAllocation extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var Allocation $record */
+        /** @var Subscription $record */
         $record = $this->getRecord();
 
-        if (! $record->isDraft()) {
-            $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+        if ($record->isCancelled() || $record->isTerminal()) {
+            $this->redirect(SubscriptionResource::getUrl('view', ['record' => $record]));
         }
     }
 }

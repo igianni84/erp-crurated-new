@@ -5,12 +5,20 @@ namespace App\Filament\Resources\Finance;
 use App\Enums\Finance\BillingCycle;
 use App\Enums\Finance\SubscriptionPlanType;
 use App\Enums\Finance\SubscriptionStatus;
+use App\Filament\Resources\Finance\SubscriptionResource\Pages\CreateSubscription;
+use App\Filament\Resources\Finance\SubscriptionResource\Pages\EditSubscription;
 use App\Filament\Resources\Finance\SubscriptionResource\Pages\ListSubscriptions;
 use App\Filament\Resources\Finance\SubscriptionResource\Pages\ViewSubscription;
 use App\Models\Finance\Subscription;
 use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -46,7 +54,78 @@ class SubscriptionResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in US-E084
+                Section::make('Details')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('customer_id')
+                            ->label('Customer')
+                            ->relationship('customer', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Subscription $record): bool => $record !== null),
+
+                        TextInput::make('plan_name')
+                            ->label('Plan Name')
+                            ->required()
+                            ->maxLength(255),
+
+                        Select::make('plan_type')
+                            ->label('Plan Type')
+                            ->options(collect(SubscriptionPlanType::cases())
+                                ->mapWithKeys(fn (SubscriptionPlanType $e) => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Subscription $record): bool => $record !== null),
+
+                        Select::make('billing_cycle')
+                            ->label('Billing Cycle')
+                            ->options(collect(BillingCycle::cases())
+                                ->mapWithKeys(fn (BillingCycle $e) => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Subscription $record): bool => $record !== null),
+                    ]),
+
+                Section::make('Financial')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('amount')
+                            ->label('Amount')
+                            ->numeric()
+                            ->required()
+                            ->prefix('EUR'),
+
+                        TextInput::make('currency')
+                            ->label('Currency')
+                            ->default('EUR')
+                            ->disabled(fn (?Subscription $record): bool => $record !== null),
+                    ]),
+
+                Section::make('Dates')
+                    ->columns(2)
+                    ->schema([
+                        DatePicker::make('started_at')
+                            ->label('Started At')
+                            ->required()
+                            ->disabled(fn (?Subscription $record): bool => $record !== null),
+
+                        DatePicker::make('next_billing_date')
+                            ->label('Next Billing Date')
+                            ->required(),
+                    ]),
+
+                Section::make('Cancellation')
+                    ->columns(1)
+                    ->visible(fn (?Subscription $record): bool => $record !== null && $record->isCancelled())
+                    ->schema([
+                        Textarea::make('cancellation_reason')
+                            ->label('Cancellation Reason')
+                            ->maxLength(2000),
+                    ]),
             ]);
     }
 
@@ -176,6 +255,8 @@ class SubscriptionResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (Subscription $record): bool => ! $record->isCancelled() && ! $record->isTerminal()),
             ])
             ->toolbarActions([
                 BulkAction::make('export_csv')
@@ -269,7 +350,9 @@ class SubscriptionResource extends Resource
     {
         return [
             'index' => ListSubscriptions::route('/'),
+            'create' => CreateSubscription::route('/create'),
             'view' => ViewSubscription::route('/{record}'),
+            'edit' => EditSubscription::route('/{record}/edit'),
         ];
     }
 

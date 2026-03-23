@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
+namespace App\Filament\Resources\Finance\CreditNoteResource\Pages;
 
-use App\Filament\Resources\Allocation\AllocationResource;
-use App\Models\Allocation\Allocation;
+use App\Filament\Resources\Finance\CreditNoteResource;
+use App\Models\Finance\CreditNote;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditAllocation extends EditRecord
+class EditCreditNote extends EditRecord
 {
-    protected static string $resource = AllocationResource::class;
+    protected static string $resource = CreditNoteResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -28,11 +28,11 @@ class EditAllocation extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var Allocation $record */
+        /** @var CreditNote $record */
         $record = $this->getRecord();
 
         if (! $record->isDraft()) {
-            $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+            $this->redirect(CreditNoteResource::getUrl('view', ['record' => $record]));
         }
     }
 }

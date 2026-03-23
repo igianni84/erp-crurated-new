@@ -3,15 +3,19 @@
 namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\StorageBillingStatus;
+use App\Filament\Resources\Finance\StorageBillingResource\Pages\EditStorageBilling;
 use App\Filament\Resources\Finance\StorageBillingResource\Pages\ListStorageBilling;
 use App\Filament\Resources\Finance\StorageBillingResource\Pages\ViewStorageBilling;
 use App\Models\Finance\StorageBillingPeriod;
 use Carbon\Carbon;
 use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -42,12 +46,34 @@ class StorageBillingResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Storage Billing Periods';
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in US-E088
+                Section::make('Storage Billing Edit')
+                    ->description('Only editable while billing period is in Pending status.')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('unit_rate')
+                            ->label('Unit Rate')
+                            ->numeric()
+                            ->step(0.0001)
+                            ->prefix('EUR')
+                            ->disabled(fn (?StorageBillingPeriod $record): bool => $record !== null && ! $record->isPending()),
+
+                        TextInput::make('calculated_amount')
+                            ->label('Calculated Amount')
+                            ->numeric()
+                            ->step(0.01)
+                            ->prefix('EUR')
+                            ->disabled(fn (?StorageBillingPeriod $record): bool => $record !== null && ! $record->isPending()),
+                    ]),
             ]);
     }
 
@@ -187,6 +213,8 @@ class StorageBillingResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (StorageBillingPeriod $record): bool => $record->isPending()),
             ])
             ->toolbarActions([
                 BulkAction::make('export_csv')
@@ -282,6 +310,7 @@ class StorageBillingResource extends Resource
         return [
             'index' => ListStorageBilling::route('/'),
             'view' => ViewStorageBilling::route('/{record}'),
+            'edit' => EditStorageBilling::route('/{record}/edit'),
         ];
     }
 

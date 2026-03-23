@@ -2,18 +2,26 @@
 
 namespace App\Filament\Resources\Procurement;
 
+use App\Enums\Fulfillment\Incoterms;
 use App\Enums\Procurement\PurchaseOrderStatus;
 use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\CreatePurchaseOrder;
+use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\EditPurchaseOrder;
 use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\ListPurchaseOrders;
 use App\Filament\Resources\Procurement\PurchaseOrderResource\Pages\ViewPurchaseOrder;
 use App\Models\Customer\Party;
+use App\Models\Procurement\ProcurementIntent;
 use App\Models\Procurement\PurchaseOrder;
 use Carbon\Carbon;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -52,7 +60,89 @@ class PurchaseOrderResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in wizard stories (US-020 to US-024)
+                Section::make('Procurement Linkage')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('procurement_intent_id')
+                            ->label('Procurement Intent')
+                            ->relationship('procurementIntent', 'id')
+                            ->getOptionLabelFromRecordUsing(fn (ProcurementIntent $record): string => substr($record->id, 0, 8).'... | '.$record->getProductLabel())
+                            ->searchable()
+                            ->preload()
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null),
+
+                        Select::make('supplier_party_id')
+                            ->label('Supplier')
+                            ->relationship('supplier', 'legal_name')
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Product & Pricing')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('quantity')
+                            ->label('Quantity')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('unit_cost')
+                            ->label('Unit Cost')
+                            ->numeric()
+                            ->prefix('EUR')
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('currency')
+                            ->label('Currency')
+                            ->default('EUR')
+                            ->maxLength(3)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Delivery Terms')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('incoterms')
+                            ->label('Incoterms')
+                            ->options(collect(Incoterms::cases())
+                                ->mapWithKeys(fn (Incoterms $e): array => [$e->value => $e->label()])
+                                ->toArray())
+                            ->native(false)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Toggle::make('ownership_transfer')
+                            ->label('Ownership Transfer')
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        DatePicker::make('expected_delivery_start')
+                            ->label('Expected Delivery Start')
+                            ->native(false)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        DatePicker::make('expected_delivery_end')
+                            ->label('Expected Delivery End')
+                            ->native(false)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+
+                        TextInput::make('destination_warehouse')
+                            ->label('Destination Warehouse')
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
+
+                Section::make('Serialization Notes')
+                    ->columns(1)
+                    ->schema([
+                        Textarea::make('serialization_routing_note')
+                            ->label('Serialization Routing Note')
+                            ->maxLength(2000)
+                            ->disabled(fn (?PurchaseOrder $record): bool => $record !== null && ! $record->isDraft()),
+                    ]),
             ]);
     }
 
@@ -410,6 +500,7 @@ class PurchaseOrderResource extends Resource
             'index' => ListPurchaseOrders::route('/'),
             'create' => CreatePurchaseOrder::route('/create'),
             'view' => ViewPurchaseOrder::route('/{record}'),
+            'edit' => EditPurchaseOrder::route('/{record}/edit'),
         ];
     }
 

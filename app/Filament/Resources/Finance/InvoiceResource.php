@@ -4,16 +4,20 @@ namespace App\Filament\Resources\Finance;
 
 use App\Enums\Finance\InvoiceStatus;
 use App\Enums\Finance\InvoiceType;
-use App\Filament\Resources\Finance\InvoiceResource\Pages\CreateInvoice;
+use App\Filament\Resources\Finance\InvoiceResource\Pages\EditInvoice;
 use App\Filament\Resources\Finance\InvoiceResource\Pages\ListInvoices;
 use App\Filament\Resources\Finance\InvoiceResource\Pages\ViewInvoice;
 use App\Models\Finance\Invoice;
 use Filament\Actions\BulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -45,12 +49,41 @@ class InvoiceResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'invoice_number';
 
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in US-E018
+                Section::make('Invoice Edit')
+                    ->description('Only editable while invoice is in Draft status.')
+                    ->columns(2)
+                    ->schema([
+                        DatePicker::make('due_date')
+                            ->label('Due Date')
+                            ->disabled(fn (?Invoice $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Toggle::make('is_disputed')
+                            ->label('Disputed')
+                            ->live()
+                            ->disabled(fn (?Invoice $record): bool => $record !== null && ! $record->isDraft()),
+
+                        Textarea::make('notes')
+                            ->label('Notes')
+                            ->maxLength(1000)
+                            ->columnSpanFull(),
+
+                        Textarea::make('dispute_reason')
+                            ->label('Dispute Reason')
+                            ->maxLength(2000)
+                            ->visible(fn ($get): bool => (bool) $get('is_disputed'))
+                            ->required(fn ($get): bool => (bool) $get('is_disputed'))
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 
@@ -226,6 +259,8 @@ class InvoiceResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (Invoice $record): bool => $record->isDraft()),
             ])
             ->toolbarActions([
                 BulkAction::make('export_csv')
@@ -303,8 +338,8 @@ class InvoiceResource extends Resource
     {
         return [
             'index' => ListInvoices::route('/'),
-            'create' => CreateInvoice::route('/create'),
             'view' => ViewInvoice::route('/{record}'),
+            'edit' => EditInvoice::route('/{record}/edit'),
         ];
     }
 

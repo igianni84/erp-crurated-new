@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
+namespace App\Filament\Resources\Procurement\InboundResource\Pages;
 
-use App\Filament\Resources\Allocation\AllocationResource;
-use App\Models\Allocation\Allocation;
+use App\Filament\Resources\Procurement\InboundResource;
+use App\Models\Procurement\Inbound;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditAllocation extends EditRecord
+class EditInbound extends EditRecord
 {
-    protected static string $resource = AllocationResource::class;
+    protected static string $resource = InboundResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -28,11 +28,11 @@ class EditAllocation extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var Allocation $record */
+        /** @var Inbound $record */
         $record = $this->getRecord();
 
-        if (! $record->isDraft()) {
-            $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+        if ($record->isCompleted()) {
+            $this->redirect(InboundResource::getUrl('view', ['record' => $record]));
         }
     }
 }

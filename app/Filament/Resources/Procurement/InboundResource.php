@@ -6,13 +6,20 @@ use App\Enums\Procurement\InboundPackaging;
 use App\Enums\Procurement\InboundStatus;
 use App\Enums\Procurement\OwnershipFlag;
 use App\Filament\Resources\Procurement\InboundResource\Pages\CreateInbound;
+use App\Filament\Resources\Procurement\InboundResource\Pages\EditInbound;
 use App\Filament\Resources\Procurement\InboundResource\Pages\ListInbounds;
 use App\Filament\Resources\Procurement\InboundResource\Pages\ViewInbound;
 use App\Models\Procurement\Inbound;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -49,7 +56,91 @@ class InboundResource extends Resource
         return $schema
             ->columns(1)
             ->components([
-                // Form schema will be implemented in wizard stories (US-038 to US-041)
+                Section::make('Procurement Linkage')
+                    ->columns(2)
+                    ->schema([
+                        Select::make('procurement_intent_id')
+                            ->label('Procurement Intent')
+                            ->relationship('procurementIntent', 'id')
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled(fn (?Inbound $record): bool => $record !== null),
+
+                        Select::make('purchase_order_id')
+                            ->label('Purchase Order')
+                            ->relationship('purchaseOrder', 'id')
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->disabled(fn (?Inbound $record): bool => $record !== null),
+                    ]),
+
+                Section::make('Goods Details')
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('warehouse')
+                            ->label('Warehouse')
+                            ->required()
+                            ->maxLength(255)
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+
+                        TextInput::make('quantity')
+                            ->label('Quantity')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+
+                        Select::make('packaging')
+                            ->label('Packaging')
+                            ->options(collect(InboundPackaging::cases())
+                                ->mapWithKeys(fn (InboundPackaging $e) => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+
+                        Select::make('ownership_flag')
+                            ->label('Ownership')
+                            ->options(collect(OwnershipFlag::cases())
+                                ->mapWithKeys(fn (OwnershipFlag $e) => [$e->value => $e->label()])
+                                ->toArray())
+                            ->required()
+                            ->native(false)
+                            ->helperText('Clarify ownership status: Owned, In Custody, or Pending.')
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+                    ]),
+
+                Section::make('Serialization')
+                    ->columns(2)
+                    ->schema([
+                        Toggle::make('serialization_required')
+                            ->label('Serialization Required')
+                            ->live()
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+
+                        TextInput::make('serialization_location_authorized')
+                            ->label('Authorized Location')
+                            ->maxLength(255)
+                            ->visible(fn ($get): bool => (bool) $get('serialization_required'))
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+
+                        TextInput::make('serialization_routing_rule')
+                            ->label('Routing Rule')
+                            ->maxLength(255)
+                            ->visible(fn ($get): bool => (bool) $get('serialization_required'))
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+                    ]),
+
+                Section::make('Notes')
+                    ->columns(1)
+                    ->schema([
+                        Textarea::make('condition_notes')
+                            ->label('Condition Notes')
+                            ->maxLength(2000)
+                            ->disabled(fn (?Inbound $record): bool => $record !== null && $record->isCompleted()),
+                    ]),
             ]);
     }
 
@@ -248,6 +339,8 @@ class InboundResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                EditAction::make()
+                    ->visible(fn (Inbound $record): bool => ! $record->isCompleted()),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
@@ -283,6 +376,7 @@ class InboundResource extends Resource
             'index' => ListInbounds::route('/'),
             'create' => CreateInbound::route('/create'),
             'view' => ViewInbound::route('/{record}'),
+            'edit' => EditInbound::route('/{record}/edit'),
         ];
     }
 

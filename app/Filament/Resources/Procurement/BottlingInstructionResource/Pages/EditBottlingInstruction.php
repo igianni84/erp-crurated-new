@@ -1,18 +1,18 @@
 <?php
 
-namespace App\Filament\Resources\Allocation\AllocationResource\Pages;
+namespace App\Filament\Resources\Procurement\BottlingInstructionResource\Pages;
 
-use App\Filament\Resources\Allocation\AllocationResource;
-use App\Models\Allocation\Allocation;
+use App\Filament\Resources\Procurement\BottlingInstructionResource;
+use App\Models\Procurement\BottlingInstruction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
 
-class EditAllocation extends EditRecord
+class EditBottlingInstruction extends EditRecord
 {
-    protected static string $resource = AllocationResource::class;
+    protected static string $resource = BottlingInstructionResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -28,11 +28,11 @@ class EditAllocation extends EditRecord
     {
         parent::authorizeAccess();
 
-        /** @var Allocation $record */
+        /** @var BottlingInstruction $record */
         $record = $this->getRecord();
 
         if (! $record->isDraft()) {
-            $this->redirect(AllocationResource::getUrl('view', ['record' => $record]));
+            $this->redirect(BottlingInstructionResource::getUrl('view', ['record' => $record]));
         }
     }
 }

@@ -37,6 +37,14 @@ class HandleStripePaymentFailure implements ShouldQueue
     use InteractsWithQueue;
 
     /**
+     * Handle the StripePaymentFailed event (dispatched via event system).
+     */
+    public function handle(StripePaymentFailed $event): void
+    {
+        $this->sendInternalNotification($event);
+    }
+
+    /**
      * Handle the webhook for payment failures.
      *
      * Called directly by the webhook processor, not via event.
