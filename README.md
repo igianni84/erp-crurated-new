@@ -48,20 +48,20 @@ app/
 │   ├── Fulfillment/      # ShippingOrder, Shipment
 │   ├── Finance/          # Invoice, Payment, CreditNote, Subscription
 │   └── AI/               # AI assistant audit logs
-├── Services/{Module}/    # Business logic (41 services)
-├── Enums/{Module}/       # String-backed enums (95 enums)
+├── Services/{Module}/    # Business logic (45 services)
+├── Enums/{Module}/       # String-backed enums (96 enums)
 ├── Events/{Module}/      # Domain events for cross-module communication
 ├── Listeners/{Module}/   # Event handlers
 ├── Jobs/{Module}/        # Queued and scheduled jobs
 ├── Filament/
 │   ├── Resources/{Module}/  # 45 admin CRUD resources
-│   ├── Pages/{Module}/      # 33 custom admin pages
+│   ├── Pages/{Module}/      # 35 custom admin pages
 │   └── Widgets/{Module}/    # 11 dashboard widgets
 ├── Traits/               # HasUuid, Auditable, AuditLoggable, etc.
 └── Providers/            # EventServiceProvider, AdminPanelProvider
 ```
 
-**78 models** across **10 modules**. See [Architecture Guide](docs/ARCHITECTURE.md) for the full module map and dependency diagram.
+**80 models** across **10 modules**. See [Architecture Guide](docs/ARCHITECTURE.md) for the full module map and dependency diagram.
 
 ## Development Commands
 
@@ -70,7 +70,7 @@ composer run dev      # Start dev server + queue + logs + Vite
 composer quality      # Run lint + PHPStan + tests (full pipeline)
 composer lint         # Fix code style (Pint)
 composer lint:test    # Check code style without fixing
-composer analyse      # Run PHPStan (level 6)
+composer analyse      # Run PHPStan (level 8)
 composer test         # Run PHPUnit tests
 
 # Specific test
@@ -123,7 +123,7 @@ See `.env.example` for all variables with inline documentation.
 | [Onboarding Guide](docs/ONBOARDING.md) | First-day setup, orientation, glossary |
 | [Architecture Guide](docs/ARCHITECTURE.md) | Modules, patterns, events, invariants, scheduled jobs |
 | `docs/modules/*.md` | Per-module UX narratives and business logic |
-| `tasks/prd-module-*.md` | Product Requirements Documents (542 user stories) |
+| `tasks/prd-module-*.md` | Product Requirements Documents (12 PRDs) |
 | `CLAUDE.md` | AI agent instructions + complete project overview |
 
 ## License

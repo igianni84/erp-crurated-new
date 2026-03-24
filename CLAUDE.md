@@ -59,7 +59,7 @@
 
 ### Tech Stack
 - **Backend:** Laravel 12, PHP 8.5, MySQL (SQLite dev)
-- **Admin UI:** Filament 5 (45 resources, 33 custom pages, 11 widgets)
+- **Admin UI:** Filament 5 (45 resources, 35 custom pages, 11 widgets)
 - **Frontend:** Tailwind CSS 4, Vite 7
 - **Search:** Meilisearch 1.39 + Laravel Scout (typo tolerance, faceted filtering, relevance ranking)
 - **Integrations:** Stripe (payments), Xero (accounting), WMS (warehouse), Liv-ex (wine data)
@@ -77,7 +77,9 @@
 | B | Inventory | Locations, InboundBatches, SerializedBottles, Cases, Movements (append-only) | ✅ Done |
 | C | Fulfillment | ShippingOrders → Late Binding → Shipments, Voucher Redemption | ✅ Done |
 | E | Finance | Invoices (INV0-INV4), Payments, CreditNotes, Refunds, Subscriptions, Storage | ✅ Done (132/132) |
-| — | Admin Panel | Dashboards, Alert Center, Audit Viewer, System Health | 📋 PRD ready |
+| — | Admin Panel | Dashboards, Alert Center, Audit Viewer, System Health | 🔧 ~60% (dashboards done, shell TODO) |
+| — | AI Assistant | NLP query interface, 20+ domain tools, audit logging | 🔧 ~60% (tools + page, SDK integration TODO) |
+| — | Ecommerce | StorefrontApplication, multi-frontend, checkout API | 📋 PRD ready |
 
 ### Architecture Patterns
 - **Domain folders:** `app/{Models,Services,Enums,Events,Listeners,Jobs,Filament}/Module/`
@@ -101,12 +103,12 @@
 9. **ERP authorizes, WMS executes** (never the reverse)
 
 ### Codebase Numbers
-- 78 Models, 42 Services, 95 Enums, 18 Jobs, 9 Events, 6 Listeners, 16 Policies
+- 80 Models, 45 Services, 96 Enums, 18 Jobs, 9 Events, 6 Listeners, 43 Policies
 - 3 Observers, 2 Notifications, 1 Mailable
-- 110 migrations, 45 Filament Resources, 35 custom pages, 11 widgets, 6 RelationManagers
-- 35 seeders, 48 factories, 81 test files, 764 tests
-- 11 scheduled tasks in routes/console.php
-- PRDs totali: 542 user stories across 10 modules
+- 114 migrations, 45 Filament Resources, 35 custom pages, 11 widgets, 12 RelationManagers
+- 35 seeders, 50 factories, 118 test files, 1146 tests
+- 12 scheduled tasks in routes/console.php (incl. horizon:snapshot)
+- PRDs totali: 12 PRDs across 10 modules + AI + Ecommerce
 
 ### Migration Numbering
 - Module 0 (PIM): 200000+
