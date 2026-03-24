@@ -53,7 +53,7 @@ The staging database has already been created:
 2. Copy contents of `.env.staging.example` from the repo
 3. Fill in the secrets:
    - `APP_KEY` — generate with `php artisan key:generate --show`
-   - `DB_PASSWORD` — `IPsIYB5HsLWkThtXtqRa`
+   - `DB_PASSWORD` — set in Ploi environment panel (never commit)
    - Any integration keys (Stripe test, Xero, Liv-ex) as they become available
 
 ## 7. Deploy Script
