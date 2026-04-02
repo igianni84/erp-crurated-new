@@ -376,9 +376,9 @@ class ProcurementIntentResource extends Resource
         return [
             'index' => ListProcurementIntents::route('/'),
             'create' => CreateProcurementIntent::route('/create'),
+            'aggregated' => AggregatedProcurementIntents::route('/aggregated'),
             'view' => ViewProcurementIntent::route('/{record}'),
             'edit' => EditProcurementIntent::route('/{record}/edit'),
-            'aggregated' => AggregatedProcurementIntents::route('/aggregated'),
         ];
     }
 
